@@ -1,0 +1,32 @@
+version: 2
+updates:
+  # The cooldown matches `minimumReleaseAge` in pnpm-workspace.yaml: a version younger than 7 days
+  # would fail `pnpm install`.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "08:00"
+      timezone: Europe/Warsaw
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    groups:
+      dependencies:
+        patterns: ["*"]
+
+  # Bumps the SHA-pinned external actions in .github/workflows/.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "08:00"
+      timezone: Europe/Warsaw
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    groups:
+      actions:
+        patterns: ["*"]

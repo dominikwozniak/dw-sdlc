@@ -1,0 +1,7 @@
+# Gitignored files a fresh worktree needs. Syntax is .gitignore's; a file is copied only when it
+# matches a pattern here and is gitignored, so tracked files are never duplicated. Claude Code applies
+# this to every worktree it creates.
+.ai/agentic.config.local.json
+.claude/settings.local.json
+# The reference clones; `pnpm references:sync` in the worktree fetches any this misses.
+references/*/

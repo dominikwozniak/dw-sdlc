@@ -1,0 +1,21 @@
+{
+  "name": "dw-sdlc",
+  "owner": {
+    "name": "Dominik Woźniak"
+  },
+  "metadata": {
+    "description": "Dominik Woźniak's software delivery process for Claude Code: a plugin marketplace and the code behind it.",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "guardrails",
+      "version": "0.4.0",
+      "source": "./plugins/guardrails",
+      "description": "Deterministic guardrails for an agent session: refuses destructive git, the env files the repository does not vouch for, the wrong package manager and sloppy commits, each rule read from the repository's .ai/agentic.config.json.",
+      "keywords": ["guardrails", "hooks", "git", "env", "pnpm", "worktree"],
+      "category": "utilities",
+      "tags": ["guardrails", "hooks", "safety"]
+    }
+  ]
+}

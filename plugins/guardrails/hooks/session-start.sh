@@ -1,0 +1,64 @@
+#!/bin/bash
+# SessionStart report — what a fresh context should know before its first turn, as
+# additionalContext. Reports, never installs: the timings of a real setup are unknown, so a session
+# is told what a fresh checkout lacks and decides for itself.
+#
+#   - jq missing: every guard in this plugin is silent, and this is the one place that says so
+#   - an invalid .ai/agentic.config.json or local override: one loud line with every problem, and the
+#     reminder that the guards run on the strictest defaults until it is fixed
+#   - in a linked worktree only: the .worktreeinclude files the checkout still lacks (the same rule
+#     Claude Code copies by — match a pattern AND be gitignored — computed by git, so it never drifts),
+#     and the worktree.setup commands from the config
+#
+# Nothing to say means no output at all. A main checkout in order is silent.
+set -uo pipefail
+export LC_ALL=C
+
+REPORT=""
+say() { REPORT+="${REPORT:+$'\n'}$1"; }
+
+# Without jq nothing below can run, and plain stdout reaches Claude for SessionStart.
+if ! command -v jq >/dev/null 2>&1; then
+  printf '%s\n' "guardrails: jq is missing, so every guard in this plugin is silent until it is installed (brew install jq)."
+  exit 0
+fi
+
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+guard_read_payload "$@" || exit 0
+cwd="$GUARD_CWD"
+
+guard_config_load "$cwd"
+if [[ -n "$GUARD_CONFIG_PROBLEMS" ]]; then
+  say "agentic config: INVALID, the guards run on the strictest defaults until it is fixed:"
+  while IFS= read -r line; do say "  $line"; done <<<"$GUARD_CONFIG_PROBLEMS"
+fi
+
+if main=$(guard_worktree_main "$cwd"); then
+  worktree="$GUARD_CONFIG_ROOT"
+
+  # 1. What .worktreeinclude would have copied and is not here: ignored in the main checkout AND
+  #    matching a pattern, two ls-files runs intersected.
+  include="$worktree/.worktreeinclude"
+  [[ -f "$include" ]] || include="$main/.worktreeinclude"
+  if [[ -f "$include" ]]; then
+    missing=""
+    while IFS= read -r rel; do
+      [[ -n "$rel" ]] || continue
+      case "$rel" in
+        node_modules/* | */node_modules/* | .claude/worktrees/* | .git/*) continue ;;
+      esac
+      [[ -e "$worktree/$rel" ]] || missing+="${missing:+, }$rel"
+    done < <(comm -12 \
+      <(git -C "$main" -c core.quotePath=false ls-files -o -i --exclude-standard | sort) \
+      <(git -C "$main" -c core.quotePath=false ls-files -o -i --exclude-from="$include" | sort))
+    [[ -n "$missing" ]] && say "worktree: .worktreeinclude files not present here: $missing. Copy them from $main."
+  fi
+
+  # 2. The setup a fresh checkout needs, from the config. Reported, not run.
+  setup=$(jq -r '.worktree.setup | join("; ")' <<<"$GUARD_CONFIG")
+  [[ -n "$setup" ]] && say "worktree: a fresh checkout still needs: $setup"
+fi
+
+[[ -n "$REPORT" ]] || exit 0
+jq -n --arg c "$REPORT" '{hookSpecificOutput: {hookEventName: "SessionStart", additionalContext: $c}}'
+exit 0
