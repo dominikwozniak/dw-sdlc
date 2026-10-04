@@ -4,7 +4,13 @@ import { join } from "node:path"
 import { describe, it } from "node:test"
 import { pathToFileURL } from "node:url"
 
-import { COMMITTED_FILE, LOCAL_FILE, resolveConfig, schemaId } from "../../scripts/agentic-config.ts"
+import {
+  COMMITTED_FILE,
+  type CommitConvention,
+  LOCAL_FILE,
+  resolveConfig,
+  schemaId
+} from "../../scripts/agentic-config.ts"
 import { GLOBAL_DENY, LEASE_RULE, type Step, schemaReference, setup } from "../../scripts/guardrails-setup.ts"
 import { commit, git, initRepo, runScript, scratch, write as writeFile, writeJson } from "../harness.ts"
 
@@ -54,8 +60,18 @@ function outcomes(steps: Step[]): Record<string, string> {
   return Object.fromEntries(steps.map((step) => [step.file, step.outcome]))
 }
 
-function run(root: string, home: string, options: { force?: boolean; dryRun?: boolean } = {}): Step[] {
-  return setup({ root, home, force: options.force ?? false, dryRun: options.dryRun ?? false })
+function run(
+  root: string,
+  home: string,
+  options: { force?: boolean; dryRun?: boolean; convention?: CommitConvention } = {}
+): Step[] {
+  return setup({
+    root,
+    home,
+    force: options.force ?? false,
+    dryRun: options.dryRun ?? false,
+    convention: options.convention
+  })
 }
 
 describe("setup", () => {
@@ -98,7 +114,7 @@ describe("setup", () => {
     })
 
     const local = json(join(root, LOCAL_FILE))
-    assert.equal(local.commit, undefined, "the convention is never pinned locally")
+    assert.equal(local.commit, undefined, "no flag, so nothing about the convention")
     assert.deepEqual(local.packageManagers, { node: "pnpm" })
     // No marketplace registered in this home, so the $id: never the install cache, which moves with
     // every plugin version.
@@ -198,16 +214,64 @@ describe("setup", () => {
     assert.equal(json(join(pinned, LOCAL_FILE)).packageManagers, undefined)
   })
 
+  it("pins the convention the flag names, over a committed one too; a re-run with the flag changes nothing", () => {
+    const root = nodeRepo()
+    const home = scratch("home")
+    const first = run(root, home, { convention: "ticket-key" })
+    assert.equal(outcomes(first)[LOCAL_FILE], "wrote")
+    const local = json(join(root, LOCAL_FILE))
+    assert.deepEqual(local.commit, { convention: "ticket-key" })
+    assert.deepEqual(local.packageManagers, { node: "pnpm" }, "the inferred keys stay beside it")
+    const { config, problems } = resolveConfig(root)
+    assert.deepEqual(problems, [])
+    assert.equal(config.commit.convention, "ticket-key")
+
+    const text = readFileSync(join(root, LOCAL_FILE), "utf8")
+    const again = run(root, home, { convention: "ticket-key" })
+    assert.deepEqual(new Set(again.map((step) => step.outcome)), new Set(["unchanged"]))
+    assert.equal(readFileSync(join(root, LOCAL_FILE), "utf8"), text)
+
+    const explicit = nodeRepo()
+    write(explicit, COMMITTED_FILE, JSON.stringify({ commit: { convention: "ticket-key" } }) + "\n")
+    run(explicit, scratch("home"), { convention: "conventional" })
+    assert.deepEqual(
+      json(join(explicit, LOCAL_FILE)).commit,
+      { convention: "conventional" },
+      "the flag is explicit, so it is written even where the committed config sets one"
+    )
+  })
+
+  it("without the flag a run keeps the pinned convention, --force included; the flag replaces it", () => {
+    const root = nodeRepo()
+    const home = scratch("home")
+    run(root, home, { convention: "ticket-key" })
+    const text = readFileSync(join(root, LOCAL_FILE), "utf8")
+    const bare = run(root, home)
+    assert.deepEqual(new Set(bare.map((step) => step.outcome)), new Set(["unchanged"]))
+    assert.equal(readFileSync(join(root, LOCAL_FILE), "utf8"), text)
+
+    const forced = run(root, home, { force: true })
+    assert.equal(outcomes(forced)[LOCAL_FILE], "unchanged")
+    assert.deepEqual(json(join(root, LOCAL_FILE)).commit, { convention: "ticket-key" }, "--force drops no pin")
+
+    const replaced = run(root, home, { convention: "conventional" })
+    assert.equal(outcomes(replaced)[LOCAL_FILE], "wrote")
+    assert.deepEqual(json(join(root, LOCAL_FILE)).commit, { convention: "conventional" })
+  })
+
   it("refuses to overwrite a differing local file without --force", () => {
     const root = nodeRepo()
     const home = scratch("home")
-    write(root, LOCAL_FILE, JSON.stringify({ commit: { convention: "ticket-key" } }) + "\n")
+    const byHand = { baseBranch: "develop", commit: { convention: "ticket-key" } }
+    write(root, LOCAL_FILE, JSON.stringify(byHand) + "\n")
     const steps = run(root, home)
     assert.equal(outcomes(steps)[LOCAL_FILE], "refused")
-    assert.deepEqual(json(join(root, LOCAL_FILE)), { commit: { convention: "ticket-key" } })
+    assert.deepEqual(json(join(root, LOCAL_FILE)), byHand)
     const forced = run(root, home, { force: true })
     assert.equal(outcomes(forced)[LOCAL_FILE], "wrote")
-    assert.equal(json(join(root, LOCAL_FILE)).commit, undefined)
+    const local = json(join(root, LOCAL_FILE))
+    assert.equal(local.baseBranch, undefined, "the other content is gone")
+    assert.deepEqual(local.commit, { convention: "ticket-key" }, "the pin is the setup's own content and stays")
   })
 
   it("keeps what the settings files already hold and appends to it", () => {
@@ -288,9 +352,22 @@ describe("the guardrails:setup command", () => {
     assert.match(dry.stdout, /^would write \.ai\/agentic\.config\.local\.json$/m)
     assert.ok(!existsSync(join(root, LOCAL_FILE)))
 
-    write(root, LOCAL_FILE, JSON.stringify({ commit: { convention: "conventional" } }) + "\n")
+    write(root, LOCAL_FILE, JSON.stringify({ baseBranch: "develop" }) + "\n")
     const refused = runScript("guardrails-setup", ["--root", root, "--home", home])
     assert.equal(refused.status, 1)
     assert.match(refused.stdout, /^refused {5}\.ai\/agentic\.config\.local\.json — exists with other content/m)
+  })
+
+  it("--convention pins the named preset; a value off the enum is a usage error", () => {
+    const root = nodeRepo()
+    const home = scratch("home")
+    const pinned = runScript("guardrails-setup", ["--root", root, "--home", home, "--convention", "ticket-key"])
+    assert.equal(pinned.status, 0, pinned.stderr)
+    assert.deepEqual(json(join(root, LOCAL_FILE)).commit, { convention: "ticket-key" })
+
+    const off = runScript("guardrails-setup", ["--root", root, "--home", home, "--convention", "jira"])
+    assert.equal(off.status, 2)
+    assert.match(off.stderr, /--convention.*ticket-key.*conventional/)
+    assert.match(off.stderr, /^Usage:/m)
   })
 })

@@ -21,7 +21,8 @@ Without a file: resolves the agentic config of the repository holding --root (de
 directory) — local over committed over inferred — and prints what the guards see. With a file:
 validates that one document against the schema. Exit 1 on any problem.`
 
-export type CommitConvention = "ticket-key" | "conventional"
+export const COMMIT_CONVENTIONS = ["ticket-key", "conventional"] as const
+export type CommitConvention = (typeof COMMIT_CONVENTIONS)[number]
 export type NodePackageManager = "pnpm" | "npm" | "yarn" | "bun"
 export type ForcePush = "deny" | "lease"
 export type EnvPolicy = "deny" | "git"

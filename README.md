@@ -68,7 +68,8 @@ Every rule in full: [plugin README](plugins/guardrails/README.md#guards).
 ```
 
 Everything unset is inferred: the package manager from the lockfile, Conventional Commits for the
-subject. A repository whose subjects start with a ticket key sets `"commit": { "convention": "ticket-key" }`.
+subject. A repository whose subjects start with a ticket key sets `"commit": { "convention": "ticket-key" }`;
+on one machine only, `/guardrails-setup ticket-key` pins it in the local layer instead.
 Every key: [schema](plugins/guardrails/config/agentic.config.schema.json).
 
 ## Docs

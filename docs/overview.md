@@ -92,10 +92,10 @@ key and its inferred value is described in the
 for editors; the guards always validate against the schema the plugin ships.
 
 The `/guardrails-setup` skill then writes this machine's local config layer from what it infers,
-excludes it from git, and adds a permission backstop to `.claude/settings.local.json` plus the
-lease-push exception to `~/.claude/settings.json`. It shows a dry run first and writes only what
-would change. `pnpm guardrails:doctor --root <path>`, run from a checkout of this repository, prints
-one PASS / WARN / FAIL line per machine check.
+plus the commit convention when asked for one, excludes it from git, and adds a permission backstop
+to `.claude/settings.local.json` plus the lease-push exception to `~/.claude/settings.json`. It shows
+a dry run first and writes only what would change. `pnpm guardrails:doctor --root <path>`, run from a
+checkout of this repository, prints one PASS / WARN / FAIL line per machine check.
 
 ## From GitHub or from a clone
 

@@ -84,8 +84,9 @@ disk is in the next session, a broken edit included.
 
 The `guardrails-setup` skill runs `scripts/guardrails-setup.ts`: it writes this machine's
 `.ai/agentic.config.local.json` with `$schema` and, when the committed config leaves it unset, the
-Node package manager from the lockfile. It never writes `commit.convention`: a repository that wants
-`ticket-key` sets it in its committed or local config by hand. The script also excludes the local
+Node package manager from the lockfile. `commit.convention` is written only when
+`--convention ticket-key` or `--convention conventional` asks for it, because a local pin outranks a
+convention the repository commits later; a run without the flag keeps a pin as it is. The script also excludes the local
 config and `.claude/settings.local.json` in `.git/info/exclude`, generates `permissions.deny`
 into `.claude/settings.local.json` as the backstop for a machine without `jq` (the destructive git
 set in plain and `rtk` form, `Read`/`Edit` rules for every env file the resolved

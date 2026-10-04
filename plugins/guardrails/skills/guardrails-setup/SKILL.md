@@ -20,6 +20,10 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/guardrails-setup.ts" --dry-run
 node "${CLAUDE_PLUGIN_ROOT}/scripts/guardrails-setup.ts"
 ```
 
+When the argument or the request names a commit convention, as `/guardrails-setup ticket-key` does,
+pass `--convention ticket-key` or `--convention conventional` to both commands; without one, pass no
+flag, and a pin the local config already holds stays.
+
 Node 24 or later is needed for the TypeScript to run natively; the hooks themselves need only bash
 and jq.
 
@@ -27,11 +31,13 @@ and jq.
 
 - `.ai/agentic.config.local.json` — the machine's layer over the committed `.ai/agentic.config.json`:
   the Node package manager from the lockfile, only where the committed file leaves it unset, because
-  the local layer outranks it. It never pins `commit.convention`; a repository that wants `ticket-key`
-  sets `"commit": { "convention": "ticket-key" }` in its committed or local config by hand. `$schema` is a `file://` URL to the schema in the marketplace's
-  clone, since the `$id` sits in a private repository an editor cannot fetch. An existing file with
-  other content than `$schema` is refused; `--force` overwrites it. In a linked worktree it goes to the worktree, the two files below to the main
-  checkout. Edited by hand, the file may tighten `guardrails` and never loosen it.
+  the local layer outranks it. `commit.convention` is pinned by `--convention` and kept by a run
+  without it, so the flag is passed once; a local pin outranks a convention the repository commits
+  later, and a repository that commits its convention needs none. `$schema` is a `file://` URL to
+  the schema in the marketplace's clone, since the `$id` sits in a private repository an editor
+  cannot fetch. An existing file with other content than `$schema` and the pin is refused; `--force`
+  overwrites it and keeps the pin. In a linked worktree it goes to the worktree, the two files below
+  to the main checkout. Edited by hand, the file may tighten `guardrails` and never loosen it.
 - `.git/info/exclude` — that file and `.claude/settings.local.json`, so neither reaches a commit and
   the tracked `.gitignore` stays the repository's.
 - `.claude/settings.local.json` — `permissions.deny` as the backstop for a machine without `jq`: the

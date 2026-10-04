@@ -64,9 +64,11 @@ refuses.
   `rtk` form, as the backstop for a machine without `jq`; `~/.claude/settings.json` gets only the
   irreversible non-git set (`rm` at `/`, `~` or `.`, `shred`, `find -delete`, `git stash clear`) and
   the one `autoMode.allow` exception for lease pushes.
-- The setup writes only what inference cannot get wrong later: the local layer holds `$schema` and the
-  Node package manager when the committed config leaves it unset. It never pins `commit.convention`,
-  because a local value would override a convention the repository commits later.
+- The setup writes what inference cannot get wrong later, plus the one pin the command line asks
+  for: the local layer holds `$schema`, the Node package manager when the committed config leaves it
+  unset, and `commit.convention` only when `--convention` names one, because a local value overrides
+  a convention the repository commits later. A run without the flag keeps the pin the file holds,
+  `--force` included, so the setup stays safe to repeat.
 - Guards are bash 3.2 plus jq, setup and doctor are TypeScript: a hook runs on every Bash call and
   needs nothing but bash and jq. Every guard gets a payload test, because the dispatcher's trigger
   list is what a guard's own self-test cannot see.
@@ -133,7 +135,8 @@ refuses.
   - Files: `plugins/guardrails/hooks/session-start.sh`
 - [x] Task: Setup skill
   - Verify: `test/scripts/guardrails-setup.test.ts`: a run against a scratch repo writes the local
-    config, the exclude entries and the deny rules; a second run changes nothing
+    config, the exclude entries and the deny rules; a second run changes nothing; `--convention`
+    pins the named preset in the local config and a repeat with or without the flag changes nothing
   - Files: `plugins/guardrails/skills/guardrails-setup/SKILL.md`, `plugins/guardrails/scripts/guardrails-setup.ts`
 - [x] Task: Doctor
   - Verify: `test/scripts/guardrails-doctor.test.ts` fakes each probe and asserts its PASS / WARN /
