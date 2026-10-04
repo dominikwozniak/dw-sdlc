@@ -1,0 +1,132 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/dominikwozniak/dw-sdlc/main/plugins/guardrails/config/agentic.config.schema.json",
+  "title": "agentic.config",
+  "description": "How a repository works for an agent. `.ai/agentic.config.json` is committed; `.ai/agentic.config.local.json` overrides it on one machine and may tighten `guardrails` but never loosen it. A key neither file sets is inferred: the Node package manager from the lockfile, and the `conventional` commit preset. Unknown top-level keys are tolerated so other tool families can share the file; the keys named here refuse unknown children.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "version": {
+      "const": 1
+    },
+    "baseBranch": {
+      "description": "The branch pull requests target; `auto` reads the remote's default branch.",
+      "type": "string",
+      "minLength": 1
+    },
+    "packageManagers": {
+      "type": "object",
+      "properties": {
+        "node": {
+          "description": "Inferred from the lockfile. The package-manager guard refuses the other Node package managers only when this is `pnpm`.",
+          "enum": ["pnpm", "npm", "yarn", "bun"]
+        },
+        "ruby": {
+          "description": "Accepted so a repository can declare it; no guard reads it and nothing infers it.",
+          "enum": ["bundler"]
+        }
+      },
+      "additionalProperties": false
+    },
+    "guardrails": {
+      "description": "Policy the local override may tighten and never loosen. Every enum lists its strictest value first.",
+      "type": "object",
+      "properties": {
+        "forcePush": {
+          "description": "`deny` refuses every force push. `lease` lets `--force-with-lease` and `--force-if-includes` through to a branch outside `protectedBranches`; bare `--force` and `-f` stay refused.",
+          "enum": ["deny", "lease"]
+        },
+        "envFiles": {
+          "description": "Which env files (`.env`, `.env.*`, `.envrc`) an agent may read, edit or write. A candidate is judged in this order: listed in `deny` → refused; listed in `allow` → readable; `policy` `deny` → refused; `policy` `git` → readable when git tracks it, refused when git ignores it or does not know it. Entries are globs against the path relative to the repository root: `*` and `?` as in a shell pattern (`*` crosses `/`), a leading `**/` means at any depth, so `.env` is the one in the root and `**/.env.example` every file of that name. No brace groups. A path outside the repository root, or outside any repository, is judged by its basename against the `**/` entries alone. Defaults: policy `git`, allow the `.env.example`, `.env.sample` and `.env.template` names anywhere, deny nothing. The local override may drop `allow` entries and add `deny` entries, never the reverse.",
+          "type": "object",
+          "properties": {
+            "policy": {
+              "description": "What decides a candidate no list names. `deny` refuses it; `git` asks git: tracked passes, ignored or unknown is refused.",
+              "enum": ["deny", "git"]
+            },
+            "allow": {
+              "description": "Globs of the env files that are readable regardless of `policy`.",
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "uniqueItems": true
+            },
+            "deny": {
+              "description": "Globs of the env files that are refused regardless of `policy`; wins over `allow`.",
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "uniqueItems": true
+            }
+          },
+          "additionalProperties": false
+        },
+        "protectedBranches": {
+          "description": "Branches no force push may target. The local override may add to this list, never remove from it.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "commit": {
+      "type": "object",
+      "properties": {
+        "convention": {
+          "description": "The subject preset `pattern` falls back to. `ticket-key`: `[KEY-123] type: subject`, the tracker's key in brackets before a type from a fixed list. `conventional`: Conventional Commits; inferred when no layer sets either.",
+          "enum": ["ticket-key", "conventional"]
+        },
+        "pattern": {
+          "description": "POSIX ERE the commit subject must match; set, it wins over `convention`. bash `[[ =~ ]]` runs it, so no `\\d` or `\\s`. `.+` accepts any subject.",
+          "type": "string",
+          "minLength": 1,
+          "format": "regex"
+        },
+        "trailer": {
+          "description": "A trailer key, such as `Co-Authored-By`, that every commit message must carry on a line of its own.",
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9-]*$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "validation": {
+      "type": "object",
+      "properties": {
+        "commands": {
+          "description": "Commands that must pass before a change is done.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "worktree": {
+      "type": "object",
+      "properties": {
+        "setup": {
+          "description": "Commands a fresh linked worktree needs before work starts. Reported at session start, not run.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

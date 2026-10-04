@@ -1,0 +1,7 @@
+{
+  "enabledPlugins": {
+    "dw-solo@dw-solo-skills": false,
+    "dw-solo-setup@dw-solo-skills": false,
+    "dw-solo-extras@dw-solo-skills": false
+  }
+}

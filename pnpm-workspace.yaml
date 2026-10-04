@@ -1,0 +1,16 @@
+# pnpm 11 reads its configuration from this file, not from .npmrc (only auth and registry settings stay
+# there). No `packages:` key: the root package is the whole workspace.
+
+# Supply-chain baseline: a version must be public for 7 days before it resolves, strict — no fallback
+# to a younger one.
+minimumReleaseAge: 10080
+minimumReleaseAgeStrict: true
+
+# Refuse a version published with weaker provenance than an earlier one of the same package.
+trustPolicy: no-downgrade
+
+# Transitive dependencies resolve from the registry only — no git or tarball URLs.
+blockExoticSubdeps: true
+
+# A dependency's install scripts run only when listed under `allowBuilds`; anything else fails install.
+strictDepBuilds: true

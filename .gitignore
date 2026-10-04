@@ -1,0 +1,13 @@
+node_modules/
+
+# husky writes the wrappers git runs; the hooks themselves are tracked.
+.husky/_/
+
+# Local-only notes; the folder stays in the repo, its contents do not.
+ideas/*
+!ideas/.gitkeep
+
+# References are cloned on each machine by `pnpm references:sync`; only the router is tracked.
+references/*
+!references/AGENTS.md
+!references/CLAUDE.md

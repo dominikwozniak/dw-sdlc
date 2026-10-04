@@ -1,0 +1,255 @@
+// What block-env-access.sh refuses (exit 2) and lets through (exit 0), for the file tools and for
+// Bash, fed the real hook payload. The verdict is the config's `guardrails.envFiles`: a path in
+// `deny` is refused, one in `allow` passes, and the rest go to `policy` — `git` lets a tracked file
+// through and refuses the others, `deny` refuses them all. Without a config the defaults hold:
+// policy `git`, the `.env.example`, `.env.sample` and `.env.template` names allowed anywhere.
+
+import { symlinkSync } from "node:fs"
+import { join } from "node:path"
+import { describe, it } from "node:test"
+
+import { bashPayload, expectExit, filePayload, git, initRepo, runHook, scratch, write, writeJson } from "../harness.ts"
+
+const TMP = scratch("env")
+
+/**
+ * A repository with tracked .env, .env.test and .env.local.example, ignored
+ * .env.local and .env.development, an untracked .env.example, and nothing said about .env.production.
+ */
+function makeRepo(dir: string): string {
+  initRepo(dir, { branch: "main" })
+  write(join(dir, ".env"), "SAFE=1\n")
+  write(join(dir, ".env.test"), "TEST=1\n")
+  write(join(dir, ".env.local.example"), "")
+  write(join(dir, ".env.example"), "")
+  write(join(dir, "src", "env.ts"), "")
+  write(join(dir, ".gitignore"), ".env.development\n*.local\n")
+  write(join(dir, ".env.local"), "SECRET=1\n")
+  write(join(dir, ".env.development"), "SECRET=2\n")
+  git(dir, "add", ".gitignore", ".env", ".env.test", ".env.local.example", "src/env.ts")
+  return dir
+}
+const REPO = makeRepo(join(TMP, "repo"))
+const DENY = makeRepo(join(TMP, "deny"))
+writeJson(join(DENY, ".ai", "agentic.config.json"), { guardrails: { envFiles: { policy: "deny" } } })
+// The lists over git: the ignored .env.development is allowed, the tracked .env.test is denied, the
+// example names keep their default; a `config/.env.test` is not the root's `.env.test`.
+const LISTED = makeRepo(join(TMP, "listed"))
+write(join(LISTED, "config", ".env.test"), "TEST=1\n")
+git(LISTED, "add", "config/.env.test")
+writeJson(join(LISTED, ".ai", "agentic.config.json"), {
+  guardrails: {
+    envFiles: { policy: "git", allow: [".env.development", "**/.env.example"], deny: [".env.test"] }
+  }
+})
+// A local layer that adds an allow entry loosens, so the whole layer is dropped and every env file is refused.
+const LOOSENED = makeRepo(join(TMP, "loosened"))
+writeJson(join(LOOSENED, ".ai", "agentic.config.local.json"), {
+  guardrails: { envFiles: { allow: ["**/.env.example", "**/.env.sample", "**/.env.template", ".env.local"] } }
+})
+// A local layer that adds a deny entry tightens, and applies.
+const TIGHTENED = makeRepo(join(TMP, "tightened"))
+writeJson(join(TIGHTENED, ".ai", "agentic.config.local.json"), { guardrails: { envFiles: { deny: [".env"] } } })
+// policy deny with the allow list emptied refuses even the example names.
+const DENY_ALL = makeRepo(join(TMP, "deny-all"))
+writeJson(join(DENY_ALL, ".ai", "agentic.config.json"), { guardrails: { envFiles: { policy: "deny", allow: [] } } })
+// A bracket in an entry is literal, as in the TypeScript twin: `.env.[ab]` names one file, not two.
+const BRACKET = makeRepo(join(TMP, "bracket"))
+write(join(BRACKET, ".env.a"), "A=1\n")
+write(join(BRACKET, ".env.[ab]"), "B=1\n")
+git(BRACKET, "add", ".env.a", ".env.[ab]")
+writeJson(join(BRACKET, ".ai", "agentic.config.json"), { guardrails: { envFiles: { deny: [".env.[ab]"] } } })
+// A repository reached through a symlink, with entries that carry a directory: only a path resolved
+// to the root git reports can match them, and git resolves the symlink itself.
+const LINKED = makeRepo(join(TMP, "linked"))
+write(join(LINKED, "config", ".env.test"), "TEST=1\n")
+write(join(LINKED, "config", ".env.development"), "SECRET=1\n")
+git(LINKED, "add", "config/.env.test")
+writeJson(join(LINKED, ".ai", "agentic.config.json"), {
+  guardrails: { envFiles: { allow: ["config/.env.development"], deny: ["config/.env.test"] } }
+})
+const LINK = join(TMP, "link")
+symlinkSync(LINKED, LINK)
+// Env files outside every repository, reached from LISTED: its plain entries do not travel.
+const ELSEWHERE = join(TMP, "elsewhere")
+write(join(ELSEWHERE, ".env.development"), "SECRET=1\n")
+write(join(ELSEWHERE, ".env.example"), "")
+const PLAIN = join(TMP, "plain")
+write(join(PLAIN, ".env"), "X=1\n")
+write(join(PLAIN, ".env.example"), "")
+
+function blockedFile(name: string, tool: string, path: string, cwd = REPO): void {
+  it(name, () => {
+    expectExit(runHook("block-env-access", filePayload(tool, path, cwd)), 2)
+  })
+}
+function allowedFile(name: string, tool: string, path: string, cwd = REPO): void {
+  it(name, () => {
+    expectExit(runHook("block-env-access", filePayload(tool, path, cwd)), 0)
+  })
+}
+function blockedBash(name: string, command: string, cwd = REPO): void {
+  it(name, () => {
+    expectExit(runHook("block-env-access", bashPayload(command, cwd)), 2)
+  })
+}
+function allowedBash(name: string, command: string, cwd = REPO): void {
+  it(name, () => {
+    expectExit(runHook("block-env-access", bashPayload(command, cwd)), 0)
+  })
+}
+
+describe("file tools in the repository — git decides", () => {
+  blockedFile("read-ignored-abs", "Read", join(REPO, ".env.local"))
+  blockedFile("read-ignored-rel", "Read", ".env.local")
+  blockedFile("edit-ignored-development", "Edit", join(REPO, ".env.development"))
+  blockedFile("write-unknown-production", "Write", join(REPO, ".env.production"))
+  blockedFile("read-untracked-envrc", "Read", ".envrc")
+  blockedFile("read-other-repo-env", "Read", join(PLAIN, ".env"))
+  allowedFile("read-tracked-abs", "Read", join(REPO, ".env"))
+  allowedFile("read-tracked-rel", "Read", ".env")
+  allowedFile("read-tracked-dot-slash", "Read", "./.env")
+  allowedFile("edit-tracked-test", "Edit", ".env.test")
+  allowedFile("read-tracked-local-example", "Read", ".env.local.example")
+  allowedFile("read-example-by-name", "Read", ".env.example")
+  allowedFile("write-sample-by-name", "Write", "config/.env.sample")
+  allowedFile("read-env-ts", "Read", "src/env.ts")
+  allowedFile("grep-the-tree", "Grep", ".")
+})
+
+describe("bash in the repository", () => {
+  blockedBash("cat-ignored", "cat .env.local")
+  blockedBash("cp-ignored-out", "cp .env.local /tmp/x")
+  blockedBash("source-ignored", "source ./.env.development")
+  blockedBash("env-file-flag", "docker run --env-file=.env.local img")
+  blockedBash("cp-example-to-unknown", "cp .env.example .env.production")
+  blockedBash("append-ignored", "echo FOO=1 >> .env.local")
+  blockedBash("multiline-cat-ignored", "echo start\ncat .env.local")
+  blockedBash("heredoc-redirect-target", "cat > .env.local <<EOF\nSECRET=1\nEOF")
+  blockedBash("after-heredoc-cat", "cat <<EOF\nprose about .env.local\nEOF\ncat .env.local")
+  blockedBash("quoted-heredoc-opener-hides-nothing", 'echo "see << EOF"\ncat .env.local')
+  blockedBash("chained-after-safe", "cat .env && cat .env.local")
+  blockedBash("dq-path", 'cat ".env.local"')
+  allowedBash("grep for an env file's name", 'grep -rn ".env.local" src')
+  allowedBash("rg for an env file's name", "rg '.env.local' docs/")
+  allowedBash("git grep for an env file's name", 'git grep -n ".env.local"')
+  allowedBash("rtk grep for an env file's name", 'rtk grep ".env.local" src')
+  blockedBash("grep inside an ignored env file", "grep SECRET .env.local")
+  blockedBash("a read after a grep still counts", 'grep -rn ".env" src && cat ".env.local"')
+  blockedBash("sq-path", "cat '.env.local'")
+  blockedBash("dq-dot-slash-path", 'source "./.env.development"')
+  blockedBash("dq-redirect-target", 'echo FOO=1 >> ".env.local"')
+  allowedBash("dq-tracked", 'cat ".env"')
+  allowedBash("dq-example", 'cat ".env.example"')
+  allowedBash("prose-ending-in-a-path", 'git commit -m "chore: stop reading config/.env.local"')
+  allowedBash("cat-tracked", "cat .env")
+  allowedBash("cat-tracked-test", "cat .env.test")
+  allowedBash("cp-tracked-out", "cp .env /tmp/x")
+  allowedBash("cat-example", "cat .env.example")
+  allowedBash("cat-environment", "cat .environment")
+  allowedBash("cat-foo-env", "cat foo.env")
+  allowedBash("prose-in-quotes", 'git commit -m "load .env.local in prod"')
+  allowedBash("prose-multiline", 'git commit -m "subject\n- mentions .envrc and ./.env.local in the body"')
+  allowedBash("heredoc-commit-body", "git commit -F - <<'MSG'\nfix: mentions .env.local as prose\nMSG")
+  allowedBash("plain-ls", "ls -la")
+  allowedBash("empty-input", "")
+})
+
+function grepPayload(glob: string, path?: string, cwd = REPO): object {
+  return {
+    hook_event_name: "PreToolUse",
+    tool_name: "Grep",
+    cwd,
+    tool_input: { pattern: "SECRET", ...(path === undefined ? {} : { path }), glob }
+  }
+}
+function blockedGrep(name: string, glob: string, path?: string, cwd = REPO): void {
+  it(name, () => {
+    expectExit(runHook("block-env-access", grepPayload(glob, path, cwd)), 2)
+  })
+}
+function allowedGrep(name: string, glob: string, path?: string, cwd = REPO): void {
+  it(name, () => {
+    expectExit(runHook("block-env-access", grepPayload(glob, path, cwd)), 0)
+  })
+}
+
+describe("a directory Grep is judged by the env files its glob reaches", () => {
+  blockedGrep("glob-env-star-on-the-repo", ".env*", REPO)
+  blockedGrep("glob-env-star-without-a-path", ".env*")
+  blockedGrep("glob-naming-the-ignored-file", ".env.local", ".")
+  blockedGrep("glob-anywhere", "**/.env*", REPO)
+  blockedGrep("glob-with-braces", ".env.{local,production}", REPO)
+  blockedGrep("glob-env-star-under-deny", ".env*", DENY, DENY)
+  blockedGrep("glob-env-star-outside-a-repo", ".env*", PLAIN, PLAIN)
+  allowedGrep("glob-naming-the-example-outside-a-repo", ".env.example", PLAIN, PLAIN)
+  allowedGrep("glob-naming-the-tracked-file", ".env", REPO)
+  allowedGrep("glob-naming-the-example", ".env.example", REPO)
+  allowedGrep("glob-on-sources", "*.ts", REPO)
+  allowedGrep("glob-env-star-where-no-env-file-is", ".env*", "src")
+  allowedGrep("glob-with-braces-naming-tracked-files", ".env.{test,example}", REPO)
+})
+
+describe("guardrails.envFiles.policy: deny refuses even a tracked one", () => {
+  blockedFile("deny-read-tracked", "Read", ".env", DENY)
+  blockedBash("deny-cat-tracked", "cat .env", DENY)
+  allowedFile("deny-example-by-name", "Read", ".env.example", DENY)
+  blockedFile("deny-all-refuses-the-example", "Read", ".env.example", DENY_ALL)
+  blockedBash("deny-all-refuses-the-example-in-bash", "cat .env.example", DENY_ALL)
+})
+
+describe("the allow and deny lists decide before git", () => {
+  allowedFile("allow-beats-ignored", "Read", ".env.development", LISTED)
+  allowedBash("allow-beats-ignored-in-bash", "cat .env.development", LISTED)
+  allowedFile("allow-beats-ignored-abs", "Read", join(LISTED, ".env.development"), LISTED)
+  allowedFile("allow-beats-ignored-dot-slash", "Read", "./.env.development", LISTED)
+  blockedFile("deny-beats-tracked", "Read", ".env.test", LISTED)
+  blockedBash("deny-beats-tracked-in-bash", "cat .env.test", LISTED)
+  blockedFile("deny-beats-tracked-abs", "Edit", join(LISTED, ".env.test"), LISTED)
+  blockedBash("deny-beats-tracked-via-parent", "cat ../listed/.env.test", LISTED)
+  allowedFile("deny-entry-is-root-anchored", "Read", "config/.env.test", LISTED)
+  allowedFile("unlisted-tracked-still-passes", "Read", ".env", LISTED)
+  blockedFile("unlisted-ignored-still-refused", "Read", ".env.local", LISTED)
+  allowedFile("default-example-kept", "Read", "config/.env.example", LISTED)
+  blockedFile("default-sample-dropped-by-the-list", "Write", "config/.env.sample", LISTED)
+  blockedGrep("glob-reaching-the-denied-file", ".env.{test,example}", LISTED, LISTED)
+  allowedGrep("glob-reaching-the-allowed-file", ".env.development", LISTED, LISTED)
+  blockedFile("local-adding-allow-goes-strictest", "Read", ".env", LOOSENED)
+  blockedFile("local-adding-allow-refuses-the-example-too", "Read", ".env.example", LOOSENED)
+  blockedFile("local-adding-deny-applies", "Read", ".env", TIGHTENED)
+  allowedFile("local-adding-deny-keeps-the-rest", "Read", ".env.test", TIGHTENED)
+  blockedFile("deny-through-a-symlinked-path", "Read", join(LINK, "config", ".env.test"), LINKED)
+  allowedFile("allow-through-a-symlinked-path", "Read", join(LINK, "config", ".env.development"), LINKED)
+  blockedFile("deny-from-a-symlinked-cwd", "Read", "config/.env.test", LINK)
+  allowedFile("allow-from-a-symlinked-cwd", "Read", "config/.env.development", LINK)
+  blockedBash("deny-from-a-symlinked-cwd-in-bash", "cat config/.env.test", LINK)
+  blockedGrep("glob-from-a-symlinked-cwd", ".env.test", "config", LINK)
+  allowedGrep("glob-allowed-from-a-symlinked-cwd", ".env.development", "config", LINK)
+  blockedFile("plain-allow-stops-at-the-root", "Read", "../elsewhere/.env.development", LISTED)
+  blockedFile("plain-allow-stops-at-the-root-abs", "Read", join(ELSEWHERE, ".env.development"), LISTED)
+  blockedBash("plain-allow-stops-at-the-root-in-bash", "cat ../elsewhere/.env.development", LISTED)
+  allowedFile("any-depth-allow-reaches-outside", "Read", "../elsewhere/.env.example", LISTED)
+  blockedGrep("grep-outside-the-root-ignores-plain-allow", ".env.development", ELSEWHERE, LISTED)
+  blockedFile("bracket-is-literal-and-names-the-file", "Read", ".env.[ab]", BRACKET)
+  allowedFile("bracket-is-not-a-class", "Read", ".env.a", BRACKET)
+})
+
+describe("outside a repository the name decides", () => {
+  blockedFile("plain-read-env", "Read", join(PLAIN, ".env"), PLAIN)
+  blockedBash("plain-cat-env", "cat .env", PLAIN)
+  allowedFile("plain-read-example", "Read", ".env.example", PLAIN)
+  allowedBash("plain-cat-example", "cat .env.example", PLAIN)
+})
+
+describe("the fast path takes the command and the cwd from argv", () => {
+  it("fast-path-refuses-ignored", () => {
+    expectExit(runHook("block-env-access", "cat .env.local", { args: ["--bash-command", REPO] }), 2)
+  })
+  it("fast-path-allows-tracked", () => {
+    expectExit(runHook("block-env-access", "cat .env", { args: ["--bash-command", REPO] }), 0)
+  })
+  it("stray-env-var-cannot-skip-the-file-leg", () => {
+    const payload = { tool_name: "Read", cwd: REPO, tool_input: { file_path: ".env.local" } }
+    expectExit(runHook("block-env-access", payload, { env: { GUARD_COMMAND: "echo hi" } }), 2)
+  })
+})

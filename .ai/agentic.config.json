@@ -1,0 +1,15 @@
+{
+  "$schema": "../plugins/guardrails/config/agentic.config.schema.json",
+  "version": 1,
+  "packageManagers": { "node": "pnpm" },
+  "guardrails": {
+    "forcePush": "lease",
+    "envFiles": { "policy": "git" },
+    "protectedBranches": ["main"]
+  },
+  "commit": {
+    "convention": "conventional",
+    "trailer": "Co-Authored-By"
+  },
+  "validation": { "commands": ["pnpm check"] }
+}

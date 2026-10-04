@@ -1,0 +1,31 @@
+{
+  "name": "dw-sdlc",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lint": "oxlint . --disable-nested-config --deny-warnings",
+    "lint:fix": "oxlint . --disable-nested-config --deny-warnings --fix",
+    "format": "oxfmt --check --disable-nested-config .",
+    "format:fix": "oxfmt --disable-nested-config .",
+    "typecheck": "tsc -p tsconfig.json",
+    "check": "pnpm lint && pnpm format && pnpm typecheck && pnpm test",
+    "test": "node --test \"scripts/**/*.test.ts\" \"plugins/**/*.test.ts\"",
+    "agentic:check": "node plugins/guardrails/scripts/agentic-config.ts",
+    "guardrails:setup": "node plugins/guardrails/scripts/guardrails-setup.ts",
+    "guardrails:doctor": "node plugins/guardrails/scripts/guardrails-doctor.ts",
+    "references:sync": "node scripts/references-sync.ts",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@types/node": "24.13.5",
+    "husky": "9.1.7",
+    "lint-staged": "17.5.0",
+    "oxfmt": "0.67.0",
+    "oxlint": "1.82.0",
+    "typescript": "7.0.2"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "packageManager": "pnpm@11.21.0"
+}
