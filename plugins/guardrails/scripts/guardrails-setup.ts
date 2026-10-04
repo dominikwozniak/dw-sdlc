@@ -2,9 +2,10 @@
 // its content would change, so a repeat with nothing changed is silent and a run is safe to repeat:
 //
 //   .ai/agentic.config.local.json   the machine's layer, from inference: the Node package manager when
-//                                   the committed config leaves it unset, and $schema at the
-//                                   marketplace clone's schema. Refused when one exists with other
-//                                   content than $schema, unless --force.
+//                                   the committed config leaves it unset, $schema at the marketplace
+//                                   clone's schema, and commit.convention when --convention names one
+//                                   or the file already pins one. Refused when one exists with other
+//                                   content than those, unless --force.
 //   .git/info/exclude               keeps that file and .claude/settings.local.json out of git without
 //                                   touching the repository's tracked .gitignore
 //   .claude/settings.local.json     permissions.deny as the jq-less backstop for the hooks: the
@@ -28,7 +29,9 @@ import { parseArgs } from "node:util"
 
 import {
   type AgenticConfig,
+  COMMIT_CONVENTIONS,
   COMMITTED_FILE,
+  type CommitConvention,
   DEFAULT_GUARDRAILS,
   type EnvFiles,
   LOCAL_FILE,
@@ -43,14 +46,27 @@ import {
 
 export type Outcome = "wrote" | "unchanged" | "refused"
 export type Step = { file: string; outcome: Outcome; detail?: string }
-export type SetupOptions = { root: string; home: string; force: boolean; dryRun: boolean }
+export type SetupOptions = {
+  root: string
+  home: string
+  force: boolean
+  dryRun: boolean
+  /** Pins `commit.convention` in the local layer; left out, a pin the layer already holds stays. */
+  convention?: CommitConvention | undefined
+}
 
-const USAGE = `Usage: pnpm guardrails:setup [--root <dir>] [--home <dir>] [--force] [--dry-run]
+const USAGE = `Usage: pnpm guardrails:setup [--root <dir>] [--home <dir>] [--convention <preset>] [--force] [--dry-run]
 
 Writes .ai/agentic.config.local.json from inference, excludes it in .git/info/exclude, generates
 permissions.deny into .claude/settings.local.json, and adds the lease-push exception and the
 irreversible deny set to ~/.claude/settings.json. Every file is written only when it would change;
---force overwrites a local config that differs; --dry-run reports without writing.`
+--convention ticket-key | conventional pins commit.convention in the local config, and a run without
+it keeps the pin as it is; --force overwrites a local config that differs; --dry-run reports without
+writing.`
+
+function isConvention(value: string): value is CommitConvention {
+  return COMMIT_CONVENTIONS.some((preset) => preset === value)
+}
 
 /** The auto-mode exception that lets a lease push through the classifier's default force-push block. */
 export const LEASE_RULE =
@@ -191,24 +207,39 @@ export function schemaReference(home: string): string {
   return existsSync(schema) ? pathToFileURL(schema).href : schemaId()
 }
 
-/** The same layer apart from `$schema`: the annotation moves with the clone and is no one's content. */
-function sameContent(text: string, config: AgenticConfig): boolean {
-  const parsed = readJsonText(text)
-  if (!isObject(parsed)) {
-    return false
+/** The convention a local file pins, when it is one the setup writes: a run without `--convention` keeps it. */
+function pinnedConvention(existing: unknown): CommitConvention | undefined {
+  const commit = isObject(existing) ? existing.commit : undefined
+  const value = isObject(commit) ? commit.convention : undefined
+  return typeof value === "string" && isConvention(value) ? value : undefined
+}
+
+/**
+ * A layer without the keys the setup owns: `$schema`, which moves with the clone, and a pinned
+ * convention, which `--convention` may replace. Everything left is someone's content.
+ */
+function unowned(layer: JsonObject): JsonObject {
+  const { $schema: _schema, commit, ...rest } = layer
+  if (!isObject(commit) || pinnedConvention(layer) === undefined) {
+    return commit === undefined ? rest : { ...rest, commit }
   }
-  const { $schema: _existing, ...rest } = parsed
-  const { $schema: _written, ...wanted } = config
-  return render(rest) === render(wanted)
+  const { convention: _pinned, ...otherCommit } = commit
+  return Object.keys(otherCommit).length === 0 ? rest : { ...rest, commit: otherCommit }
+}
+
+/** The same layer apart from what the setup owns. */
+function sameContent(existing: unknown, config: AgenticConfig): boolean {
+  return isObject(existing) && render(unowned(existing)) === render(unowned(config))
 }
 
 /**
  * The machine's layer: what inference finds, minus every key the committed config already sets. The
  * local layer outranks the committed one, so an inferred key written here would override it. The
- * commit convention is never written: inference always gives the `conventional` default, and pinning it
- * here would override a convention the repository commits later.
+ * commit convention is written only when one is asked for, by `--convention` or by the pin the file
+ * already holds: inference always gives the `conventional` default, and pinning it here overrides a
+ * convention the repository commits later, so that is a choice, never a guess.
  */
-function localConfig(root: string, home: string): AgenticConfig {
+function localConfig(root: string, home: string, convention: CommitConvention | undefined): AgenticConfig {
   const inferred = inferConfig(root)
   const committed = committedConfig(root)
   const config: AgenticConfig = { $schema: schemaReference(home) }
@@ -218,6 +249,9 @@ function localConfig(root: string, home: string): AgenticConfig {
   }
   if (Object.keys(managers).length > 0) {
     config.packageManagers = managers
+  }
+  if (convention !== undefined) {
+    config.commit = { convention }
   }
   return config
 }
@@ -293,12 +327,13 @@ export function setup(options: SetupOptions): Step[] {
   const root = repositoryRoot(options.root)
   const { checkout, gitDir } = mainCheckout(root)
 
-  // 1. The local config, from inference.
+  // 1. The local config, from inference and the convention: the flag's, else the one the file pins.
   const localPath = join(root, LOCAL_FILE)
-  const local = localConfig(root, options.home)
-  const localText = render(local)
   const localCurrent = existsSync(localPath) ? readFileSync(localPath, "utf8") : undefined
-  if (localCurrent !== undefined && !sameContent(localCurrent, local) && !options.force) {
+  const existing = localCurrent === undefined ? undefined : readJsonText(localCurrent)
+  const local = localConfig(root, options.home, options.convention ?? pinnedConvention(existing))
+  const localText = render(local)
+  if (localCurrent !== undefined && !sameContent(existing, local) && !options.force) {
     writer.refuse(LOCAL_FILE, "exists with other content; pass --force to overwrite it")
   } else {
     writer.put(LOCAL_FILE, localPath, localText)
@@ -355,7 +390,14 @@ function fail(message: string, code: 1 | 2): never {
 }
 
 function main(argv: string[]): void {
-  let values: { help?: boolean; root?: string; home?: string; force?: boolean; "dry-run"?: boolean }
+  let values: {
+    help?: boolean
+    root?: string
+    home?: string
+    convention?: string
+    force?: boolean
+    "dry-run"?: boolean
+  }
   try {
     values = parseArgs({
       args: argv,
@@ -363,6 +405,7 @@ function main(argv: string[]): void {
         help: { type: "boolean", short: "h" },
         root: { type: "string" },
         home: { type: "string" },
+        convention: { type: "string" },
         force: { type: "boolean" },
         "dry-run": { type: "boolean" }
       }
@@ -374,11 +417,15 @@ function main(argv: string[]): void {
     console.log(USAGE)
     return
   }
+  if (values.convention !== undefined && !isConvention(values.convention)) {
+    fail(`--convention must be ${COMMIT_CONVENTIONS.join(" or ")}, not '${values.convention}'\n\n${USAGE}`, 2)
+  }
   const steps = setup({
     root: values.root ?? process.cwd(),
     home: values.home ?? homedir(),
     force: values.force === true,
-    dryRun: values["dry-run"] === true
+    dryRun: values["dry-run"] === true,
+    convention: values.convention
   })
   for (const step of steps) {
     const verb = step.outcome === "wrote" && values["dry-run"] === true ? "would write" : step.outcome
