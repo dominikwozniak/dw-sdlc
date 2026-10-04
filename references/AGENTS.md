@@ -46,7 +46,9 @@ checked out, detached, at that branch's head. A clone with local edits the updat
 fails its row and is left as it is. The command reports each row and any directory under
 `references/` the table no longer lists; it never deletes one.
 
-`.worktreeinclude` names `references/*/`, so a worktree Claude Code creates gets a copy of every clone.
+A worktree Claude Code creates starts without the clones: `.worktreeinclude` does not copy a nested
+repository. `pnpm references:sync` is one of the `worktree.setup` commands in `.ai/agentic.config.json`,
+and the session-start report names it in a fresh worktree.
 
 ## Add a repository
 

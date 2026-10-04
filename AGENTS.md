@@ -19,8 +19,9 @@ is its long form: how a guard works, why the design, adopting and releasing.
   (`agentic.config.local.json` is one machine's layer, kept out of git through `.git/info/exclude`)
 - `.claude/settings.json` — tracked; turns the dw-solo plugins off in this repo.
   `.claude/settings.local.json` is one machine's permission backstop, written by the setup and
-  excluded from git; `.worktreeinclude` lists it, the local config and the references, so a fresh
-  worktree gets them
+  excluded from git; `.worktreeinclude` lists it and the local config, so a fresh worktree gets
+  both. The references are not copied: a fresh worktree runs the `worktree.setup` commands in
+  `.ai/agentic.config.json`, which the session-start report lists
 - `.agents/skills/` — the engineering skills this repo works with, pinned in `skills-lock.json`;
   `.claude/skills/` links to them
 - `docs/agents/` — how those skills use this repo: the issue tracker and the domain docs

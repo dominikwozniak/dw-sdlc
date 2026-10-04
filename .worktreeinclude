@@ -3,5 +3,3 @@
 # this to every worktree it creates.
 .ai/agentic.config.local.json
 .claude/settings.local.json
-# The reference clones; `pnpm references:sync` in the worktree fetches any this misses.
-references/*/

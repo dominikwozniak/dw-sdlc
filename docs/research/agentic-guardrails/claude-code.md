@@ -74,6 +74,9 @@ these facts shape are in `docs/specs/agentic-guardrails.md`; what follows from t
 - `.worktreeinclude` at the project root, `.gitignore` syntax: "Only files that match a pattern and are
   also gitignored are copied." Applies to `--worktree`, subagent and desktop worktrees, never to
   `git worktree add`, and not when a `WorktreeCreate` hook replaces creation.
+- Observed on 2.1.289, 2026-10-04: a pattern matching a nested git repository (`references/*/`, each a
+  clone) copies nothing into a worktree `EnterWorktree` creates; the plain ignored files beside it are
+  copied.
 - Four isolation checks in an isolated session: file edits into the main checkout, command working
   directory in the main checkout, git redirected into it (`-C`, `--git-dir`, `GIT_DIR`, `cd`), and
   "command shape" — a command whose git use cannot be verified from its text is refused. "You can't
