@@ -29,6 +29,21 @@ const FEATURES_ONLY = initRepo(join(TMP, "features-only"), { branch: "feat" })
 write(join(FEATURES_ONLY, "a.txt"), "a\n")
 git(FEATURES_ONLY, "add", "a.txt")
 commit(FEATURES_ONLY, "-m", "init")
+// A matching push reads the remote side from the remote-tracking refs: local master and feat, with
+// origin tracking both in one repository and feat alone in the other.
+function tracked(name: string, remoteBranches: string[]): string {
+  const dir = initRepo(join(TMP, name), { branch: "master" })
+  write(join(dir, "a.txt"), "a\n")
+  git(dir, "add", "a.txt")
+  commit(dir, "-m", "init")
+  git(dir, "switch", "-q", "-c", "feat")
+  for (const branch of remoteBranches) {
+    git(dir, "update-ref", `refs/remotes/origin/${branch}`, "HEAD")
+  }
+  return dir
+}
+const TRACKS_MASTER = tracked("tracks-master", ["master", "feat"])
+const TRACKS_FEAT = tracked("tracks-feat", ["feat"])
 
 function blocked(name: string, command: string, cwd = FEAT): void {
   it(name, () => {
@@ -95,6 +110,10 @@ describe("plain pushes — a protected branch takes pull requests", () => {
   blocked("tags-with-a-protected-refspec", "git push origin master --tags", ON_MASTER)
   allowed("dry-run-on-master", "git push --dry-run", ON_MASTER)
   allowed("dry-run-short-to-main", "git push -n origin main")
+  blocked("matching-reaches-master", "git push origin :", TRACKS_MASTER)
+  allowed("matching-without-master-on-the-remote", "git push origin :", TRACKS_FEAT)
+  // No remote-tracking refs to read the remote side from: every local branch counts.
+  blocked("matching-to-a-url", "git push git@example.com:acme/x.git :", TRACKS_FEAT)
 })
 
 describe("the rest of the destructive set", () => {

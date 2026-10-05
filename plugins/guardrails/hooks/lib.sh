@@ -241,9 +241,25 @@ guard_parse_push() {
   return 0
 }
 
+# guard_push_matching — the branches the matching refspec `:` writes to: every local branch the
+# remote has too, read from its remote-tracking refs. A remote with none, such as a URL, gives no way
+# to tell, so every local branch counts.
+guard_push_matching() {
+  local remote="${GUARD_PUSH_REMOTE:-origin}" heads tracked branch
+  heads=$(git -C "$GUARD_PUSH_LOC" for-each-ref --format='%(refname:short)' refs/heads/ 2>/dev/null)
+  tracked=$(git -C "$GUARD_PUSH_LOC" for-each-ref --format='%(refname)' "refs/remotes/$remote/" 2>/dev/null)
+  while IFS= read -r branch; do
+    [[ -n "$branch" ]] || continue
+    if [[ -z "$tracked" || $'\n'"$tracked"$'\n' == *$'\n'"refs/remotes/$remote/$branch"$'\n'* ]]; then
+      printf '%s\n' "$branch"
+    fi
+  done <<<"$heads"
+}
+
 # guard_push_targets — the branches the parsed push writes to, one per line: every local branch of
-# GUARD_PUSH_LOC for --all, else the destination side of each refspec, or the current branch when none
-# names one. Returns 1 when those branches cannot be read.
+# GUARD_PUSH_LOC for --all, else the destination side of each refspec (the matching refspec `:` by
+# guard_push_matching), or the current branch when none names one. Returns 1 when those branches
+# cannot be read.
 guard_push_targets() {
   local spec target specs="$GUARD_PUSH_REFSPECS"
   if ((GUARD_PUSH_ALL)); then
@@ -252,6 +268,10 @@ guard_push_targets() {
   fi
   [[ -n "$specs" ]] || specs="HEAD"
   while IFS= read -r spec; do
+    if [[ "$spec" == ":" ]]; then
+      guard_push_matching
+      continue
+    fi
     target="${spec##*:}"
     target="${target#refs/heads/}"
     if [[ "$target" == "HEAD" ]]; then
