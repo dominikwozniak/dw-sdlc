@@ -12,6 +12,11 @@ updates:
     cooldown:
       default-days: 7
     open-pull-requests-limit: 5
+    # The types track the Node major the repo runs on (`engines` in package.json); a new major moves
+    # them by hand, with the runtime.
+    ignore:
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
     groups:
       dependencies:
         patterns: ["*"]
