@@ -95,6 +95,32 @@ guard_segments() {
   printf '%s\n' "$1" | tr ';&|()`' '\n\n\n\n\n\n' | sed -E '/^[[:space:]]*$/d'
 }
 
+# guard_pipelines <scan> — the masked scan split into pipelines, one non-empty per line: at `;`, `&&`,
+# `||`, a lone `&` and a newline, never at `|`. The `&` of a redirect (`2>&1`, `&>`, `|&`) becomes
+# \003, no separator. It stays \003: bash 5.2 reads a `&` in a `${s//…/…}` replacement as the match,
+# so putting it back would differ by shell.
+guard_pipelines() {
+  local s="$1"
+  s="${s//||/$'\n'}"
+  s="${s//&&/$'\n'}"
+  s="${s//;/$'\n'}"
+  s="${s//>&/>$'\003'}"
+  s="${s//<&/<$'\003'}"
+  s="${s//|&/|$'\003'}"
+  s="${s//&>/$'\003'>}"
+  s="${s//&/$'\n'}"
+  printf '%s\n' "$s" | sed -E '/^[[:space:]]*$/d'
+}
+
+# guard_absolute <path> [<base>] — the path made absolute against <base>, GUARD_CWD by default: a
+# relative path is the session's, not the hook process's.
+guard_absolute() {
+  case "$1" in
+    /*) printf '%s' "$1" ;;
+    *) printf '%s/%s' "${2:-$GUARD_CWD}" "$1" ;;
+  esac
+}
+
 # guard_located <path> — the repository a `-C`, `--git-dir` or `--work-tree` points at, against cwd.
 guard_located() {
   case "$1" in

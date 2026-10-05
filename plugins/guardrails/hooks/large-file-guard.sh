@@ -27,11 +27,7 @@ esac
 # Write only: an Edit changes part of a file that was already whatever size it was.
 [[ "$GUARD_TOOL" == "Write" ]] || exit 0
 [[ -n "$GUARD_FILE_PATH" ]] || exit 0
-# A relative path is the session's, not this process's: the hook may run from another directory.
-case "$GUARD_FILE_PATH" in
-  /*) ;;
-  *) GUARD_FILE_PATH="$GUARD_CWD/$GUARD_FILE_PATH" ;;
-esac
+GUARD_FILE_PATH=$(guard_absolute "$GUARD_FILE_PATH")
 [[ -f "$GUARD_FILE_PATH" ]] || exit 0
 
 # `wc -c` rather than `stat`: the size flag is -c on GNU and -f%z on BSD.

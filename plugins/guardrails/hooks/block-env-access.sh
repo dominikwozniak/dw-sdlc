@@ -65,14 +65,6 @@ normalize() {
   printf '%s' "${out:-/}"
 }
 
-# absolute <path> — against the resolved cwd.
-absolute() {
-  case "$1" in
-    /*) printf '%s' "$1" ;;
-    *) printf '%s/%s' "$CWD" "$1" ;;
-  esac
-}
-
 # physical <abs-path> — the directory part with its symlinks resolved, the way git reports the
 # repository root; the file itself may not exist yet (a Write), so only the directory is resolved.
 physical() {
@@ -89,7 +81,7 @@ REL=""
 OUTSIDE=0
 relative_to_root() {
   local abs
-  abs=$(physical "$(normalize "$(absolute "$1")")")
+  abs=$(physical "$(normalize "$(guard_absolute "$1" "$CWD")")")
   OUTSIDE=0
   if [[ -n "$REPO_ROOT" && "$abs" == "$REPO_ROOT/"* ]]; then
     REL="${abs#"$REPO_ROOT"/}"
@@ -151,7 +143,7 @@ refused() {
     REASON="outside a repository only guardrails.envFiles.allow lets an env file through"
     return 0
   fi
-  abs=$(absolute "$path")
+  abs=$(guard_absolute "$path" "$CWD")
   git -C "$REPO_ROOT" ls-files --error-unmatch -- "$abs" >/dev/null 2>&1 && return 1
   if git -C "$REPO_ROOT" check-ignore -q -- "$abs" 2>/dev/null; then
     REASON="git ignores it"
@@ -231,11 +223,7 @@ env_files() {
 }
 
 if [[ "$GUARD_TOOL" == "Grep" && -n "$GUARD_GLOB" ]] && could_name_env "$GUARD_GLOB"; then
-  DIR="${GUARD_FILE_PATH:-$GUARD_CWD}"
-  case "$DIR" in
-    /*) ;;
-    *) DIR="$GUARD_CWD/$DIR" ;;
-  esac
+  DIR=$(guard_absolute "${GUARD_FILE_PATH:-$GUARD_CWD}")
   if [[ -d "$DIR" ]]; then
     prepare
     while IFS= read -r f; do
