@@ -105,7 +105,10 @@ const CASES: Case[] = [
     ["^\\w+$", "\\w"],
     ["\\bfix\\b", "\\b"],
     ["^(?:fix|feat): ", "(?"],
-    ["^x\\\\\\s", "\\s"]
+    ["^x\\\\\\s", "\\s"],
+    ["^[a](?:x)", "(?"],
+    ["^[]x]\\d", "\\d"],
+    ["^[[:alpha:]]\\d", "\\d"]
   ].map(([value, construct]) => ({
     name: `format regex refuses ${construct} in ${value}, which grep -E reads differently by platform`,
     schema: { format: "regex" },
@@ -129,6 +132,13 @@ const CASES: Case[] = [
     value: "^fix\\(?",
     problems: []
   },
+  // Inside a bracket expression `(`, `?` and a backslash are plain characters.
+  ...["^[(?]fix: .+", "^[^(?]x", "^[]\\d]x", "^[[:alpha:]\\d]x"].map((value) => ({
+    name: `format regex takes the bracket expression in ${value}`,
+    schema: { format: "regex" },
+    value,
+    problems: []
+  })),
   ...Object.entries(COMMIT_PATTERNS).map(([convention, value]) => ({
     name: `format regex takes the ${convention} preset`,
     schema: { format: "regex" },

@@ -23,8 +23,12 @@ def _type_matches($t):
 
 def _is_regex: . as $re | (try ("" | test($re)) catch "bad") != "bad";
 
-# `\d`, `\s`, `\w`, `\b`, their capitals and a `(?` group, each behind an even run of backslashes.
-def _not_ere: [match("(?:^|[^\\\\])(?:\\\\\\\\)*(\\\\[dDsSwWbB]|\\(\\?)").captures[0].string][0];
+# The first `\d`, `\s`, `\w`, `\b`, capital twin or `(?` outside a bracket expression. The pattern is
+# read token by token: a bracket expression, where `(`, `?` and a backslash are plain characters and a
+# class such as `[:alpha:]` does not close it, an escape, a `(?`, or any one character.
+def _not_ere:
+  [match("\\[\\^?\\]?(?:\\[:[a-z]+:\\]|[^\\]])*\\]|\\\\[\\s\\S]|\\(\\?|[\\s\\S]"; "g").string
+    | select(test("^(\\\\[dDsSwWbB]|\\(\\?)$"))][0];
 
 def _problem($path; $message): {path: $path, message: $message};
 

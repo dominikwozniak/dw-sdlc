@@ -78,24 +78,6 @@ done < <(guard_tokens "$STRIPPED")
 # `set | grep -i token` still matches.
 ENV_DUMP='(^[[:space:]]*|[;&|][[:space:]]*)((env|printenv)([[:space:]]|$|[;&|])|export -p|declare -x|set[[:space:]]*($|[;&|]))'
 
-# pipelines <command> — one pipeline per line: split at `;`, `&&`, `||`, a lone `&` and a newline,
-# never at `|`. Separators inside quotes are masked first, and the `&` of a redirect (`2>&1`, `&>`,
-# `|&`) becomes \003, no separator. It stays \003: bash 5.2 reads a `&` in a `${s//…/…}`
-# replacement as the match, so putting it back would differ by shell.
-pipelines() {
-  local s
-  s=$(guard_mask_quoted_separators "$1")
-  s="${s//||/$'\n'}"
-  s="${s//&&/$'\n'}"
-  s="${s//;/$'\n'}"
-  s="${s//>&/>$'\003'}"
-  s="${s//<&/<$'\003'}"
-  s="${s//|&/|$'\003'}"
-  s="${s//&>/$'\003'>}"
-  s="${s//&/$'\n'}"
-  printf '%s\n' "$s"
-}
-
 env_hunt=0
 while IFS= read -r pipeline; do
   if printf '%s' "$pipeline" | grep -qE "$ENV_DUMP" &&
@@ -103,7 +85,7 @@ while IFS= read -r pipeline; do
     env_hunt=1
     break
   fi
-done < <(pipelines "$COMMAND")
+done < <(guard_pipelines "$(guard_mask_quoted_separators "$COMMAND")")
 # Printing a credential-ish variable straight out. Referencing one is fine — gh wants $GITHUB_TOKEN
 # and that is its job; putting the VALUE on stdout, where it lands in a transcript, is not.
 echo_secret=0

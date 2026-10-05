@@ -29,6 +29,21 @@ const FEATURES_ONLY = initRepo(join(TMP, "features-only"), { branch: "feat" })
 write(join(FEATURES_ONLY, "a.txt"), "a\n")
 git(FEATURES_ONLY, "add", "a.txt")
 commit(FEATURES_ONLY, "-m", "init")
+// A matching push reads the remote side from the remote-tracking refs: local master and feat, with
+// origin tracking both in one repository and feat alone in the other.
+function tracked(name: string, remoteBranches: string[]): string {
+  const dir = initRepo(join(TMP, name), { branch: "master" })
+  write(join(dir, "a.txt"), "a\n")
+  git(dir, "add", "a.txt")
+  commit(dir, "-m", "init")
+  git(dir, "switch", "-q", "-c", "feat")
+  for (const branch of remoteBranches) {
+    git(dir, "update-ref", `refs/remotes/origin/${branch}`, "HEAD")
+  }
+  return dir
+}
+const TRACKS_MASTER = tracked("tracks-master", ["master", "feat"])
+const TRACKS_FEAT = tracked("tracks-feat", ["feat"])
 
 function blocked(name: string, command: string, cwd = FEAT): void {
   it(name, () => {
@@ -95,6 +110,10 @@ describe("plain pushes — a protected branch takes pull requests", () => {
   blocked("tags-with-a-protected-refspec", "git push origin master --tags", ON_MASTER)
   allowed("dry-run-on-master", "git push --dry-run", ON_MASTER)
   allowed("dry-run-short-to-main", "git push -n origin main")
+  blocked("matching-reaches-master", "git push origin :", TRACKS_MASTER)
+  allowed("matching-without-master-on-the-remote", "git push origin :", TRACKS_FEAT)
+  // No remote-tracking refs to read the remote side from: every local branch counts.
+  blocked("matching-to-a-url", "git push git@example.com:acme/x.git :", TRACKS_FEAT)
 })
 
 describe("the rest of the destructive set", () => {
@@ -289,6 +308,27 @@ describe("a quoted separator is text — and cuts both ways", () => {
   blocked("quoted-arg-then-hard", 'git reset "ref|x" --hard')
   blocked("quoted-then-real", 'echo "a | b"; git push --force')
   blocked("unterminated-closes", "echo don't; git push --force")
+})
+
+describe("a substitution inside double quotes runs", () => {
+  blocked("dq-backtick-reset", 'x="`git reset --hard`"')
+  blocked("dq-dollar-paren-reset", 'x="$(git reset --hard)"')
+  blocked("dq-dollar-paren-push-force", 'echo "pushed: $(git push --force)"')
+  blocked("dq-dollar-paren-chained-clean", 'echo "a $(cd sub && git clean -fd)"')
+  allowed("sq-dollar-paren-is-text", "git commit -m 'docs: never $(git reset --hard)'")
+  allowed("dq-escaped-backtick-is-text", 'echo "\\`git reset --hard\\`"')
+  allowed("dq-dollar-paren-safe", 'echo "on $(git rev-parse --abbrev-ref HEAD)"')
+  // A heredoc a shell reads is a script, and an unquoted one still runs its substitutions.
+  blocked("heredoc-to-bash", "bash <<'EOF'\ncd sub && git reset --hard\nEOF")
+  blocked("heredoc-to-sh-s", "sh -s <<'EOF'\ntrue && git clean -fd\nEOF")
+  blocked("heredoc-piped-to-bash", "cat <<'EOF' | bash\nls | true; git push --force\nEOF")
+  blocked("unquoted-heredoc-substitution", "cat > f.sh <<EOF\n$(git reset --hard)\nEOF")
+  allowed("unquoted-heredoc-prose", "cat > notes.md <<EOF\nrun it; git reset --hard is refused\nEOF")
+  // The commit form every session uses: the heredoc body is the message, apostrophes and all.
+  allowed(
+    "dq-cat-heredoc-commit",
+    "git commit -m \"$(cat <<'EOF'\nfix: x\n\ndon't; git reset --hard is refused | `git clean -fd` too\nEOF\n)\""
+  )
 })
 
 describe("allowed", () => {

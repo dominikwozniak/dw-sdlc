@@ -139,6 +139,18 @@ describe("text helpers", () => {
   it("separators outside quotes kept", () => {
     assert.equal(lib(`guard_mask_quoted_separators "echo 'it''s' ; y"`), "echo 'it''s' ; y")
   })
+  it("a substitution inside double quotes keeps its separators, its own quotes masked", () => {
+    assert.equal(
+      lib(`guard_mask_quoted_separators 'x "a;\`b;c\`;$(d; e "f;g")" y'`),
+      'x "a\u0002`b;c`\u0002$(d; e "f\u0002g")" y'
+    )
+  })
+  it("a heredoc body is text: separators and quotes masked, line starts kept", () => {
+    assert.equal(
+      lib(`guard_mask_quoted_separators "$(printf 'cat <<EOF\\ndon\\x27t; a\\nEOF\\nls; b')"`),
+      "cat <<EOF\ndon\u0002t\u0002 a\nEOF\nls; b"
+    )
+  })
   it("unterminated quote hands back the original", () => {
     assert.equal(lib(`guard_mask_quoted_separators 'echo "open ; x'`), 'echo "open ; x')
   })
@@ -214,6 +226,19 @@ describe("git helpers", () => {
   it("segments split on real separators only", () => {
     const script = `guard_segments "$(guard_mask_quoted_separators 'a && b | c; "x;y" d')" | paste -sd, -`
     assert.equal(lib(script), 'a , b , c, "x\u0002y" d')
+  })
+  it("pipelines split at separators but never at a pipe", () => {
+    const script = `guard_pipelines "$(guard_mask_quoted_separators 'a | b && c || d; e & f "x;y"')" | paste -sd, -`
+    assert.equal(lib(script), 'a | b , c , d, e , f "x\u0002y"')
+  })
+  it("pipelines keep a redirect's & inside its pipeline", () => {
+    const script = `guard_pipelines 'env 2>&1 | grep x &> log' | wc -l | tr -d ' '`
+    assert.equal(lib(script), "1")
+  })
+  it("absolute resolves a relative path under GUARD_CWD, or the base given", () => {
+    assert.equal(lib(`GUARD_CWD=/repo; guard_absolute src/a.ts`), "/repo/src/a.ts")
+    assert.equal(lib(`GUARD_CWD=/repo; guard_absolute /etc/hosts`), "/etc/hosts")
+    assert.equal(lib(`GUARD_CWD=/repo; guard_absolute a.ts /real`), "/real/a.ts")
   })
   it("parse_push sees a push", () => {
     assert.equal(lib(`if guard_parse_push '${PUSH}'; then echo yes; else echo no; fi`), "yes")
