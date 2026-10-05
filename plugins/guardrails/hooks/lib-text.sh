@@ -105,31 +105,6 @@ guard_strip_heredocs() {
   return 0
 }
 
-# guard_mask_heredoc_backticks — stdin to stdout: every backtick in a heredoc body becomes \002, the
-# openers and the rest of the text unchanged.
-guard_mask_heredoc_backticks() {
-  local line delim="" body=0 state=""
-  while IFS= read -r line; do
-    if [[ $body -eq 1 ]]; then
-      if [[ "$line" =~ ^[[:space:]]*$delim[[:space:]]*$ ]]; then
-        body=0
-        delim=""
-      else
-        line="${line//\`/$'\002'}"
-      fi
-      printf '%s\n' "$line"
-      continue
-    fi
-    if guard_heredoc_opener "$line" "$state"; then
-      delim="$GUARD_HD_DELIM"
-      body=1
-    fi
-    state="$GUARD_HD_STATE"
-    printf '%s\n' "$line"
-  done
-  return 0
-}
-
 # guard_join_continuations — stdin to stdout. A line ending in an odd run of backslashes continues on
 # the next one, and the shell runs the two as one line: judged apart, `git push \` and `--force` each
 # looked harmless, while a quoted argument that opened a continuation line read as a command of its
@@ -151,25 +126,66 @@ guard_join_continuations() {
   return 0
 }
 
+# guard_mask_heredoc_bodies — stdin to stdout: a heredoc body is text, so its separators, backticks
+# and quotes become \002 and an apostrophe in a message cannot open a quote; the openers, the
+# terminators and the rest of the text stay as typed, line starts included. A body a shell reads
+# (`bash <<EOF`, `cat <<EOF | sh`) stays as typed throughout.
+guard_mask_heredoc_bodies() {
+  local line delim="" body=0 state="" mode=""
+  while IFS= read -r line; do
+    if [[ $body -eq 1 ]]; then
+      if [[ "$line" =~ ^[[:space:]]*$delim[[:space:]]*$ ]]; then
+        body=0
+        delim=""
+      else
+        case "$mode" in
+          text) line="${line//[;&|()\`\'\"]/$'\002'}" ;;
+          expanded) line="${line//[;&|\'\"]/$'\002'}" ;;
+        esac
+      fi
+      printf '%s\n' "$line"
+      continue
+    fi
+    if guard_heredoc_opener "$line" "$state"; then
+      delim="$GUARD_HD_DELIM"
+      body=1
+      # A body a shell reads is a script, judged as typed. An unquoted delimiter leaves `$(…)` and
+      # backticks to run, so those stay live in an otherwise masked body.
+      if [[ "$line" =~ $GUARD_SHELL_STDIN ]]; then
+        mode=script
+      elif [[ -n "$GUARD_HD_QUOTE" ]]; then
+        mode=text
+      else
+        mode=expanded
+      fi
+    fi
+    state="$GUARD_HD_STATE"
+    printf '%s\n' "$line"
+  done
+  return 0
+}
+
 # guard_mask_quoted_separators <command> — `;` `&` `|` `(` `)` and a backtick inside a quoted span are
 # text, not separators, so they become \002 and cannot open a command boundary: `git commit -m "docs:
-# never | git push --force"` is a message, not a push. The quotes themselves stay, so the boundary's optional quote
-# still matches `rtk run "npm install"`, where the quoted text really is the command. A state machine
-# rather than sed: an apostrophe inside double quotes is a literal, and so is a double quote inside
-# single quotes. An unterminated quote hands back the original — fail closed, judge what was typed.
-# Two exceptions: a quote handed to a shell's `-c`, `eval` or `rtk run` is a command and stays
-# unmasked, so `bash -c "cd x && git reset --hard"` keeps its `&&`; and a backtick in a heredoc body is
-# masked, so a commit message that quotes a command in markdown is not a substitution.
+# never | git push --force"` is a message, not a push. The quotes themselves stay, so the boundary's
+# optional quote still matches `rtk run "npm install"`, where the quoted text really is the command.
+# What runs stays unmasked: a `$(…)` or a backtick substitution inside double quotes, and a quote
+# handed to a shell's `-c`, `eval` or `rtk run`, so `bash -c "cd x && git reset --hard"` keeps its
+# `&&`. A heredoc body is text throughout. A stack of states rather than sed, since quotes nest inside
+# a substitution: S and D are a single- and a double-quoted span, masked; P the top level, U a `$(…)`,
+# B a backtick substitution, s and d a quote that holds a command, all unmasked. An unterminated
+# quote or substitution hands back the original — fail closed, judge what was typed.
 guard_mask_quoted_separators() {
   local s="$1"
-  if [[ "$s" == *'<<'* && "$s" == *'`'* ]]; then
-    s=$(printf '%s\n' "$s" | guard_mask_heredoc_backticks)
+  if [[ "$s" == *'<<'* ]]; then
+    s=$(printf '%s\n' "$s" | guard_mask_heredoc_bodies)
   fi
   local n=${#s}
-  local i=0 ch out="" state=plain live=0
+  local i=0 ch top out="" stack=P
   while ((i < n)); do
     ch=${s:i:1}
-    if [[ "$ch" == '\' ]]; then
+    top=${stack: -1}
+    if [[ "$ch" == '\' && "$top" != S ]]; then
       out+=$ch
       i=$((i + 1))
       if ((i < n)); then
@@ -180,27 +196,57 @@ guard_mask_quoted_separators() {
       i=$((i + 1))
       continue
     fi
-    case "$state" in
-      plain)
-        case "$ch" in
-          "'") state=sq ;;
-          '"') state=dq ;;
-        esac
-        if [[ "$state" != plain ]]; then
-          live=0
-          [[ "$out" =~ $GUARD_LIVE_QUOTE ]] && live=1
+    if [[ "$ch" == '$' && "${s:i+1:1}" == '(' && "$top" != S ]]; then
+      out+='$('
+      stack+=U
+      i=$((i + 2))
+      continue
+    fi
+    case "$top" in
+      S)
+        if [[ "$ch" == "'" ]]; then
+          stack=${stack%?}
+        else
+          case "$ch" in ';' | '&' | '|' | '(' | ')' | '`') ch=$'\002' ;; esac
         fi
         ;;
-      sq) [[ "$ch" == "'" ]] && state=plain ;;
-      dq) [[ "$ch" == '"' ]] && state=plain ;;
+      D)
+        case "$ch" in
+          '"') stack=${stack%?} ;;
+          '`') stack+=B ;;
+          ';' | '&' | '|' | '(' | ')') ch=$'\002' ;;
+        esac
+        ;;
+      *)
+        case "$ch" in
+          "'")
+            if [[ "$top" == s ]]; then
+              stack=${stack%?}
+            elif [[ "$top" != d && "$out" =~ $GUARD_LIVE_QUOTE ]]; then
+              stack+=s
+            else
+              stack+=S
+            fi
+            ;;
+          '"')
+            if [[ "$top" == d ]]; then
+              stack=${stack%?}
+            elif [[ "$out" =~ $GUARD_LIVE_QUOTE ]]; then
+              stack+=d
+            else
+              stack+=D
+            fi
+            ;;
+          '`') if [[ "$top" == B ]]; then stack=${stack%?}; else stack+=B; fi ;;
+          '(') [[ "$top" == U ]] && stack+=U ;;
+          ')') [[ "$top" == U ]] && stack=${stack%?} ;;
+        esac
+        ;;
     esac
-    if [[ "$state" != plain ]] && ((!live)); then
-      case "$ch" in ';' | '&' | '|' | '(' | ')' | '`') ch=$'\002' ;; esac
-    fi
     out+=$ch
     i=$((i + 1))
   done
-  if [[ "$state" != plain ]]; then
+  if [[ "$stack" != P ]]; then
     printf '%s' "$s"
   else
     printf '%s' "$out"
@@ -380,6 +426,9 @@ GUARD_WRAPPER="(sudo[[:space:]]+|command[[:space:]]+|eval[[:space:]]+|${GUARD_SH
 
 # What precedes a quote that holds a command, not text: a shell's `-c`, `eval` or `rtk run`.
 GUARD_LIVE_QUOTE="(^|[[:space:];&|(\`])(${GUARD_SHELL_C}|eval[[:space:]]+|rtk[[:space:]]+run[[:space:]]+)\$"
+
+# A heredoc opener line whose command, or a command piped after it, is a shell reading its stdin.
+GUARD_SHELL_STDIN="(^|[;&|(][[:space:]]*)${GUARD_WRAPPER}(ba|da|k|z)?sh([[:space:]]|\$)"
 
 # Start-of-command boundary for an ERE: line start or right after `;` `&` `|` `(` or a backtick — the
 # last two open a subshell or a command substitution — then the wrappers and an optional quote for

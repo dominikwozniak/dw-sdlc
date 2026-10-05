@@ -139,6 +139,18 @@ describe("text helpers", () => {
   it("separators outside quotes kept", () => {
     assert.equal(lib(`guard_mask_quoted_separators "echo 'it''s' ; y"`), "echo 'it''s' ; y")
   })
+  it("a substitution inside double quotes keeps its separators, its own quotes masked", () => {
+    assert.equal(
+      lib(`guard_mask_quoted_separators 'x "a;\`b;c\`;$(d; e "f;g")" y'`),
+      'x "a\u0002`b;c`\u0002$(d; e "f\u0002g")" y'
+    )
+  })
+  it("a heredoc body is text: separators and quotes masked, line starts kept", () => {
+    assert.equal(
+      lib(`guard_mask_quoted_separators "$(printf 'cat <<EOF\\ndon\\x27t; a\\nEOF\\nls; b')"`),
+      "cat <<EOF\ndon\u0002t\u0002 a\nEOF\nls; b"
+    )
+  })
   it("unterminated quote hands back the original", () => {
     assert.equal(lib(`guard_mask_quoted_separators 'echo "open ; x'`), 'echo "open ; x')
   })

@@ -310,6 +310,27 @@ describe("a quoted separator is text — and cuts both ways", () => {
   blocked("unterminated-closes", "echo don't; git push --force")
 })
 
+describe("a substitution inside double quotes runs", () => {
+  blocked("dq-backtick-reset", 'x="`git reset --hard`"')
+  blocked("dq-dollar-paren-reset", 'x="$(git reset --hard)"')
+  blocked("dq-dollar-paren-push-force", 'echo "pushed: $(git push --force)"')
+  blocked("dq-dollar-paren-chained-clean", 'echo "a $(cd sub && git clean -fd)"')
+  allowed("sq-dollar-paren-is-text", "git commit -m 'docs: never $(git reset --hard)'")
+  allowed("dq-escaped-backtick-is-text", 'echo "\\`git reset --hard\\`"')
+  allowed("dq-dollar-paren-safe", 'echo "on $(git rev-parse --abbrev-ref HEAD)"')
+  // A heredoc a shell reads is a script, and an unquoted one still runs its substitutions.
+  blocked("heredoc-to-bash", "bash <<'EOF'\ncd sub && git reset --hard\nEOF")
+  blocked("heredoc-to-sh-s", "sh -s <<'EOF'\ntrue && git clean -fd\nEOF")
+  blocked("heredoc-piped-to-bash", "cat <<'EOF' | bash\nls | true; git push --force\nEOF")
+  blocked("unquoted-heredoc-substitution", "cat > f.sh <<EOF\n$(git reset --hard)\nEOF")
+  allowed("unquoted-heredoc-prose", "cat > notes.md <<EOF\nrun it; git reset --hard is refused\nEOF")
+  // The commit form every session uses: the heredoc body is the message, apostrophes and all.
+  allowed(
+    "dq-cat-heredoc-commit",
+    "git commit -m \"$(cat <<'EOF'\nfix: x\n\ndon't; git reset --hard is refused | `git clean -fd` too\nEOF\n)\""
+  )
+})
+
 describe("allowed", () => {
   allowed("plain-push", "git push")
   allowed("push-u", "git push -u origin feat")
