@@ -88,10 +88,11 @@ source "$GUARD_LIB_DIR/lib-text.sh"
 GUARD_GIT_ARG="(\"[^\"]*\"|'[^']*'|[^[:space:];&|]+)"
 GUARD_GIT="git( +(-[Cc] +${GUARD_GIT_ARG}|--(git-dir|work-tree|namespace)( +|=)${GUARD_GIT_ARG}|--[a-z][a-z-]*(=[^[:space:];&|]*)?|-[pP]))*"
 
-# guard_segments <scan> — the masked scan split at real separators and parentheses (the masked ones
-# inside quotes stay), one non-empty segment per line; `&&` and `||` leave empty segments, dropped here.
+# guard_segments <scan> — the masked scan split at real separators, parentheses and backticks (the
+# masked ones inside quotes stay), one non-empty segment per line; `&&` and `||` leave empty segments,
+# dropped here.
 guard_segments() {
-  printf '%s\n' "$1" | tr ';&|()' '\n\n\n\n\n' | sed -E '/^[[:space:]]*$/d'
+  printf '%s\n' "$1" | tr ';&|()`' '\n\n\n\n\n\n' | sed -E '/^[[:space:]]*$/d'
 }
 
 # guard_located <path> — the repository a `-C`, `--git-dir` or `--work-tree` points at, against cwd.

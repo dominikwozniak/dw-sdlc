@@ -188,6 +188,20 @@ describe("text helpers", () => {
   it("unwrap leaves a bare rtk subcommand", () => {
     assert.equal(unwrap("rtk gain"), "gain")
   })
+  it("unwrap drops a shell's -c and splits the command it is handed", () => {
+    assert.equal(unwrap("bash -c 'git push --force'"), "git push --force")
+    assert.equal(unwrap("sh -e -c 'git push'"), "git push")
+    assert.equal(unwrap("zsh -lc 'git push'"), "git push")
+    assert.equal(unwrap("bash -o pipefail -c 'git push'"), "git push")
+    assert.equal(unwrap("bash --norc -c 'git push'"), "git push")
+  })
+  it("unwrap drops eval", () => {
+    assert.equal(unwrap("eval git push"), "git push")
+    assert.equal(unwrap("eval 'git push -f'"), "git push -f")
+  })
+  it("unwrap keeps a shell running a script", () => {
+    assert.equal(unwrap("bash scripts/x.sh"), "bash scripts/x.sh")
+  })
   it("unwrap leaves an unwrapped command alone", () => {
     assert.equal(unwrap("pnpm test"), "pnpm test")
   })

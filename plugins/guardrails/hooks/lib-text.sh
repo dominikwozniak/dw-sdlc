@@ -105,6 +105,31 @@ guard_strip_heredocs() {
   return 0
 }
 
+# guard_mask_heredoc_backticks — stdin to stdout: every backtick in a heredoc body becomes \002, the
+# openers and the rest of the text unchanged.
+guard_mask_heredoc_backticks() {
+  local line delim="" body=0 state=""
+  while IFS= read -r line; do
+    if [[ $body -eq 1 ]]; then
+      if [[ "$line" =~ ^[[:space:]]*$delim[[:space:]]*$ ]]; then
+        body=0
+        delim=""
+      else
+        line="${line//\`/$'\002'}"
+      fi
+      printf '%s\n' "$line"
+      continue
+    fi
+    if guard_heredoc_opener "$line" "$state"; then
+      delim="$GUARD_HD_DELIM"
+      body=1
+    fi
+    state="$GUARD_HD_STATE"
+    printf '%s\n' "$line"
+  done
+  return 0
+}
+
 # guard_join_continuations — stdin to stdout. A line ending in an odd run of backslashes continues on
 # the next one, and the shell runs the two as one line: judged apart, `git push \` and `--force` each
 # looked harmless, while a quoted argument that opened a continuation line read as a command of its
@@ -126,16 +151,22 @@ guard_join_continuations() {
   return 0
 }
 
-# guard_mask_quoted_separators <command> — `;` `&` `|` `(` `)` inside a quoted span are text, not
-# separators, so they become \002 and cannot open a command boundary: `git commit -m "docs: never |
-# git push --force"` is a message, not a push. The quotes themselves stay, so the boundary's optional quote
+# guard_mask_quoted_separators <command> — `;` `&` `|` `(` `)` and a backtick inside a quoted span are
+# text, not separators, so they become \002 and cannot open a command boundary: `git commit -m "docs:
+# never | git push --force"` is a message, not a push. The quotes themselves stay, so the boundary's optional quote
 # still matches `rtk run "npm install"`, where the quoted text really is the command. A state machine
 # rather than sed: an apostrophe inside double quotes is a literal, and so is a double quote inside
 # single quotes. An unterminated quote hands back the original — fail closed, judge what was typed.
+# Two exceptions: a quote handed to a shell's `-c`, `eval` or `rtk run` is a command and stays
+# unmasked, so `bash -c "cd x && git reset --hard"` keeps its `&&`; and a backtick in a heredoc body is
+# masked, so a commit message that quotes a command in markdown is not a substitution.
 guard_mask_quoted_separators() {
   local s="$1"
+  if [[ "$s" == *'<<'* && "$s" == *'`'* ]]; then
+    s=$(printf '%s\n' "$s" | guard_mask_heredoc_backticks)
+  fi
   local n=${#s}
-  local i=0 ch out="" state=plain
+  local i=0 ch out="" state=plain live=0
   while ((i < n)); do
     ch=${s:i:1}
     if [[ "$ch" == '\' ]]; then
@@ -143,7 +174,7 @@ guard_mask_quoted_separators() {
       i=$((i + 1))
       if ((i < n)); then
         ch=${s:i:1}
-        case "$ch" in ';' | '&' | '|' | '(' | ')') ch=$'\002' ;; esac
+        case "$ch" in ';' | '&' | '|' | '(' | ')' | '`') ch=$'\002' ;; esac
         out+=$ch
       fi
       i=$((i + 1))
@@ -155,12 +186,16 @@ guard_mask_quoted_separators() {
           "'") state=sq ;;
           '"') state=dq ;;
         esac
+        if [[ "$state" != plain ]]; then
+          live=0
+          [[ "$out" =~ $GUARD_LIVE_QUOTE ]] && live=1
+        fi
         ;;
       sq) [[ "$ch" == "'" ]] && state=plain ;;
       dq) [[ "$ch" == '"' ]] && state=plain ;;
     esac
-    if [[ "$state" != plain ]]; then
-      case "$ch" in ';' | '&' | '|' | '(' | ')') ch=$'\002' ;; esac
+    if [[ "$state" != plain ]] && ((!live)); then
+      case "$ch" in ';' | '&' | '|' | '(' | ')' | '`') ch=$'\002' ;; esac
     fi
     out+=$ch
     i=$((i + 1))
@@ -276,12 +311,28 @@ guard_words() {
 }
 
 # guard_unwrap_words — drops the wrapper words GUARD_WRAPPER names from the front of the array WORDS:
-# `sudo`, `command`, `env` with its options, a `VAR=value` assignment, and `rtk` with the subcommand
-# that follows it unless that word is the command itself. Word by word, so `rtk git` keeps its `git`.
+# `sudo`, `command`, `eval`, `env` with its options, a `VAR=value` assignment, a shell with the options
+# up to its `-c`, and `rtk` with the subcommand that follows it unless that word is the command
+# itself. Word by word, so `rtk git` keeps its `git` and `bash script.sh` stays a shell.
 guard_unwrap_words() {
+  local j c
   while [[ ${#WORDS[@]} -gt 0 ]]; do
     case "${WORDS[0]}" in
-      sudo | command) WORDS=("${WORDS[@]:1}") ;;
+      sudo | command | eval) WORDS=("${WORDS[@]:1}") ;;
+      sh | bash | zsh | dash | ksh)
+        j=1
+        c=0
+        while [[ $j -lt ${#WORDS[@]} && "${WORDS[$j]}" == [-+]* ]]; do
+          case "${WORDS[$j]}" in
+            --*) ;;
+            [-+][oO]) j=$((j + 1)) ;; # `-o pipefail`: the option name is the next word
+            -*c*) c=1 ;;
+          esac
+          j=$((j + 1))
+        done
+        ((c)) || return 0
+        WORDS=("${WORDS[@]:$j}")
+        ;;
       env)
         WORDS=("${WORDS[@]:1}")
         while [[ ${#WORDS[@]} -gt 0 && "${WORDS[0]}" == -* ]]; do
@@ -318,13 +369,20 @@ guard_unwrap_words() {
 
 # Wrapper prefixes a pattern must see through: `sudo`, `command`, `env` with its options, `rtk <cmd>`
 # (the auto-rewrite), `rtk proxy <cmd>` and the rtk subcommands that execute an arbitrary command
-# (`run` is a raw `sh -c`; `err`, `summary`, `test` run it and filter the output), and a leading
+# (`run` is a raw `sh -c`; `err`, `summary`, `test` run it and filter the output), `eval`, a shell
+# with a `-c` among its options (`bash -c`, `sh -ec`, `bash -o pipefail -c`), and a leading
 # `VAR=value` assignment, which the shell strips before running what follows —
 # `RTK_DISABLED=1 git push --force` included. Zero or more of them, so `sudo rtk run git push
 # --force` matches the same as the bare form.
-GUARD_WRAPPER='(sudo[[:space:]]+|command[[:space:]]+|env([[:space:]]+-[^[:space:]]+)*[[:space:]]+|rtk[[:space:]]+([a-z-]+[[:space:]]+)?|[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*'
+GUARD_SHELL_OPTION='([[:space:]]+(-[A-Za-z]+|--[a-z-]+|[-+][oO][[:space:]]+[A-Za-z_]+))'
+GUARD_SHELL_C="(ba|da|k|z)?sh${GUARD_SHELL_OPTION}*[[:space:]]+-[A-Za-z]*c[A-Za-z]*${GUARD_SHELL_OPTION}*[[:space:]]+"
+GUARD_WRAPPER="(sudo[[:space:]]+|command[[:space:]]+|eval[[:space:]]+|${GUARD_SHELL_C}|env([[:space:]]+-[^[:space:]]+)*[[:space:]]+|rtk[[:space:]]+([a-z-]+[[:space:]]+)?|[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*"
 
-# Start-of-command boundary for an ERE: line start or right after `;` `&` `|` `(` — the last opens a
-# subshell or a command substitution — then the wrappers and an optional quote for the
-# `rtk run "git push --force"` form. `grep -E "${GUARD_BOUNDARY}git push"`.
-GUARD_BOUNDARY="(^|[;&|(][[:space:]]*)${GUARD_WRAPPER}[\"']?"
+# What precedes a quote that holds a command, not text: a shell's `-c`, `eval` or `rtk run`.
+GUARD_LIVE_QUOTE="(^|[[:space:];&|(\`])(${GUARD_SHELL_C}|eval[[:space:]]+|rtk[[:space:]]+run[[:space:]]+)\$"
+
+# Start-of-command boundary for an ERE: line start or right after `;` `&` `|` `(` or a backtick — the
+# last two open a subshell or a command substitution — then the wrappers and an optional quote for
+# the `rtk run "git push --force"` and `bash -c 'git reset --hard'` forms.
+# `grep -E "${GUARD_BOUNDARY}git push"`.
+GUARD_BOUNDARY="(^|[;&|(\`][[:space:]]*)${GUARD_WRAPPER}[\"']?"

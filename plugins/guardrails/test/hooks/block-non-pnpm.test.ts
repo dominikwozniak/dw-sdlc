@@ -78,6 +78,9 @@ describe("a pnpm repository — wrappers seen through", () => {
   blocked("command-npm", "command npm install")
   blocked("env-npm", "env CI=1 npm ci")
   blocked("subshell-npx", "(cd app && npx tsc)")
+  blocked("bash-c-chained-npm", 'bash -c "cd app && npm install"')
+  // A heredoc body is text: a backtick in a commit message is markdown, not a substitution.
+  allowed("heredoc-body-backtick", "git commit -F - <<'EOF'\nfix: x\n\nnever run `npm install` here\nEOF")
 })
 
 describe("a pnpm repository — pnpm and the near-misses pass", () => {

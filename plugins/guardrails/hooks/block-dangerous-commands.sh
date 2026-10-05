@@ -29,7 +29,8 @@ DOT_ARG="[\"']?\./?[\"']?[[:space:]]*[\"']?[[:space:]]*(\$|[;&|)])"
 END='([^A-Za-z0-9_-]|$)'
 # An rm target inside quotes: `/` and `.` mean the same quoted or not, so either quote may wrap them.
 # The home directory is `~` only bare — quoted, the shell passes a literal `~` — and `$HOME` bare or
-# in double quotes; single quotes keep it literal.
+# in double quotes; single quotes keep it literal. A quote after it closes a wrapper's, as in
+# `bash -c 'rm -rf ~'`, where the inner shell expands the `~`.
 Q="[\"']?"
 
 PATTERNS=(
@@ -41,7 +42,7 @@ PATTERNS=(
   "$GUARD_GIT"' switch( [^;&|]*)?( -f'"$END"'| --force'"$END"'| --discard-changes'"$END"')' # the same, spelled switch
   "$GUARD_GIT"' stash clear'"$END"                                        # wipes every stash, unrecoverable
   "rm( [^;&|]*)? ${Q}/\\*?${Q} *(\$|[;&|)])"                              # rm aimed at / or /*
-  "rm( [^;&|]*)? (~(/\\*?)?|\"?(\\\$HOME|\\\$\\{HOME\\})\"?(/\\*?)?\"?) *(\$|[;&|)])" # rm aimed at the home directory: ~, ~/ or ~/*
+  "rm( [^;&|]*)? (~(/\\*?)?|\"?(\\\$HOME|\\\$\\{HOME\\})\"?(/\\*?)?\"?)${Q} *(\$|[;&|)])" # rm aimed at the home directory: ~, ~/ or ~/*
   "rm( [^;&|]*)? ${Q}\\.\\.?${Q}(/\\*?)?${Q} *(\$|[;&|)])"                # rm aimed at . or .., bare, with / or with /*
   "rm( [^;&|]*)? ${Q}\\*${Q}( [^;&|]*)? *(\$|[;&|)])"                     # rm with a bare * argument: every entry of the cwd
   'find( [^;&|]*)? -delete([[:space:])]|$)'                               # bulk delete via find

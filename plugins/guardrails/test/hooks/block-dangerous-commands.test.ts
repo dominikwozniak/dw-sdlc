@@ -105,7 +105,9 @@ describe("the rest of the destructive set", () => {
     ["push-colon-delete", "git push origin :old-branch"],
     ["push-plus-colon-delete", "git push origin +:old-branch"],
     ["push-colon-delete-among-refspecs", "git push origin feat :old-branch"],
-    ["rtk-run-colon-delete", 'rtk run "git push origin :old-branch"']
+    ["rtk-run-colon-delete", 'rtk run "git push origin :old-branch"'],
+    ["push-repo-colon-delete", "git push --repo origin :old-branch"],
+    ["push-repo-glued-colon-delete", "git push --repo=origin :old-branch"]
   ]
   for (const [name, command] of deletions) {
     it(name, () => {
@@ -244,6 +246,38 @@ describe("the wrappers and global options a shell or git accepts before the verb
   allowed("git-c-log", "git -c color.ui=always log --oneline")
   allowed("subshell-status", "(cd sub && git status)")
   allowed("prose-subshell", 'git commit -m "docs: never (git reset --hard)"')
+})
+
+describe("a shell, eval or a backtick runs the command it is handed", () => {
+  blocked("bash-c-reset", "bash -c 'git reset --hard'")
+  blocked("sh-c-reset-double-quoted", 'sh -c "git reset --hard"')
+  blocked("bash-lc-reset", "bash -lc 'git reset --hard'")
+  blocked("zsh-e-c-reset", "zsh -e -c 'git clean -fd'")
+  blocked("sudo-bash-c-rm-home", "sudo bash -c 'rm -rf ~'")
+  blocked("eval-quoted-reset", "eval 'git reset --hard'")
+  blocked("eval-bare-reset", "eval git reset --hard")
+  blocked("backtick-reset", "echo `git reset --hard`")
+  blocked("backtick-after-assign", "x=`git clean -fd`")
+  blocked("bash-c-push-force", "bash -c 'git push --force'")
+  blocked("eval-push-to-main", "eval 'git push origin HEAD:main'")
+  blocked("backtick-push-force", "x=`git push --force`")
+  blocked("bash-c-restore-dot", "bash -c 'git restore .'")
+  blocked("bash-o-pipefail-c-reset", "bash -o pipefail -c 'git reset --hard'")
+  blocked("bash-norc-c-reset", "bash --norc -c 'git reset --hard'")
+  blocked("bash-c-chained-reset", 'bash -c "cd sub && git reset --hard"')
+  blocked("bash-c-chained-push-force", "bash -c 'cd sub; git push --force'")
+  blocked("eval-chained-clean", "eval 'cd sub && git clean -fd'")
+  allowed("bash-script", "bash scripts/build.sh")
+  allowed("bash-c-tests", "bash -c 'pnpm test'")
+  allowed("sh-c-echo", "sh -c 'echo reset --hard'")
+  allowed("eval-status", "eval git status")
+  allowed("backtick-status", "echo `git status`")
+  // Single quotes keep a backtick inert: this is a message, not a substitution.
+  allowed("prose-backtick", "git commit -m 'docs: never `git reset --hard`'")
+  allowed("heredoc-commit-backtick", "git commit -F - <<'EOF'\nfix: x\n\nnever run `git reset --hard`\nEOF")
+  allowed("heredoc-pr-body-backtick", "gh pr create --body-file - <<'EOF'\nno `git push --force` here\nEOF")
+  allowed("heredoc-file-backtick", "cat > notes.md <<'EOF'\nuse `git clean -fd` with care\nEOF")
+  allowed("grep-c-pattern", "grep -c 'a; git reset --hard' notes.md")
 })
 
 describe("a quoted separator is text — and cuts both ways", () => {
