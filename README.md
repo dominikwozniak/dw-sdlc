@@ -55,7 +55,8 @@ pnpm guardrails:doctor --root <path to your repository>
 | commit hygiene        | a subject off the convention, a missing trailer, `git add -A`, `git add .`                              |
 | large file (advisory) | flags a written file over 256 KiB                                                                       |
 
-Every rule in full: [plugin README](plugins/guardrails/README.md#guards).
+Every rule in full: [plugin README](plugins/guardrails/README.md#guards). A commit typed in a
+terminal meets the same subject rule through the [commit hook](plugins/guardrails/README.md#commit-hook).
 
 ## Configure your repository
 

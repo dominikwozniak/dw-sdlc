@@ -242,6 +242,22 @@ guard_worktree_main() {
   dirname "$common_dir"
 }
 
+# guard_subject_by_git <subject> — 0 for git's own machine-written subjects, which no project pattern
+# or trailer rule describes.
+guard_subject_by_git() {
+  case "$1" in
+    "Merge "* | "Revert "* | "fixup! "* | "squash! "* | "amend! "*) return 0 ;;
+  esac
+  return 1
+}
+
+# guard_subject_fits <subject> <pattern> — 0 when the subject matches the POSIX ERE or git wrote it.
+# An empty pattern fits all.
+guard_subject_fits() {
+  guard_subject_by_git "$1" && return 0
+  [[ -z "$2" ]] || printf '%s' "$1" | grep -qE "$2"
+}
+
 # --- the verdicts -------------------------------------------------------------------------------
 
 # guard_block <message> — exit 2 stops the call before permission rules run, so it beats an allow

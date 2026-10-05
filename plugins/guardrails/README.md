@@ -31,6 +31,7 @@ disk is in the next session, a broken edit included.
   local-over-committed-over-inferred merge, the same behaviour as `scripts/agentic-config.ts`.
 - `hooks/bash-guard.sh` — the dispatcher: one stdin read, heredoc bodies dropped once, each guard
   spawned only when the command could trip it.
+- `hooks/commit-msg.sh` — a git hook, not a Claude Code one: the Commit hook below.
 - `config/agentic.config.schema.json` — the JSON Schema for `.ai/agentic.config.json`.
 - `scripts/` — the TypeScript side: `agentic-config.ts` reads, validates and resolves the config
   (`pnpm agentic:check` in the repository runs it), `guardrails-setup.ts` and `guardrails-doctor.ts`
@@ -79,6 +80,18 @@ disk is in the next session, a broken edit included.
   silent. In a linked worktree a command naming `git` goes through unrewritten: the session's
   isolation check cannot read through the `rtk` wrapper and would refuse the plain `git status` the
   agent typed. It runs beside `bash-guard.sh`, and the guards judge the command before the rewrite.
+
+## Commit hook
+
+The guards judge the agent's tool calls, so a commit typed in a terminal never meets them.
+`hooks/commit-msg.sh` is the subject check of `enforce-commit-hygiene.sh` as a git `commit-msg` hook:
+it takes the message file git hands the hook, resolves the same config and exits 1 on a subject off
+`commit.pattern`, which aborts the commit. The subject is the first line git keeps: comment lines,
+leading blank lines and a `--verbose` diff below the scissors line are skipped, an empty message is
+left to git, and git's own `Merge`, `Revert`, `fixup!`, `squash!` and `amend!` subjects pass. The
+trailer is not checked, since a commit a person writes has no co-author to name. Without jq it says
+so and lets the commit through. A repository wires it from its own hook manager; this one runs
+`bash plugins/guardrails/hooks/commit-msg.sh "$1"` from `.husky/commit-msg`.
 
 ## Setup
 

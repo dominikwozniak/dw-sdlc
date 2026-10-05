@@ -48,6 +48,9 @@ refuses.
 - `commit.convention` names the subject's shape, `ticket-key` or `conventional`, never whose
   repository it is. Inference always gives `conventional`; `ticket-key` comes only from a config
   layer, and a set `commit.pattern` wins over both.
+- A commit made outside the agent meets the subject rule through git's `commit-msg` hook,
+  `hooks/commit-msg.sh`, on the same resolved config and the same `guard_subject_fits` in `lib.sh`.
+  The trailer stays the agent's rule: a commit a person writes has no co-author to name.
 - The plugin guards Node repositories and carries no stack-specific guard. `packageManagers.ruby` is
   accepted by the schema and read by nothing.
 - Lease pushes pass to unprotected branches; bare force, `+refspec`, `--mirror` and any force to a
@@ -193,6 +196,13 @@ refuses.
   - Verify: cases in `test/hooks/lib.test.ts`, `test/hooks/bash-guard.test.ts`,
     `test/hooks/enforce-commit-hygiene.test.ts` and `test/hooks/block-env-access.test.ts`
   - Files: `plugins/guardrails/hooks/lib-text.sh`, `plugins/guardrails/hooks/enforce-commit-hygiene.sh`
+- [x] Task: A commit from a terminal meets the subject rule
+  - Acceptance: a `commit-msg` hook refuses a subject off the resolved `commit.pattern` and reads the
+    same config as the guards; comment lines, leading blank lines and a `--verbose` diff are skipped,
+    and an empty message is left to git
+  - Verify: `test/hooks/commit-msg.test.ts`, the message file alone and real commits through
+    `core.hooksPath`
+  - Files: `plugins/guardrails/hooks/commit-msg.sh`, `plugins/guardrails/hooks/lib.sh`, `.husky/commit-msg`
 
 Open work on the plugin is tracked in GitHub Issues.
 

@@ -38,6 +38,11 @@ repository whose subjects start with a ticket key sets `commit.convention: ticke
 An invalid layer is dropped whole and the guards run on the strictest set until it is fixed; the
 session start hook names each problem.
 
+The guards judge the agent's tool calls only. A commit typed in a terminal meets the subject rule
+through git's `commit-msg` hook: `hooks/commit-msg.sh` resolves the same config and refuses a subject
+off the pattern. This repository runs it from `.husky/commit-msg`. The trailer stays the agent's
+rule, since a commit a person writes has no co-author to name.
+
 The plugin guards Node repositories. It carries no stack-specific guard; `packageManagers.ruby` is
 accepted by the schema and read by nothing.
 
