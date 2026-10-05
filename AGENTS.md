@@ -58,7 +58,8 @@ is its long form: how a guard works, why the design, adopting and releasing.
 ## Git
 
 - Subjects follow Conventional Commits and every commit carries a `Co-Authored-By` trailer; the
-  guards enforce both from `.ai/agentic.config.json`.
+  guards enforce both from `.ai/agentic.config.json`. `.husky/commit-msg` checks the subject of
+  every commit, one typed in a terminal included.
 - `main` is a protected branch: a change reaches it through a pull request, after `pnpm check` passes
   in CI. For a small fix the agent commits on `main` and the push comes from Dominik's own terminal;
   the guards judge only the agent's tool calls. GitHub branch protection is not available on this private

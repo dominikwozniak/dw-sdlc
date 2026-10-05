@@ -312,17 +312,14 @@ check_group() {
 
   subject=${MSG_FIRST%%$'\n'*}
 
-  # git's own machine-written subjects, which no project pattern describes.
-  case "$subject" in
-    "Merge "* | "Revert "* | "fixup! "* | "squash! "* | "amend! "*) return 0 ;;
-  esac
+  guard_subject_by_git "$subject" && return 0
   # A message assembled by the shell is not the message: `-m "$MSG"` reaches here as the literal
   # dollars-and-a-name, and checking that would be checking nothing. A message reading "costs $5"
   # holds no expansion, and single quotes, an escaping backslash or a quoted heredoc delimiter keep
   # `$HOME` literal: all of those stay checked.
   ((MSG_EXPANDS)) && return 0
 
-  if [[ -n "$PATTERN" ]] && ! printf '%s' "$subject" | grep -qE "$PATTERN"; then
+  if ! guard_subject_fits "$subject" "$PATTERN"; then
     guard_block "commit subject \"$subject\" does not match this repository's commit pattern.
   pattern: $PATTERN
   from commit.pattern in .ai/agentic.config.json, or the preset commit.convention names; '.+' accepts any subject.
