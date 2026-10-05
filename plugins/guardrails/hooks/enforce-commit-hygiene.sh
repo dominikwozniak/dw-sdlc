@@ -5,7 +5,8 @@
 #   1. a subject that misses `commit.pattern`, a POSIX ERE — the preset `commit.convention` names
 #      when nothing declares it; `.+` declares that any subject is fine. The message is read from
 #      `-m`, and from the heredoc a `-m "$(cat <<'EOF' … EOF)"` or a `-F - <<'EOF'` hands git
-#   2. a message missing the `commit.trailer` line, when one is declared
+#   2. a message missing the `commit.trailer` line, when one is declared; a `--trailer` counts, since
+#      git writes it into the message
 #   3. a LIVE backtick inside a `-m` string or an unquoted heredoc — command substitution that
 #      mangles the message and still exits 0, so nobody notices until they read the log
 #   4. `git add -A` / `git add .` — stage session work by name
@@ -233,6 +234,7 @@ MSG_EXPANDS=0
 MSG_FROM_FILE=0
 MSG_FROM_STDIN=0
 STDIN_DELIM=""
+MSG_TRAILERS=""
 
 reset_group() {
   MSG_COUNT=0
@@ -243,6 +245,7 @@ reset_group() {
   MSG_FROM_FILE=0
   MSG_FROM_STDIN=0
   STDIN_DELIM=""
+  MSG_TRAILERS=""
 }
 
 # add_msg <text> <live-backtick> <expands>
@@ -326,7 +329,7 @@ check_group() {
 Rewrite the subject to match."
   fi
 
-  if [[ -n "$TRAILER" ]] && ! has_trailer "$TRAILER" "$MSG_ALL"; then
+  if [[ -n "$TRAILER" ]] && ! has_trailer "$TRAILER" "$MSG_ALL$MSG_TRAILERS"; then
     guard_block "commit message is missing this repository's trailer.
   trailer: $TRAILER
   from commit.trailer in .ai/agentic.config.json.
@@ -412,6 +415,15 @@ while ((i < count)); do
           ;;
         --message=*)
           message "${t#--message=}" "${TOKEN_LIVE_BT[i]}" "${TOKEN_LIVE_DOLLAR[i]}"
+          ;;
+        # git writes `token: value` (or `token=value`) as a trailer line that starts with the token.
+        --trailer)
+          MSG_TRAILERS+=$'\n'"${TOKENS[i + 1]:-}"
+          i=$((i + 2))
+          continue
+          ;;
+        --trailer=*)
+          MSG_TRAILERS+=$'\n'"${t#--trailer=}"
           ;;
         --*) ;; # every other long option is none of this guard's business
         -*)

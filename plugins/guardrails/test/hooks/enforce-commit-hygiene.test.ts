@@ -54,6 +54,7 @@ describe("pattern and trailer from the committed config — refused", () => {
   blocked("missing-trailer", 'git commit -m "fix(hook): a thing"')
   blocked("trailer-in-subject-only", `git commit -m "${TRAILER}"`)
   blocked("body-but-no-trailer", 'git commit -m "fix(hook): a thing" -m "why it was done"')
+  blocked("trailer-flag-other-key", "git commit -m 'fix: ok' --trailer 'Signed-off-by: x <y>'")
 })
 
 describe("pattern and trailer from the committed config — allowed", () => {
@@ -65,6 +66,10 @@ describe("pattern and trailer from the committed config — allowed", () => {
   allowed("glued-m-value", `git commit -m"fix: a thing\n\n${TRAILER}"`)
   allowed("long-message-flag", `git commit --message="fix: a thing\n\n${TRAILER}"`)
   allowed("clustered-am", `git commit -am "fix: a thing\n\n${TRAILER}"`)
+  allowed("trailer-flag", "git commit -m 'fix: ok' --trailer 'Co-Authored-By: x <y>'")
+  allowed("trailer-flag-glued", "git commit -m 'fix: ok' --trailer='Co-Authored-By: x <y>'")
+  // git renders `token=value` on the command line as `token: value`.
+  allowed("trailer-flag-equals", "git commit --trailer 'Co-Authored-By=x <y>' -m 'fix: ok'")
 })
 
 describe("wrappers and other repositories resolve to the same commit", () => {

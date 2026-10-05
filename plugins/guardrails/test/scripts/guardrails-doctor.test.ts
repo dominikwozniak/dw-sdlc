@@ -110,6 +110,10 @@ function line(checks: Check[], name: string): Check {
 
 const CONFIG = { config: { commit: { convention: "ticket-key" } }, problems: [] as string[] }
 
+function rtkLine(machine: Fake): Check {
+  return line(diagnose({ root: ROOT, home: HOME, probe: fake(machine), config: CONFIG }), "rtk")
+}
+
 describe("diagnose", () => {
   it("passes every check on a healthy machine", () => {
     const checks = diagnose({ root: ROOT, home: HOME, probe: fake(HEALTHY), config: CONFIG })
@@ -235,16 +239,14 @@ describe("diagnose", () => {
   })
 
   it("rtk reflects exclude_commands for the filters that misbehave", () => {
-    const shim = (machine: Fake): Check =>
-      line(diagnose({ root: ROOT, home: HOME, probe: fake(machine), config: CONFIG }), "rtk")
-    assert.match(shim(HEALTHY).detail, /exclude_commands: find/)
+    assert.match(rtkLine(HEALTHY).detail, /exclude_commands: find/)
     const empty = withFile(HEALTHY, RTK_CONFIG, "[hooks]\nexclude_commands = []\n")
-    const check = shim(empty)
+    const check = rtkLine(empty)
     assert.equal(check.level, "WARN")
     assert.match(check.detail, /lacks find \(rtk 0\.45\.0 refuses find -exec; fixed in 0\.46\.0\)/)
-    const later = shim(withCommand(empty, "rtk --version", { stdout: "rtk 0.49.0\n" }))
+    const later = rtkLine(withCommand(empty, "rtk --version", { stdout: "rtk 0.49.0\n" }))
     assert.equal(later.level, "PASS", "from 0.46.0 on no filter needs excluding")
-    assert.equal(shim(withFile(HEALTHY, RTK_CONFIG, undefined)).level, "WARN")
+    assert.equal(rtkLine(withFile(HEALTHY, RTK_CONFIG, undefined)).level, "WARN")
   })
 
   it("reads the exclude list from config.toml and knows where the file lives", () => {

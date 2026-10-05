@@ -49,6 +49,18 @@ describe("the default threshold", () => {
   quiet("empty-path", "Write", "")
 })
 
+describe("a relative path is measured under the payload's cwd", () => {
+  it("relative-path-flagged", () => {
+    const payload = {
+      hook_event_name: "PostToolUse",
+      tool_name: "Write",
+      cwd: TMP,
+      tool_input: { file_path: "huge.js" }
+    }
+    expectExit(runHook("large-file-guard", payload), 2)
+  })
+})
+
 describe("CLAUDE_MAX_WRITE_BYTES", () => {
   it("lower-threshold-flags-small", () => {
     expectExit(run("Write", SMALL, { CLAUDE_MAX_WRITE_BYTES: "512" }), 2)

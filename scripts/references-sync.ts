@@ -95,16 +95,18 @@ export function parseReferences(markdown: string): Reference[] {
   })
 }
 
+/** Runs one git step of a sync; throws with git's error when it fails. */
+function step(args: string[], cwd?: string): void {
+  const result = git(args, cwd)
+  if (!result.ok) {
+    throw new Error(`git ${args.join(" ")}: ${result.err}`)
+  }
+}
+
 /** Clones or updates one reference; the reason it failed, or undefined. */
 function sync(root: string, reference: Reference): string | undefined {
   const { dir, repository, branch, skip } = reference
   const target = join(root, "references", dir)
-  const step = (args: string[], cwd?: string): void => {
-    const result = git(args, cwd)
-    if (!result.ok) {
-      throw new Error(`git ${args.join(" ")}: ${result.err}`)
-    }
-  }
   try {
     if (existsSync(target)) {
       const origin = git(["remote", "get-url", "origin"], target)
