@@ -70,16 +70,40 @@ done < <(guard_tokens "$STRIPPED")
 
 # --- 2. hunting the environment -------------------------------------------------------------------
 # An env dump on its own is ordinary. Filtered for a credential name it is not a look, it is a
-# search. `set` counts only with NO arguments, the spelling that dumps the environment: `set -e` and
-# `set -euo pipefail` set shell options and dump nothing, and matching them refused
-# `set -e && grep -rn "password" src/`, which is searching your own source for a field name. The
-# alternatives end `($|[;&|])` rather than `$` so that `set | grep -i token` still matches.
-ENV_DUMP='(^|[;&|][[:space:]]*)((env|printenv)([[:space:]]|$)|export -p|declare -x|set[[:space:]]*($|[;&|]))'
+# search. The dump and the filter have to share a pipeline: `env; grep -rn password src/` dumps, then
+# searches the source, and the search never reads the dump. `set` counts only with NO arguments, the
+# spelling that dumps the environment: `set -e` and `set -euo pipefail` set shell options and dump
+# nothing, and matching them would refuse `set -e && grep -rn "password" src/`, which is searching
+# your own source for a field name. The alternatives end `($|[;&|])` rather than `$` so that
+# `set | grep -i token` still matches.
+ENV_DUMP='(^[[:space:]]*|[;&|][[:space:]]*)((env|printenv)([[:space:]]|$|[;&|])|export -p|declare -x|set[[:space:]]*($|[;&|]))'
+
+# pipelines <command> — one pipeline per line: split at `;`, `&&`, `||`, a lone `&` and a newline,
+# never at `|`. Separators inside quotes are masked first, and the `&` of a redirect (`2>&1`, `&>`,
+# `|&`) becomes \003, no separator. It stays \003: bash 5.2 reads a `&` in a `${s//…/…}`
+# replacement as the match, so putting it back would differ by shell.
+pipelines() {
+  local s
+  s=$(guard_mask_quoted_separators "$1")
+  s="${s//||/$'\n'}"
+  s="${s//&&/$'\n'}"
+  s="${s//;/$'\n'}"
+  s="${s//>&/>$'\003'}"
+  s="${s//<&/<$'\003'}"
+  s="${s//|&/|$'\003'}"
+  s="${s//&>/$'\003'>}"
+  s="${s//&/$'\n'}"
+  printf '%s\n' "$s"
+}
+
 env_hunt=0
-if printf '%s' "$COMMAND" | grep -qE "$ENV_DUMP" &&
-  printf '%s' "$COMMAND" | grep -qiE "(grep|rg|ag|awk|sed|fgrep|egrep)[^;&|]*$CRED_WORDS"; then
-  env_hunt=1
-fi
+while IFS= read -r pipeline; do
+  if printf '%s' "$pipeline" | grep -qE "$ENV_DUMP" &&
+    printf '%s' "$pipeline" | grep -qiE "(grep|rg|ag|awk|sed|fgrep|egrep)[^;&|]*$CRED_WORDS"; then
+    env_hunt=1
+    break
+  fi
+done < <(pipelines "$COMMAND")
 # Printing a credential-ish variable straight out. Referencing one is fine — gh wants $GITHUB_TOKEN
 # and that is its job; putting the VALUE on stdout, where it lands in a transcript, is not.
 echo_secret=0

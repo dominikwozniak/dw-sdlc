@@ -67,6 +67,9 @@ describe("hunting the environment — refused", () => {
   blocked("export-p-grep-cred", "export -p | grep -i credential")
   blocked("set-grep-auth", "set | grep -i auth")
   blocked("set-grep-token", "set | grep -i token")
+  blocked("env-stderr-grep-token", "env 2>&1 | grep -i token")
+  blocked("env-sort-grep-token", "ls; env | sort | grep -i token")
+  blocked("env-glued-pipe-grep-token", "env|grep -i token")
   blocked("echo-secret-var", "echo $AWS_SECRET_ACCESS_KEY")
   blocked("echo-token-braced", "echo ${GITHUB_TOKEN}")
   blocked("printf-password-var", "printf '%s' $DB_PASSWORD")
@@ -93,6 +96,10 @@ describe("hunting the environment — allowed", () => {
   allowed("grep-for-authors", "git log | grep -i author")
   allowed("set-e-then-grep", 'set -e && grep -rn "password" src/')
   allowed("set-euo-then-rg", "set -euo pipefail; rg -n token src/")
+  // A dump and a search in separate pipelines: the search reads the source, not the dump.
+  allowed("env-then-grep-source", "env; grep -rn password src/")
+  allowed("env-and-then-rg-source", "printenv && rg -n token src/")
+  allowed("env-on-a-line-then-grep", "env\ngrep -rn secret src/")
   allowed("set-u-then-grep", "set -u; grep -rn secret src/")
 })
 
