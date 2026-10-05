@@ -21,6 +21,14 @@ function lib(script: string, args: string[] = []): string {
   return runBash(["-c", `source "$1"\n${script}`, "lib", LIB, ...args], "").stdout.replace(/\n+$/, "")
 }
 
+function boundaryMatches(command: string): string {
+  return lib(`if printf '%s\\n' '${command}' | grep -qE "\${GUARD_BOUNDARY}git push"; then echo yes; else echo no; fi`)
+}
+
+function unwrap(words: string): string {
+  return lib(`WORDS=(${words}); guard_unwrap_words; printf '%s' "\${WORDS[*]}"`)
+}
+
 describe("guard_read_payload", () => {
   it("json payload, multi-line command kept", () => {
     const file = join(TMP, "p.json")
@@ -149,11 +157,6 @@ describe("text helpers", () => {
       "cp,x,y,cat,z"
     )
   })
-  function boundaryMatches(command: string): string {
-    return lib(
-      `if printf '%s\\n' '${command}' | grep -qE "\${GUARD_BOUNDARY}git push"; then echo yes; else echo no; fi`
-    )
-  }
   it("boundary sees through wrappers", () => {
     assert.equal(boundaryMatches('RTK_DISABLED=1 sudo rtk run "git push"'), "yes")
   })
@@ -167,9 +170,6 @@ describe("text helpers", () => {
     const got = lib(`guard_words "git -C 'my repo' push  --force-with-lease=\\"a b\\":x it\\\\'s" | paste -sd, -`)
     assert.equal(got, "git,-C,my repo,push,--force-with-lease=a b:x,it's")
   })
-  function unwrap(words: string): string {
-    return lib(`WORDS=(${words}); guard_unwrap_words; printf '%s' "\${WORDS[*]}"`)
-  }
   it("unwrap drops assignment, sudo, rtk and its subcommand", () => {
     assert.equal(unwrap("RTK_DISABLED=1 sudo rtk run git push --force"), "git push --force")
   })
