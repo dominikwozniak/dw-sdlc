@@ -61,8 +61,15 @@ function typeMatches(value: unknown, type: unknown, path: string): boolean {
   }
 }
 
-// `\d`, `\s`, `\w`, `\b`, their capitals and a `(?` group, each behind an even run of backslashes.
-const NOT_ERE = /(?:^|[^\\])(?:\\\\)*(\\[dDsSwWbB]|\(\?)/
+// A pattern read token by token: a bracket expression, where `(`, `?` and a backslash are plain
+// characters and a class such as `[:alpha:]` does not close it, an escape, a `(?`, or any one character.
+const ERE_TOKEN = /\[\^?\]?(?:\[:[a-z]+:\]|[^\]])*\]|\\[\s\S]|\(\?|[\s\S]/g
+const NON_ERE_TOKEN = /^(\\[dDsSwWbB]|\(\?)$/
+
+/** The first `\d`, `\s`, `\w`, `\b`, capital twin or `(?` outside a bracket expression. */
+function notEre(value: string): string | undefined {
+  return Array.from(value.matchAll(ERE_TOKEN), ([token]) => token).find((token) => NON_ERE_TOKEN.test(token))
+}
 
 function compile(value: string): RegExp | undefined {
   try {
@@ -215,7 +222,7 @@ function checkKeyword(
       if (typeof value !== "string") {
         return
       }
-      const construct = NOT_ERE.exec(value)?.[1]
+      const construct = notEre(value)
       if (compile(value) === undefined) {
         problems.push({ path, message: `${show(value)} is not a valid regular expression` })
       } else if (construct !== undefined) {
