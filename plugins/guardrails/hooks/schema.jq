@@ -1,7 +1,8 @@
 # The subset of JSON Schema draft 2020-12 the shipped schemas use, for the guards. The same keywords,
 # messages and paths as scripts/json-schema.ts, whose tests run both copies against one case list.
 # A keyword outside the subset is an error, never a silent pass. `format` is enforced: `regex` is
-# the one format, tried as an Oniguruma expression.
+# the one format, tried as an Oniguruma expression and refused when it holds a construct POSIX ERE
+# lacks, because `grep -E` runs the pattern and BSD and GNU grep read those differently.
 #
 # Usage: `jq -L <this dir> --slurpfile s schema.json 'include "schema"; validate($s[0])' doc.json`
 # prints an array of {path, message}, empty when the document validates.
@@ -21,6 +22,9 @@ def _type_matches($t):
   else error("unknown type \($t | tojson)") end;
 
 def _is_regex: . as $re | (try ("" | test($re)) catch "bad") != "bad";
+
+# `\d`, `\s`, `\w`, `\b`, their capitals and a `(?` group, each behind an even run of backslashes.
+def _not_ere: [match("(?:^|[^\\\\])(?:\\\\\\\\)*(\\\\[dDsSwWbB]|\\(\\?)").captures[0].string][0];
 
 def _problem($path; $message): {path: $path, message: $message};
 
@@ -87,8 +91,11 @@ def _check($schema; $path):
           else empty end
         elif $keyword == "format" then
           if $op != "regex" then error("\(_at($path)): format must be \"regex\", the one format enforced here")
-          elif ($value | type) == "string" and ($value | _is_regex | not) then
+          elif ($value | type) != "string" then empty
+          elif ($value | _is_regex | not) then
             _problem($path; "\($value | tojson) is not a valid regular expression")
+          elif ($value | _not_ere) != null then
+            _problem($path; "\($value | tojson) uses \($value | _not_ere), which POSIX ERE lacks; grep -E runs the pattern")
           else empty end
         elif $keyword == "minimum" then
           if ($op | type) != "number" then error("\(_at($path)): minimum must be a number")

@@ -87,7 +87,7 @@
           "enum": ["ticket-key", "conventional"]
         },
         "pattern": {
-          "description": "POSIX ERE the commit subject must match; set, it wins over `convention`. bash `[[ =~ ]]` runs it, so no `\\d` or `\\s`. `.+` accepts any subject.",
+          "description": "POSIX ERE the commit subject must match; set, it wins over `convention`. `grep -E` runs it, so no `\\d`, `\\s`, `\\w`, `\\b` or `(?…)`. `.+` accepts any subject.",
           "type": "string",
           "minLength": 1,
           "format": "regex"

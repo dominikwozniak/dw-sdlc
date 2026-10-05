@@ -1,8 +1,10 @@
 // The subset of JSON Schema draft 2020-12 the shipped schemas use, validated without a dependency: Node
 // has no validator built in, and a config file does not justify pulling one in. A keyword outside the
 // subset throws instead of passing silently, so a schema never promises more than this file enforces.
-// `format` is enforced, not annotative: `regex` is the one format, compiled with `RegExp`. `enum` and
-// `const` compare by JSON text, exact for the scalars and arrays the schemas use.
+// `format` is enforced, not annotative: `regex` is the one format, compiled with `RegExp` and refused
+// when it holds a construct POSIX ERE lacks, because `grep -E` runs the pattern and BSD and GNU grep
+// read those differently. `enum` and `const` compare by JSON text, exact for the scalars and arrays
+// the schemas use.
 
 export type SchemaProblem = { path: string; message: string }
 
@@ -58,6 +60,9 @@ function typeMatches(value: unknown, type: unknown, path: string): boolean {
       throw new SchemaError(`${at(path)}: unknown type ${show(type)}`)
   }
 }
+
+// `\d`, `\s`, `\w`, `\b`, their capitals and a `(?` group, each behind an even run of backslashes.
+const NOT_ERE = /(?:^|[^\\])(?:\\\\)*(\\[dDsSwWbB]|\(\?)/
 
 function compile(value: string): RegExp | undefined {
   try {
@@ -207,8 +212,17 @@ function checkKeyword(
     }
     case "format": {
       operandMust(operand === "regex", path, keyword, '"regex", the one format enforced here')
-      if (typeof value === "string" && compile(value) === undefined) {
+      if (typeof value !== "string") {
+        return
+      }
+      const construct = NOT_ERE.exec(value)?.[1]
+      if (compile(value) === undefined) {
         problems.push({ path, message: `${show(value)} is not a valid regular expression` })
+      } else if (construct !== undefined) {
+        problems.push({
+          path,
+          message: `${show(value)} uses ${construct}, which POSIX ERE lacks; grep -E runs the pattern`
+        })
       }
       return
     }

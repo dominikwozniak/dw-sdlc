@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process"
 import { join } from "node:path"
 import { describe, it } from "node:test"
 
+import { COMMIT_PATTERNS } from "../../scripts/agentic-config.ts"
 import { SchemaError, validate } from "../../scripts/json-schema.ts"
 
 type Case = { name: string; schema: unknown; value: unknown; problems: { path: string; message: string }[] }
@@ -97,6 +98,43 @@ const CASES: Case[] = [
     value: "(",
     problems: [{ path: "", message: '"(" is not a valid regular expression' }]
   },
+  ...[
+    ["^\\d+", "\\d"],
+    ["^\\D", "\\D"],
+    ["^a\\sb", "\\s"],
+    ["^\\w+$", "\\w"],
+    ["\\bfix\\b", "\\b"],
+    ["^(?:fix|feat): ", "(?"],
+    ["^x\\\\\\s", "\\s"]
+  ].map(([value, construct]) => ({
+    name: `format regex refuses ${construct} in ${value}, which grep -E reads differently by platform`,
+    schema: { format: "regex" },
+    value,
+    problems: [
+      {
+        path: "",
+        message: `${JSON.stringify(value)} uses ${construct}, which POSIX ERE lacks; grep -E runs the pattern`
+      }
+    ]
+  })),
+  {
+    name: "format regex takes an escaped backslash before d",
+    schema: { format: "regex" },
+    value: "^\\\\d",
+    problems: []
+  },
+  {
+    name: "format regex takes an escaped paren before ?",
+    schema: { format: "regex" },
+    value: "^fix\\(?",
+    problems: []
+  },
+  ...Object.entries(COMMIT_PATTERNS).map(([convention, value]) => ({
+    name: `format regex takes the ${convention} preset`,
+    schema: { format: "regex" },
+    value,
+    problems: []
+  })),
   { name: "minimum", schema: { minimum: 1 }, value: 0, problems: [{ path: "", message: "0 is below the minimum 1" }] },
   { name: "true accepts anything", schema: true, value: { any: [1] }, problems: [] },
   { name: "false refuses anything", schema: false, value: 1, problems: [{ path: "", message: "is not allowed here" }] },
