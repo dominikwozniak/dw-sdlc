@@ -3,6 +3,7 @@
 // loose one lets a destructive command through — and the push policy reads the config, so the cases
 // run against throwaway repositories with known files.
 
+import assert from "node:assert/strict"
 import { join } from "node:path"
 import { describe, it } from "node:test"
 
@@ -97,9 +98,22 @@ describe("plain pushes — a protected branch takes pull requests", () => {
 })
 
 describe("the rest of the destructive set", () => {
-  blocked("push-delete", "git push origin --delete old-branch")
   blocked("push-d", "git push origin -d old-branch")
-  blocked("push-colon-delete", "git push origin :old-branch")
+  // Both spellings of a remote deletion get the push parser's reason, not a regex arm's.
+  const deletions: [string, string][] = [
+    ["push-delete", "git push origin --delete old-branch"],
+    ["push-colon-delete", "git push origin :old-branch"],
+    ["push-plus-colon-delete", "git push origin +:old-branch"],
+    ["push-colon-delete-among-refspecs", "git push origin feat :old-branch"],
+    ["rtk-run-colon-delete", 'rtk run "git push origin :old-branch"']
+  ]
+  for (const [name, command] of deletions) {
+    it(name, () => {
+      const verdict = runHook("block-dangerous-commands", bashPayload(command, FEAT))
+      expectExit(verdict, 2)
+      assert.match(verdict.stderr, /deletes a remote branch/)
+    })
+  }
   blocked("reset-hard", "git reset --hard")
   blocked("reset-hard-ref", "git reset --hard HEAD~1")
   blocked("clean-fd", "git clean -fd")
@@ -276,6 +290,8 @@ describe("allowed", () => {
   allowed("rm-relative-dir", "rm -rf ./dist")
   allowed("rm-home-subdir", "rm -rf ~/old-dir")
   allowed("find-no-delete", "find . -name '*.pyc'")
+  // A bare `:` is the matching refspec: it pushes every branch both sides have and deletes nothing.
+  allowed("push-matching-refspec", "git push origin :", FEATURES_ONLY)
   allowed("rtk-status", "rtk git status")
   allowed("rtk-plain-push", "rtk git push")
   allowed("rtk-gain", "rtk gain")

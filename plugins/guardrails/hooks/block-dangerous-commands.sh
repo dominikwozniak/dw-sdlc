@@ -8,8 +8,9 @@
 # `--force`, `-f` or `+refspec` and a `--mirror` are always refused; `--force-with-lease` and
 # `--force-if-includes` pass to a branch outside `guardrails.protectedBranches` — with `--all`, every
 # local branch counts — and nothing passes when `guardrails.forcePush` is `deny`; a plain push to a
-# protected branch is refused too, because those branches take pull requests. Both
-# read the config of the repository the payload's cwd is in. Every `git restore` of the whole tree:
+# protected branch is refused too, because those branches take pull requests, and so is a remote
+# branch deletion, `--delete`, `-d` or a `:branch` refspec. The push rules read the config of the
+# repository the payload's cwd is in. Every `git restore` of the whole tree:
 # `--staged` alone is the one form that touches nothing the index cannot give back.
 #
 # Guardrail against agent accidents, not a security boundary. Runs always-on from bash-guard.sh, or
@@ -32,7 +33,6 @@ END='([^A-Za-z0-9_-]|$)'
 Q="[\"']?"
 
 PATTERNS=(
-  "$GUARD_GIT"' push( [^;&|]*)?( --delete'"$END"'| :[^[:space:]])'        # remote branch deletion, either spelling
   "$GUARD_GIT"' reset( [^;&|]*)? --hard'                                  # discards index and working tree
   "$GUARD_GIT"' clean( +-[A-Za-z-]+)* +(-[A-Za-z]*[dfxX]|--force)'        # deletes untracked files, any flag order
   "$GUARD_GIT"' branch( [^;&|]*)?( -f'"$END"'| --force'"$END"')'          # force-repoints a branch; -D stays allowed

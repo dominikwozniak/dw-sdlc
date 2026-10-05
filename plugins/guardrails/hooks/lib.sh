@@ -154,7 +154,8 @@ guard_git_verb() {
 
 # guard_parse_push <segment> — 0 when the segment is a `git … push` once the wrappers are off. Fills
 # GUARD_PUSH_LOC (where git runs), GUARD_PUSH_BARE (--force, -f, +refspec), GUARD_PUSH_LEASE
-# (--force-with-lease, --force-if-includes), GUARD_PUSH_DELETE (--delete, -d), GUARD_PUSH_MIRROR
+# (--force-with-lease, --force-if-includes), GUARD_PUSH_DELETE (--delete, -d, a `:branch` refspec
+# with no source; a bare `:` is the matching refspec and deletes nothing), GUARD_PUSH_MIRROR
 # (--mirror, which force-updates and deletes every remote ref), GUARD_PUSH_ALL (--all, --branches:
 # every local branch), GUARD_PUSH_TAGS (--tags: no branch unless a refspec names one), GUARD_PUSH_DRY
 # (--dry-run, -n: nothing is written), GUARD_PUSH_REMOTE and GUARD_PUSH_REFSPECS, one per line with a
@@ -185,19 +186,25 @@ guard_parse_push() {
       --tags) GUARD_PUSH_TAGS=1 ;;
       --dry-run) GUARD_PUSH_DRY=1 ;;
       --repo=*) GUARD_PUSH_REMOTE="${word#*=}" ;;
-      -o | --push-option | --receive-pack | --exec | --repo) i=$((i + 1)) ;;
+      --repo)
+        i=$((i + 1))
+        GUARD_PUSH_REMOTE="${WORDS[$i]:-}"
+        ;;
+      -o | --push-option | --receive-pack | --exec) i=$((i + 1)) ;;
       --*) ;;
       -*f*) GUARD_PUSH_BARE=1 ;;
       -*n*) GUARD_PUSH_DRY=1 ;;
       -*) ;;
       +*)
         GUARD_PUSH_BARE=1
+        [[ "$word" == +:?* ]] && GUARD_PUSH_DELETE=1
         GUARD_PUSH_REFSPECS+="${GUARD_PUSH_REFSPECS:+$'\n'}${word#+}"
         ;;
       *)
         if [[ -z "$GUARD_PUSH_REMOTE" ]]; then
           GUARD_PUSH_REMOTE="$word"
         else
+          [[ "$word" == :?* ]] && GUARD_PUSH_DELETE=1
           GUARD_PUSH_REFSPECS+="${GUARD_PUSH_REFSPECS:+$'\n'}$word"
         fi
         ;;
