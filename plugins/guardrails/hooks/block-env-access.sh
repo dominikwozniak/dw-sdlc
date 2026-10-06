@@ -14,7 +14,9 @@
 # for a Grep of a directory on the env files its `glob` reaches, and for Bash through bash-guard.sh
 # on the command's tokens: heredoc bodies and quoted prose — a quoted span holding whitespace — are
 # dropped first, so a commit message naming a file does not count, while a quoted path such as
-# `cat ".env.local"` and the words of a `$(…)` or backtick substitution the shell runs still do. Guardrail against accidental secret exposure, not a security boundary.
+# `cat ".env.local"` and the words of a `$(…)` or backtick substitution the shell runs, in double
+# quotes or an unquoted heredoc body, still do. Guardrail against accidental secret exposure, not a
+# security boundary.
 set -uo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
@@ -153,8 +155,9 @@ refused() {
   return 0
 }
 
+# refuse <who> <path> [<note>]
 refuse() {
-  guard_block "$1 touches '$2' and $REASON. guardrails.envFiles in .ai/agentic.config.json decides: a listed deny is refused, a listed allow passes, and for the rest a tracked env file is secret-free by the repository's own rule while anything else may hold secrets."
+  guard_block "$1 touches '$2' and $REASON. ${3:+$3 }guardrails.envFiles in .ai/agentic.config.json decides: a listed deny is refused, a listed allow passes, and for the rest a tracked env file is secret-free by the repository's own rule while anything else may hold secrets."
 }
 
 if [[ -n "$GUARD_FILE_PATH" ]]; then
@@ -232,10 +235,18 @@ if [[ "$GUARD_TOOL" == "Grep" && -n "$GUARD_GLOB" ]] && could_name_env "$GUARD_G
   fi
 fi
 
+# The first line holds the command's own words, each line after it a substitution's: a markdown
+# backtick span in a double-quoted `--body` is one, and the refusal says so.
 if [[ -n "$GUARD_COMMAND" ]]; then
-  while IFS= read -r token; do
-    refused "$token" && refuse "'$GUARD_COMMAND'" "$token"
-  done < <(guard_tokens "$(guard_strip_quoted "$GUARD_COMMAND")")
+  WHO="'$GUARD_COMMAND'"
+  NOTE=""
+  while IFS= read -r words; do
+    while IFS= read -r token; do
+      refused "$token" && refuse "$WHO" "$token" "$NOTE"
+    done < <(guard_tokens "$words")
+    WHO="A command substitution in '$GUARD_COMMAND'"
+    NOTE="The shell runs a \$(…) or a backtick span inside double quotes and an unquoted heredoc body too; to keep one as text, escape it, single-quote it, or quote the heredoc's delimiter (<<'EOF')."
+  done < <(guard_strip_quoted "$GUARD_COMMAND")
 fi
 
 exit 0

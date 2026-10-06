@@ -20,7 +20,8 @@ A guard's answer to a tool call: deny, ask or pass.
 _Avoid_: result, decision
 
 **Scan**:
-The command text the guards judge: heredoc bodies dropped, continuation lines joined.
+The command text the guards judge: heredoc bodies dropped but for the substitutions an unquoted one
+runs, continuation lines joined.
 
 **Plain words**:
 A command segment's shell words with the quotes gone and quoted prose dropped.

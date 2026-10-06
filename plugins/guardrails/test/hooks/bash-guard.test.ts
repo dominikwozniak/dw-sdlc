@@ -38,6 +38,8 @@ describe("block-dangerous-commands is wired and always on", () => {
   allowed("lease push to a feature branch", "git push --force-with-lease origin feat-x")
   allowed("heredoc body is a file, not a command", "cat > x <<EOF\ngit push --force\nEOF")
   refused("heredoc opener still counts", "git push --force <<EOF\nbody\nEOF")
+  refused("an unquoted heredoc body's substitution runs", "cat > x <<EOF\n$(git push --force)\nEOF")
+  refused("a comment ending in a backslash hides no line", "ls # note \\\ngit push --force")
   refused("a << inside double quotes hides nothing", 'echo "a << EOF"\ngit reset --hard')
   refused("a << behind a comment hides nothing", "# note << EOF\nrm -rf /")
   refused(

@@ -123,6 +123,24 @@ describe("text helpers", () => {
       "git commit -m \"$(cat <'EOF'\n)\"\necho done"
     )
   })
+  it("an unquoted heredoc body keeps the substitutions the shell runs, its prose dropped", () => {
+    assert.equal(
+      lib(`printf 'cat <<EOF\\nsee $(cat a) and \\x60id\\x60\\nplain\\nEOF\\necho done\\n' | guard_strip_heredocs`),
+      "cat <EOF\n$(cat a) `id`\necho done"
+    )
+  })
+  it("a substitution spanning lines of an unquoted body is kept whole", () => {
+    assert.equal(
+      lib(`printf 'cat <<EOF\\nx $(cat \\\\\\na) y\\nEOF\\n' | guard_strip_heredocs`),
+      "cat <EOF\n$(cat \\\na)"
+    )
+  })
+  it("an opener after a bare parenthesis inside $( leaves the line inside the substitution", () => {
+    assert.equal(
+      lib(`guard_heredoc_opener 'x=$( (cd a) && cat <<EOF' && printf '%s|%s' "$GUARD_HD_DELIM" "$GUARD_HD_STATE"`),
+      "EOF|PU"
+    )
+  })
   it("a real opener with no terminator drops the rest", () => {
     assert.equal(lib(`printf 'cat <<EOF\\ngit reset --hard\\n' | guard_strip_heredocs`), "cat <EOF")
   })
@@ -130,6 +148,12 @@ describe("text helpers", () => {
     assert.equal(
       lib(`printf 'git push \\\\\\n  --force\\necho done\\n' | guard_join_continuations`),
       "git push   --force\necho done"
+    )
+  })
+  it("a comment ending in a backslash continues nothing", () => {
+    assert.equal(
+      lib(`printf 'ls # note \\\ncat x\necho "a # b" \\\nc\n' | guard_join_continuations`),
+      'ls # note \\\ncat x\necho "a # b" c'
     )
   })
   it("an escaped backslash continues nothing", () => {
@@ -155,6 +179,23 @@ describe("text helpers", () => {
       lib(`guard_mask_quoted_separators "$(printf 'cat <<EOF\\ndon\\x27t; a\\nEOF\\nls; b')"`),
       "cat <<EOF\ndon\u0002t\u0002 a\nEOF\nls; b"
     )
+  })
+  it("an unquoted heredoc body is text, the substitutions in it are not", () => {
+    assert.equal(
+      lib(`guard_mask_quoted_separators "$(printf 'cat <<EOF\\n# it\\x27s $(a; b)\\nEOF')"`),
+      "cat <<EOF\n\u0002 it\u0002s $(a; b)\nEOF"
+    )
+  })
+  it("a comment is text: its separators masked, a # inside a word or quotes no comment", () => {
+    assert.equal(lib(`guard_mask_quoted_separators 'ls # a; b'`), "ls # a\u0002 b")
+    assert.equal(lib(`guard_mask_quoted_separators 'echo x#y "#"; z'`), 'echo x#y "#"; z')
+  })
+  it("strip_quoted: the command's words on the first line, each substitution's on a line of its own", () => {
+    assert.equal(lib(`guard_strip_quoted 'echo "x $(cat a) y" \`b c\`'`), "echo _\ncat a\nb c")
+    assert.equal(lib(`guard_strip_quoted 'cat a "b c"'`), "cat a")
+  })
+  it("strip_quoted: a comment runs nothing, so its words are dropped", () => {
+    assert.equal(lib(`guard_strip_quoted "$(printf 'ls # cat b\\necho "a # b" x#y')"`), "ls echo x#y")
   })
   it("substitutions split out of their text, nested ones too, single quotes literal", () => {
     assert.equal(split('a "x $(b "$(c)") y" `d`'), 'a "x _ y" _|c|b "_"|d')

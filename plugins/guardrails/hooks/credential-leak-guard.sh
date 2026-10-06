@@ -14,8 +14,9 @@
 # Check 3 is deliberately not "no network calls": a guard that blocks every curl is unwired within a
 # day; one that blocks a curl carrying a secret is one nobody argues with. Heredoc bodies and quoted
 # prose — a quoted span holding whitespace — are dropped before the path check, while a quoted path
-# such as `cat "$HOME/.ssh/id_rsa"` still counts. Guardrail against agent accidents, not a security
-# boundary. Runs always-on from bash-guard.sh.
+# such as `cat "$HOME/.ssh/id_rsa"` and a substitution the shell runs, in double quotes or an unquoted
+# heredoc body, still count. Guardrail against agent accidents, not a security boundary. Runs
+# always-on from bash-guard.sh.
 set -uo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
@@ -58,15 +59,22 @@ is_cred_path() {
   return 1
 }
 
+# The first line holds the command's own words, each line after it a substitution's.
 STRIPPED=$(guard_strip_quoted "$COMMAND")
 
 CRED_PATH_HIT=""
-while IFS= read -r token; do
-  if is_cred_path "$token"; then
-    CRED_PATH_HIT="$token"
-    break
-  fi
-done < <(guard_tokens "$STRIPPED")
+CRED_PATH_WHERE=""
+WHERE=""
+while IFS= read -r words; do
+  while IFS= read -r token; do
+    if is_cred_path "$token"; then
+      CRED_PATH_HIT="$token"
+      CRED_PATH_WHERE="$WHERE"
+      break 2
+    fi
+  done < <(guard_tokens "$words")
+  WHERE=" in a command substitution, which the shell runs inside double quotes and an unquoted heredoc body too"
+done <<<"$STRIPPED"
 
 # --- 2. hunting the environment -------------------------------------------------------------------
 # An env dump on its own is ordinary. Filtered for a credential name it is not a look, it is a
@@ -110,7 +118,7 @@ if ((exfil)); then
   guard_block "this command sends a credential off the machine — a curl/wget carrying a secret file or variable. Nothing an agent does should need that."
 fi
 if [[ -n "$CRED_PATH_HIT" ]]; then
-  guard_block "'$COMMAND' touches the credential store '$CRED_PATH_HIT'. SSH keys, cloud credentials and .netrc are the user's, not the agent's, and reading one puts it in a transcript."
+  guard_block "'$COMMAND' touches the credential store '$CRED_PATH_HIT'$CRED_PATH_WHERE. SSH keys, cloud credentials and .netrc are the user's, not the agent's, and reading one puts it in a transcript."
 fi
 if ((env_hunt)); then
   guard_block "'$COMMAND' searches the environment for credentials. Dumping the environment is fine; filtering it for a token, secret or key is a search, and the matches land in a transcript."

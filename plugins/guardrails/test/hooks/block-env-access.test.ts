@@ -4,6 +4,7 @@
 // through and refuses the others, `deny` refuses them all. Without a config the defaults hold:
 // policy `git`, the `.env.example`, `.env.sample` and `.env.template` names allowed anywhere.
 
+import assert from "node:assert/strict"
 import { symlinkSync } from "node:fs"
 import { join } from "node:path"
 import { describe, it } from "node:test"
@@ -165,6 +166,20 @@ describe("a substitution inside double quotes runs, so its paths count", () => {
   allowedBash("dq-prose-around-a-substitution", 'git commit -m "fix: read .env.local lazily $(date) and more"')
   blockedBash("nested-substitution", 'echo "$(echo "$(cat .env.local)")"')
   allowedBash("quoted-heredoc-body-is-text", "git commit -m \"$(cat <<'EOF'\nfix: x\n\nreads .env.local now\nEOF\n)\"")
+  blockedBash("unquoted-heredoc-body-substitution", "cat <<EOF\n$(cat .env.local)\nEOF")
+  blockedBash("unquoted-heredoc-body-backtick", "cat > notes.md <<EOF\nsee `cat .env.local`\nEOF")
+  allowedBash("quoted-heredoc-body-substitution-is-text", "cat <<'EOF'\n$(cat .env.local)\nEOF")
+  allowedBash("unquoted-heredoc-body-prose", "cat <<EOF\nreads .env.local lazily, $(date)\nEOF")
+  it("a refusal from a substitution says so", () => {
+    const verdict = runHook("block-env-access", bashPayload('gh pr create --body "reads `.env.local` now"', REPO))
+    expectExit(verdict, 2)
+    assert.match(verdict.stderr, /command substitution/)
+  })
+  it("a refusal from the command itself does not", () => {
+    const verdict = runHook("block-env-access", bashPayload("cat .env.local", REPO))
+    expectExit(verdict, 2)
+    assert.doesNotMatch(verdict.stderr, /substitution/)
+  })
 })
 
 function grepPayload(glob: string, path?: string, cwd = REPO): object {

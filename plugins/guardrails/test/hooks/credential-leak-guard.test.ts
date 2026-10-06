@@ -4,6 +4,7 @@
 // that ordinary work — network calls, a secret variable used by the command that needs it, a key
 // named in prose — never trips it.
 
+import assert from "node:assert/strict"
 import { mkdirSync } from "node:fs"
 import { join } from "node:path"
 import { describe, it } from "node:test"
@@ -111,6 +112,18 @@ describe("a command substitution runs: its dump, its filter and its paths count"
   allowed("sq-substitution-is-text", "git commit -m 'docs: see $(cat ~/.ssh/id_rsa)'")
   allowed("sq-substitution-hunt-is-text", "git commit -m 'docs: never $(env | grep -i token)'")
   allowed("dq-substitution-safe", 'echo "branch: $(git branch --show-current)"')
+  blocked("unquoted-heredoc-body-ssh-key", "cat <<EOF\n$(cat ~/.ssh/id_rsa)\nEOF")
+  allowed("quoted-heredoc-body-ssh-key-is-text", "cat <<'EOF'\n$(cat ~/.ssh/id_rsa)\nEOF")
+  it("a refusal from a substitution says so", () => {
+    const verdict = runHook("credential-leak-guard", bashPayload('echo "$(cat ~/.ssh/id_rsa)"'))
+    expectExit(verdict, 2)
+    assert.match(verdict.stderr, /command substitution/)
+  })
+  it("a refusal from the command itself does not", () => {
+    const verdict = runHook("credential-leak-guard", bashPayload("cat ~/.ssh/id_rsa"))
+    expectExit(verdict, 2)
+    assert.doesNotMatch(verdict.stderr, /substitution/)
+  })
 })
 
 describe("exfil — refused", () => {
