@@ -1,8 +1,8 @@
 #!/bin/bash
 # The text scanners lib.sh sources — the quote walker and what reads its pieces: quoted separators,
-# substitutions, words, the wrapper boundary every guard's pattern sees through. Not a hook and not
-# sourced on its own: lib.sh sets the locale and GUARD_LIB_DIR first and sources lib-lines.sh, then
-# this file.
+# substitutions, plain words. Not a hook and not sourced on its own: lib.sh sets the locale and
+# GUARD_LIB_DIR first and sources lib-lines.sh, then this file, then lib-words.sh, whose word reader,
+# escape decoder and GUARD_LIVE_QUOTE the scanners here call only once every file is sourced.
 # --- the quotes ---------------------------------------------------------------------------------
 
 # guard_quote_walk <text> [<live>] [<state>] — the one reader of shell quoting: the mask, the
@@ -11,26 +11,30 @@
 #   t<c>  text read in context <c>        e<c>  a backslash and the character it keeps
 #   o<c>  what opens context <c>          c<c>  what closes it
 #   tC    a comment, up to the newline    h     a heredoc operator and its delimiter
-# The contexts: P the top level, S and D a single- and a double-quoted span, U a `$(…)`, V a bare `(`
-# inside one, B a backtick substitution, H an unquoted heredoc body, where only a substitution and a
-# backslash act. With <live> set, a quote after a shell's `-c`, `eval` or `rtk run` opens s or d
-# instead, a quote that holds a command. A comment and a heredoc operator count only where the shell
-# reads a command: in P, U, V and B. GUARD_QW_STATE is the stack the text ends in, one context per
-# character, starting from <state>, P by default; the walk returns 1 when it ends elsewhere, a quote
-# or substitution left open. It jumps from one character that can change the context to the next,
-# so a long quoted body costs a step per quote, backslash and substitution, not one per character.
+# The contexts: P the top level, S and D a single- and a double-quoted span, A an ANSI-C `$'…'` span,
+# where a backslash escapes and the next `'` closes, U a `$(…)`, V a bare `(` inside one, B a backtick
+# substitution, H an unquoted heredoc body, where only a substitution and a backslash act. A `$'` opens
+# A wherever a `'` would open S; a `$"…"` is a double-quoted span after a `$` of text. With <live>
+# set, a quote after a shell's `-c`, `eval` or `rtk run` opens s, d or a instead, a quote that holds a
+# command; in a, a backslash still escapes, so a `\'` there is text the walk does not follow. A
+# comment and a heredoc operator count only where the shell reads a command: in P, U, V and B.
+# GUARD_QW_STATE is the stack the text ends in, one context per character, starting from <state>, P by
+# default; the walk returns 1 when it ends elsewhere, a quote or substitution left open. It jumps from
+# one character that can change the context to the next, so a long quoted body costs a step per
+# quote, backslash and substitution, not one per character.
 GUARD_QW_KIND=()
 GUARD_QW_TEXT=()
 GUARD_QW_STATE=""
 guard_quote_walk() {
   local text="$1" live="${2:-0}" st="${3:-P}"
-  local rest="$1" total=${#1} top run ch kind len quote prev=""
+  local rest="$1" total=${#1} top run ch kind len quote pre prev=""
   GUARD_QW_KIND=()
   GUARD_QW_TEXT=()
   while [[ -n "$rest" ]]; do
     top=${st:${#st}-1}
     case "$top" in
       S) run=${rest%%\'*} ;;
+      A) run=${rest%%[\'\\]*} ;;
       D) run=${rest%%[\"\\\`\$]*} ;;
       H) run=${rest%%[\\\`\$]*} ;;
       *) run=${rest%%[\"\'\\\`\$\(\)#\<]*} ;;
@@ -50,12 +54,30 @@ guard_quote_walk() {
       '\')
         kind="e$top"
         len=2
+        # An escape in a `$'…'` is one piece, `\x3b` whole.
+        if [[ "$top" == [Aa] ]]; then
+          guard_ansi_escape "${rest:1:9}"
+          len=$((1 + GUARD_ANSI_LEN))
+        fi
         ;;
-      '$') [[ "${rest:1:1}" == '(' ]] && kind=oU len=2 ;;
+      '$')
+        case "${rest:1:1}" in
+          # `$$` is the shell's pid, so a `(` or `'` after the pair opens nothing.
+          '$') len=2 ;;
+          '(') kind=oU len=2 ;;
+          "'")
+            if [[ "$top" == [PUVBd] ]]; then
+              kind=oA
+              len=2
+              ((live)) && [[ "${text:0:total-${#rest}}" =~ $GUARD_LIVE_QUOTE ]] && kind=oa
+            fi
+            ;;
+        esac
+        ;;
       '`') if [[ "$top" == B ]]; then kind=cB; else kind=oB; fi ;;
       "'")
         case "$top" in
-          S | s) kind="c$top" ;;
+          S | s | A | a) kind="c$top" ;;
           d) kind=oS ;;
           *)
             kind=oS
@@ -67,8 +89,10 @@ guard_quote_walk() {
         case "$top" in
           D | d) kind="c$top" ;;
           *)
+            # A `$"…"` handed to a shell is live as a `"…"` is.
             kind=oD
-            ((live)) && [[ "${text:0:total-${#rest}}" =~ $GUARD_LIVE_QUOTE ]] && kind=od
+            pre=${text:0:total-${#rest}}
+            ((live)) && [[ "${pre%\$}" =~ $GUARD_LIVE_QUOTE ]] && kind=od
             ;;
         esac
         ;;
@@ -172,7 +196,7 @@ guard_mask_pieces() {
   for ((i = 0; i < n; i++)); do
     piece=${GUARD_QW_TEXT[i]}
     case "${GUARD_QW_KIND[i]}" in
-      tS | tC)
+      tS | tA | tC)
         guard_replace_set "$piece" ';&|()`' $'\002'
         piece=$GUARD_REPLACED
         ;;
@@ -183,6 +207,12 @@ guard_mask_pieces() {
       tH)
         guard_replace_set "$piece" ";&|()'\"#" $'\002'
         piece=$GUARD_REPLACED
+        ;;
+      ea)
+        # A `$'…'` handed to a shell hands it the decoded text, where a newline ends a command.
+        guard_ansi_escape "${piece:1}"
+        piece=$GUARD_ANSI_CHAR
+        [[ "$piece" == $'\n' ]] && piece=';'
         ;;
       e?)
         case "${piece:1:1}" in
@@ -307,127 +337,3 @@ guard_plain_words() {
   done <<<"$words"
   printf '%s' "$plain"
 }
-
-# guard_tokens <text> — one token per line, split on whitespace and shell punctuation.
-guard_tokens() {
-  printf '%s\n' "$1" | tr -s "[:space:];|&()<>=\`\"'" '\n' | sed '/^$/d'
-}
-
-# guard_words <segment> — the segment split into words the way a shell would, one per line: whitespace
-# separates, quotes group and are dropped, a backslash keeps the next character. For one command's
-# arguments, where `-C 'my repo'` must stay one word; a segment holds no newline. Returns 1 when a
-# quote is left open, after printing what it read.
-guard_words() {
-  local s="$1"
-  local n=${#s}
-  local i=0 ch word="" have=0 state=plain
-  while ((i < n)); do
-    ch=${s:i:1}
-    if [[ "$ch" == '\' && "$state" != sq ]]; then
-      i=$((i + 1))
-      ((i < n)) && word+=${s:i:1}
-      have=1
-      i=$((i + 1))
-      continue
-    fi
-    case "$state" in
-      plain)
-        case "$ch" in
-          "'") state=sq; have=1 ;;
-          '"') state=dq; have=1 ;;
-          ' ' | $'\t')
-            ((have)) && printf '%s\n' "$word"
-            word=""
-            have=0
-            ;;
-          *) word+=$ch; have=1 ;;
-        esac
-        ;;
-      sq) if [[ "$ch" == "'" ]]; then state=plain; else word+=$ch; fi ;;
-      dq) if [[ "$ch" == '"' ]]; then state=plain; else word+=$ch; fi ;;
-    esac
-    i=$((i + 1))
-  done
-  ((have)) && printf '%s\n' "$word"
-  [[ "$state" == plain ]]
-}
-
-# guard_unwrap_words — drops the wrapper words GUARD_WRAPPER names from the front of the array WORDS:
-# `sudo`, `command`, `eval`, `env` with its options, a `VAR=value` assignment, a shell with the options
-# up to its `-c`, and `rtk` with the subcommand that follows it unless that word is the command
-# itself. Word by word, so `rtk git` keeps its `git` and `bash script.sh` stays a shell.
-guard_unwrap_words() {
-  local j c
-  while [[ ${#WORDS[@]} -gt 0 ]]; do
-    case "${WORDS[0]}" in
-      sudo | command | eval) WORDS=("${WORDS[@]:1}") ;;
-      sh | bash | zsh | dash | ksh)
-        j=1
-        c=0
-        while [[ $j -lt ${#WORDS[@]} && "${WORDS[$j]}" == [-+]* ]]; do
-          case "${WORDS[$j]}" in
-            --*) ;;
-            [-+][oO]) j=$((j + 1)) ;; # `-o pipefail`: the option name is the next word
-            -*c*) c=1 ;;
-          esac
-          j=$((j + 1))
-        done
-        ((c)) || return 0
-        WORDS=("${WORDS[@]:$j}")
-        ;;
-      env)
-        WORDS=("${WORDS[@]:1}")
-        while [[ ${#WORDS[@]} -gt 0 && "${WORDS[0]}" == -* ]]; do
-          case "${WORDS[0]}" in
-            -u | --unset | -C | --chdir) WORDS=("${WORDS[@]:2}") ;;
-            *) WORDS=("${WORDS[@]:1}") ;;
-          esac
-        done
-        ;;
-      [A-Za-z_]*=*) WORDS=("${WORDS[@]:1}") ;;
-      rtk)
-        WORDS=("${WORDS[@]:1}")
-        if [[ ${#WORDS[@]} -gt 1 && "${WORDS[0]}" =~ ^[a-z-]+$ && "${WORDS[1]}" != "" ]]; then
-          case "${WORDS[0]}" in
-            git | sudo | rm | find | shred | grep | rg) ;;
-            *) WORDS=("${WORDS[@]:1}") ;;
-          esac
-        fi
-        ;;
-      *)
-        # `rtk run "git push --force"`: the command arrived as one quoted word. Split it in place.
-        if [[ "${WORDS[0]}" == *[[:space:]]* ]]; then
-          local -a inner=()
-          local w
-          while IFS= read -r w; do inner+=("$w"); done < <(guard_words "${WORDS[0]}")
-          WORDS=("${inner[@]+"${inner[@]}"}" "${WORDS[@]:1}")
-        fi
-        return 0
-        ;;
-    esac
-  done
-  return 0
-}
-
-# Wrapper prefixes a pattern must see through: `sudo`, `command`, `env` with its options, `rtk <cmd>`
-# (the auto-rewrite), `rtk proxy <cmd>` and the rtk subcommands that execute an arbitrary command
-# (`run` is a raw `sh -c`; `err`, `summary`, `test` run it and filter the output), `eval`, a shell
-# with a `-c` among its options (`bash -c`, `sh -ec`, `bash -o pipefail -c`), and a leading
-# `VAR=value` assignment, which the shell strips before running what follows —
-# `RTK_DISABLED=1 git push --force` included. Zero or more of them, so `sudo rtk run git push
-# --force` matches the same as the bare form.
-GUARD_SHELL_OPTION='([[:space:]]+(-[A-Za-z]+|--[a-z-]+|[-+][oO][[:space:]]+[A-Za-z_]+))'
-GUARD_SHELL_C="(ba|da|k|z)?sh${GUARD_SHELL_OPTION}*[[:space:]]+-[A-Za-z]*c[A-Za-z]*${GUARD_SHELL_OPTION}*[[:space:]]+"
-GUARD_WRAPPER="(sudo[[:space:]]+|command[[:space:]]+|eval[[:space:]]+|${GUARD_SHELL_C}|env([[:space:]]+-[^[:space:]]+)*[[:space:]]+|rtk[[:space:]]+([a-z-]+[[:space:]]+)?|[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*"
-
-# What precedes a quote that holds a command, not text: a shell's `-c`, `eval` or `rtk run`.
-GUARD_LIVE_QUOTE="(^|[[:space:];&|(\`])(${GUARD_SHELL_C}|eval[[:space:]]+|rtk[[:space:]]+run[[:space:]]+)\$"
-
-# A heredoc opener line whose command, or a command piped after it, is a shell reading its stdin.
-GUARD_SHELL_STDIN="(^|[;&|(][[:space:]]*)${GUARD_WRAPPER}(ba|da|k|z)?sh([[:space:]]|\$)"
-
-# Start-of-command boundary for an ERE: line start or right after `;` `&` `|` `(` or a backtick — the
-# last two open a subshell or a command substitution — then the wrappers and an optional quote for
-# the `rtk run "git push --force"` and `bash -c 'git reset --hard'` forms.
-# `grep -E "${GUARD_BOUNDARY}git push"`.
-GUARD_BOUNDARY="(^|[;&|(\`][[:space:]]*)${GUARD_WRAPPER}[\"']?"

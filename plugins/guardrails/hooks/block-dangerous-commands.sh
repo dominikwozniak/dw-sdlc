@@ -25,13 +25,13 @@ guard_read_payload "$@" || exit 0
 # and ending on the closing quote whose opener the boundary absorbed. End-anchored on purpose: a bare
 # `\.` also matched the leading dot of `.ai/` or `.claude/`, so restoring one tracked file there read
 # as wiping the tree. A closing parenthesis ends it too, so a subshell form is the same command.
-DOT_ARG="[\"']?\./?[\"']?[[:space:]]*[\"']?[[:space:]]*(\$|[;&|)])"
+DOT_ARG="${GUARD_OPEN_QUOTE}\./?[\"']?[[:space:]]*[\"']?[[:space:]]*(\$|[;&|)])"
 END='([^A-Za-z0-9_-]|$)'
 # An rm target inside quotes: `/` and `.` mean the same quoted or not, so either quote may wrap them.
 # The home directory is `~` only bare — quoted, the shell passes a literal `~` — and `$HOME` bare or
 # in double quotes; single quotes keep it literal. A quote after it closes a wrapper's, as in
 # `bash -c 'rm -rf ~'`, where the inner shell expands the `~`.
-Q="[\"']?"
+Q=$GUARD_OPEN_QUOTE
 
 PATTERNS=(
   "$GUARD_GIT"' reset( [^;&|]*)? --hard'                                  # discards index and working tree
@@ -129,7 +129,7 @@ check_restore() {
 }
 
 while IFS= read -r segment; do
-  if printf '%s\n' "$segment" | grep -qE "^[[:space:]]*${GUARD_WRAPPER}[\"']?${GUARD_GIT} "; then
+  if printf '%s\n' "$segment" | grep -qE "^[[:space:]]*${GUARD_WRAPPER}${GUARD_OPEN_QUOTE}${GUARD_GIT} "; then
     check_push "$segment"
     check_restore "$segment"
   fi
