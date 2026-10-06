@@ -253,6 +253,9 @@ describe("text helpers", () => {
     const got = lib(`guard_words "git -C 'my repo' push  --force-with-lease=\\"a b\\":x it\\\\'s" | paste -sd, -`)
     assert.equal(got, "git,-C,my repo,push,--force-with-lease=a b:x,it's")
   })
+  it('words drop the $ of a $"…" quote', () => {
+    assert.equal(lib(`guard_words "$2" | paste -sd, -`, ['cat $".env.local" $"a b" p$$"q"']), "cat,.env.local,a b,p$$q")
+  })
   it("words drop the $ of an ANSI-C quote, a backslash escaping in it", () => {
     assert.equal(
       lib(`guard_words "$2" | paste -sd, -`, ["cat $'.env.local' $'it\\'s x' a$'b' p$$'q'"]),

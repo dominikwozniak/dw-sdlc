@@ -324,9 +324,9 @@ guard_tokens() {
 }
 
 # guard_words <segment> — the segment split into words the way a shell would, one per line: whitespace
-# separates, quotes group and are dropped, the `$` of a `$'…'` with them, a backslash keeps the next
-# character. For one command's arguments, where `-C 'my repo'` must stay one word; a segment holds no
-# newline. Returns 1 when a quote is left open, after printing what it read.
+# separates, quotes group and are dropped, the `$` of a `$'…'` or a `$"…"` with them, a backslash
+# keeps the next character. For one command's arguments, where `-C 'my repo'` must stay one word; a
+# segment holds no newline. Returns 1 when a quote is left open, after printing what it read.
 guard_words() {
   local s="$1"
   local n=${#s}
@@ -353,6 +353,10 @@ guard_words() {
                 ;;
               "'")
                 state=ansi
+                i=$((i + 1))
+                ;;
+              '"')
+                state=dq
                 i=$((i + 1))
                 ;;
               *) word+=$ch ;;
