@@ -59,7 +59,8 @@ is_cred_path() {
   return 1
 }
 
-# The first line holds the command's own words, each line after it a substitution's.
+# The first line holds the command's own words, each line after it a substitution's or those of a
+# quote handed to a shell.
 STRIPPED=$(guard_strip_quoted "$COMMAND")
 
 CRED_PATH_HIT=""
@@ -73,7 +74,7 @@ while IFS= read -r words; do
       break 2
     fi
   done < <(guard_tokens "$words")
-  WHERE=" in a command substitution, which the shell runs inside double quotes and an unquoted heredoc body too"
+  WHERE=" in a command substitution or a quoted command, which the shell runs inside double quotes, an unquoted heredoc body and a quote handed to bash -c, eval or rtk run too"
 done <<<"$STRIPPED"
 
 # --- 2. hunting the environment -------------------------------------------------------------------

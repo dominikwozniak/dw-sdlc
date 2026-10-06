@@ -110,6 +110,7 @@ describe("a command substitution runs: its dump, its filter and its paths count"
   blocked("substitution-printenv-hunt", "x=$(printenv | grep -i secret)")
   blocked("backtick-env-hunt", "x=`env | grep -i token`")
   allowed("sq-substitution-is-text", "git commit -m 'docs: see $(cat ~/.ssh/id_rsa)'")
+  blocked("bash-c-ssh-key", "bash -c 'cat ~/.ssh/id_rsa'")
   allowed("sq-substitution-hunt-is-text", "git commit -m 'docs: never $(env | grep -i token)'")
   allowed("dq-substitution-safe", 'echo "branch: $(git branch --show-current)"')
   blocked("unquoted-heredoc-body-ssh-key", "cat <<EOF\n$(cat ~/.ssh/id_rsa)\nEOF")
