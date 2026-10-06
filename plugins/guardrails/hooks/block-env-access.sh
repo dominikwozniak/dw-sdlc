@@ -235,8 +235,9 @@ if [[ "$GUARD_TOOL" == "Grep" && -n "$GUARD_GLOB" ]] && could_name_env "$GUARD_G
   fi
 fi
 
-# The first line holds the command's own words, each line after it a substitution's: a markdown
-# backtick span in a double-quoted `--body` is one, and the refusal says so.
+# The first line holds the command's own words, each line after it a substitution's or those of a
+# quote handed to a shell: a markdown backtick span in a double-quoted `--body` is one, and the
+# refusal says so.
 if [[ -n "$GUARD_COMMAND" ]]; then
   WHO="'$GUARD_COMMAND'"
   NOTE=""
@@ -244,8 +245,8 @@ if [[ -n "$GUARD_COMMAND" ]]; then
     while IFS= read -r token; do
       refused "$token" && refuse "$WHO" "$token" "$NOTE"
     done < <(guard_tokens "$words")
-    WHO="A command substitution in '$GUARD_COMMAND'"
-    NOTE="The shell runs a \$(…) or a backtick span inside double quotes and an unquoted heredoc body too; to keep one as text, escape it, single-quote it, or quote the heredoc's delimiter (<<'EOF')."
+    WHO="A command substitution or a quoted command in '$GUARD_COMMAND'"
+    NOTE="The shell runs the quote handed to bash -c, eval or rtk run, and a \$(…) or a backtick span inside double quotes and an unquoted heredoc body too; to keep a substitution as text, escape it, single-quote it, or quote the heredoc's delimiter (<<'EOF')."
   done < <(guard_strip_quoted "$GUARD_COMMAND")
 fi
 

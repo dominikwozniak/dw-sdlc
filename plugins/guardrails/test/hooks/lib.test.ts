@@ -223,6 +223,31 @@ describe("text helpers", () => {
   it("strip_quoted: a comment runs nothing, so its words are dropped", () => {
     assert.equal(lib(`guard_strip_quoted "$(printf 'ls # cat b\\necho "a # b" x#y')"`), "ls echo x#y")
   })
+  it("strip_quoted: a quote handed to a shell's -c, eval or rtk run is a command on a line of its own", () => {
+    assert.equal(lib(`guard_strip_quoted "$2"`, ["bash -c 'cat a'"]), "bash -c _\ncat a")
+    assert.equal(lib(`guard_strip_quoted "$2"`, ['eval "x $(y)"']), "eval _\ny\nx _")
+    assert.equal(
+      lib(`guard_strip_quoted "$2"`, ["rtk run 'cat a' && sh -c \"cat b\""]),
+      "rtk run _ && sh -c _\ncat a\ncat b"
+    )
+    assert.equal(lib(`guard_strip_quoted "$2"`, ['git commit -m "load .env.local in prod"']), "git commit -m")
+  })
+  it("strip_quoted: a live quote's body is read as the shell hands it on", () => {
+    assert.equal(lib(`guard_strip_quoted "$2"`, ["bash -c $'cat \\x2ea\\nls b'"]), "bash -c _\ncat .a ls b")
+    assert.equal(lib(`guard_strip_quoted "$2"`, ['bash -c "git commit -m \\"a b\\" c"']), "bash -c _\ngit commit -m c")
+    assert.equal(lib(`guard_strip_quoted "$2"`, ["bash -c 'cat a # b'"]), "bash -c _\ncat a")
+  })
+  it("strip_quoted: a live quote ends where the outer shell ends it, whatever it holds", () => {
+    assert.equal(
+      lib(`guard_strip_quoted "$2"`, ["bash -c 'echo \"' ; cat a ; echo '\"'"]),
+      'bash -c _ ; cat a ; echo "\necho "'
+    )
+    assert.equal(lib(`guard_strip_quoted "$2"`, ['bash -c "echo $\'" ; cat a']), "bash -c _ ; cat a\necho $'")
+    assert.equal(lib(`guard_strip_quoted "$2"`, ['eval "x \\\\$(y)"']), "eval _\ny\nx _")
+  })
+  it("strip_quoted: a backslash in a live single quote is text, so a \\' closes it", () => {
+    assert.equal(lib(`guard_strip_quoted "$2"`, ["bash -c 'x\\' ; cat b #'"]), "bash -c _ ; cat b\nx")
+  })
   it("substitutions split out of their text, nested ones too, single quotes literal", () => {
     assert.equal(split('a "x $(b "$(c)") y" `d`'), 'a "x _ y" _|c|b "_"|d')
     assert.equal(split('x="$(e | f)"'), 'x="_"|e | f')

@@ -133,6 +133,24 @@ guard_ansi_escape() {
   fi
 }
 
+# guard_ansi_decode <body> — GUARD_ANSI_TEXT, the body of a `$'…'` as bash decodes it, every escape
+# its character and the text cut at a NUL.
+GUARD_ANSI_TEXT=""
+guard_ansi_decode() {
+  local rest="$1" run
+  GUARD_ANSI_TEXT=""
+  while [[ "$rest" == *'\'* ]]; do
+    run=${rest%%\\*}
+    GUARD_ANSI_TEXT+=$run
+    rest=${rest:${#run}+1}
+    guard_ansi_escape "${rest:0:9}"
+    ((GUARD_ANSI_NUL)) && return 0
+    GUARD_ANSI_TEXT+=$GUARD_ANSI_CHAR
+    rest=${rest:GUARD_ANSI_LEN}
+  done
+  GUARD_ANSI_TEXT+=$rest
+}
+
 # guard_unwrap_words — drops the wrapper words GUARD_WRAPPER names from the front of the array WORDS:
 # `sudo`, `command`, `eval`, `env` with its options, a `VAR=value` assignment, a shell with the options
 # up to its `-c`, and `rtk` with the subcommand that follows it unless that word is the command
@@ -202,7 +220,11 @@ GUARD_SHELL_C="(ba|da|k|z)?sh${GUARD_SHELL_OPTION}*[[:space:]]+-[A-Za-z]*c[A-Za-
 GUARD_WRAPPER="(sudo[[:space:]]+|command[[:space:]]+|eval[[:space:]]+|${GUARD_SHELL_C}|env([[:space:]]+-[^[:space:]]+)*[[:space:]]+|rtk[[:space:]]+([a-z-]+[[:space:]]+)?|[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*"
 
 # What precedes a quote that holds a command, not text: a shell's `-c`, `eval` or `rtk run`.
-GUARD_LIVE_QUOTE="(^|[[:space:];&|(\`])(${GUARD_SHELL_C}|eval[[:space:]]+|rtk[[:space:]]+run[[:space:]]+)\$"
+GUARD_LIVE_PREFIX="(^|[[:space:];&|(\`])(${GUARD_SHELL_C}|eval[[:space:]]+|rtk[[:space:]]+run[[:space:]]+)"
+GUARD_LIVE_QUOTE="${GUARD_LIVE_PREFIX}\$"
+
+# A text that holds such a quote somewhere: the prefix, then `'`, `"`, `$'` or `$"`.
+GUARD_HAS_LIVE_QUOTE="${GUARD_LIVE_PREFIX}\\\$?[\"']"
 
 # A heredoc opener line whose command, or a command piped after it, is a shell reading its stdin.
 GUARD_SHELL_STDIN="(^|[;&|(][[:space:]]*)${GUARD_WRAPPER}(ba|da|k|z)?sh([[:space:]]|\$)"
