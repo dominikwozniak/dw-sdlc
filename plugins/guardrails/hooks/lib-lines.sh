@@ -1,12 +1,15 @@
 #!/bin/bash
 # The line scanners lib.sh sources — heredoc openers and bodies, continuation lines: what the shell
 # reads across a newline. Not a hook and not sourced on its own: lib.sh sets the locale and
-# GUARD_LIB_DIR first, then sources this file ahead of lib-text.sh.
+# GUARD_LIB_DIR first, then sources this file ahead of lib-text.sh, whose quote walker each scanner
+# here reads a line with; it reads GUARD_HEREDOC_DELIM from here. Neither runs while being sourced.
 # --- the lines ----------------------------------------------------------------------------------
 
 # A heredoc BODY is the text of a file being written, not commands being run, and every guard
 # matches line by line — so `npm install` inside one reads exactly like an invocation. That false
 # refusal stops the agent from writing its own test fixtures, so bodies are dropped once, here.
+# What the shell runs in a body stays: an unquoted delimiter leaves a `$(…)` or a backtick in it to
+# run, so `cat <<EOF` / `$(cat .env.local)` / `EOF` reads the file before cat sees a line.
 # The opener line is KEPT, because a redirect target on it (`cat > .env <<EOF`) is a real path that
 # must still count — but its `<<` is collapsed to `<`, so no second pass mistakes a kept opener for a
 # fresh heredoc and swallows every real command after it. An opener is only what the shell would
@@ -19,83 +22,78 @@ GUARD_HEREDOC_DELIM='^(-?)[[:space:]]*(["'"'"'\]?)([A-Za-z_][A-Za-z0-9_]*)'
 # guard_heredoc_opener <line> [<state>] — the first heredoc opener on the line, or 1 when there is
 # none. Sets GUARD_HD_HEAD (the text before `<<`), GUARD_HD_DASH, GUARD_HD_QUOTE, GUARD_HD_DELIM
 # and GUARD_HD_TAIL (from the character after the delimiter on, its closing quote included). Always
-# sets GUARD_HD_STATE, the quote state the line ends in, to hand back as the next line's <state>:
-# a `-m` body spanning lines is quoted from where it opened. The state is a stack, one character
-# per open context: `s` single quotes, `d` double quotes, `(` a `$(` and a backtick its own —
-# inside those the shell reads plain text again even within double quotes, which is why
-# `-m "$(cat <<'EOF'` opens. A `<<<` is a here-string, not an opener.
+# sets GUARD_HD_STATE, guard_quote_walk's stack at the end of the line, to hand back as the next
+# line's <state>: a `-m` body spanning lines is quoted from where it opened, and inside a `$(…)` the
+# shell reads commands again even within double quotes, which is why `-m "$(cat <<'EOF'` opens.
 guard_heredoc_opener() {
-  local s="$1"
-  local n=${#s}
-  local st="${2-}" i=0 ch top prev found=0
+  local i n found=0
   GUARD_HD_HEAD="" GUARD_HD_DASH="" GUARD_HD_QUOTE="" GUARD_HD_DELIM="" GUARD_HD_TAIL=""
-  while ((i < n)); do
-    ch=${s:i:1}
-    top=${st:${#st}-1}
-    if [[ "$top" == s ]]; then
-      [[ "$ch" == "'" ]] && st=${st%s}
-      i=$((i + 1))
-      continue
+  guard_quote_walk "$1" 0 "${2:-P}"
+  GUARD_HD_STATE="$GUARD_QW_STATE"
+  n=${#GUARD_QW_KIND[@]}
+  for ((i = 0; i < n; i++)); do
+    if ((found)); then
+      GUARD_HD_TAIL+=${GUARD_QW_TEXT[i]}
+    elif [[ "${GUARD_QW_KIND[i]}" == h ]]; then
+      found=1
+      [[ "${GUARD_QW_TEXT[i]:2}" =~ $GUARD_HEREDOC_DELIM ]]
+      GUARD_HD_DASH=${BASH_REMATCH[1]}
+      GUARD_HD_QUOTE=${BASH_REMATCH[2]}
+      GUARD_HD_DELIM=${BASH_REMATCH[3]}
+    else
+      GUARD_HD_HEAD+=${GUARD_QW_TEXT[i]}
     fi
-    case "$ch" in
-      '\')
-        i=$((i + 2))
-        continue
-        ;;
-      "'") [[ "$top" != d ]] && st+=s ;;
-      '"') if [[ "$top" == d ]]; then st=${st%d}; else st+=d; fi ;;
-      '$') [[ "${s:i+1:1}" == '(' ]] && {
-        st+='('
-        i=$((i + 1))
-      } ;;
-      '`') if [[ "$top" == '`' ]]; then st=${st%\`}; else st+='`'; fi ;;
-      ')') [[ "$top" == '(' ]] && st=${st%\(} ;;
-      '#')
-        # A comment starts a word: the rest of the line is text, and the state is settled.
-        prev=""
-        ((i > 0)) && prev=${s:i-1:1}
-        case "$prev" in
-          '' | ' ' | $'\t' | ';' | '&' | '|' | '(' | ')') [[ "$top" != d ]] && break ;;
-        esac
-        ;;
-      '<')
-        prev=""
-        ((i > 0)) && prev=${s:i-1:1}
-        if [[ "$top" != d && $found -eq 0 && "$prev" != '<' && "${s:i+1:1}" == '<' && "${s:i+2:1}" != '<' ]] &&
-          [[ "${s:i+2}" =~ $GUARD_HEREDOC_DELIM ]]; then
-          found=1
-          GUARD_HD_HEAD=${s:0:i}
-          GUARD_HD_DASH=${BASH_REMATCH[1]}
-          GUARD_HD_QUOTE=${BASH_REMATCH[2]}
-          GUARD_HD_DELIM=${BASH_REMATCH[3]}
-          i=$((i + 2 + ${#BASH_REMATCH[0]}))
-          GUARD_HD_TAIL=${s:i}
-          # The quote closing a quoted delimiter opens nothing.
-          [[ -n "$GUARD_HD_QUOTE" && "$GUARD_HD_QUOTE" != '\' && "${s:i:1}" == "$GUARD_HD_QUOTE" ]] && i=$((i + 1))
-          continue
-        fi
-        ;;
-    esac
-    i=$((i + 1))
   done
-  GUARD_HD_STATE="$st"
   ((found))
+}
+
+# guard_heredoc_substitutions <line> <state> — GUARD_HD_SUBS becomes the substitutions a line of an
+# unquoted heredoc body runs, each `$(…)` and backtick span as typed, joined by a space, the text
+# around them dropped. <state> is where the line starts, H outside every substitution, and
+# GUARD_QW_STATE where it ends, for the next body line.
+GUARD_HD_SUBS=""
+guard_heredoc_substitutions() {
+  local i n kind depth=$((${#2} - 1))
+  GUARD_HD_SUBS=""
+  if [[ "$2" == H && "$1" != *[\$\`]* ]]; then
+    GUARD_QW_STATE=H
+    return 0
+  fi
+  guard_quote_walk "$1" 0 "$2"
+  n=${#GUARD_QW_KIND[@]}
+  for ((i = 0; i < n; i++)); do
+    kind=${GUARD_QW_KIND[i]}
+    if [[ "$kind" == o? ]]; then
+      [[ $depth -eq 0 && -n "$GUARD_HD_SUBS" ]] && GUARD_HD_SUBS+=" "
+      depth=$((depth + 1))
+    fi
+    ((depth > 0)) && GUARD_HD_SUBS+=${GUARD_QW_TEXT[i]}
+    [[ "$kind" == c? ]] && depth=$((depth - 1))
+  done
+  return 0
 }
 
 # guard_strip_heredocs — stdin to stdout.
 guard_strip_heredocs() {
-  local line delim="" body=0 state=""
+  local line delim="" body=0 state="" expanded=0 inner=""
   while IFS= read -r line; do
     if [[ $body -eq 1 ]]; then
-      [[ "$line" =~ ^[[:space:]]*$delim[[:space:]]*$ ]] && {
+      if [[ "$line" =~ ^[[:space:]]*$delim[[:space:]]*$ ]]; then
         body=0
         delim=""
-      }
+      elif ((expanded)); then
+        guard_heredoc_substitutions "$line" "$inner"
+        inner="$GUARD_QW_STATE"
+        [[ -z "$GUARD_HD_SUBS" ]] || printf '%s\n' "$GUARD_HD_SUBS"
+      fi
       continue
     fi
     if guard_heredoc_opener "$line" "$state"; then
       delim="$GUARD_HD_DELIM"
       body=1
+      expanded=0
+      [[ -n "$GUARD_HD_QUOTE" ]] || expanded=1
+      inner=H
       line="${GUARD_HD_HEAD}<${GUARD_HD_QUOTE}${GUARD_HD_DELIM}${GUARD_HD_TAIL}"
     fi
     state="$GUARD_HD_STATE"
@@ -110,12 +108,14 @@ guard_strip_heredocs() {
 # looked harmless, while a quoted argument that opened a continuation line read as a command of its
 # own. Runs after the heredoc pass, so a body line ending in a backslash cannot swallow its terminator.
 # Inside single quotes the shell keeps a backslash-newline, and joining it there changes quoted text:
-# a word split that way, `'.env.lo\⏎cal'`, reads joined. Rare enough to take.
+# a word split that way, `'.env.lo\⏎cal'`, reads joined. Rare enough to take. A comment ends at its
+# newline, backslash or not, so a line whose last piece is a comment continues nothing; each line is
+# walked from the top level, a quote opened on an earlier line unknown.
 GUARD_CONTINUED='(^|[^\])(\\\\)*\\$'
 guard_join_continuations() {
   local line joined=""
   while IFS= read -r line; do
-    if [[ "$line" =~ $GUARD_CONTINUED ]]; then
+    if [[ "$line" =~ $GUARD_CONTINUED ]] && ! guard_ends_in_comment "$joined$line"; then
       joined+="${line%\\}"
       continue
     fi
@@ -126,12 +126,20 @@ guard_join_continuations() {
   return 0
 }
 
+# guard_ends_in_comment <line> — 0 when the line's last piece is a comment.
+guard_ends_in_comment() {
+  [[ "$1" == *'#'* ]] || return 1
+  guard_quote_walk "$1"
+  [[ ${#GUARD_QW_KIND[@]} -gt 0 && "${GUARD_QW_KIND[${#GUARD_QW_KIND[@]} - 1]}" == tC ]]
+}
+
 # guard_mask_heredoc_bodies — stdin to stdout: a heredoc body is text, so its separators, backticks
 # and quotes become \002 and an apostrophe in a message cannot open a quote; the openers, the
-# terminators and the rest of the text stay as typed, line starts included. A body a shell reads
+# terminators and the rest of the text stay as typed, line starts included. In an unquoted body a
+# `$(…)` or a backtick runs, so those stay live and are masked as a command is. A body a shell reads
 # (`bash <<EOF`, `cat <<EOF | sh`) stays as typed throughout.
 guard_mask_heredoc_bodies() {
-  local line delim="" body=0 state="" mode=""
+  local line delim="" body=0 state="" mode="" inner=""
   while IFS= read -r line; do
     if [[ $body -eq 1 ]]; then
       if [[ "$line" =~ ^[[:space:]]*$delim[[:space:]]*$ ]]; then
@@ -140,7 +148,12 @@ guard_mask_heredoc_bodies() {
       else
         case "$mode" in
           text) line="${line//[;&|()\`\'\"]/$'\002'}" ;;
-          expanded) line="${line//[;&|\'\"]/$'\002'}" ;;
+          expanded)
+            guard_quote_walk "$line" 1 "$inner"
+            inner="$GUARD_QW_STATE"
+            guard_mask_pieces
+            line="$GUARD_MASKED"
+            ;;
         esac
       fi
       printf '%s\n' "$line"
@@ -149,8 +162,8 @@ guard_mask_heredoc_bodies() {
     if guard_heredoc_opener "$line" "$state"; then
       delim="$GUARD_HD_DELIM"
       body=1
-      # A body a shell reads is a script, judged as typed. An unquoted delimiter leaves `$(…)` and
-      # backticks to run, so those stay live in an otherwise masked body.
+      inner=H
+      # A body a shell reads is a script, judged as typed.
       if [[ "$line" =~ $GUARD_SHELL_STDIN ]]; then
         mode=script
       elif [[ -n "$GUARD_HD_QUOTE" ]]; then
