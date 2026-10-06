@@ -155,6 +155,18 @@ describe("bash in the repository", () => {
   allowedBash("empty-input", "")
 })
 
+describe("a substitution inside double quotes runs, so its paths count", () => {
+  blockedBash("dq-substitution-cat", 'echo "$(cat .env.local)"')
+  blockedBash("dq-backtick-cat", 'echo "`cat .env.local`"')
+  blockedBash("dq-substitution-source", 'x="$(source ./.env.development; echo $X)"')
+  allowedBash("dq-substitution-tracked", 'echo "$(cat .env)"')
+  allowedBash("sq-substitution-is-text", "git commit -m 'docs: see $(cat .env.local)'")
+  allowedBash("dq-parens-are-text", 'git commit -m "docs: never (cat .env.local)"')
+  allowedBash("dq-prose-around-a-substitution", 'git commit -m "fix: read .env.local lazily $(date) and more"')
+  blockedBash("nested-substitution", 'echo "$(echo "$(cat .env.local)")"')
+  allowedBash("quoted-heredoc-body-is-text", "git commit -m \"$(cat <<'EOF'\nfix: x\n\nreads .env.local now\nEOF\n)\"")
+})
+
 function grepPayload(glob: string, path?: string, cwd = REPO): object {
   return {
     hook_event_name: "PreToolUse",
@@ -237,6 +249,7 @@ describe("the allow and deny lists decide before git", () => {
 describe("outside a repository the name decides", () => {
   blockedFile("plain-read-env", "Read", join(PLAIN, ".env"), PLAIN)
   blockedBash("plain-cat-env", "cat .env", PLAIN)
+  blockedBash("plain-dq-substitution-cat-env", 'echo "$(cat .env)"', PLAIN)
   allowedFile("plain-read-example", "Read", ".env.example", PLAIN)
   allowedBash("plain-cat-example", "cat .env.example", PLAIN)
 })

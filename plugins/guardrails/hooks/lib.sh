@@ -74,7 +74,8 @@ guard_read_payload() {
   return 0
 }
 
-# --- the text — the scanners live in lib-text.sh, sourced here so every guard gets them ----------
+# --- the text — the scanners in lib-lines.sh and lib-text.sh, sourced here for every guard --------
+source "$GUARD_LIB_DIR/lib-lines.sh"
 source "$GUARD_LIB_DIR/lib-text.sh"
 
 # --- git ----------------------------------------------------------------------------------------
