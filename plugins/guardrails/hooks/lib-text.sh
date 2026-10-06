@@ -1,6 +1,6 @@
 #!/bin/bash
-# The text scanners lib.sh sources — quoted separators, words, the wrapper boundary every guard's
-# pattern sees through. Not a hook and not sourced on its own: lib.sh sets the locale
+# The text scanners lib.sh sources — quoted separators, substitutions, words, the wrapper boundary
+# every guard's pattern sees through. Not a hook and not sourced on its own: lib.sh sets the locale
 # and GUARD_LIB_DIR first and sources lib-lines.sh, then this file.
 # --- the text -----------------------------------------------------------------------------------
 
@@ -97,11 +97,107 @@ guard_mask_quoted_separators() {
 # `cat ".env.local"` still names one. In a search tool's segment every quoted word is dropped, because
 # there a quoted word is the pattern: `grep -rn ".env.local" src` looks for the name and opens no such
 # file. The fold comes after the heredoc pass on purpose: by then there are no lines left to find a
-# terminator on.
+# terminator on. A substitution the shell runs, `"$(cat .env.local)"` included, is read as a command
+# of its own, so its words count even inside double quotes while the prose around it stays prose.
 GUARD_SEARCH_WORD='(^|[^A-Za-z0-9_.-])(rg|ag|ack)([[:space:]]|$)'
 guard_strip_quoted() {
-  local folded segment
+  local folded line
   folded=$(printf '%s\n' "$1" | guard_strip_heredocs | tr '\n' ' ')
+  if [[ "$folded" != *'$('* && "$folded" != *'`'* ]]; then
+    guard_strip_quoted_text "$folded"
+    return 0
+  fi
+  while IFS= read -r line; do
+    printf '%s ' "$(guard_strip_quoted_text "$line")"
+  done < <(guard_split_substitutions "$folded")
+}
+
+# guard_split_substitutions <text> — the text with every `$(…)` and backtick substitution replaced by
+# `_`, then the body of each substitution, one per line; a nested one is split out of its parent the
+# same way. Single quotes keep a `$(` literal and double quotes do not; a quote handed to `bash -c`
+# stays one quoted word here, as prose does. An unterminated quote or substitution hands back the text
+# as typed.
+guard_split_substitutions() {
+  local s="$1"
+  local n=${#s}
+  local i=0 ch top action stack=P depth=0 bodies=""
+  local -a bufs=("")
+  while ((i < n)); do
+    ch=${s:i:1}
+    top=${stack: -1}
+    action=""
+    if [[ "$ch" == '\' && "$top" != S ]]; then
+      bufs[depth]+="$ch${s:i+1:1}"
+      i=$((i + 2))
+      continue
+    fi
+    if [[ "$ch" == '$' && "${s:i+1:1}" == '(' && "$top" != S ]]; then
+      action=open-dollar
+    else
+      case "$top" in
+        S) [[ "$ch" == "'" ]] && stack=${stack%?} ;;
+        D)
+          case "$ch" in
+            '"') stack=${stack%?} ;;
+            '`') action=open-backtick ;;
+          esac
+          ;;
+        *)
+          # P the top level, U a `$(…)`, B a backtick substitution, V a parenthesis inside a `$(…)`.
+          case "$ch" in
+            "'") stack+=S ;;
+            '"') stack+=D ;;
+            '`') if [[ "$top" == B ]]; then action=close; else action=open-backtick; fi ;;
+            '(') [[ "$top" == U || "$top" == V ]] && stack+=V ;;
+            ')')
+              if [[ "$top" == V ]]; then
+                stack=${stack%?}
+              elif [[ "$top" == U ]]; then
+                action=close
+              fi
+              ;;
+          esac
+          ;;
+      esac
+    fi
+    case "$action" in
+      open-dollar)
+        stack+=U
+        depth=$((depth + 1))
+        bufs[depth]=""
+        i=$((i + 2))
+        continue
+        ;;
+      open-backtick)
+        stack+=B
+        depth=$((depth + 1))
+        bufs[depth]=""
+        i=$((i + 1))
+        continue
+        ;;
+      close)
+        bodies+="${bufs[depth]}"$'\n'
+        depth=$((depth - 1))
+        bufs[depth]+="_"
+        stack=${stack%?}
+        i=$((i + 1))
+        continue
+        ;;
+    esac
+    bufs[depth]+="$ch"
+    i=$((i + 1))
+  done
+  if [[ "$stack" != P ]]; then
+    printf '%s\n' "$s"
+    return 0
+  fi
+  printf '%s\n%s' "${bufs[0]}" "$bodies"
+}
+
+# guard_strip_quoted_text <folded> — guard_strip_quoted for text that holds no substitution: each
+# segment's plain words, quoted words dropped in a search tool's segment.
+guard_strip_quoted_text() {
+  local folded="$1" segment
   # Most commands name no search tool, and one pass over the whole text is all they need.
   if [[ "$folded" != *grep* && ! "$folded" =~ $GUARD_SEARCH_WORD ]]; then
     guard_plain_words "$folded"

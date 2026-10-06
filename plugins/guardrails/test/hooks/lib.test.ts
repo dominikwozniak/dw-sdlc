@@ -25,6 +25,11 @@ function boundaryMatches(command: string): string {
   return lib(`if printf '%s\\n' '${command}' | grep -qE "\${GUARD_BOUNDARY}git push"; then echo yes; else echo no; fi`)
 }
 
+/** guard_split_substitutions' lines joined by `|`. */
+function split(text: string): string {
+  return lib(`guard_split_substitutions "$2" | paste -sd'|' -`, [text])
+}
+
 function unwrap(words: string): string {
   return lib(`WORDS=(${words}); guard_unwrap_words; printf '%s' "\${WORDS[*]}"`)
 }
@@ -150,6 +155,12 @@ describe("text helpers", () => {
       lib(`guard_mask_quoted_separators "$(printf 'cat <<EOF\\ndon\\x27t; a\\nEOF\\nls; b')"`),
       "cat <<EOF\ndon\u0002t\u0002 a\nEOF\nls; b"
     )
+  })
+  it("substitutions split out of their text, nested ones too, single quotes literal", () => {
+    assert.equal(split('a "x $(b "$(c)") y" `d`'), 'a "x _ y" _|c|b "_"|d')
+    assert.equal(split('x="$(e | f)"'), 'x="_"|e | f')
+    assert.equal(split("a '$(b)'"), "a '$(b)'")
+    assert.equal(split('a "$(b'), 'a "$(b')
   })
   it("unterminated quote hands back the original", () => {
     assert.equal(lib(`guard_mask_quoted_separators 'echo "open ; x'`), 'echo "open ; x')

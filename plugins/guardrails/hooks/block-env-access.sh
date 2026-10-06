@@ -13,8 +13,8 @@
 # Wired for the file tools (Read, Edit, Write, MultiEdit, NotebookEdit, Grep) on tool_input's path,
 # for a Grep of a directory on the env files its `glob` reaches, and for Bash through bash-guard.sh
 # on the command's tokens: heredoc bodies and quoted prose — a quoted span holding whitespace — are
-# dropped first, so a commit message naming a file never counts, while a quoted path such as
-# `cat ".env.local"` still does. Guardrail against accidental secret exposure, not a security boundary.
+# dropped first, so a commit message naming a file does not count, while a quoted path such as
+# `cat ".env.local"` and the words of a `$(…)` or backtick substitution the shell runs still do. Guardrail against accidental secret exposure, not a security boundary.
 set -uo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 

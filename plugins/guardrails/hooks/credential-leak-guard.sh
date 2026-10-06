@@ -74,9 +74,10 @@ done < <(guard_tokens "$STRIPPED")
 # searches the source, and the search never reads the dump. `set` counts only with NO arguments, the
 # spelling that dumps the environment: `set -e` and `set -euo pipefail` set shell options and dump
 # nothing, and matching them would refuse `set -e && grep -rn "password" src/`, which is searching
-# your own source for a field name. The alternatives end `($|[;&|])` rather than `$` so that
-# `set | grep -i token` still matches.
-ENV_DUMP='(^[[:space:]]*|[;&|][[:space:]]*)((env|printenv)([[:space:]]|$|[;&|])|export -p|declare -x|set[[:space:]]*($|[;&|]))'
+# your own source for a field name. The alternatives end `($|[;&|)`])` rather than `$` so that
+# `set | grep -i token` still matches. A `(` or a backtick opens a dump too: `$(env | grep -i token)`
+# runs it, inside double quotes as well, and the mask leaves that substitution live.
+ENV_DUMP='(^[[:space:]]*|[;&|(`][[:space:]]*)((env|printenv)([[:space:]]|$|[;&|)`])|export -p|declare -x|set[[:space:]]*($|[;&|)`]))'
 
 env_hunt=0
 while IFS= read -r pipeline; do
