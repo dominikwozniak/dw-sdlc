@@ -205,6 +205,7 @@ GUARD_SHELL_STDIN="(^|[;&|(][[:space:]]*)${GUARD_WRAPPER}(ba|da|k|z)?sh([[:space
 
 # Start-of-command boundary for an ERE: line start or right after `;` `&` `|` `(` or a backtick — the
 # last two open a subshell or a command substitution — then the wrappers and an optional quote for
-# the `rtk run "git push --force"` and `bash -c 'git reset --hard'` forms.
+# the `rtk run "git push --force"`, `bash -c 'git reset --hard'` and `bash -c $'…'` forms.
 # `grep -E "${GUARD_BOUNDARY}git push"`.
-GUARD_BOUNDARY="(^|[;&|(\`][[:space:]]*)${GUARD_WRAPPER}[\"']?"
+GUARD_COMMAND_QUOTE="(\\\$?[\"'])?"
+GUARD_BOUNDARY="(^|[;&|(\`][[:space:]]*)${GUARD_WRAPPER}${GUARD_COMMAND_QUOTE}"

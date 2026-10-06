@@ -201,6 +201,12 @@ describe("text helpers", () => {
       "echo $'it\\'s $\u0002x\u0002 y\u0002 z' ; w"
     )
   })
+  it("an ANSI-C quote handed to a shell holds a command: its separators kept, a \\n one of them", () => {
+    assert.equal(
+      lib(`guard_mask_quoted_separators "$2"`, ["bash -c $'cd x && ls\\ny' ; echo $'a;b'"]),
+      "bash -c $'cd x && ls;y' ; echo $'a\u0002b'"
+    )
+  })
   it("a $$ is the shell's pid: a quote after it is a plain one, a $' after the pair an ANSI-C one", () => {
     assert.equal(lib(`guard_mask_quoted_separators "$2"`, ["echo $$'x\\' ; c 'd;e'"]), "echo $$'x\\' ; c 'd\u0002e'")
     assert.equal(lib(`guard_mask_quoted_separators "$2"`, ["echo $$$'x\\'; y' ; c"]), "echo $$$'x\\'\u0002 y' ; c")

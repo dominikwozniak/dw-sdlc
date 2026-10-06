@@ -129,7 +129,7 @@ check_restore() {
 }
 
 while IFS= read -r segment; do
-  if printf '%s\n' "$segment" | grep -qE "^[[:space:]]*${GUARD_WRAPPER}[\"']?${GUARD_GIT} "; then
+  if printf '%s\n' "$segment" | grep -qE "^[[:space:]]*${GUARD_WRAPPER}${GUARD_COMMAND_QUOTE}${GUARD_GIT} "; then
     check_push "$segment"
     check_restore "$segment"
   fi

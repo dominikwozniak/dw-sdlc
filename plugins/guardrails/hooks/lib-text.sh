@@ -15,12 +15,13 @@
 # where a backslash escapes and the next `'` closes, U a `$(…)`, V a bare `(` inside one, B a backtick
 # substitution, H an unquoted heredoc body, where only a substitution and a backslash act. A `$'` opens
 # A wherever a `'` would open S; a `$"…"` is a double-quoted span after a `$` of text. With <live>
-# set, a quote after a shell's `-c`, `eval` or `rtk run` opens s or d instead, a quote that holds a
-# command. A comment and a heredoc operator count only where the shell reads a command: in P, U, V
-# and B. GUARD_QW_STATE is the stack the text ends in, one context per character, starting from
-# <state>, P by default; the walk returns 1 when it ends elsewhere, a quote or substitution left open.
-# It jumps from one character that can change the context to the next, so a long quoted body costs a
-# step per quote, backslash and substitution, not one per character.
+# set, a quote after a shell's `-c`, `eval` or `rtk run` opens s, d or a instead, a quote that holds a
+# command; in a, a backslash still escapes, so a `\'` there is text the walk does not follow. A
+# comment and a heredoc operator count only where the shell reads a command: in P, U, V and B.
+# GUARD_QW_STATE is the stack the text ends in, one context per character, starting from <state>, P by
+# default; the walk returns 1 when it ends elsewhere, a quote or substitution left open. It jumps from
+# one character that can change the context to the next, so a long quoted body costs a step per
+# quote, backslash and substitution, not one per character.
 GUARD_QW_KIND=()
 GUARD_QW_TEXT=()
 GUARD_QW_STATE=""
@@ -59,13 +60,19 @@ guard_quote_walk() {
           # `$$` is the shell's pid, so a `(` or `'` after the pair opens nothing.
           '$') len=2 ;;
           '(') kind=oU len=2 ;;
-          "'") [[ "$top" == [PUVBd] ]] && kind=oA len=2 ;;
+          "'")
+            if [[ "$top" == [PUVBd] ]]; then
+              kind=oA
+              len=2
+              ((live)) && [[ "${text:0:total-${#rest}}" =~ $GUARD_LIVE_QUOTE ]] && kind=oa
+            fi
+            ;;
         esac
         ;;
       '`') if [[ "$top" == B ]]; then kind=cB; else kind=oB; fi ;;
       "'")
         case "$top" in
-          S | s | A) kind="c$top" ;;
+          S | s | A | a) kind="c$top" ;;
           d) kind=oS ;;
           *)
             kind=oS
@@ -198,6 +205,8 @@ guard_mask_pieces() {
         case "${piece:1:1}" in
           ';' | '&' | '|' | '(' | ')' | '`') piece="\\"$'\002' ;;
         esac
+        # A `$'…'` handed to a shell decodes `\n` to the newline that ends a command there.
+        [[ "${GUARD_QW_KIND[i]}" == ea && "$piece" == '\n' ]] && piece=';'
         ;;
     esac
     GUARD_MASKED+=$piece
