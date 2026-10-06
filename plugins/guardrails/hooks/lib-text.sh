@@ -325,14 +325,20 @@ guard_tokens() {
 
 # guard_words <segment> — the segment split into words the way a shell would, one per line: whitespace
 # separates, quotes group and are dropped, the `$` of a `$'…'` or a `$"…"` with them, a backslash
-# keeps the next character. For one command's arguments, where `-C 'my repo'` must stay one word; a
-# segment holds no newline. Returns 1 when a quote is left open, after printing what it read.
+# keeps the next character, and in a `$'…'` stands for what bash decodes it to. For one command's
+# arguments, where `-C 'my repo'` must stay one word; a segment holds no newline. Returns 1 when a quote is left open, after printing what it read.
 guard_words() {
   local s="$1"
   local n=${#s}
   local i=0 ch word="" have=0 state=plain
   while ((i < n)); do
     ch=${s:i:1}
+    if [[ "$ch" == '\' && "$state" == ansi ]]; then
+      guard_ansi_escape "${s:i+1:9}"
+      word+=$GUARD_ANSI_CHAR
+      i=$((i + 1 + GUARD_ANSI_LEN))
+      continue
+    fi
     if [[ "$ch" == '\' && "$state" != sq ]]; then
       i=$((i + 1))
       ((i < n)) && word+=${s:i:1}
@@ -378,6 +384,62 @@ guard_words() {
   done
   ((have)) && printf '%s\n' "$word"
   [[ "$state" == plain ]]
+}
+
+# guard_ansi_escape <text after a backslash> — what an escape in a `$'…'` stands for, the way bash
+# decodes it: GUARD_ANSI_CHAR, and GUARD_ANSI_LEN, the characters of the text it takes. A letter, hex,
+# octal or `\c` control code becomes its character when that is ASCII, a newline a space so the word
+# stays on its line, a NUL nothing; a code past ASCII and an escape bash does not know stay as typed.
+GUARD_ANSI_CHAR=""
+GUARD_ANSI_LEN=0
+guard_ansi_escape() {
+  local t="$1" code=-1 oct
+  GUARD_ANSI_LEN=1
+  case "${t:0:1}" in
+    a) code=7 ;;
+    b) code=8 ;;
+    e | E) code=27 ;;
+    f) code=12 ;;
+    n) code=10 ;;
+    r) code=13 ;;
+    t) code=9 ;;
+    v) code=11 ;;
+    '\' | "'" | '"' | '?') code=-2 ;;
+    c)
+      if [[ -n "${t:1:1}" ]]; then
+        printf -v code '%d' "'${t:1:1}"
+        code=$((code & 31))
+        GUARD_ANSI_LEN=2
+      fi
+      ;;
+    [0-7])
+      [[ "$t" =~ ^[0-7]{1,3} ]]
+      code=$((8#${BASH_REMATCH[0]} & 255))
+      GUARD_ANSI_LEN=${#BASH_REMATCH[0]}
+      ;;
+    x | u | U)
+      local -i max=8
+      [[ "${t:0:1}" == x ]] && max=2
+      [[ "${t:0:1}" == u ]] && max=4
+      if [[ "${t:1}" =~ ^[0-9A-Fa-f]{1,$max} ]]; then
+        code=$((16#${BASH_REMATCH[0]}))
+        GUARD_ANSI_LEN=$((1 + ${#BASH_REMATCH[0]}))
+      fi
+      ;;
+  esac
+  case "$code" in
+    -2) GUARD_ANSI_CHAR=${t:0:1} ;;
+    0) GUARD_ANSI_CHAR="" ;;
+    10) GUARD_ANSI_CHAR=" " ;;
+    *)
+      if ((code < 0 || code > 127)); then
+        GUARD_ANSI_CHAR="\\${t:0:GUARD_ANSI_LEN}"
+      else
+        printf -v oct '%03o' "$code"
+        printf -v GUARD_ANSI_CHAR "\\$oct"
+      fi
+      ;;
+  esac
 }
 
 # guard_unwrap_words — drops the wrapper words GUARD_WRAPPER names from the front of the array WORDS:
