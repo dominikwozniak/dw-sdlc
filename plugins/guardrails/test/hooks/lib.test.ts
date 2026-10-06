@@ -106,6 +106,11 @@ describe("text helpers", () => {
       "echo 'a << EOF'\ngit reset --hard"
     )
   })
+  it("a << inside an ANSI-C quote is not an opener, one after it opens", () => {
+    const strip = `printf '%s\\n' "$2" | guard_strip_heredocs`
+    assert.equal(lib(strip, ["echo $'it\\'s << EOF'\ngit reset --hard"]), "echo $'it\\'s << EOF'\ngit reset --hard")
+    assert.equal(lib(strip, ["cat $'a\\'b' <<EOF\nbody\nEOF\nls"]), "cat $'a\\'b' <EOF\nls")
+  })
   it("a << behind a comment is not an opener", () => {
     assert.equal(lib(`printf '# note << EOF\\nrm -rf /\\n' | guard_strip_heredocs`), "# note << EOF\nrm -rf /")
   })
@@ -190,6 +195,16 @@ describe("text helpers", () => {
     assert.equal(lib(`guard_mask_quoted_separators 'ls # a; b'`), "ls # a\u0002 b")
     assert.equal(lib(`guard_mask_quoted_separators 'echo x#y "#"; z'`), 'echo x#y "#"; z')
   })
+  it("an ANSI-C quote is text: a backslash escapes in it, its separators masked", () => {
+    assert.equal(
+      lib(`guard_mask_quoted_separators "$2"`, ["echo $'it\\'s $(x; y) z' ; w"]),
+      "echo $'it\\'s $\u0002x\u0002 y\u0002 z' ; w"
+    )
+  })
+  it("a $$ is the shell's pid: a quote after it is a plain one, a $' after the pair an ANSI-C one", () => {
+    assert.equal(lib(`guard_mask_quoted_separators "$2"`, ["echo $$'x\\' ; c 'd;e'"]), "echo $$'x\\' ; c 'd\u0002e'")
+    assert.equal(lib(`guard_mask_quoted_separators "$2"`, ["echo $$$'x\\'; y' ; c"]), "echo $$$'x\\'\u0002 y' ; c")
+  })
   it("strip_quoted: the command's words on the first line, each substitution's on a line of its own", () => {
     assert.equal(lib(`guard_strip_quoted 'echo "x $(cat a) y" \`b c\`'`), "echo _\ncat a\nb c")
     assert.equal(lib(`guard_strip_quoted 'cat a "b c"'`), "cat a")
@@ -202,6 +217,10 @@ describe("text helpers", () => {
     assert.equal(split('x="$(e | f)"'), 'x="_"|e | f')
     assert.equal(split("a '$(b)'"), "a '$(b)'")
     assert.equal(split('a "$(b'), 'a "$(b')
+  })
+  it('an ANSI-C quote holds no substitution, a $"…" quote is a double quote', () => {
+    assert.equal(split("a $'it\\'s $(x) y' $(b)"), "a $'it\\'s $(x) y' _|b")
+    assert.equal(split('a $"x $(b)"'), 'a $"x _"|b')
   })
   it("unterminated quote hands back the original", () => {
     assert.equal(lib(`guard_mask_quoted_separators 'echo "open ; x'`), 'echo "open ; x')
@@ -233,6 +252,12 @@ describe("text helpers", () => {
   it("words honour quotes and escapes", () => {
     const got = lib(`guard_words "git -C 'my repo' push  --force-with-lease=\\"a b\\":x it\\\\'s" | paste -sd, -`)
     assert.equal(got, "git,-C,my repo,push,--force-with-lease=a b:x,it's")
+  })
+  it("words drop the $ of an ANSI-C quote, a backslash escaping in it", () => {
+    assert.equal(
+      lib(`guard_words "$2" | paste -sd, -`, ["cat $'.env.local' $'it\\'s x' a$'b' p$$'q'"]),
+      "cat,.env.local,it's x,ab,p$$q"
+    )
   })
   it("unwrap drops assignment, sudo, rtk and its subcommand", () => {
     assert.equal(unwrap("RTK_DISABLED=1 sudo rtk run git push --force"), "git push --force")

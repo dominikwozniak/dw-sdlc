@@ -11,14 +11,16 @@
 #   t<c>  text read in context <c>        e<c>  a backslash and the character it keeps
 #   o<c>  what opens context <c>          c<c>  what closes it
 #   tC    a comment, up to the newline    h     a heredoc operator and its delimiter
-# The contexts: P the top level, S and D a single- and a double-quoted span, U a `$(…)`, V a bare `(`
-# inside one, B a backtick substitution, H an unquoted heredoc body, where only a substitution and a
-# backslash act. With <live> set, a quote after a shell's `-c`, `eval` or `rtk run` opens s or d
-# instead, a quote that holds a command. A comment and a heredoc operator count only where the shell
-# reads a command: in P, U, V and B. GUARD_QW_STATE is the stack the text ends in, one context per
-# character, starting from <state>, P by default; the walk returns 1 when it ends elsewhere, a quote
-# or substitution left open. It jumps from one character that can change the context to the next,
-# so a long quoted body costs a step per quote, backslash and substitution, not one per character.
+# The contexts: P the top level, S and D a single- and a double-quoted span, A an ANSI-C `$'…'` span,
+# where a backslash escapes and the next `'` closes, U a `$(…)`, V a bare `(` inside one, B a backtick
+# substitution, H an unquoted heredoc body, where only a substitution and a backslash act. A `$'` opens
+# A wherever a `'` would open S; a `$"…"` is a double-quoted span after a `$` of text. With <live>
+# set, a quote after a shell's `-c`, `eval` or `rtk run` opens s or d instead, a quote that holds a
+# command. A comment and a heredoc operator count only where the shell reads a command: in P, U, V
+# and B. GUARD_QW_STATE is the stack the text ends in, one context per character, starting from
+# <state>, P by default; the walk returns 1 when it ends elsewhere, a quote or substitution left open.
+# It jumps from one character that can change the context to the next, so a long quoted body costs a
+# step per quote, backslash and substitution, not one per character.
 GUARD_QW_KIND=()
 GUARD_QW_TEXT=()
 GUARD_QW_STATE=""
@@ -31,6 +33,7 @@ guard_quote_walk() {
     top=${st:${#st}-1}
     case "$top" in
       S) run=${rest%%\'*} ;;
+      A) run=${rest%%[\'\\]*} ;;
       D) run=${rest%%[\"\\\`\$]*} ;;
       H) run=${rest%%[\\\`\$]*} ;;
       *) run=${rest%%[\"\'\\\`\$\(\)#\<]*} ;;
@@ -51,11 +54,18 @@ guard_quote_walk() {
         kind="e$top"
         len=2
         ;;
-      '$') [[ "${rest:1:1}" == '(' ]] && kind=oU len=2 ;;
+      '$')
+        case "${rest:1:1}" in
+          # `$$` is the shell's pid, so a `(` or `'` after the pair opens nothing.
+          '$') len=2 ;;
+          '(') kind=oU len=2 ;;
+          "'") [[ "$top" == [PUVBd] ]] && kind=oA len=2 ;;
+        esac
+        ;;
       '`') if [[ "$top" == B ]]; then kind=cB; else kind=oB; fi ;;
       "'")
         case "$top" in
-          S | s) kind="c$top" ;;
+          S | s | A) kind="c$top" ;;
           d) kind=oS ;;
           *)
             kind=oS
@@ -172,7 +182,7 @@ guard_mask_pieces() {
   for ((i = 0; i < n; i++)); do
     piece=${GUARD_QW_TEXT[i]}
     case "${GUARD_QW_KIND[i]}" in
-      tS | tC)
+      tS | tA | tC)
         guard_replace_set "$piece" ';&|()`' $'\002'
         piece=$GUARD_REPLACED
         ;;
@@ -314,9 +324,9 @@ guard_tokens() {
 }
 
 # guard_words <segment> — the segment split into words the way a shell would, one per line: whitespace
-# separates, quotes group and are dropped, a backslash keeps the next character. For one command's
-# arguments, where `-C 'my repo'` must stay one word; a segment holds no newline. Returns 1 when a
-# quote is left open, after printing what it read.
+# separates, quotes group and are dropped, the `$` of a `$'…'` with them, a backslash keeps the next
+# character. For one command's arguments, where `-C 'my repo'` must stay one word; a segment holds no
+# newline. Returns 1 when a quote is left open, after printing what it read.
 guard_words() {
   local s="$1"
   local n=${#s}
@@ -335,6 +345,20 @@ guard_words() {
         case "$ch" in
           "'") state=sq; have=1 ;;
           '"') state=dq; have=1 ;;
+          '$')
+            case "${s:i+1:1}" in
+              '$')
+                word+='$$'
+                i=$((i + 1))
+                ;;
+              "'")
+                state=ansi
+                i=$((i + 1))
+                ;;
+              *) word+=$ch ;;
+            esac
+            have=1
+            ;;
           ' ' | $'\t')
             ((have)) && printf '%s\n' "$word"
             word=""
@@ -343,7 +367,7 @@ guard_words() {
           *) word+=$ch; have=1 ;;
         esac
         ;;
-      sq) if [[ "$ch" == "'" ]]; then state=plain; else word+=$ch; fi ;;
+      sq | ansi) if [[ "$ch" == "'" ]]; then state=plain; else word+=$ch; fi ;;
       dq) if [[ "$ch" == '"' ]]; then state=plain; else word+=$ch; fi ;;
     esac
     i=$((i + 1))

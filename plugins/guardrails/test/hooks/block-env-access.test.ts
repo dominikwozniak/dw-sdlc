@@ -168,6 +168,8 @@ describe("a substitution inside double quotes runs, so its paths count", () => {
   allowedBash("quoted-heredoc-body-is-text", "git commit -m \"$(cat <<'EOF'\nfix: x\n\nreads .env.local now\nEOF\n)\"")
   blockedBash("unquoted-heredoc-body-substitution", "cat <<EOF\n$(cat .env.local)\nEOF")
   blockedBash("unquoted-heredoc-body-backtick", "cat > notes.md <<EOF\nsee `cat .env.local`\nEOF")
+  blockedBash("ansi-c-path", "cat $'.env.local'")
+  allowedBash("ansi-c-prose-with-an-escaped-quote", "printf '%s\\n' $'it\\'s $(cat .env.local) here'")
   allowedBash("quoted-heredoc-body-substitution-is-text", "cat <<'EOF'\n$(cat .env.local)\nEOF")
   allowedBash("unquoted-heredoc-body-prose", "cat <<EOF\nreads .env.local lazily, $(date)\nEOF")
   it("a refusal from a substitution says so", () => {
