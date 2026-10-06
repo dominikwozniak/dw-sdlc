@@ -1,8 +1,8 @@
 #!/bin/bash
 # The text scanners lib.sh sources — the quote walker and what reads its pieces: quoted separators,
 # substitutions, plain words. Not a hook and not sourced on its own: lib.sh sets the locale and
-# GUARD_LIB_DIR first and sources lib-lines.sh, then this file, then lib-words.sh, whose word reader
-# and GUARD_LIVE_QUOTE the scanners here use. Neither runs while being sourced.
+# GUARD_LIB_DIR first and sources lib-lines.sh, then this file, then lib-words.sh, whose word reader,
+# escape decoder and GUARD_LIVE_QUOTE the scanners here call only once every file is sourced.
 # --- the quotes ---------------------------------------------------------------------------------
 
 # guard_quote_walk <text> [<live>] [<state>] — the one reader of shell quoting: the mask, the
@@ -27,7 +27,7 @@ GUARD_QW_TEXT=()
 GUARD_QW_STATE=""
 guard_quote_walk() {
   local text="$1" live="${2:-0}" st="${3:-P}"
-  local rest="$1" total=${#1} top run ch kind len quote prev=""
+  local rest="$1" total=${#1} top run ch kind len quote pre prev=""
   GUARD_QW_KIND=()
   GUARD_QW_TEXT=()
   while [[ -n "$rest" ]]; do
@@ -54,6 +54,11 @@ guard_quote_walk() {
       '\')
         kind="e$top"
         len=2
+        # An escape in a `$'…'` is one piece, `\x3b` whole.
+        if [[ "$top" == [Aa] ]]; then
+          guard_ansi_escape "${rest:1:9}"
+          len=$((1 + GUARD_ANSI_LEN))
+        fi
         ;;
       '$')
         case "${rest:1:1}" in
@@ -84,8 +89,10 @@ guard_quote_walk() {
         case "$top" in
           D | d) kind="c$top" ;;
           *)
+            # A `$"…"` handed to a shell is live as a `"…"` is.
             kind=oD
-            ((live)) && [[ "${text:0:total-${#rest}}" =~ $GUARD_LIVE_QUOTE ]] && kind=od
+            pre=${text:0:total-${#rest}}
+            ((live)) && [[ "${pre%\$}" =~ $GUARD_LIVE_QUOTE ]] && kind=od
             ;;
         esac
         ;;
@@ -201,12 +208,16 @@ guard_mask_pieces() {
         guard_replace_set "$piece" ";&|()'\"#" $'\002'
         piece=$GUARD_REPLACED
         ;;
+      ea)
+        # A `$'…'` handed to a shell hands it the decoded text, where a newline ends a command.
+        guard_ansi_escape "${piece:1}"
+        piece=$GUARD_ANSI_CHAR
+        [[ "$piece" == $'\n' ]] && piece=';'
+        ;;
       e?)
         case "${piece:1:1}" in
           ';' | '&' | '|' | '(' | ')' | '`') piece="\\"$'\002' ;;
         esac
-        # A `$'…'` handed to a shell decodes `\n` to the newline that ends a command there.
-        [[ "${GUARD_QW_KIND[i]}" == ea && "$piece" == '\n' ]] && piece=';'
         ;;
     esac
     GUARD_MASKED+=$piece

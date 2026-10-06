@@ -11,7 +11,8 @@ guard_tokens() {
 
 # guard_words <segment> — the segment split into words the way a shell would, one per line: whitespace
 # separates, quotes group and are dropped, the `$` of a `$'…'` or a `$"…"` with them, a backslash
-# keeps the next character, and in a `$'…'` stands for what bash decodes it to. For one command's
+# keeps the next character, and in a `$'…'` stands for what bash decodes it to, a newline read as a
+# space and the text ending at a NUL. For one command's
 # arguments, where `-C 'my repo'` must stay one word; a segment holds no newline. Returns 1 when a
 # quote is left open, after printing what it read.
 guard_words() {
@@ -20,9 +21,12 @@ guard_words() {
   local i=0 ch word="" have=0 state=plain
   while ((i < n)); do
     ch=${s:i:1}
-    if [[ "$ch" == '\' && "$state" == ansi ]]; then
+    if [[ "$ch" == '\' && ("$state" == ansi || "$state" == cut) ]]; then
       guard_ansi_escape "${s:i+1:9}"
-      word+=$GUARD_ANSI_CHAR
+      if [[ "$state" == ansi ]]; then
+        ((GUARD_ANSI_NUL)) && state=cut
+        if [[ "$GUARD_ANSI_CHAR" == $'\n' ]]; then word+=' '; else word+=$GUARD_ANSI_CHAR; fi
+      fi
       i=$((i + 1 + GUARD_ANSI_LEN))
       continue
     fi
@@ -65,6 +69,7 @@ guard_words() {
         esac
         ;;
       sq | ansi) if [[ "$ch" == "'" ]]; then state=plain; else word+=$ch; fi ;;
+      cut) [[ "$ch" == "'" ]] && state=plain ;;
       dq) if [[ "$ch" == '"' ]]; then state=plain; else word+=$ch; fi ;;
     esac
     i=$((i + 1))
@@ -75,13 +80,16 @@ guard_words() {
 
 # guard_ansi_escape <text after a backslash> — what an escape in a `$'…'` stands for, the way bash
 # decodes it: GUARD_ANSI_CHAR, and GUARD_ANSI_LEN, the characters of the text it takes. A letter, hex,
-# octal or `\c` control code becomes its character when that is ASCII, a newline a space so the word
-# stays on its line, a NUL nothing; a code past ASCII and an escape bash does not know stay as typed.
+# octal or `\c` control code becomes its character when that is ASCII; a NUL is no character and sets
+# GUARD_ANSI_NUL, since bash ends the quote's text there; a code past ASCII and an escape bash does not
+# know stay as typed. `\u` and `\U` are bash 4.2's and zsh's, shells a command may run under.
 GUARD_ANSI_CHAR=""
 GUARD_ANSI_LEN=0
+GUARD_ANSI_NUL=0
 guard_ansi_escape() {
   local t="$1" code=-1 oct
   GUARD_ANSI_LEN=1
+  GUARD_ANSI_NUL=0
   case "${t:0:1}" in
     a) code=7 ;;
     b) code=8 ;;
@@ -91,7 +99,7 @@ guard_ansi_escape() {
     r) code=13 ;;
     t) code=9 ;;
     v) code=11 ;;
-    '\' | "'" | '"' | '?') code=-2 ;;
+    '\' | "'" | '"' | '?') printf -v code '%d' "'${t:0:1}" ;;
     c)
       if [[ -n "${t:1:1}" ]]; then
         printf -v code '%d' "'${t:1:1}"
@@ -114,19 +122,15 @@ guard_ansi_escape() {
       fi
       ;;
   esac
-  case "$code" in
-    -2) GUARD_ANSI_CHAR=${t:0:1} ;;
-    0) GUARD_ANSI_CHAR="" ;;
-    10) GUARD_ANSI_CHAR=" " ;;
-    *)
-      if ((code < 0 || code > 127)); then
-        GUARD_ANSI_CHAR="\\${t:0:GUARD_ANSI_LEN}"
-      else
-        printf -v oct '%03o' "$code"
-        printf -v GUARD_ANSI_CHAR "\\$oct"
-      fi
-      ;;
-  esac
+  if ((code == 0)); then
+    GUARD_ANSI_CHAR=""
+    GUARD_ANSI_NUL=1
+  elif ((code < 0 || code > 127)); then
+    GUARD_ANSI_CHAR="\\${t:0:GUARD_ANSI_LEN}"
+  else
+    printf -v oct '%03o' "$code"
+    printf -v GUARD_ANSI_CHAR "\\$oct"
+  fi
 }
 
 # guard_unwrap_words — drops the wrapper words GUARD_WRAPPER names from the front of the array WORDS:
@@ -203,9 +207,11 @@ GUARD_LIVE_QUOTE="(^|[[:space:];&|(\`])(${GUARD_SHELL_C}|eval[[:space:]]+|rtk[[:
 # A heredoc opener line whose command, or a command piped after it, is a shell reading its stdin.
 GUARD_SHELL_STDIN="(^|[;&|(][[:space:]]*)${GUARD_WRAPPER}(ba|da|k|z)?sh([[:space:]]|\$)"
 
+# An optional opening quote for an ERE: `'`, `"`, `$'` or `$"`.
+GUARD_OPEN_QUOTE="(\\\$?[\"'])?"
+
 # Start-of-command boundary for an ERE: line start or right after `;` `&` `|` `(` or a backtick — the
 # last two open a subshell or a command substitution — then the wrappers and an optional quote for
 # the `rtk run "git push --force"`, `bash -c 'git reset --hard'` and `bash -c $'…'` forms.
 # `grep -E "${GUARD_BOUNDARY}git push"`.
-GUARD_COMMAND_QUOTE="(\\\$?[\"'])?"
-GUARD_BOUNDARY="(^|[;&|(\`][[:space:]]*)${GUARD_WRAPPER}${GUARD_COMMAND_QUOTE}"
+GUARD_BOUNDARY="(^|[;&|(\`][[:space:]]*)${GUARD_WRAPPER}${GUARD_OPEN_QUOTE}"

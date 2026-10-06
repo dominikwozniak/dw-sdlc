@@ -206,6 +206,11 @@ describe("text helpers", () => {
       lib(`guard_mask_quoted_separators "$2"`, ["bash -c $'cd x && ls\\ny' ; echo $'a;b'"]),
       "bash -c $'cd x && ls;y' ; echo $'a\u0002b'"
     )
+    assert.equal(
+      lib(`guard_mask_quoted_separators "$2"`, ["bash -c $'a\\x3bb\\012c\\x20d' ; echo $'e\\x3bf'"]),
+      "bash -c $'a;b;c d' ; echo $'e\\x3bf'"
+    )
+    assert.equal(lib(`guard_mask_quoted_separators "$2"`, ['bash -c $"a && b"']), 'bash -c $"a && b"')
   })
   it("a $$ is the shell's pid: a quote after it is a plain one, a $' after the pair an ANSI-C one", () => {
     assert.equal(lib(`guard_mask_quoted_separators "$2"`, ["echo $$'x\\' ; c 'd;e'"]), "echo $$'x\\' ; c 'd\u0002e'")
@@ -258,6 +263,9 @@ describe("text helpers", () => {
   it("words honour quotes and escapes", () => {
     const got = lib(`guard_words "git -C 'my repo' push  --force-with-lease=\\"a b\\":x it\\\\'s" | paste -sd, -`)
     assert.equal(got, "git,-C,my repo,push,--force-with-lease=a b:x,it's")
+  })
+  it("words cut an ANSI-C quote at a NUL, the way bash does", () => {
+    assert.equal(lib(`guard_words "$2" | paste -sd, -`, ["$'.env\\0.example' $'a\\x00b\\'c'd"]), ".env,ad")
   })
   it("words decode the escapes of an ANSI-C quote the way bash does", () => {
     assert.equal(
