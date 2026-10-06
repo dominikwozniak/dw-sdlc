@@ -26,8 +26,9 @@ disk is in the next session, a broken edit included.
 - `.claude-plugin/plugin.json` — the manifest; its `hooks` key wires each guard below to its event.
 - `hooks/lib.sh` — the library every guard sources: payload reader, git helpers, refusal, config
   lookup; it sources `hooks/lib-lines.sh`, the line scanners — heredoc openers and bodies,
-  continuation lines — and `hooks/lib-text.sh`, the text scanners — the one quote walker every
-  scanner reads, quote masking, substitutions, words, the wrapper boundary.
+  continuation lines — `hooks/lib-text.sh`, the text scanners — the one quote walker every
+  scanner reads, quote masking, substitutions, plain words — and `hooks/lib-words.sh`, the word
+  readers — shell words, the wrappers, the boundary.
 - `hooks/schema.jq`, `hooks/config.jq` — the config contract in jq: schema validation and the
   local-over-committed-over-inferred merge, the same behaviour as `scripts/agentic-config.ts`.
 - `hooks/bash-guard.sh` — the dispatcher: one stdin read, heredoc bodies dropped once but for the
