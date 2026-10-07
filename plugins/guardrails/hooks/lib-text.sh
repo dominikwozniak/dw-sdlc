@@ -14,11 +14,16 @@
 #   tC    a comment, up to the newline    h     a heredoc operator and its delimiter
 # The contexts: P the top level, S and D a single- and a double-quoted span, A an ANSI-C `$'…'` span,
 # where a backslash escapes and the next `'` closes, U a `$(…)`, V a bare `(` inside one, B a backtick
-# substitution, H an unquoted heredoc body, where only a substitution and a backslash act. A `$'` opens
-# A wherever a `'` would open S; a `$"…"` is a double-quoted span after a `$` of text. With <live>
-# set, a quote after a shell's `-c`, `eval` or `rtk run` opens s, d or a instead, a quote that holds a
-# command; in a, a backslash still escapes, so a `\'` there is text the walk does not follow. A
-# comment and a heredoc operator count only where the shell reads a command: in P, U, V and B.
+# substitution, H an unquoted heredoc body, where only a substitution and a backslash act, E a `${…}`,
+# where a quote nests even inside a `"…"`, a `(` and a `#` are text and the first bare `}` closes it.
+# A `$'` opens A wherever a `'` would open S; a `$"…"` is a double-quoted span after a `$` of text; a
+# `$` before anything else is text. With <live> set, a quote after a shell's `-c`, `eval` or `rtk run`
+# opens s, d or a instead, a quote that holds a command; in a, a backslash still escapes, so a `\'`
+# there is text the walk does not follow. A `${…}` in d opens e: the outer shell expands it and hands
+# the shell what it expands to, so its text holds the command too, and a `"…"`, `'…'` or `$'…'` in it
+# opens d, s or a. The outer shell drops those quotes, all but a `'…'` that bash 3.2 and a `:-` keep,
+# where reading it as a command refuses more, not less. A comment and a heredoc operator count only
+# where the shell reads a command: in P, U, V and B.
 # GUARD_QW_STATE is the stack the text ends in, one context per character, starting from <state>, P by
 # default; the walk returns 1 when it ends elsewhere, a quote or substitution left open. It jumps from
 # one character that can change the context to the next, so a long quoted body costs a step per
@@ -38,6 +43,7 @@ guard_quote_walk() {
       A) run=${rest%%[\'\\]*} ;;
       D) run=${rest%%[\"\\\`\$]*} ;;
       H) run=${rest%%[\\\`\$]*} ;;
+      E | e) run=${rest%%[\"\'\\\`\$\}]*} ;;
       *) run=${rest%%[\"\'\\\`\$\(\)#\<]*} ;;
     esac
     if [[ -n "$run" ]]; then
@@ -66,11 +72,19 @@ guard_quote_walk() {
           # `$$` is the shell's pid, so a `(` or `'` after the pair opens nothing.
           '$') len=2 ;;
           '(') kind=oU len=2 ;;
+          '{')
+            if [[ "$top" != H ]]; then
+              kind=oE
+              len=2
+              [[ "$top" == [de] ]] && kind=oe
+            fi
+            ;;
           "'")
-            if [[ "$top" == [PUVBd] ]]; then
+            if [[ "$top" == [PUVBdEe] ]]; then
               kind=oA
               len=2
               ((live)) && [[ "${text:0:total-${#rest}}" =~ $GUARD_LIVE_QUOTE ]] && kind=oa
+              [[ "$top" == e ]] && kind=oa
             fi
             ;;
         esac
@@ -79,7 +93,8 @@ guard_quote_walk() {
       "'")
         case "$top" in
           S | s | A | a) kind="c$top" ;;
-          d) kind=oS ;;
+          d | E) kind=oS ;;
+          e) kind=os ;;
           *)
             kind=oS
             ((live)) && [[ "${text:0:total-${#rest}}" =~ $GUARD_LIVE_QUOTE ]] && kind=os
@@ -89,6 +104,7 @@ guard_quote_walk() {
       '"')
         case "$top" in
           D | d) kind="c$top" ;;
+          e) kind=od ;;
           *)
             # A `$"…"` handed to a shell is live as a `"…"` is.
             kind=oD
@@ -99,6 +115,7 @@ guard_quote_walk() {
         ;;
       '(') [[ "$top" == [UV] ]] && kind=oV ;;
       ')') [[ "$top" == [UV] ]] && kind="c$top" ;;
+      '}') [[ "$top" == [Ee] ]] && kind="c$top" ;;
       '#')
         # A comment starts a word and runs to the end of the line.
         if [[ "$top" == [PUVB] ]]; then
@@ -249,8 +266,8 @@ guard_mask_live_text() {
 
 # guard_mask_pieces [<from> [<to>]] — the walk's pieces, all of them or those from <from> up to
 # <to>, joined into GUARD_MASKED, `;` `&` `|` `(` `)` and a backtick made \002 wherever they are text:
-# a quoted span, a comment, an escape. In the text of an unquoted heredoc body the quotes and a `#`
-# go too, so a walk of the whole command finds none of them there.
+# a quoted span, a `${…}`, a comment, an escape. In the text of an unquoted heredoc body the quotes
+# and a `#` go too, so a walk of the whole command finds none of them there.
 GUARD_MASKED=""
 guard_mask_pieces() {
   local i n=${2:-${#GUARD_QW_KIND[@]}} piece
@@ -262,7 +279,7 @@ guard_mask_pieces() {
         guard_replace_set "$piece" ';&|()`' $'\002'
         piece=$GUARD_REPLACED
         ;;
-      tD)
+      tD | tE)
         guard_replace_set "$piece" ';&|()' $'\002'
         piece=$GUARD_REPLACED
         ;;
