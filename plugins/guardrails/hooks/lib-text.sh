@@ -1,9 +1,9 @@
 #!/bin/bash
 # The text scanners lib.sh sources — the quote walker and what reads its pieces: quoted separators,
 # substitutions, plain words. Not a hook and not sourced on its own: lib.sh sets the locale and
-# GUARD_LIB_DIR first and sources lib-lines.sh, then this file, then lib-words.sh, whose word reader,
-# escape decoders, GUARD_LIVE_QUOTE and GUARD_HAS_LIVE_QUOTE the scanners here call only once every
-# file is sourced.
+# GUARD_LIB_DIR first and sources lib-lines.sh, then this file, lib-live.sh and lib-words.sh, whose
+# live-quote readers, word reader, escape decoders and GUARD_LIVE_QUOTE the scanners here call only
+# once every file is sourced.
 # --- the quotes ---------------------------------------------------------------------------------
 
 # guard_quote_walk <text> [<live>] [<state>] — the one reader of shell quoting: the mask, the
@@ -172,29 +172,90 @@ guard_replace_set() {
 # optional quote still matches `rtk run "npm install"`, where the quoted text really is the command.
 # What runs stays unmasked: a `$(…)` or a backtick substitution inside double quotes, and a quote
 # handed to a shell's `-c`, `eval` or `rtk run`, so `bash -c "cd x && git reset --hard"` keeps its
-# `&&`. A comment is text, and so is a heredoc body but for the substitutions an unquoted one runs.
-# An unterminated quote or substitution hands back the original — fail closed, judge what was typed.
+# `&&`. Such a quote ends where the outer shell ends it: where guard_live_span finds the walk reads it
+# otherwise, its body is masked as a command of its own and the walk resumes after it. A comment is
+# text, and so is a heredoc body but for the substitutions an unquoted one runs. An unterminated quote
+# or substitution hands back the original — fail closed, judge what was typed.
 guard_mask_quoted_separators() {
-  local s="$1"
+  local s="$1" rest st=P i n kind piece off end from out=""
   if [[ "$s" == *'<<'* ]]; then
     s=$(printf '%s\n' "$s" | guard_mask_heredoc_bodies)
   fi
-  if guard_quote_walk "$s" 1; then
-    guard_mask_pieces
-    printf '%s' "$GUARD_MASKED"
-  else
+  rest=$s
+  while :; do
+    guard_quote_walk "$rest" 1 "$st"
+    n=${#GUARD_QW_KIND[@]}
+    off=0
+    end=-1
+    from=0
+    for ((i = 0; i < n; i++)); do
+      kind=${GUARD_QW_KIND[i]}
+      piece=${GUARD_QW_TEXT[i]}
+      # A quote nested in one already read is the inner shell's to end.
+      if ((i > end)) && [[ "$kind" == o[sad] ]]; then
+        guard_live_span $((i + 1)) "$kind"
+        case $? in
+          0) end=$GUARD_LIVE_END ;;
+          3)
+            guard_mask_pieces "$from" "$i"
+            out+=$GUARD_MASKED$piece
+            guard_mask_live_text
+            out+=$GUARD_MASKED${GUARD_QW_TEXT[GUARD_LIVE_END]}
+            off=$((off + ${#piece} + GUARD_LIVE_LEN))
+            i=$GUARD_LIVE_END
+            from=$((i + 1))
+            continue
+            ;;
+          *) break ;;
+        esac
+      fi
+      case "$kind" in
+        o?) st+=${kind:1} ;;
+        c?) st=${st%?} ;;
+      esac
+      off=$((off + ${#piece}))
+    done
+    guard_mask_pieces "$from" "$i"
+    out+=$GUARD_MASKED
+    ((i < n)) || break
+    out+=$piece
+    rest=${rest:off+${#piece}}
+    guard_quote_walk "$rest" 0 "$st$GUARD_LIVE_CTX"
+    guard_live_span 0 "o$GUARD_LIVE_CTX" || break
+    guard_mask_live_text
+    out+=$GUARD_MASKED${rest:GUARD_LIVE_LEN-1:1}
+    rest=${rest:GUARD_LIVE_LEN}
+  done
+  if ((i < n)) || [[ "$GUARD_QW_STATE" != P ]]; then
     printf '%s' "$s"
+  else
+    printf '%s' "$out"
   fi
 }
 
-# guard_mask_pieces — the walk's pieces joined into GUARD_MASKED, `;` `&` `|` `(` `)` and a backtick
-# made \002 wherever they are text: a quoted span, a comment, an escape. In the text of an unquoted
-# heredoc body the quotes and a `#` go too, so a walk of the whole command finds none of them there.
+# guard_mask_live_text — GUARD_LIVE_TEXT, the text a quote hands a shell, masked as the command it is
+# into GUARD_MASKED. A newline a `$'…'` hands on ends a command, as guard_mask_pieces reads a `\n` in
+# one. A text with no quote, escape, substitution, comment or heredoc has nothing to mask.
+guard_mask_live_text() {
+  local text=$GUARD_LIVE_TEXT
+  [[ "$GUARD_LIVE_CTX" == A ]] && text=${text//$'\n'/;}
+  if [[ "$text" == *[\'\"\`\$\\#\<]* ]]; then
+    # The dot keeps the text's trailing newlines from the command substitution.
+    text=$(guard_mask_quoted_separators "$text" && printf .)
+    text=${text%.}
+  fi
+  GUARD_MASKED=$text
+}
+
+# guard_mask_pieces [<from> [<to>]] — the walk's pieces, all of them or those from <from> up to
+# <to>, joined into GUARD_MASKED, `;` `&` `|` `(` `)` and a backtick made \002 wherever they are text:
+# a quoted span, a comment, an escape. In the text of an unquoted heredoc body the quotes and a `#`
+# go too, so a walk of the whole command finds none of them there.
 GUARD_MASKED=""
 guard_mask_pieces() {
-  local i n=${#GUARD_QW_KIND[@]} piece
+  local i n=${2:-${#GUARD_QW_KIND[@]}} piece
   GUARD_MASKED=""
-  for ((i = 0; i < n; i++)); do
+  for ((i = ${1:-0}; i < n; i++)); do
     piece=${GUARD_QW_TEXT[i]}
     case "${GUARD_QW_KIND[i]}" in
       tS | tA | tC)
@@ -256,7 +317,7 @@ guard_strip_quoted() {
 # quote on is walked again the shell's way and the walk resumes after it. Each line is folded to one,
 # its newlines spaces. An unterminated quote or substitution hands back the text as typed.
 guard_split_substitutions() {
-  local rest="$1" st=P i n kind piece ctx off depth=0 buf="" bodies=""
+  local rest="$1" st=P i n kind piece off depth=0 buf="" bodies=""
   # The text of each enclosing substitution while a nested one is read.
   local -a outer=()
   while :; do
@@ -268,12 +329,7 @@ guard_split_substitutions() {
       piece=${GUARD_QW_TEXT[i]}
       case "$kind" in
         os | oa | od)
-          case "$kind" in
-            os) ctx=S ;;
-            oa) ctx=A ;;
-            *) ctx=D ;;
-          esac
-          guard_live_body $((i + 1)) "$ctx" || break
+          guard_live_body $((i + 1)) "$kind" || break
           bodies+=$GUARD_LIVE_LINES
           buf+=_
           i=$GUARD_LIVE_END
@@ -302,8 +358,8 @@ guard_split_substitutions() {
     done
     ((i < n)) || break
     rest=${rest:off+${#piece}}
-    guard_quote_walk "$rest" 0 "$st$ctx"
-    guard_live_body 0 "$ctx" || break
+    guard_quote_walk "$rest" 0 "$st$GUARD_LIVE_CTX"
+    guard_live_body 0 "o$GUARD_LIVE_CTX" || break
     bodies+=$GUARD_LIVE_LINES
     buf+=_
     rest=${rest:GUARD_LIVE_LEN}
@@ -315,78 +371,6 @@ guard_split_substitutions() {
   fi
   guard_replace_set "$buf" $'\n' ' '
   printf '%s\n%s' "$GUARD_REPLACED" "$bodies"
-}
-
-# guard_live_body <first piece> <S|A|D> — a quote handed to a shell, read from the walk's pieces just
-# after its opening quote the way the outer shell reads it, a single, ANSI-C or double quote. The
-# text that shell is handed is a `$'…'` body decoded, or a `"…"` body with the escapes of `$`, a
-# backtick, `"` and `\` undone and each substitution a `_`, since the outer shell runs it first.
-# GUARD_LIVE_LINES holds each substitution's lines, then that text's, split again; GUARD_LIVE_LEN
-# counts the characters through the closing quote, GUARD_LIVE_END is its piece. Returns 1 when the
-# quote never closes and 2 when the walk read it other than the outer shell does: a live walk reads
-# the command inside, so a `"` in a `'…'` it opens would hide where the quote ends.
-GUARD_LIVE_LINES=""
-GUARD_LIVE_LEN=0
-GUARD_LIVE_END=0
-guard_live_body() {
-  local j n=${#GUARD_QW_KIND[@]} kind piece open=1 body="" sub=""
-  GUARD_LIVE_LINES=""
-  GUARD_LIVE_LEN=0
-  for ((j = $1; j < n; j++)); do
-    kind=${GUARD_QW_KIND[j]}
-    piece=${GUARD_QW_TEXT[j]}
-    GUARD_LIVE_LEN=$((GUARD_LIVE_LEN + ${#piece}))
-    if ((open > 1)); then
-      case "$kind" in
-        ?[sad]) return 2 ;;
-        o?) open=$((open + 1)) ;;
-        c?) open=$((open - 1)) ;;
-      esac
-      if ((open > 1)); then
-        sub+=$piece
-      else
-        GUARD_LIVE_LINES+="$(guard_split_substitutions "$sub")"$'\n'
-        body+=_
-      fi
-      continue
-    fi
-    case "$2:$kind" in
-      ?:c?)
-        GUARD_LIVE_END=$j
-        if [[ "$2" == A ]]; then
-          guard_ansi_decode "$body"
-          body=$GUARD_ANSI_TEXT
-        fi
-        if guard_runs_inside "$body"; then
-          GUARD_LIVE_LINES+="$(guard_split_substitutions "$body")"$'\n'
-        else
-          guard_replace_set "$body" $'\n' ' '
-          GUARD_LIVE_LINES+="$GUARD_REPLACED"$'\n'
-        fi
-        return 0
-        ;;
-      ?:t? | A:e?) body+=$piece ;;
-      D:e?)
-        case "${piece:1}" in
-          '$' | '`' | '"' | '\') body+=${piece:1} ;;
-          $'\n') ;;
-          *) body+=$piece ;;
-        esac
-        ;;
-      D:oU | D:oB)
-        open=2
-        sub=""
-        ;;
-      *) return 2 ;;
-    esac
-  done
-  return 1
-}
-
-# guard_runs_inside <text> — 0 when the text holds something the shell runs or drops inside it: a
-# `$(`, a backtick, a `#` or a quote handed to a shell. Without one, its split is the text folded.
-guard_runs_inside() {
-  [[ "$1" == *'$('* || "$1" == *'`'* || "$1" == *'#'* || "$1" =~ $GUARD_HAS_LIVE_QUOTE ]]
 }
 
 # guard_strip_quoted_text <folded> — guard_strip_quoted for one line of text that holds no

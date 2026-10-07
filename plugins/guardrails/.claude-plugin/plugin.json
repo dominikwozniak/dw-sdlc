@@ -1,6 +1,6 @@
 {
   "name": "guardrails",
-  "version": "0.6.5",
+  "version": "0.6.6",
   "description": "Deterministic guardrails for an agent session: refuses destructive git, the env files the repository does not vouch for, the wrong package manager and sloppy commits, each rule read from the repository's .ai/agentic.config.json.",
   "author": {
     "name": "Dominik Woźniak"

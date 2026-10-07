@@ -212,6 +212,38 @@ describe("text helpers", () => {
     )
     assert.equal(lib(`guard_mask_quoted_separators "$2"`, ['bash -c $"a && b"']), 'bash -c $"a && b"')
   })
+  it("a quote handed to a shell ends where the outer shell ends it: the separators after it kept", () => {
+    const same = (command: string): void => {
+      assert.equal(lib(`guard_mask_quoted_separators "$2"`, [command]), command)
+    }
+    same("bash -c 'echo \"' ; ls x ; echo '\"'")
+    same('bash -c "echo \'" ; ls x ; echo "\'"')
+    same('eval "echo $\'" && ls x && echo "\'"')
+    assert.equal(
+      lib(`guard_mask_quoted_separators "$2"`, ["bash -c 'echo `' ; ls x ; echo '`'"]),
+      "bash -c 'echo `' ; ls x ; echo '\u0002'"
+    )
+  })
+  it("a quote walked again the outer shell's way is masked as the command that shell is handed", () => {
+    assert.equal(
+      lib(`guard_mask_quoted_separators "$2"`, [`bash -c "x '\\"' \\\\' ; ls x ; echo \\\\'"`]),
+      `bash -c "x '"' \\' ; ls x ; echo \\'"`
+    )
+    assert.equal(
+      lib(`guard_mask_quoted_separators "$2"`, [`bash -c $'echo \\'"\\' ; ls x\\necho "\\'' ; z`]),
+      `bash -c $'echo '"' ; ls x;echo "'' ; z`
+    )
+  })
+  it("a quote handed to a shell keeps the masking of a span nested in it where the readings agree", () => {
+    assert.equal(
+      lib(`guard_mask_quoted_separators "$2"`, ["bash -c 'echo \"a; b\"' ; ls"]),
+      "bash -c 'echo \"a\u0002 b\"' ; ls"
+    )
+    assert.equal(
+      lib(`guard_mask_quoted_separators "$2"`, ["bash -c \"echo 'a; b'\" ; ls"]),
+      "bash -c \"echo 'a\u0002 b'\" ; ls"
+    )
+  })
   it("a $$ is the shell's pid: a quote after it is a plain one, a $' after the pair an ANSI-C one", () => {
     assert.equal(lib(`guard_mask_quoted_separators "$2"`, ["echo $$'x\\' ; c 'd;e'"]), "echo $$'x\\' ; c 'd\u0002e'")
     assert.equal(lib(`guard_mask_quoted_separators "$2"`, ["echo $$$'x\\'; y' ; c"]), "echo $$$'x\\'\u0002 y' ; c")
