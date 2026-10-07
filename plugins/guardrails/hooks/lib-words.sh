@@ -1,7 +1,8 @@
 #!/bin/bash
 # The word readers lib.sh sources — a command split into shell words, the wrappers in front of it,
 # and the boundary every guard's pattern sees through. Not a hook and not sourced on its own: lib.sh
-# sets the locale and GUARD_LIB_DIR first and sources lib-lines.sh and lib-text.sh, then this file.
+# sets the locale and GUARD_LIB_DIR first and sources lib-lines.sh, lib-text.sh and lib-live.sh, then
+# this file.
 # --- the words ----------------------------------------------------------------------------------
 
 # guard_tokens <text> — one token per line, split on whitespace and shell punctuation.

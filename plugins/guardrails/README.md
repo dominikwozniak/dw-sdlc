@@ -27,8 +27,9 @@ disk is in the next session, a broken edit included.
 - `hooks/lib.sh` — the library every guard sources: payload reader, git helpers, refusal, config
   lookup; it sources `hooks/lib-lines.sh`, the line scanners — heredoc openers and bodies,
   continuation lines — `hooks/lib-text.sh`, the text scanners — the one quote walker every
-  scanner reads, quote masking, substitutions, plain words — and `hooks/lib-words.sh`, the word
-  readers — shell words, the wrappers, the boundary.
+  scanner reads, quote masking, substitutions, plain words — `hooks/lib-live.sh`, the live-quote
+  readers — a quote handed to a shell, ended where the outer shell ends it — and
+  `hooks/lib-words.sh`, the word readers — shell words, the wrappers, the boundary.
 - `hooks/schema.jq`, `hooks/config.jq` — the config contract in jq: schema validation and the
   local-over-committed-over-inferred merge, the same behaviour as `scripts/agentic-config.ts`.
 - `hooks/bash-guard.sh` — the dispatcher: one stdin read, heredoc bodies dropped once but for the

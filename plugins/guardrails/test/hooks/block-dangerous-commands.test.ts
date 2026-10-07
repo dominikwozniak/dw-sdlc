@@ -312,6 +312,12 @@ describe("a shell, eval or a backtick runs the command it is handed", () => {
   allowed("heredoc-pr-body-backtick", "gh pr create --body-file - <<'EOF'\nno `git push --force` here\nEOF")
   allowed("heredoc-file-backtick", "cat > notes.md <<'EOF'\nuse `git clean -fd` with care\nEOF")
   allowed("grep-c-pattern", "grep -c 'a; git reset --hard' notes.md")
+  blocked("after-a-bash-c-sq-holding-a-dq", "bash -c 'echo \"' ; git reset --hard ; echo '\"'")
+  blocked("after-a-bash-c-dq-holding-a-sq", 'bash -c "echo \'" ; git reset --hard ; echo "\'"')
+  blocked("after-a-bash-c-sq-holding-a-backtick", "bash -c 'echo `' ; git reset --hard ; echo '`'")
+  blocked("after-an-eval-dq-holding-an-ansi-c", 'eval "echo $\'" && git clean -fd && echo "\'"')
+  allowed("bash-c-prose-in-nested-quotes", "bash -c 'git commit -m \"docs: never; git reset --hard\"'")
+  allowed("bash-c-dq-prose-in-nested-quotes", "bash -c \"git commit -m 'docs: never; git reset --hard'\"")
 })
 
 describe("a quoted separator is text — and cuts both ways", () => {
