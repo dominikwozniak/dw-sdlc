@@ -30,6 +30,19 @@ function split(text: string): string {
   return lib(`guard_split_substitutions "$2" | paste -sd'|' -`, [text])
 }
 
+/** guard_mask_quoted_separators' output for `text`. */
+function mask(text: string): string {
+  return lib(`guard_mask_quoted_separators "$2"`, [text])
+}
+
+/** guard_quote_walk's pieces as `kind[text]`, joined by a space, then the stack it ends in. */
+function walk(text: string, live = 0): string {
+  return lib(
+    `guard_quote_walk "$2" "$3"; for i in "\${!GUARD_QW_KIND[@]}"; do printf '%s[%s] ' "\${GUARD_QW_KIND[i]}" "\${GUARD_QW_TEXT[i]}"; done; printf '%s' "$GUARD_QW_STATE"`,
+    [text, String(live)]
+  )
+}
+
 function unwrap(words: string): string {
   return lib(`WORDS=(${words}); guard_unwrap_words; printf '%s' "\${WORDS[*]}"`)
 }
@@ -247,6 +260,39 @@ describe("text helpers", () => {
   it("a $$ is the shell's pid: a quote after it is a plain one, a $' after the pair an ANSI-C one", () => {
     assert.equal(lib(`guard_mask_quoted_separators "$2"`, ["echo $$'x\\' ; c 'd;e'"]), "echo $$'x\\' ; c 'd\u0002e'")
     assert.equal(lib(`guard_mask_quoted_separators "$2"`, ["echo $$$'x\\'; y' ; c"]), "echo $$$'x\\'\u0002 y' ; c")
+  })
+  it("walk: a ${…} is a context of its own, where a quote nests and the first bare } closes it", () => {
+    assert.equal(walk('echo "${x:-"a b"}"'), 'tP[echo ] oD["] oE[${] tE[x:-] oD["] tD[a b] cD["] cE[}] cD["] P')
+    assert.equal(walk("echo ${x:-'}'} ; ls"), "tP[echo ] oE[${] tE[x:-] oS['] tS[}] cS['] cE[}] tP[ ; ls] P")
+    assert.equal(walk("echo ${x:-{a} # b}"), "tP[echo ] oE[${] tE[x:-{a] cE[}] tP[ ] tC[# b}] P")
+    assert.equal(walk('echo "$ {" $x'), 'tP[echo ] oD["] tD[$ {] cD["] tP[ $x] P')
+  })
+  it("walk: a ${…} in a quote handed to a shell is expanded before that shell reads it", () => {
+    assert.equal(
+      walk('bash -c "${x:-"a"} ; ls x"', 1),
+      'tP[bash -c ] od["] oe[${] te[x:-] od["] td[a] cd["] ce[}] td[ ; ls x] cd["] P'
+    )
+    assert.equal(
+      walk("bash -c 'echo ${x:-\"a\"}'", 1),
+      "tP[bash -c ] os['] ts[echo ] oE[${] tE[x:-] oD[\"] tD[a] cD[\"] cE[}] cs['] P"
+    )
+  })
+  it("a ${…} masks its separators as text, unless a shell is handed what it expands to", () => {
+    for (const command of [
+      'bash -c "${x:-"a"} ; ls x"',
+      'bash -c "${x:-a;b}"',
+      'bash -c "${x:-"a;b"}"',
+      "bash -c \"${x/*/'a;b'}\"",
+      "echo ${x:-'}'} ; ls"
+    ]) {
+      assert.equal(mask(command), command)
+    }
+    assert.equal(mask('echo "${x:-"a;b"}" ; y'), 'echo "${x:-"a\u0002b"}" ; y')
+    assert.equal(mask("echo ${x:-a;b} ; y"), "echo ${x:-a\u0002b} ; y")
+    assert.equal(mask("bash -c \"${x:-$'a\\x3bb'}\""), "bash -c \"${x:-$'a;b'}\"")
+  })
+  it("strip_quoted: the words after a ${…} in a live quote are read as a command", () => {
+    assert.equal(lib(`guard_strip_quoted "$2"`, ['bash -c "${x:-"a"} ; cat b"']), "bash -c _\n${x:-a} ; cat b")
   })
   it("strip_quoted: the command's words on the first line, each substitution's on a line of its own", () => {
     assert.equal(lib(`guard_strip_quoted 'echo "x $(cat a) y" \`b c\`'`), "echo _\ncat a\nb c")

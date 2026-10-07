@@ -13,11 +13,12 @@
 # GUARD_LIVE_END its piece. GUARD_LIVE_TEXT is the text the shell is handed: a `$'…'` decoded, the
 # escapes of `$`, a backtick, `"` and `\` in a `"…"` undone. GUARD_LIVE_SPLIT is that text with each
 # substitution of a `"…"` a `_`, its body in GUARD_LIVE_SUBS, since the outer shell runs it first.
-# Returns 1 when the quote never closes, and 2 when the outer shell may end it elsewhere than a live
-# walk does: a `'…'` holding a `'`, a `$'…'` an unescaped `'`, a `"…"` a `'…'` or `$'…'` with a `"`,
-# `$`, backtick or backslash, text there to the outer shell, or a substitution read with a quote
-# handed on inside it. Returns 3 when the walk ends it where the shell does but read the text as
-# typed, not the text the shell is handed: a `$'…'` holding a backslash.
+# A `${…}` nests its quotes the way the outer shell does. Returns 1 when the quote never closes, and
+# 2 when the outer shell may end it elsewhere than a live walk does: a `'…'` holding a `'`, a `$'…'`
+# an unescaped `'`, a `"…"` a `'…'` or `$'…'` with a `"`, `$`, backtick or backslash, text there to
+# the outer shell, or a substitution read with a quote handed on inside it. Returns 3 when the walk
+# ends it where the shell does but read the text as typed, not the text the shell is handed: a
+# `$'…'` holding a backslash.
 GUARD_LIVE_CTX=""
 GUARD_LIVE_RAW=""
 GUARD_LIVE_TEXT=""
@@ -50,7 +51,7 @@ guard_live_span() {
     GUARD_LIVE_RAW+=$piece
     [[ "$GUARD_LIVE_CTX" == D ]] || continue
     if ((open == 2)) && [[ "$kind" == o? ]]; then
-      # A nested span opens: a substitution, or a `'…'` that is text to the outer shell.
+      # A nested span opens: a substitution, a `${…}`, or a `'…'` that is text to the outer shell.
       span=${kind:1}
       inner=""
       GUARD_LIVE_TEXT+=$piece
@@ -62,7 +63,11 @@ guard_live_span() {
         if ((open > 1)); then inner+=$piece; else GUARD_LIVE_SUBS+=("$inner"); fi
       else
         GUARD_LIVE_SPLIT+=$piece
-        if ((open > 1)); then inner+=$piece; elif ((live)) && [[ "$inner" == *[\"\`\$\\]* ]]; then return 2; fi
+        if ((open > 1)); then
+          inner+=$piece
+        elif ((live)) && [[ "$span" != e && "$inner" == *[\"\`\$\\]* ]]; then
+          return 2
+        fi
       fi
     else
       if [[ "$kind" == e? ]]; then
