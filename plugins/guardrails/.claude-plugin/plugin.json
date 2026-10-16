@@ -1,6 +1,6 @@
 {
   "name": "guardrails",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "Deterministic guardrails for an agent session: refuses destructive git, the env files the repository does not vouch for, the wrong package manager, sloppy commits and writes to App Store Connect; a repository's own rules come from its .ai/agentic.config.json.",
   "author": {
     "name": "Dominik Woźniak"
