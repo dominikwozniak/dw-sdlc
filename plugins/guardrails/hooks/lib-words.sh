@@ -220,7 +220,9 @@ GUARD_SHELL_OPTION='([[:space:]]+(-[A-Za-z]+|--[a-z-]+|[-+][oO][[:space:]]+[A-Za
 GUARD_SHELL_C="(ba|da|k|z)?sh${GUARD_SHELL_OPTION}*[[:space:]]+-[A-Za-z]*c[A-Za-z]*${GUARD_SHELL_OPTION}*[[:space:]]+"
 GUARD_WRAPPER="(sudo[[:space:]]+|command[[:space:]]+|eval[[:space:]]+|${GUARD_SHELL_C}|env([[:space:]]+-[^[:space:]]+)*[[:space:]]+|rtk[[:space:]]+([a-z-]+[[:space:]]+)?|[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*"
 
-# What precedes a quote that holds a command, not text: a shell's `-c`, `eval` or `rtk run`.
+# What precedes a quote that holds a command, not text: a shell's `-c`, `eval` or `rtk run`. Past its
+# first character a match holds only letters, `_`, `+`, `-` and whitespace, which guard_qw_live's
+# window relies on.
 GUARD_LIVE_PREFIX="(^|[[:space:];&|(\`])(${GUARD_SHELL_C}|eval[[:space:]]+|rtk[[:space:]]+run[[:space:]]+)"
 GUARD_LIVE_QUOTE="${GUARD_LIVE_PREFIX}\$"
 

@@ -247,6 +247,11 @@ describe("text helpers", () => {
       `bash -c $'echo '"' ; ls x;echo "'' ; z`
     )
   })
+  it("a # right after a quote handed to a shell is part of its word, not a comment", () => {
+    const command = "bash -c 'echo \"'# ; cat a ; echo '\"'"
+    assert.equal(mask(command), command)
+    assert.equal(split(command), "bash -c _# ; cat a ; echo '\"'|echo \"")
+  })
   it("a quote handed to a shell keeps the masking of a span nested in it where the readings agree", () => {
     assert.equal(
       lib(`guard_mask_quoted_separators "$2"`, ["bash -c 'echo \"a; b\"' ; ls"]),
@@ -422,6 +427,19 @@ describe("text helpers", () => {
   })
   it("unwrap leaves an unwrapped command alone", () => {
     assert.equal(unwrap("pnpm test"), "pnpm test")
+  })
+  it("a command full of misread live quotes is masked and split in seconds", () => {
+    const unit = "bash -c 'echo \"' ; cat a ; echo '\"'"
+    const command = Array.from({ length: 200 }, () => unit).join(" ; ")
+    const start = performance.now()
+    const got = lib(`guard_mask_quoted_separators "$2"; printf '\\n'; guard_split_substitutions "$2"`, [command])
+    const seconds = (performance.now() - start) / 1000
+    const bodies = Array.from({ length: 200 }, () => 'echo "').join("\n")
+    assert.equal(
+      got,
+      `${command}\n${Array.from({ length: 200 }, () => "bash -c _ ; cat a ; echo '\"'").join(" ; ")}\n${bodies}`
+    )
+    assert.ok(seconds < 5, `${seconds.toFixed(1)} s`)
   })
 })
 

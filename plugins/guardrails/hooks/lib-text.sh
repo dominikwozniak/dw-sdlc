@@ -6,9 +6,10 @@
 # once every file is sourced.
 # --- the quotes ---------------------------------------------------------------------------------
 
-# guard_quote_walk <text> [<live>] [<state>] — the one reader of shell quoting: the mask, the
-# substitution split, the heredoc opener and the heredoc body passes are each a loop over the pieces
-# it leaves, GUARD_QW_KIND[i] and GUARD_QW_TEXT[i], whose texts joined are the text again. A kind:
+# guard_quote_walk <text> [<live>] [<state>] [<from>] [<stop>] — the one reader of shell quoting: the
+# mask, the substitution split, the heredoc opener and the heredoc body passes are each a loop over
+# the pieces it leaves, GUARD_QW_KIND[i] and GUARD_QW_TEXT[i], whose texts joined are the text again.
+# A kind:
 #   t<c>  text read in context <c>        e<c>  a backslash and the character it keeps
 #   o<c>  what opens context <c>          c<c>  what closes it
 #   tC    a comment, up to the newline    h     a heredoc operator and its delimiter
@@ -28,12 +29,18 @@
 # default; the walk returns 1 when it ends elsewhere, a quote or substitution left open. It jumps from
 # one character that can change the context to the next, so a long quoted body costs a step per
 # quote, backslash and substitution, not one per character.
+# The walk starts at offset <from>, 0 by default, with the text before it read as what precedes it.
+# <stop> ends it early: `o` just after a quote handed to a shell opens, `c` just after the context it
+# starts in closes. GUARD_QW_END is the offset it stops at.
 GUARD_QW_KIND=()
 GUARD_QW_TEXT=()
 GUARD_QW_STATE=""
+GUARD_QW_END=0
 guard_quote_walk() {
-  local text="$1" live="${2:-0}" st="${3:-P}"
-  local rest="$1" total=${#1} top run ch kind len quote pre prev=""
+  local text="$1" live="${2:-0}" st="${3:-P}" from="${4:-0}" stop="${5:-}"
+  local rest total=${#1} top run ch kind len quote pre prev="" depth=${#st}
+  rest=${text:from}
+  ((from > 0)) && prev=${text:from-1:1}
   GUARD_QW_KIND=()
   GUARD_QW_TEXT=()
   while [[ -n "$rest" ]]; do
@@ -83,7 +90,7 @@ guard_quote_walk() {
             if [[ "$top" == [PUVBdEe] ]]; then
               kind=oA
               len=2
-              ((live)) && [[ "${text:0:total-${#rest}}" =~ $GUARD_LIVE_QUOTE ]] && kind=oa
+              ((live)) && guard_qw_live "$text" $((total - ${#rest})) && kind=oa
               [[ "$top" == e ]] && kind=oa
             fi
             ;;
@@ -97,7 +104,7 @@ guard_quote_walk() {
           e) kind=os ;;
           *)
             kind=oS
-            ((live)) && [[ "${text:0:total-${#rest}}" =~ $GUARD_LIVE_QUOTE ]] && kind=os
+            ((live)) && guard_qw_live "$text" $((total - ${#rest})) && kind=os
             ;;
         esac
         ;;
@@ -108,8 +115,9 @@ guard_quote_walk() {
           *)
             # A `$"…"` handed to a shell is live as a `"…"` is.
             kind=oD
-            pre=${text:0:total-${#rest}}
-            ((live)) && [[ "${pre%\$}" =~ $GUARD_LIVE_QUOTE ]] && kind=od
+            pre=$((total - ${#rest}))
+            ((pre > 0)) && [[ "${text:pre-1:1}" == '$' ]] && pre=$((pre - 1))
+            ((live)) && guard_qw_live "$text" "$pre" && kind=od
             ;;
         esac
         ;;
@@ -151,9 +159,31 @@ guard_quote_walk() {
       guard_qw_piece "t$top" "$quote"
       rest=${rest:1}
     fi
+    case "$stop$kind" in
+      oo[sad]) break ;;
+      cc?) ((${#st} < depth)) && break ;;
+    esac
   done
   GUARD_QW_STATE=$st
+  GUARD_QW_END=$((total - ${#rest}))
   [[ "$st" == "${3:-P}" ]]
+}
+
+# guard_qw_live <text> <offset> — 0 when the text before <offset> ends where a quote is handed to a
+# shell, GUARD_LIVE_QUOTE. Past its first character a match holds only letters, `_`, `+`, `-` and
+# whitespace, so the last 128 characters decide it whenever one of them is anything else; only a
+# longer run of those is read in full. A long command then costs a step per quote, not one per
+# character before it.
+guard_qw_live() {
+  local pre
+  if (($2 > 128)); then
+    pre=${1:$2-128:128}
+    if [[ "$pre" == *[!A-Za-z_+[:space:]-]* ]]; then
+      [[ "$pre" =~ $GUARD_LIVE_QUOTE ]]
+      return
+    fi
+  fi
+  [[ "${1:0:$2}" =~ $GUARD_LIVE_QUOTE ]]
 }
 
 # guard_qw_piece <kind> <text> — appends a piece; text after text of the same kind joins it.
@@ -189,61 +219,43 @@ guard_replace_set() {
 # optional quote still matches `rtk run "npm install"`, where the quoted text really is the command.
 # What runs stays unmasked: a `$(…)` or a backtick substitution inside double quotes, and a quote
 # handed to a shell's `-c`, `eval` or `rtk run`, so `bash -c "cd x && git reset --hard"` keeps its
-# `&&`. Such a quote ends where the outer shell ends it: where guard_live_span finds the walk reads it
-# otherwise, its body is masked as a command of its own and the walk resumes after it. A comment is
-# text, and so is a heredoc body but for the substitutions an unquoted one runs. An unterminated quote
-# or substitution hands back the original — fail closed, judge what was typed.
+# `&&`. Such a quote ends where the outer shell ends it: where guard_live_walk finds the walk reads it
+# otherwise, its body is masked as a command of its own. A comment is text, and so is a heredoc body
+# but for the substitutions an unquoted one runs. An unterminated quote or substitution hands back the
+# original — fail closed, judge what was typed.
 guard_mask_quoted_separators() {
-  local s="$1" rest st=P i n kind piece off end from out=""
+  local s="$1" st=P from=0 n kind out=""
   if [[ "$s" == *'<<'* ]]; then
     s=$(printf '%s\n' "$s" | guard_mask_heredoc_bodies)
   fi
-  rest=$s
   while :; do
-    guard_quote_walk "$rest" 1 "$st"
-    n=${#GUARD_QW_KIND[@]}
-    off=0
-    end=-1
-    from=0
-    for ((i = 0; i < n; i++)); do
-      kind=${GUARD_QW_KIND[i]}
-      piece=${GUARD_QW_TEXT[i]}
-      # A quote nested in one already read is the inner shell's to end.
-      if ((i > end)) && [[ "$kind" == o[sad] ]]; then
-        guard_live_span $((i + 1)) "$kind"
-        case $? in
-          0) end=$GUARD_LIVE_END ;;
-          3)
-            guard_mask_pieces "$from" "$i"
-            out+=$GUARD_MASKED$piece
-            guard_mask_live_text
-            out+=$GUARD_MASKED${GUARD_QW_TEXT[GUARD_LIVE_END]}
-            off=$((off + ${#piece} + GUARD_LIVE_LEN))
-            i=$GUARD_LIVE_END
-            from=$((i + 1))
-            continue
-            ;;
-          *) break ;;
-        esac
-      fi
-      case "$kind" in
-        o?) st+=${kind:1} ;;
-        c?) st=${st%?} ;;
-      esac
-      off=$((off + ${#piece}))
-    done
-    guard_mask_pieces "$from" "$i"
+    guard_quote_walk "$s" 1 "$st" "$from" o
+    guard_mask_pieces
     out+=$GUARD_MASKED
-    ((i < n)) || break
-    out+=$piece
-    rest=${rest:off+${#piece}}
-    guard_quote_walk "$rest" 0 "$st$GUARD_LIVE_CTX"
-    guard_live_span 0 "o$GUARD_LIVE_CTX" || break
-    guard_mask_live_text
-    out+=$GUARD_MASKED${rest:GUARD_LIVE_LEN-1:1}
-    rest=${rest:GUARD_LIVE_LEN}
+    st=$GUARD_QW_STATE
+    from=$GUARD_QW_END
+    n=${#GUARD_QW_KIND[@]}
+    ((n > 0)) && [[ "${GUARD_QW_KIND[n - 1]}" == o[sad] ]] || break
+    kind=${GUARD_QW_KIND[n - 1]}
+    st=${st%?}
+    guard_live_walk "$s" "$st" "$from" "$kind"
+    case $? in
+      0)
+        guard_mask_pieces 0 $((GUARD_LIVE_END + 1))
+        out+=$GUARD_MASKED
+        ;;
+      1)
+        st=x
+        break
+        ;;
+      *)
+        guard_mask_live_text
+        out+=$GUARD_MASKED${GUARD_QW_TEXT[GUARD_LIVE_END]}
+        ;;
+    esac
+    from=$((from + GUARD_LIVE_LEN))
   done
-  if ((i < n)) || [[ "$GUARD_QW_STATE" != P ]]; then
+  if [[ "$st" != P ]]; then
     printf '%s' "$s"
   else
     printf '%s' "$out"
@@ -330,29 +342,20 @@ guard_strip_quoted() {
 # `_`, then the body of each substitution, one per line; a nested one is split out of its parent the
 # same way, and a comment is dropped. Single quotes keep a `$(` literal and double quotes do not. A
 # quote handed to a shell's `-c`, `eval` or `rtk run` is replaced by `_` too, and guard_live_body's
-# lines follow; where the walk reads the quote other than the outer shell does, the text from the
-# quote on is walked again the shell's way and the walk resumes after it. Each line is folded to one,
-# its newlines spaces. An unterminated quote or substitution hands back the text as typed.
+# lines follow, read where the outer shell ends the quote. Each line is folded to one, its newlines
+# spaces. An unterminated quote or substitution hands back the text as typed.
 guard_split_substitutions() {
-  local rest="$1" st=P i n kind piece off depth=0 buf="" bodies=""
+  local s="$1" st=P from=0 i n kind piece depth=0 buf="" bodies=""
   # The text of each enclosing substitution while a nested one is read.
   local -a outer=()
   while :; do
-    guard_quote_walk "$rest" 1 "$st"
+    guard_quote_walk "$s" 1 "$st" "$from" o
     n=${#GUARD_QW_KIND[@]}
-    off=0
+    kind=""
     for ((i = 0; i < n; i++)); do
       kind=${GUARD_QW_KIND[i]}
       piece=${GUARD_QW_TEXT[i]}
       case "$kind" in
-        os | oa | od)
-          guard_live_body $((i + 1)) "$kind" || break
-          bodies+=$GUARD_LIVE_LINES
-          buf+=_
-          i=$GUARD_LIVE_END
-          off=$((off + ${#piece} + GUARD_LIVE_LEN))
-          continue
-          ;;
         oU | oB)
           outer[depth]=$buf
           depth=$((depth + 1))
@@ -364,24 +367,23 @@ guard_split_substitutions() {
           depth=$((depth - 1))
           buf="${outer[depth]}_"
           ;;
-        tC) ;;
+        tC | os | oa | od) ;;
         *) buf+=$piece ;;
       esac
-      case "$kind" in
-        o?) st+=${kind:1} ;;
-        c?) st=${st%?} ;;
-      esac
-      off=$((off + ${#piece}))
     done
-    ((i < n)) || break
-    rest=${rest:off+${#piece}}
-    guard_quote_walk "$rest" 0 "$st$GUARD_LIVE_CTX"
-    guard_live_body 0 "o$GUARD_LIVE_CTX" || break
+    st=$GUARD_QW_STATE
+    from=$GUARD_QW_END
+    [[ "$kind" == o[sad] ]] || break
+    st=${st%?}
+    if ! guard_live_body "$s" "$st" "$from" "$kind"; then
+      st=x
+      break
+    fi
     bodies+=$GUARD_LIVE_LINES
     buf+=_
-    rest=${rest:GUARD_LIVE_LEN}
+    from=$((from + GUARD_LIVE_LEN))
   done
-  if ((i < n)) || [[ "$GUARD_QW_STATE" != P ]]; then
+  if [[ "$st" != P ]]; then
     guard_replace_set "$1" $'\n' ' '
     printf '%s\n' "$GUARD_REPLACED"
     return 0
