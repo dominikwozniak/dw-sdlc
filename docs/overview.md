@@ -43,8 +43,9 @@ through git's `commit-msg` hook: `hooks/commit-msg.sh` resolves the same config 
 off the pattern. This repository runs it from `.husky/commit-msg`. The trailer stays the agent's
 rule, since a commit a person writes has no co-author to name.
 
-The plugin guards Node repositories. It carries no stack-specific guard; `packageManagers.ruby` is
-accepted by the schema and read by nothing.
+The plugin guards Node repositories, and App Store Connect from every repository: `asc` reaches the
+whole store account from any directory. It carries no other stack-specific guard;
+`packageManagers.ruby` is accepted by the schema and read by nothing.
 
 ## Why this way
 

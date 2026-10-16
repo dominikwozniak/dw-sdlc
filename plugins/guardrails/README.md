@@ -5,7 +5,8 @@ that reads the tool call on stdin and refuses it with exit 2, or asks for a prom
 runs. The rules a repository wants come from its `.ai/agentic.config.json`; a machine adds its own
 `.ai/agentic.config.local.json` on top, which may tighten `guardrails` and never loosen it. A key
 neither file sets is inferred: the package manager from the lockfile, and the `conventional` commit
-convention. The plugin guards Node repositories; it carries no stack-specific guard.
+convention. The plugin guards Node repositories, and App Store Connect from every repository; it
+carries no other stack-specific guard.
 
 ## Install
 
@@ -70,6 +71,18 @@ disk is in the next session, a broken edit included.
 - `block-non-pnpm.sh` (when the command names npm, npx, yarn or bun) — refuses them where the
   resolved `packageManagers.node` is `pnpm`, inferred from the lockfile when nothing declares it;
   silent in every other repository.
+- `block-store-writes.sh` (when the command names `asc` or a store script) — refuses an agent every
+  write to App Store Connect, in every repository and with no config: `asc`, its CLI, reaches the
+  whole account from any directory with the owner's Keychain key. An `asc` call passes as a read
+  when its verb, the last word before the first flag, is `list`, `view`, `show`, `summary`,
+  `status`, `pull`, `plan`, `diff`, `validate`, `audit`, `download`, `init`, `approve`, `sizes`,
+  `specs` or `placements` (`asc docs show <guide>` included), with `--help`, with no verb at all
+  (`asc --version`), or with `--dry-run` and no `--confirm`. Every other verb is refused —
+  `metadata apply`, `prices set`, the asset library's `upload`, `rename`, `archive`, `unarchive`
+  and `delete`, `localizations placements create`, `reorder`, `swap` and `delete` — and so is a flag
+  before the command, `asc --profile x metadata pull`, whose value would hide the verb. A store
+  command, `pnpm store:<name>` or `node scripts/store-<name>.ts`, runs unless it carries
+  `--confirm`, quoted or not, on a continuation line, or behind `rtk`, `env`, `sudo` or `VAR=value`.
 - `enforce-commit-hygiene.sh` (when the command names `git commit` or `git add`) — the subject must
   match `commit.pattern`, or the preset `commit.convention` names when no pattern is set:
   `conventional` unless a config layer sets `ticket-key`; `.+` accepts anything. The message must
