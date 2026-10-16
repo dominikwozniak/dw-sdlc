@@ -189,7 +189,7 @@ guard_unwrap_words() {
         WORDS=("${WORDS[@]:1}")
         if [[ ${#WORDS[@]} -gt 1 && "${WORDS[0]}" =~ ^[a-z-]+$ && "${WORDS[1]}" != "" ]]; then
           case "${WORDS[0]}" in
-            git | sudo | rm | find | shred | grep | rg) ;;
+            git | sudo | rm | find | shred | grep | rg | asc) ;;
             *) WORDS=("${WORDS[@]:1}") ;;
           esac
         fi

@@ -51,8 +51,10 @@ refuses.
 - A commit made outside the agent meets the subject rule through git's `commit-msg` hook,
   `hooks/commit-msg.sh`, on the same resolved config and the same `guard_subject_fits` in `lib.sh`.
   The trailer stays the agent's rule: a commit a person writes has no co-author to name.
-- The plugin guards Node repositories and carries no stack-specific guard. `packageManagers.ruby` is
-  accepted by the schema and read by nothing.
+- The plugin guards Node repositories and carries one other stack-specific guard, App Store
+  Connect's: `asc` reaches the whole store account from any directory, so `block-store-writes.sh` is
+  on in every repository and reads no config. `packageManagers.ruby` is accepted by the schema and
+  read by nothing.
 - Lease pushes pass to unprotected branches; bare force, `+refspec`, `--mirror` and any force to a
   protected branch are refused (ADR 0004). A plain push to a protected branch is refused too, from the
   same guard: the rule reads `guardrails.protectedBranches`.
@@ -209,7 +211,7 @@ Open work on the plugin is tracked in GitHub Issues.
 ## Out of scope
 
 - Sandbox: a later phase.
-- Stack-specific guards: the plugin guards Node repositories only.
+- Stack-specific guards beyond App Store Connect's: the package-manager rule is Node's alone.
 - Socket's Claude Code hook: fail-open and OAuth.
 - Paid supply-chain tiers (Aikido Device Protection, Socket Enterprise): only if more ecosystems or
   fleet enforcement become a requirement.

@@ -55,6 +55,9 @@ guard block-env-access.sh
 case "$SCAN" in
   *npm* | *npx* | *yarn* | *bun*) guard block-non-pnpm.sh ;;
 esac
+case "$SCAN" in
+  *asc* | *store:* | *store-*) guard block-store-writes.sh ;;
+esac
 # The commit guard alone gets the command as typed: a heredoc body is where a multi-line commit
 # message is most often written, and the guard drops the other bodies itself.
 case "$SCAN" in

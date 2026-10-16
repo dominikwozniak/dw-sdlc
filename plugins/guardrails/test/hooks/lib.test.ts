@@ -400,6 +400,9 @@ describe("text helpers", () => {
   it("unwrap keeps git after rtk", () => {
     assert.equal(unwrap("rtk git -C sub push -f"), "git -C sub push -f")
   })
+  it("unwrap keeps asc after rtk", () => {
+    assert.equal(unwrap("rtk asc metadata apply"), "asc metadata apply")
+  })
   it("unwrap leaves a bare rtk subcommand", () => {
     assert.equal(unwrap("rtk gain"), "gain")
   })

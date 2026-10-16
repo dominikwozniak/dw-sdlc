@@ -80,6 +80,14 @@ describe("block-non-pnpm and enforce-commit-hygiene fire on their triggers (this
   allowed("heredoc body naming npm", "cat <<EOF\nnpm install\nEOF")
 })
 
+describe("block-store-writes fires on asc and on a store script", () => {
+  refused("an asc write", "asc metadata apply --app 6742772020 --dir store/listing")
+  allowed("an asc read", "asc metadata pull --app 6742772020 --dir store/listing")
+  refused("a store command with --confirm", "pnpm store:listing --confirm")
+  allowed("a store command without it", "pnpm store:listing --check")
+  refused("--confirm on a continuation line", "node scripts/store-pricing.ts \\\n  --confirm")
+})
+
 describe("fails open on garbage", () => {
   it("empty payload", () => {
     expectExit(runHook("bash-guard", ""), 0)
