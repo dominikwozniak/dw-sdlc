@@ -9,7 +9,7 @@
 def local_file: ".ai/agentic.config.local.json";
 
 # Strictest value first; the local override may only move towards the front.
-def strictness: {forcePush: ["deny", "lease"], envFiles: ["deny", "git"]};
+def strictness: {forcePush: ["deny", "ask", "lease"], envFiles: ["deny", "git"]};
 
 def strictest: {
   forcePush: "deny",
@@ -20,7 +20,7 @@ def strictest: {
 # The preset each commit.convention names. `ticket-key` is a ticket key ahead of a short type list;
 # `conventional` is Conventional Commits. Both POSIX ERE, because `grep -E` runs them.
 def commit_patterns: {
-  "ticket-key": "^\\[[A-Z]+-[0-9]+\\] (feat|fix|refactor|docs|chore|test|perf|ci): .+",
+  "ticket-key": "^\\[[A-Z]+-[0-9]+\\] (feat|fix|refactor|docs|chore|test|perf|ci|revert): .+",
   conventional: "^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\\([^)]+\\))?!?: .+"
 };
 

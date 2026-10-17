@@ -7,10 +7,13 @@
 # are parsed word by word instead, because their policy is not a pattern. Every `git push`: a bare
 # `--force`, `-f` or `+refspec` and a `--mirror` are always refused; `--force-with-lease` and
 # `--force-if-includes` pass to a branch outside `guardrails.protectedBranches` — with `--all`, every
-# local branch counts — and nothing passes when `guardrails.forcePush` is `deny`; a plain push to a
+# local branch counts — each one behind a permission prompt when `guardrails.forcePush` is `ask`,
+# and nothing passes when it is `deny`; a plain push to a
 # protected branch is refused too, because those branches take pull requests, and so is a remote
-# branch deletion, `--delete`, `-d` or a `:branch` refspec. The push rules read the config of the
-# repository the payload's cwd is in. Every `git restore` of the whole tree:
+# branch deletion, `--delete`, `-d` or a `:branch` refspec. A push is judged where it runs: the
+# payload's cwd, moved by a literal `cd` earlier in the command (one inside a subshell ends with it)
+# or by `git -C`, for both its branch and the config. A path computed at runtime cannot be followed
+# and leaves the cwd. Every `git restore` of the whole tree:
 # `--staged` alone is the one form that touches nothing the index cannot give back.
 #
 # Guardrail against agent accidents, not a security boundary. Runs always-on from bash-guard.sh, or
@@ -68,7 +71,7 @@ check_push() {
 
   local targets target
   if ((GUARD_PUSH_LEASE)); then
-    guard_config_load "$GUARD_CWD" || return 0
+    guard_config_load "$GUARD_PUSH_LOC" || return 0
     [[ "$(guard_config_get '.guardrails.forcePush')" == "deny" ]] &&
       guard_block "'$GUARD_COMMAND' is a force push, and this repository refuses every force push (guardrails.forcePush: deny)."
     # The target branches: the destination side of each refspec, or the current branch of the located
@@ -78,6 +81,9 @@ check_push() {
     while IFS= read -r target; do
       guard_protected "$target" && guard_block "'$GUARD_COMMAND' force-pushes to '$target', a protected branch (guardrails.protectedBranches)."
     done <<<"$targets"
+    if [[ "$(guard_config_get '.guardrails.forcePush')" == "ask" && -z "$ASK" ]]; then
+      ASK="A lease push to ${targets//$'\n'/, } rewrites that remote branch; this repository asks before each one (guardrails.forcePush: ask)."
+    fi
     return 0
   fi
 
@@ -87,7 +93,7 @@ check_push() {
   ((GUARD_PUSH_DRY)) && return 0
   ((GUARD_PUSH_TAGS)) && [[ -z "$GUARD_PUSH_REFSPECS" ]] && ! ((GUARD_PUSH_ALL)) && return 0
   targets=$(guard_push_targets) || return 0
-  guard_config_load "$GUARD_CWD" || return 0
+  guard_config_load "$GUARD_PUSH_LOC" || return 0
   while IFS= read -r target; do
     guard_protected "$target" && guard_block "'$GUARD_COMMAND' pushes to '$target', a protected branch (guardrails.protectedBranches). Open a pull request instead."
   done <<<"$targets"
@@ -128,11 +134,15 @@ check_restore() {
   return 0
 }
 
+# An ask is held until every segment is judged: a refusal further on still wins.
+ASK=""
 while IFS= read -r segment; do
+  guard_scope_step "$segment" || continue
   if printf '%s\n' "$segment" | grep -qE "^[[:space:]]*${GUARD_WRAPPER}${GUARD_OPEN_QUOTE}${GUARD_GIT} "; then
     check_push "$segment"
     check_restore "$segment"
   fi
-done < <(guard_segments "$SCAN")
+done < <(guard_scopes "$SCAN")
+[[ -n "$ASK" ]] && guard_ask "$ASK"
 
 exit 0

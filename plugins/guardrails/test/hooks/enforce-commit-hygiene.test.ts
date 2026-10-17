@@ -7,7 +7,7 @@ import { mkdirSync } from "node:fs"
 import { join } from "node:path"
 import { describe, it } from "node:test"
 
-import { bashPayload, expectExit, initRepo, runHook, scratch, writeJson } from "../harness.ts"
+import { bashPayload, commit, expectExit, git, initRepo, runHook, scratch, write, writeJson } from "../harness.ts"
 
 const TMP = scratch("commit")
 
@@ -30,6 +30,15 @@ const TRAILERED = repo("trailered", "https://github.com/dominikwozniak/y.git", {
 const ANY = repo("any", "https://github.com/dominikwozniak/z.git", { commit: { pattern: ".+" } })
 const PLAIN = join(TMP, "plain")
 mkdirSync(PLAIN)
+// A ticket-key layer only in the main checkout, untracked, the way `.ai/` sits in a repository that
+// keeps it out of git, and a linked worktree of it in a sibling directory.
+const WORKTREE_MAIN = repo("wt-main", "git@github.com:acme/w.git")
+writeJson(join(WORKTREE_MAIN, ".ai", "agentic.config.local.json"), { commit: { convention: "ticket-key" } })
+write(join(WORKTREE_MAIN, "README.md"), "")
+git(WORKTREE_MAIN, "add", "README.md")
+commit(WORKTREE_MAIN, "-m", "init")
+const WORKTREE = join(TMP, "wt-main-VER-1")
+git(WORKTREE_MAIN, "worktree", "add", "-q", WORKTREE, "-b", "VER-1")
 
 function blocked(name: string, command: string, cwd = TRAILERED): void {
   it(name, () => {
@@ -175,7 +184,14 @@ describe("git add — the whole tree is refused, names pass", () => {
   blocked("add-dot-after-separator", "git add -- .")
   blocked("add-dash-A-wrapped", "rtk git add -A")
   blocked("add-dash-A-subshell", "(cd app && git add -A)")
-  blocked("add-dash-A-dry-run", "git add -A --dry-run")
+  blocked("add-dash-A-dot", "git add -A .")
+  blocked("add-dash-A-root-pathspec", "git add -A :/")
+  blocked("add-root-pathspec", "git add :/")
+  allowed("add-dash-A-paths", "git add -A docs store README.md")
+  allowed("add-all-after-separator", "git add --all -- src")
+  allowed("add-dash-A-dry-run", "git add -A --dry-run")
+  allowed("add-dash-An", "git add -An")
+  allowed("add-dot-dry-run", "git add -n .")
   blocked("add-then-commit-chain", `git add -A && git commit -m "${GOOD_MSG}"`)
   allowed("add-by-name", "git add AGENTS.md scripts/lint.sh")
   allowed("add-patch", "git add -p AGENTS.md")
@@ -189,8 +205,27 @@ describe("commit.convention ticket-key asks for a ticket key and no trailer", ()
   allowed("ticket-key-long-key", 'git commit -m "[PROJECT-2508] feat: y"', TICKETS)
   allowed("ticket-key-no-trailer-needed", 'git commit -m "[ABC-12] fix: x"', TICKETS)
   blocked("ticket-key-no-ticket", 'git commit -m "docs: x"', TICKETS)
+  allowed("ticket-key-revert", 'git commit -m "[ABC-12] revert: x"', TICKETS)
   blocked("ticket-key-unknown-type", 'git commit -m "[ABC-12] build: x"', TICKETS)
+  blocked("ticket-key-scope", 'git commit -m "[ABC-12] fix(api): x"', TICKETS)
   blocked("ticket-key-add-A", "git add -A", TICKETS)
+})
+
+describe("a linked worktree judges by the main checkout's layer it lacks", () => {
+  allowed("worktree-ticket-key", 'git commit -m "[VER-1] fix: x"', WORKTREE)
+  blocked("worktree-conventional", 'git commit -m "fix: x"', WORKTREE)
+})
+
+describe("a literal cd or git -C moves a commit to that repository's config", () => {
+  allowed("dash-C-ticket-repo", `git -C ${TICKETS} commit -m "[ABC-1] fix: x"`)
+  allowed("dash-C-worktree-of-a-ticket-repo", `git -C ${WORKTREE} commit -m "[VER-1] fix: x"`)
+  allowed("cd-ticket-repo", `cd ${TICKETS} && git commit -m "[ABC-1] fix: x"`)
+  allowed("cd-relative", 'cd ../tickets && git commit -m "[ABC-1] fix: x"')
+  blocked("cd-ticket-repo-conventional-subject", `cd ${TICKETS} && git commit -m "fix: x"`)
+  blocked("cd-in-a-subshell-ends-with-it", `(cd ${TICKETS} && git status); git commit -m "[ABC-1] fix: x"`)
+  blocked("dash-C-computed-at-runtime", 'git -C "$REPO" commit -m "[ABC-1] fix: x"')
+  blocked("cd-computed-at-runtime", 'cd "$REPO" && git commit -m "[ABC-1] fix: x"')
+  blocked("cd-to-a-missing-directory", 'cd /nonexistent/x; git commit -m "[ABC-1] fix: x"')
 })
 
 describe("with no convention set, Conventional Commits under any remote", () => {

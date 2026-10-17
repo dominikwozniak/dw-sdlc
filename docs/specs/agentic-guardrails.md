@@ -56,8 +56,12 @@ refuses.
   on in every repository and reads no config. `packageManagers.ruby` is accepted by the schema and
   read by nothing.
 - Lease pushes pass to unprotected branches; bare force, `+refspec`, `--mirror` and any force to a
-  protected branch are refused (ADR 0004). A plain push to a protected branch is refused too, from the
+  protected branch are refused (ADR 0004). `guardrails.forcePush: ask` puts each lease push that
+  passes behind a permission prompt. A plain push to a protected branch is refused too, from the
   same guard: the rule reads `guardrails.protectedBranches`.
+- A push and a commit are judged where they run, for the branch and the config alike: the payload's
+  cwd, moved by a literal `cd` earlier in the command, one inside a subshell ending with it, or by
+  `git -C`. A path computed at runtime, `cd -` and a directory that is not there leave the cwd.
 - Env access is declared in the config, not written into the guard: `guardrails.envFiles` is
   `{policy, allow, deny}`, judged deny list → allow list → policy, where `git` lets a tracked file
   through and refuses one git ignores or does not know, since only a tracked file has the
@@ -78,14 +82,17 @@ refuses.
   needs nothing but bash and jq. Every guard gets a payload test, because the dispatcher's trigger
   list is what a guard's own self-test cannot see.
 - RTK stays and the plugin carries its hook, `rtk-rewrite.sh`, so the plugin is the one hook layer
-  on a machine: it runs `rtk hook claude` and, in a linked worktree, passes a command naming `git`
-  through unrewritten, because the isolation check refuses `rtk git …` and has no off switch
-  (Claude Code 2.1.282, rtk 0.49.0). Hooks of one event run in parallel, so the guards judge the
-  original command and never see the rewrite; permission rules see the rewritten command, so the
-  setup writes every rule in both forms. Disabling the plugin disables RTK with it; the doctor fails a
-  machine that wires rtk by hand as well.
+  on a machine: it runs `rtk hook claude` and, in a linked worktree, passes every command through
+  unrewritten, because the isolation check refuses `rtk git …` and any `rtk` call with a value
+  computed at runtime, and has no off switch (Claude Code 2.1.302, rtk 0.49.0). Hooks of one event
+  run in parallel, so the guards judge the original command and never see the rewrite; permission
+  rules see the rewritten command, so the setup writes every rule in both forms. Disabling the
+  plugin disables RTK with it; the doctor fails a machine that wires rtk by hand as well.
 - Worktrees live in `.claude/worktrees/` with `.worktreeinclude` carrying the ignored files; the
-  session-start hook reports what a fresh checkout lacks and installs nothing.
+  session-start hook reports what a fresh checkout lacks and installs nothing. A linked worktree,
+  wherever it sits, reads a config layer it lacks from its main checkout, so a repository that keeps
+  `.ai/` out of git needs no copy per worktree, and the report leaves the layers out. The env guard
+  judges a file in the main checkout as the repository's, so an allowed one can be copied in.
 - Supply chain on the machine is checked, not built: the doctor reports Safe Chain and the pnpm
   policy. Socket's Claude Code hook is out: fail-open, OAuth, and one external call per install.
 - The one kill switch is on the advisory guard, `large-file-guard.sh` (`CLAUDE_MAX_WRITE_BYTES`): an
@@ -251,9 +258,9 @@ Open work on the plugin is tracked in GitHub Issues.
   build JSON with. Silence is no output, not empty JSON.
 - The include list and the setup commands are worktree-only. A linked worktree is `--git-dir`
   differing from `--git-common-dir`, both `--path-format=absolute` (git 2.31+).
-- An ask is a verdict: a guard prints the JSON and exits 0, the dispatcher stops the chain at the
-  first non-empty stdout, and the always-on guards run first so a refusal beats a later ask. Inside
-  one guard asks are collected and returned once, after every segment was judged.
+- An ask is a verdict: a guard prints the JSON and exits 0, and the dispatcher holds the first one
+  until every guard has run, so a refusal from any guard beats an ask. Inside one guard asks are
+  collected and returned once, after every segment was judged.
 - The git helpers in `lib.sh` (`guard_git_verb`, `guard_parse_push`, `guard_push_targets`,
   `guard_protected`, `guard_worktree_main`, `guard_segments`) set globals and never print, because a
   caller capturing stdout runs them in a subshell and loses the words.

@@ -23,6 +23,8 @@ GUARD_PAYLOAD=""
 GUARD_EVENT=""
 GUARD_TOOL=""
 GUARD_CWD=""
+# Where the shell stands at the segment being judged: the payload's cwd, moved by a literal `cd`.
+GUARD_SHELL_DIR=""
 GUARD_COMMAND=""
 GUARD_FILE_PATH=""
 GUARD_CONFIG=""
@@ -45,6 +47,7 @@ guard_read_payload() {
     GUARD_EVENT="PreToolUse"
     GUARD_TOOL="Bash"
     GUARD_CWD="${2:-$PWD}"
+    GUARD_SHELL_DIR="$GUARD_CWD"
     GUARD_COMMAND=$(cat)
     [[ -n "$GUARD_COMMAND" ]]
     return
@@ -71,6 +74,7 @@ guard_read_payload() {
   done <<<"$fields"
   [[ $count -eq 6 ]] || return 1
   [[ -n "$GUARD_CWD" ]] || GUARD_CWD="$PWD"
+  GUARD_SHELL_DIR="$GUARD_CWD"
   return 0
 }
 
@@ -115,6 +119,17 @@ guard_pipelines() {
   printf '%s\n' "$s" | sed -E '/^[[:space:]]*$/d'
 }
 
+# guard_scopes <scan> — guard_segments that keeps the subshells: a line of \001 and `(`, `)` or a
+# backtick stands where one opens or closes, so a `cd` inside one ends with it.
+guard_scopes() {
+  # The backtick through variables: bash 3.2 cannot parse one inside `${s//…/…}`.
+  local s="$1" bt='`' bt_line=$'\n\001`\n'
+  s="${s//\(/$'\n\001(\n'}"
+  s="${s//\)/$'\n\001)\n'}"
+  s="${s//"$bt"/$bt_line}"
+  printf '%s\n' "$s" | tr ';&|' '\n\n\n' | sed -E '/^[[:space:]]*$/d'
+}
+
 # guard_absolute <path> [<base>] — the path made absolute against <base>, GUARD_CWD by default: a
 # relative path is the session's, not the hook process's.
 guard_absolute() {
@@ -124,13 +139,76 @@ guard_absolute() {
   esac
 }
 
-# guard_located <path> — the repository a `-C`, `--git-dir` or `--work-tree` points at, against cwd.
+# guard_located <path> — the repository a `-C`, `--git-dir` or `--work-tree` points at, against where
+# the shell stands. A path computed at runtime cannot be followed, so it is where the shell stands.
 guard_located() {
+  local bt='`'
   case "$1" in
     /*) printf '%s' "$1" ;;
-    "") printf '%s' "$GUARD_CWD" ;;
-    *) printf '%s/%s' "$GUARD_CWD" "$1" ;;
+    "" | *'$'* | *"$bt"*) printf '%s' "${GUARD_SHELL_DIR:-$GUARD_CWD}" ;;
+    *) printf '%s/%s' "${GUARD_SHELL_DIR:-$GUARD_CWD}" "$1" ;;
   esac
+}
+
+# guard_cd_dir <word> — where `cd <word>` leaves the shell, from GUARD_SHELL_DIR: no word is the home
+# directory. A word computed at runtime, `cd -` and a directory that is not there give the payload's
+# cwd back, since the guard cannot follow them.
+guard_cd_dir() {
+  local dir bt='`'
+  case "$1" in
+    "" | "~") dir="$HOME" ;;
+    "~/"*) dir="$HOME/${1#"~/"}" ;;
+    - | *'$'* | *"$bt"*) dir="$GUARD_CWD" ;;
+    *) dir=$(guard_absolute "$1" "${GUARD_SHELL_DIR:-$GUARD_CWD}") ;;
+  esac
+  [[ -d "$dir" ]] || dir="$GUARD_CWD"
+  printf '%s' "$dir"
+}
+
+GUARD_SCOPE_STACK=""
+GUARD_SCOPE_BACKTICK=0
+
+# guard_scope_step <line> — one line of guard_scopes against GUARD_SHELL_DIR: a subshell opening saves
+# it, its end restores it, a `cd` (words in WORDS) moves it. Returns 1 for a scope line, which holds
+# no command.
+guard_scope_step() {
+  local word bt_line=$'\001`'
+  case "$1" in
+    "$bt_line")
+      if ((GUARD_SCOPE_BACKTICK)); then
+        GUARD_SCOPE_BACKTICK=0
+        guard_scope_step $'\001)'
+      else
+        GUARD_SCOPE_BACKTICK=1
+        guard_scope_step $'\001('
+      fi
+      return 1
+      ;;
+    $'\001(')
+      GUARD_SCOPE_STACK+=$'\n'"$GUARD_SHELL_DIR"
+      return 1
+      ;;
+    $'\001)')
+      if [[ -n "$GUARD_SCOPE_STACK" ]]; then
+        GUARD_SHELL_DIR="${GUARD_SCOPE_STACK##*$'\n'}"
+        GUARD_SCOPE_STACK="${GUARD_SCOPE_STACK%$'\n'*}"
+      fi
+      return 1
+      ;;
+  esac
+  WORDS=()
+  while IFS= read -r word; do WORDS+=("$word"); done < <(guard_words "$1")
+  guard_unwrap_words
+  if [[ ${#WORDS[@]} -gt 0 && "${WORDS[0]}" == cd ]]; then
+    # `cd -P dir`, `cd -L dir`: the options name no directory.
+    word=""
+    for word in "${WORDS[@]:1}"; do
+      [[ "$word" == -[LPe@]* ]] || break
+      word=""
+    done
+    GUARD_SHELL_DIR=$(guard_cd_dir "$word")
+  fi
+  return 0
 }
 
 GUARD_PUSH_LOC=""
@@ -152,7 +230,7 @@ WORD_INDEX=0
 # the words.
 guard_git_verb() {
   local word i n
-  GUARD_PUSH_LOC="$GUARD_CWD"
+  GUARD_PUSH_LOC="${GUARD_SHELL_DIR:-$GUARD_CWD}"
   GUARD_GIT_VERB=""
   WORDS=()
   while IFS= read -r word; do WORDS+=("$word"); done < <(guard_words "$1")
@@ -337,19 +415,27 @@ guard_ask() {
 
 # guard_config_load <cwd> — resolves the config of the repository holding <cwd>: local over
 # committed over inferred, as scripts/agentic-config.ts does (its tests are the reference and run
-# this too). Sets GUARD_CONFIG (the effective object as one line of JSON), GUARD_CONFIG_ROOT and
-# GUARD_CONFIG_PROBLEMS, one `file: path: message` per line. Any problem drops that layer whole and
-# puts `guardrails` on the strictest set. Returns 1 without jq.
+# this too). A linked worktree reads a layer it lacks from its main checkout, where a repository that
+# keeps `.ai/` out of git has the only copy. Sets GUARD_CONFIG (the effective object as one line of
+# JSON), GUARD_CONFIG_ROOT (the worktree's own top level) and GUARD_CONFIG_PROBLEMS, one
+# `file: path: message` per line. Any problem drops that layer whole and puts `guardrails` on the
+# strictest set. Returns 1 without jq.
 guard_config_load() {
-  local cwd="$1" root inferred committed local_layer resolved loosened
+  local cwd="$1" root git_dir common_dir main="" paths inferred committed local_layer resolved loosened
   command -v jq >/dev/null 2>&1 || return 1
   GUARD_CONFIG_PROBLEMS=""
-  root=$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null) || root="$cwd"
+  # One git call for the three paths; a linked worktree's git dir differs from the common one.
+  if paths=$(git -C "$cwd" rev-parse --path-format=absolute --show-toplevel --git-dir --git-common-dir 2>/dev/null); then
+    { IFS= read -r root && IFS= read -r git_dir && IFS= read -r common_dir; } <<<"$paths"
+    [[ "$git_dir" != "$common_dir" ]] && main=$(dirname "$common_dir")
+  else
+    root="$cwd"
+  fi
   GUARD_CONFIG_ROOT="$root"
   inferred=$(guard_config_infer "$root")
-  guard_config_layer "$root" "$GUARD_COMMITTED_FILE"
+  guard_config_layer "$root" "$main" "$GUARD_COMMITTED_FILE"
   committed="$GUARD_LAYER_JSON"
-  guard_config_layer "$root" "$GUARD_LOCAL_FILE"
+  guard_config_layer "$root" "$main" "$GUARD_LOCAL_FILE"
   local_layer="$GUARD_LAYER_JSON"
   resolved=$(jq -cn -L "$GUARD_LIB_DIR" --argjson inferred "$inferred" --argjson committed "$committed" \
     --argjson local "$local_layer" 'include "config"; resolve($inferred; $committed; $local)')
@@ -387,21 +473,23 @@ guard_config_infer() {
   }'
 }
 
-# guard_config_layer <root> <file> — GUARD_LAYER_JSON becomes the document, or null when the file is
-# absent or invalid; an invalid one adds its problems to GUARD_CONFIG_PROBLEMS.
+# guard_config_layer <root> <main> <file> — GUARD_LAYER_JSON becomes the document at <root>, else at
+# <main> when it is set, or null when the file is absent or invalid; an invalid one adds its problems
+# to GUARD_CONFIG_PROBLEMS.
 guard_config_layer() {
-  local path="$1/$2" problems line
+  local path="$1/$3" problems line
   GUARD_LAYER_JSON="null"
+  [[ ! -f "$path" && -n "$2" ]] && path="$2/$3"
   [[ -f "$path" ]] || return 0
   if ! jq empty "$path" >/dev/null 2>&1; then
-    guard_config_problem "$2" "" "not JSON: $(jq empty "$path" 2>&1 | head -n1)"
+    guard_config_problem "$3" "" "not JSON: $(jq empty "$path" 2>&1 | head -n1)"
     return 0
   fi
   problems=$(jq -r -L "$GUARD_LIB_DIR" --slurpfile schema "$GUARD_SCHEMA" \
     'include "schema"; validate($schema[0])[] | "\(.path)\u0001\(.message)"' "$path")
   if [[ -n "$problems" ]]; then
     while IFS= read -r line; do
-      guard_config_problem "$2" "${line%%$'\001'*}" "${line#*$'\001'}"
+      guard_config_problem "$3" "${line%%$'\001'*}" "${line#*$'\001'}"
     done <<<"$problems"
     return 0
   fi

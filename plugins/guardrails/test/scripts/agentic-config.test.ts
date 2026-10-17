@@ -14,11 +14,11 @@ import {
   resolveConfig,
   validateDocument
 } from "../../scripts/agentic-config.ts"
-import { initRepo, REPO_ROOT, runScript, scratch, write } from "../harness.ts"
+import { commit, git, initRepo, REPO_ROOT, runScript, scratch, write } from "../harness.ts"
 
 const LIB = join(import.meta.dirname, "..", "..", "hooks", "lib.sh")
 const ORG_REMOTE = "git@github.com:acme/app.git"
-/** A document no layer may carry: `forcePush` knows `deny` and `lease`, never `allow`. */
+/** A document no layer may carry: `forcePush` knows `deny`, `ask` and `lease`, never `allow`. */
 const FORCE_PUSH_ALLOWED = { version: 1, guardrails: { forcePush: "allow" } }
 const DEFAULT_ENV_FILES = {
   policy: "git",
@@ -140,7 +140,7 @@ describe("the committed file", () => {
     const { config, problems, layers } = resolveConfig(root)
     assert.deepEqual(problems, [
       { file: COMMITTED_FILE, path: "version", message: "2 is not 1" },
-      { file: COMMITTED_FILE, path: "guardrails.forcePush", message: '"allow" is not one of "deny", "lease"' },
+      { file: COMMITTED_FILE, path: "guardrails.forcePush", message: '"allow" is not one of "deny", "ask", "lease"' },
       { file: COMMITTED_FILE, path: "guardrails", message: 'unknown key "extra"' }
     ])
     assert.equal(layers.committed, "invalid")
@@ -184,6 +184,25 @@ describe("the local file", () => {
       protectedBranches: ["master", "staging"]
     })
     assert.deepEqual(config.worktree.setup, ["pnpm install"])
+  })
+
+  it("ranks forcePush ask between deny and lease", () => {
+    const tighter = repo({ files: { [LOCAL_FILE]: { guardrails: { forcePush: "ask" } } } })
+    assert.deepEqual(resolveConfig(tighter).problems, [])
+    assert.equal(resolveConfig(tighter).config.guardrails.forcePush, "ask")
+    const looser = repo({
+      files: {
+        [COMMITTED_FILE]: { guardrails: { forcePush: "ask" } },
+        [LOCAL_FILE]: { guardrails: { forcePush: "lease" } }
+      }
+    })
+    assert.deepEqual(resolveConfig(looser).problems, [
+      {
+        file: LOCAL_FILE,
+        path: "guardrails.forcePush",
+        message: '"lease" loosens "ask"; the local file may tighten guardrails, never loosen them'
+      }
+    ])
   })
 
   it("merges envFiles key by key, each list wholesale", () => {
@@ -324,7 +343,7 @@ describe("validateDocument", () => {
     const result = validateDocument(file, JSON.stringify(FORCE_PUSH_ALLOWED))
     assert.ok("problems" in result)
     assert.deepEqual(result.problems, [
-      { file, path: "guardrails.forcePush", message: '"allow" is not one of "deny", "lease"' }
+      { file, path: "guardrails.forcePush", message: '"allow" is not one of "deny", "ask", "lease"' }
     ])
   })
 
@@ -424,6 +443,20 @@ describe("hooks/lib.sh agrees with resolveConfig", () => {
         })
     ],
     [
+      "on a local lease under a committed ask",
+      () =>
+        repo({
+          files: {
+            [COMMITTED_FILE]: { guardrails: { forcePush: "ask" } },
+            [LOCAL_FILE]: { guardrails: { forcePush: "lease" } }
+          }
+        })
+    ],
+    [
+      "on a local ask over the default lease",
+      () => repo({ files: { [LOCAL_FILE]: { guardrails: { forcePush: "ask" } } } })
+    ],
+    [
       "on a tightening local file",
       () =>
         repo({
@@ -476,6 +509,78 @@ describe("hooks/lib.sh agrees with resolveConfig", () => {
   })
 })
 
+/**
+ * A main checkout holding `files` untracked, the way a repository keeps `.ai/` out of git, and a
+ * linked worktree of it in a sibling directory holding `own`.
+ */
+function withWorktree(
+  files: Record<string, object>,
+  own: Record<string, object> = {}
+): { main: string; worktree: string } {
+  const main = repo({ files: { ...files, "README.md": "" } })
+  git(main, "add", "README.md")
+  commit(main, "-m", "init")
+  const worktree = join(scratch("config-wt"), "wt")
+  git(main, "worktree", "add", "-q", worktree, "-b", "wt")
+  for (const [file, content] of Object.entries(own)) {
+    write(join(worktree, file), JSON.stringify(content))
+  }
+  return { main, worktree }
+}
+
+function escaped(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+}
+
+describe("a linked worktree", () => {
+  const MAIN_LAYERS = {
+    [COMMITTED_FILE]: { guardrails: { envFiles: { allow: [".env.test.local"] } } },
+    [LOCAL_FILE]: { commit: { convention: "ticket-key" } }
+  }
+
+  it("reads each layer it lacks from the main checkout", () => {
+    const { main, worktree } = withWorktree(MAIN_LAYERS)
+    const { config, problems, layers, sources } = resolveConfig(worktree)
+    assert.deepEqual(problems, [])
+    assert.deepEqual(layers, { committed: "valid", local: "valid" })
+    assert.deepEqual(sources, { committed: main, local: main })
+    assert.equal(config.commit.convention, "ticket-key")
+    assert.deepEqual(config.guardrails.envFiles.allow, [".env.test.local"])
+  })
+
+  it("keeps a layer of its own over the main checkout's", () => {
+    const { main, worktree } = withWorktree(MAIN_LAYERS, { [COMMITTED_FILE]: { baseBranch: "develop" } })
+    const { config, sources } = resolveConfig(worktree)
+    assert.deepEqual(sources, { committed: worktree, local: main })
+    assert.equal(config.baseBranch, "develop")
+    assert.deepEqual(config.guardrails.envFiles, DEFAULT_ENV_FILES)
+    assert.equal(config.commit.convention, "ticket-key")
+  })
+
+  it("names no source for a layer neither checkout has", () => {
+    const { worktree } = withWorktree({})
+    assert.deepEqual(resolveConfig(worktree).sources, { committed: undefined, local: undefined })
+  })
+
+  it("resolves the same through hooks/lib.sh", () => {
+    for (const own of [{}, { [COMMITTED_FILE]: { baseBranch: "develop" } }]) {
+      const { worktree } = withWorktree(MAIN_LAYERS, own)
+      const expected = resolveConfig(worktree)
+      const actual = libResolve(worktree)
+      assert.deepEqual(actual.config, expected.config)
+      assert.deepEqual(actual.problems, reportLines(expected.problems))
+    }
+  })
+
+  it("gets the main checkout named as a layer's source by agentic:check", () => {
+    const { main, worktree } = withWorktree(MAIN_LAYERS)
+    const verdict = runScript("agentic-config", ["--root", worktree])
+    assert.equal(verdict.status, 0, verdict.stderr)
+    const line = `^local {6}\\.ai/agentic\\.config\\.local\\.json {2}valid, from ${escaped(main)}$`
+    assert.match(verdict.stdout, new RegExp(line, "m"))
+  })
+})
+
 describe("the agentic:check command", () => {
   it("validates this repository's committed file and exits 0", () => {
     const verdict = runScript("agentic-config", [COMMITTED_FILE], { cwd: REPO_ROOT })
@@ -487,7 +592,7 @@ describe("the agentic:check command", () => {
     const root = repo({ git: false, files: { "agentic.config.json": FORCE_PUSH_ALLOWED } })
     const verdict = runScript("agentic-config", [join(root, "agentic.config.json")], { cwd: REPO_ROOT })
     assert.equal(verdict.status, 1)
-    assert.match(verdict.stderr, /guardrails\.forcePush: "allow" is not one of "deny", "lease"/)
+    assert.match(verdict.stderr, /guardrails\.forcePush: "allow" is not one of "deny", "ask", "lease"/)
   })
 
   it("exits 1 when the repository's config is invalid, after printing what the guards see", () => {

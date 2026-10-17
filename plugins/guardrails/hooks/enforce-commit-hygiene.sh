@@ -9,7 +9,8 @@
 #      git writes it into the message
 #   3. a LIVE backtick inside a `-m` string or an unquoted heredoc — command substitution that
 #      mangles the message and still exits 0, so nobody notices until they read the log
-#   4. `git add -A` / `git add .` — stage session work by name
+#   4. a `git add` of the whole tree — `-A` or `--all` with no path, `.`, `./` or `:/` — stage
+#      session work by name; `-A <paths>` stages those paths and a dry run stages nothing
 #
 # Guardrail against agent sloppiness, not a security boundary; check 4 is a habit rule. Spawned by
 # bash-guard.sh when the command names git with commit or add, and handed the command as typed,
@@ -35,9 +36,22 @@ case "$RAW" in
 esac
 
 # --- the policies -----------------------------------------------------------------------------------
-guard_config_load "$GUARD_CWD" || exit 0
-PATTERN=$(guard_config_get '.commit.pattern')
-TRAILER=$(guard_config_get '.commit.trailer')
+# A commit is judged by the config of the repository it runs in: the payload's cwd, moved by a literal
+# `cd` earlier in the command (one inside a subshell ends with it) or by `git -C`. A path computed at
+# runtime cannot be followed and leaves the cwd.
+PATTERN=""
+TRAILER=""
+POLICY_DIR=""
+
+# policies <dir> — PATTERN and TRAILER from the config of the repository holding <dir>, read once per
+# directory in a row. 1 without jq.
+policies() {
+  [[ -n "$POLICY_DIR" && "$1" == "$POLICY_DIR" ]] && return 0
+  guard_config_load "$1" || return 1
+  POLICY_DIR="$1"
+  PATTERN=$(guard_config_get '.commit.pattern')
+  TRAILER=$(guard_config_get '.commit.trailer')
+}
 
 # --- the lexer --------------------------------------------------------------------------------------
 # Splits the command into TOKENS the way a shell would — quotes removed, escapes honoured — and
@@ -235,6 +249,13 @@ MSG_FROM_FILE=0
 MSG_FROM_STDIN=0
 STDIN_DELIM=""
 MSG_TRAILERS=""
+# One `git add`: the -A or --all it carries, the whole-tree pathspec it names, whether it names any
+# other path, and whether it is a dry run.
+ADD_ALL=""
+ADD_WHOLE=""
+ADD_NAMED=0
+ADD_DRY=0
+ADD_PATHS_ONLY=0
 
 reset_group() {
   MSG_COUNT=0
@@ -246,6 +267,29 @@ reset_group() {
   MSG_FROM_STDIN=0
   STDIN_DELIM=""
   MSG_TRAILERS=""
+  ADD_ALL=""
+  ADD_WHOLE=""
+  ADD_NAMED=0
+  ADD_DRY=0
+  ADD_PATHS_ONLY=0
+}
+
+# add_path <word> — one pathspec of a `git add`: `.`, `./` and `:/` are the whole tree.
+add_path() {
+  case "$1" in
+    . | ./ | :/) ADD_WHOLE="$1" ;;
+    *) ADD_NAMED=1 ;;
+  esac
+}
+
+# check_add — a `git add` staging the whole tree: a whole-tree pathspec, or -A/--all with no path to
+# narrow it. A dry run stages nothing.
+check_add() {
+  ((ADD_DRY)) && return 0
+  local why="Stage session work by name — 'git add path1 path2' — so an unrelated or half-finished file cannot ride along into the commit."
+  [[ -n "$ADD_WHOLE" ]] && guard_block "'git add $ADD_WHOLE' stages the whole working tree. $why"
+  [[ -n "$ADD_ALL" ]] && ! ((ADD_NAMED)) && guard_block "'git add' is staging the whole working tree ($ADD_ALL). $why"
+  return 0
 }
 
 # add_msg <text> <live-backtick> <expands>
@@ -298,6 +342,7 @@ has_trailer() {
 
 check_group() {
   local subject
+  check_add
   # -F - reads the message from stdin: a heredoc on this command is readable, a pipe is not.
   if ((MSG_FROM_STDIN)); then
     if [[ -n "$STDIN_DELIM" ]] && heredoc_index "$STDIN_DELIM"; then
@@ -321,6 +366,7 @@ check_group() {
   # holds no expansion, and single quotes, an escaping backslash or a quoted heredoc delimiter keep
   # `$HOME` literal: all of those stay checked.
   ((MSG_EXPANDS)) && return 0
+  policies "$GROUP_DIR" || return 0
 
   if ! guard_subject_fits "$subject" "$PATTERN"; then
     guard_block "commit subject \"$subject\" does not match this repository's commit pattern.
@@ -344,6 +390,11 @@ lex "$COMMAND"
 verb=""
 i=0
 count=${#TOKENS[@]}
+# Where the shell stands is GUARD_SHELL_DIR; a subshell saves it on SCOPES and gives it back at its
+# end. GROUP_DIR is where the current `git` runs, AT_START whether the token opens a command.
+SCOPES=""
+GROUP_DIR="$GUARD_CWD"
+AT_START=1
 while ((i < count)); do
   t="${TOKENS[i]}"
   case "$t" in
@@ -351,18 +402,56 @@ while ((i < count)); do
       check_group
       reset_group
       verb=""
+      if [[ "$t" == "(" ]]; then
+        SCOPES+=$'\n'"$GUARD_SHELL_DIR"
+      elif [[ "$t" == ")" && -n "$SCOPES" ]]; then
+        GUARD_SHELL_DIR="${SCOPES##*$'\n'}"
+        SCOPES="${SCOPES%$'\n'*}"
+      fi
+      AT_START=1
       i=$((i + 1))
       continue
+      ;;
+    cd)
+      if ((AT_START)); then
+        # The directory is the first word that is no option (`-L`, `-P`); none is the home directory.
+        dir=""
+        i=$((i + 1))
+        while ((i < count)); do
+          case "${TOKENS[i]}" in
+            ';' | '&' | '|' | '(' | ')') break ;;
+            -[LPe@]*) i=$((i + 1)) ;;
+            *)
+              dir="${TOKENS[i]}"
+              i=$((i + 1))
+              break
+              ;;
+          esac
+        done
+        GUARD_SHELL_DIR=$(guard_cd_dir "$dir")
+        AT_START=0
+        continue
+      fi
       ;;
     git)
       check_group
       reset_group
       verb=""
+      GROUP_DIR="$GUARD_SHELL_DIR"
+      AT_START=0
       i=$((i + 1))
       # Consume everything before the subcommand: `-C <path>`, `-c k=v`, `--git-dir=…`.
       while ((i < count)); do
         case "${TOKENS[i]}" in
-          -C | -c | --git-dir | --work-tree | --namespace)
+          -C)
+            GROUP_DIR=$(guard_located "${TOKENS[i + 1]:-}")
+            i=$((i + 2))
+            ;;
+          -C?*)
+            GROUP_DIR=$(guard_located "${TOKENS[i]#-C}")
+            i=$((i + 1))
+            ;;
+          -c | --git-dir | --work-tree | --namespace)
             i=$((i + 2))
             ;;
           -*)
@@ -378,6 +467,7 @@ while ((i < count)); do
       continue
       ;;
   esac
+  AT_START=0
 
   case "$verb" in
     commit)
@@ -448,20 +538,24 @@ while ((i < count)); do
       esac
       ;;
     add)
-      case "$t" in
-        --all)
-          guard_block "'git add' is staging the whole working tree ($t). Stage session work by name — 'git add path1 path2' — so an unrelated or half-finished file cannot ride along into the commit."
-          ;;
-        # Every other long option, and the `--` separator, are none of this guard's business — and
-        # this arm has to precede the short-cluster one, which would read the `A` in a long name.
-        --*) ;;
-        -*A*)
-          guard_block "'git add' is staging the whole working tree ($t). Stage session work by name — 'git add path1 path2' — so an unrelated or half-finished file cannot ride along into the commit."
-          ;;
-        . | ./)
-          guard_block "'git add $t' stages the whole working tree. Stage session work by name — 'git add path1 path2' — so an unrelated or half-finished file cannot ride along into the commit."
-          ;;
-      esac
+      if ((ADD_PATHS_ONLY)); then
+        add_path "$t"
+      else
+        case "$t" in
+          --) ADD_PATHS_ONLY=1 ;;
+          --all) ADD_ALL="$t" ;;
+          --dry-run) ADD_DRY=1 ;;
+          --pathspec-from-file*) ADD_NAMED=1 ;;
+          # Every other long option is none of this guard's business — and this arm has to precede
+          # the short-cluster one, which would read the `A` in a long name.
+          --*) ;;
+          -*)
+            [[ "$t" == *A* ]] && ADD_ALL="$t"
+            [[ "$t" == *n* ]] && ADD_DRY=1
+            ;;
+          *) add_path "$t" ;;
+        esac
+      fi
       ;;
   esac
   i=$((i + 1))

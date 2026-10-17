@@ -5,6 +5,7 @@ import { describe, it } from "node:test"
 import {
   type Check,
   type Probe,
+  claudeConfigDir,
   diagnose,
   render,
   rtkConfigPath,
@@ -312,10 +313,40 @@ describe("diagnose", () => {
     assert.match(check.detail, /git config --global commit.gpgsign true/)
   })
 
+  it("Claude's config dir is $CLAUDE_CONFIG_DIR when set, else ~/.claude", () => {
+    assert.equal(claudeConfigDir({ CLAUDE_CONFIG_DIR: "/cfg" }, HOME), "/cfg")
+    assert.equal(claudeConfigDir({}, HOME), `${HOME}/.claude`)
+  })
+
+  it("reads the user settings from the Claude config dir it is given", () => {
+    const direct = JSON.stringify({
+      hooks: { PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: "rtk hook claude" }] }] }
+    })
+    const marketplaces = HEALTHY.files?.[`${HOME}/.claude/plugins/known_marketplaces.json`]
+    const swapped = withFile(
+      withFile(HEALTHY, "/cfg/settings.json", direct),
+      "/cfg/plugins/known_marketplaces.json",
+      marketplaces
+    )
+    const check = line(
+      diagnose({ root: ROOT, home: HOME, claudeDir: "/cfg", probe: fake(swapped), config: CONFIG }),
+      "rtk"
+    )
+    assert.equal(check.level, "FAIL")
+    assert.match(check.detail, /\/cfg\/settings\.json wires rtk by hand/)
+  })
+
   it("config: names the convention", () => {
     const check = line(diagnose({ root: ROOT, home: HOME, probe: fake(HEALTHY), config: CONFIG }), "config")
     assert.equal(check.level, "PASS")
     assert.equal(check.detail, "commit ticket-key")
+  })
+
+  it("config: names a layer read from the main checkout of a worktree", () => {
+    const config = { ...CONFIG, sources: { committed: undefined, local: "/main" } }
+    const check = line(diagnose({ root: ROOT, home: HOME, probe: fake(HEALTHY), config }), "config")
+    assert.equal(check.level, "PASS")
+    assert.equal(check.detail, "commit ticket-key; local layer from /main")
   })
 
   it("config: problems fail and are listed", () => {
@@ -325,7 +356,7 @@ describe("diagnose", () => {
       probe: fake(HEALTHY),
       config: {
         config: { commit: { convention: "ticket-key" } },
-        problems: ['.ai/agentic.config.json: guardrails.forcePush: "allow" is not one of "deny", "lease"']
+        problems: ['.ai/agentic.config.json: guardrails.forcePush: "allow" is not one of "deny", "ask", "lease"']
       }
     })
     const check = line(checks, "config")

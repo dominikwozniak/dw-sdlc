@@ -7,13 +7,26 @@ import assert from "node:assert/strict"
 import { join } from "node:path"
 import { describe, it } from "node:test"
 
-import { bashPayload, commit, expectExit, git, initRepo, runHook, scratch, write, writeJson } from "../harness.ts"
+import {
+  bashPayload,
+  commit,
+  expectExit,
+  git,
+  initRepo,
+  runHook,
+  scratch,
+  verdictOf,
+  write,
+  writeJson
+} from "../harness.ts"
 
 const TMP = scratch("git")
 const FEAT = initRepo(join(TMP, "feat"), { branch: "feat" })
 const ON_MASTER = initRepo(join(TMP, "on-master"), { branch: "master" })
 const DENY = initRepo(join(TMP, "deny"), { branch: "feat" })
 writeJson(join(DENY, ".ai", "agentic.config.json"), { guardrails: { forcePush: "deny" } })
+const ASK = initRepo(join(TMP, "ask"), { branch: "feat" })
+writeJson(join(ASK, ".ai", "agentic.config.json"), { guardrails: { forcePush: "ask" } })
 const STAGING = initRepo(join(TMP, "staging"), { branch: "feat" })
 writeJson(join(STAGING, ".ai", "agentic.config.local.json"), {
   guardrails: { protectedBranches: ["master", "main", "production", "staging"] }
@@ -44,6 +57,16 @@ function tracked(name: string, remoteBranches: string[]): string {
 }
 const TRACKS_MASTER = tracked("tracks-master", ["master", "feat"])
 const TRACKS_FEAT = tracked("tracks-feat", ["feat"])
+// A main checkout on main and a linked worktree of it on a feature branch, each a session's cwd that
+// reaches the other; and a repository whose committed config protects only `release`.
+const ON_MAIN = initRepo(join(TMP, "on-main"), { branch: "main" })
+write(join(ON_MAIN, "a.txt"), "a\n")
+git(ON_MAIN, "add", "a.txt")
+commit(ON_MAIN, "-m", "init")
+const SIBLING = join(TMP, "on-main-topic")
+git(ON_MAIN, "worktree", "add", "-q", SIBLING, "-b", "topic")
+const RELEASE = initRepo(join(TMP, "release"), { branch: "feat" })
+writeJson(join(RELEASE, ".ai", "agentic.config.json"), { guardrails: { protectedBranches: ["release"] } })
 
 function blocked(name: string, command: string, cwd = FEAT): void {
   it(name, () => {
@@ -53,6 +76,11 @@ function blocked(name: string, command: string, cwd = FEAT): void {
 function allowed(name: string, command: string, cwd = FEAT): void {
   it(name, () => {
     expectExit(runHook("block-dangerous-commands", bashPayload(command, cwd)), 0)
+  })
+}
+function asked(name: string, command: string, cwd = FEAT): void {
+  it(name, () => {
+    assert.equal(verdictOf(runHook("block-dangerous-commands", bashPayload(command, cwd))), "ask")
   })
 }
 
@@ -89,6 +117,12 @@ describe("force pushes — configured repositories", () => {
   allowed("deny-plain-push", "git push origin feat", DENY)
   blocked("local-adds-staging", "git push --force-with-lease origin staging", STAGING)
   allowed("local-keeps-feature", "git push --force-with-lease origin feat", STAGING)
+  asked("ask-asks-for-a-lease", "git push --force-with-lease origin feat", ASK)
+  asked("ask-asks-for-a-lease-with-its-ref", "git push -q --force-with-lease=feat:abc123 origin feat", ASK)
+  blocked("ask-refuses-a-lease-to-protected", "git push --force-with-lease origin main", ASK)
+  blocked("ask-refuses-bare-force", "git push --force origin feat", ASK)
+  blocked("ask-then-a-protected-push", "git push --force-with-lease origin feat; git push origin main", ASK)
+  allowed("ask-plain-push", "git push origin feat", ASK)
 })
 
 describe("plain pushes — a protected branch takes pull requests", () => {
@@ -114,6 +148,21 @@ describe("plain pushes — a protected branch takes pull requests", () => {
   allowed("matching-without-master-on-the-remote", "git push origin :", TRACKS_FEAT)
   // No remote-tracking refs to read the remote side from: every local branch counts.
   blocked("matching-to-a-url", "git push git@example.com:acme/x.git :", TRACKS_FEAT)
+})
+
+describe("a literal cd or git -C moves a push to that repository, its branch and its config", () => {
+  allowed("cd-into-a-feature-worktree", `cd ${SIBLING} && git push`, ON_MAIN)
+  allowed("cd-into-a-feature-worktree-HEAD", `cd ${SIBLING} && git push -u origin HEAD`, ON_MAIN)
+  allowed("cd-relative", "cd ../on-main-topic && git push", ON_MAIN)
+  blocked("cd-into-the-main-checkout", `cd ${ON_MAIN} && git push`, SIBLING)
+  blocked("cd-in-a-subshell-ends-with-it", `(cd ${SIBLING} && git status); git push`, ON_MAIN)
+  blocked("cd-computed-at-runtime", 'cd "$WT" && git push', ON_MAIN)
+  blocked("cd-to-a-missing-directory", "cd /nonexistent/x; git push", ON_MAIN)
+  blocked("cd-back", `cd ${SIBLING} && cd - && git push`, ON_MAIN)
+  blocked("dash-C-computed-at-runtime", 'git -C "$WT" push', ON_MAIN)
+  blocked("dash-C-reads-that-config", `git -C ${RELEASE} push origin release`)
+  blocked("cd-reads-that-config", `cd ${RELEASE} && git push origin release`)
+  allowed("dash-C-protects-only-what-that-config-lists", `git -C ${RELEASE} push origin main`)
 })
 
 describe("the rest of the destructive set", () => {

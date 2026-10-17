@@ -127,6 +127,23 @@ describe("copied files drop off the list", () => {
   })
 })
 
+describe("the files read from the main checkout are never missing from a worktree", () => {
+  // The config layers the guards fall back to, and the local settings Claude Code reads there.
+  const main = initRepo(join(TMP, "shared"), { branch: "main" })
+  const shared = [".ai/agentic.config.local.json", ".claude/settings.local.json"]
+  write(join(main, ".gitignore"), `${shared.join("\n")}\n.claude/worktrees/\n`)
+  write(join(main, ".worktreeinclude"), `${shared.join("\n")}\n`)
+  writeJson(join(main, ".ai", "agentic.config.local.json"), { commit: { convention: "ticket-key" } })
+  writeJson(join(main, ".claude", "settings.local.json"), {})
+  git(main, "add", ".gitignore", ".worktreeinclude")
+  commit(main, "-m", "init")
+  const worktree = join(main, ".claude", "worktrees", "wt")
+  git(main, "worktree", "add", "-q", worktree, "-b", "wt")
+  it("no include line", () => {
+    assert.equal(report(worktree), "")
+  })
+})
+
 describe("an invalid config is one loud line, in the main checkout too", () => {
   let R = ""
   before(() => {
@@ -137,7 +154,7 @@ describe("an invalid config is one loud line, in the main checkout too", () => {
     has(R, "agentic config: INVALID, the guards run on the strictest defaults until it is fixed")
   })
   it("the problem named", () => {
-    has(R, '.ai/agentic.config.json: guardrails.forcePush: "allow" is not one of "deny", "lease"')
+    has(R, '.ai/agentic.config.json: guardrails.forcePush: "allow" is not one of "deny", "ask", "lease"')
   })
   it("valid again, silent again", () => {
     git(MAIN, "checkout", "-q", "--", ".ai/agentic.config.json")

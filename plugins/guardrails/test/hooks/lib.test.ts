@@ -645,7 +645,7 @@ describe("guard_config_load — the committed file", () => {
   it("every violation named", () => {
     const want = [
       `${COMMITTED}: version: 2 is not 1`,
-      `${COMMITTED}: guardrails.forcePush: "allow" is not one of "deny", "lease"`,
+      `${COMMITTED}: guardrails.forcePush: "allow" is not one of "deny", "ask", "lease"`,
       `${COMMITTED}: guardrails: unknown key "extra"`
     ].join("\n")
     assert.equal(problems(invalid), want)

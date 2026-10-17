@@ -6,9 +6,10 @@
 # because a committed env file is secret-free by the repository's own rule, while an ignored or
 # untracked one is refused, because that is where the secrets live. The lists are globs against the
 # path relative to the repository root, `**/` meaning at any depth; the defaults are policy `git`,
-# allow `**/.env.example`, `**/.env.sample`, `**/.env.template`, deny nothing. A path outside the
-# repository root, or outside any repository, is judged by its basename against the `**/` entries
-# alone, and there is no git to vouch for it.
+# allow `**/.env.example`, `**/.env.sample`, `**/.env.template`, deny nothing. From a linked
+# worktree its main checkout is the same repository: a path there is judged against the main
+# checkout's root and git. A path outside the repository root, or outside any repository, is judged
+# by its basename against the `**/` entries alone, and there is no git to vouch for it.
 #
 # Wired for the file tools (Read, Edit, Write, MultiEdit, NotebookEdit, Grep) on tool_input's path,
 # for a Grep of a directory on the env files its `glob` reaches, and for Bash through bash-guard.sh
@@ -29,6 +30,7 @@ is_env_name() {
 }
 
 REPO_ROOT=""
+MAIN_ROOT=""
 CWD=""
 POLICY=""
 ALLOW_LIST=""
@@ -41,6 +43,7 @@ REASON=""
 prepare() {
   [[ -n "$POLICY" ]] && return 0
   REPO_ROOT=$(git -C "$GUARD_CWD" rev-parse --show-toplevel 2>/dev/null) || REPO_ROOT=""
+  MAIN_ROOT=$(guard_worktree_main "$GUARD_CWD") || MAIN_ROOT=""
   CWD=$(cd "$GUARD_CWD" 2>/dev/null && pwd -P) || CWD="$GUARD_CWD"
   POLICY=git
   ALLOW_LIST=$'**/.env.example\n**/.env.sample\n**/.env.template'
@@ -76,17 +79,24 @@ physical() {
 }
 
 # relative_to_root <path> — REL becomes the path relative to the repository root, the form the
-# config lists. Outside the root, or outside a repository, REL is the basename and OUTSIDE is set:
-# there only a `**/` entry applies, since a plain entry names a path in this repository and nothing
-# else. Globals, not stdout: a subshell would lose the flag.
+# config lists, and FILE_ROOT that root. From a linked worktree its main checkout is the same
+# repository under the same config, so a path there is relative to the main checkout. Outside the
+# root, or outside a repository, REL is the basename and OUTSIDE is set: there only a `**/` entry
+# applies, since a plain entry names a path in this repository and nothing else. Globals, not
+# stdout: a subshell would lose the flag.
 REL=""
+FILE_ROOT=""
 OUTSIDE=0
 relative_to_root() {
   local abs
   abs=$(physical "$(normalize "$(guard_absolute "$1" "$CWD")")")
   OUTSIDE=0
+  FILE_ROOT="$REPO_ROOT"
   if [[ -n "$REPO_ROOT" && "$abs" == "$REPO_ROOT/"* ]]; then
     REL="${abs#"$REPO_ROOT"/}"
+  elif [[ -n "$MAIN_ROOT" && "$abs" == "$MAIN_ROOT/"* ]]; then
+    FILE_ROOT="$MAIN_ROOT"
+    REL="${abs#"$MAIN_ROOT"/}"
   else
     OUTSIDE=1
     REL="${abs##*/}"
@@ -146,8 +156,8 @@ refused() {
     return 0
   fi
   abs=$(guard_absolute "$path" "$CWD")
-  git -C "$REPO_ROOT" ls-files --error-unmatch -- "$abs" >/dev/null 2>&1 && return 1
-  if git -C "$REPO_ROOT" check-ignore -q -- "$abs" 2>/dev/null; then
+  git -C "$FILE_ROOT" ls-files --error-unmatch -- "$abs" >/dev/null 2>&1 && return 1
+  if git -C "$FILE_ROOT" check-ignore -q -- "$abs" 2>/dev/null; then
     REASON="git ignores it"
   else
     REASON="git does not track it"

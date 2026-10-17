@@ -44,17 +44,17 @@ pnpm guardrails:doctor --root <path to your repository>
 
 ## What it stops
 
-| guard                 | refuses                                                                                                 |
-| --------------------- | ------------------------------------------------------------------------------------------------------- |
-| dangerous commands    | `reset --hard`, `clean -fd`, `stash clear`, remote branch deletion, `rm` at `/` `~` `.`, `find -delete` |
-| force push            | bare `push --force`; a lease push passes, and never to a protected branch                               |
-| plain push            | any push straight to a protected branch: those take pull requests                                       |
-| env access            | `.env`, `.env.*`, `.envrc` outside the config's allow list or unknown to git                            |
-| credential leak       | reading `~/.ssh`, `~/.aws`, `~/.kube` and friends; `curl` or `wget` carrying a secret                   |
-| package manager       | `npm`, `npx`, `yarn`, `bun` in a pnpm repository                                                        |
-| commit hygiene        | a subject off the convention, a missing trailer, `git add -A`, `git add .`                              |
-| App Store Connect     | every `asc` write and `--confirm` on a store script, in every repository; reads and `--dry-run` pass    |
-| large file (advisory) | flags a written file over 256 KiB                                                                       |
+| guard                 | refuses                                                                                                     |
+| --------------------- | ----------------------------------------------------------------------------------------------------------- |
+| dangerous commands    | `reset --hard`, `clean -fd`, `stash clear`, remote branch deletion, `rm` at `/` `~` `.`, `find -delete`     |
+| force push            | bare `push --force`; a lease push passes, or asks first under `forcePush: ask`, never to a protected branch |
+| plain push            | any push straight to a protected branch: those take pull requests                                           |
+| env access            | `.env`, `.env.*`, `.envrc` outside the config's allow list or unknown to git                                |
+| credential leak       | reading `~/.ssh`, `~/.aws`, `~/.kube` and friends; `curl` or `wget` carrying a secret                       |
+| package manager       | `npm`, `npx`, `yarn`, `bun` in a pnpm repository                                                            |
+| commit hygiene        | a subject off the convention, a missing trailer, `git add -A` with no path, `git add .`                     |
+| App Store Connect     | every `asc` write and `--confirm` on a store script, in every repository; reads and `--dry-run` pass        |
+| large file (advisory) | flags a written file over 256 KiB                                                                           |
 
 Every rule in full: [plugin README](plugins/guardrails/README.md#guards). A commit typed in a
 terminal meets the same subject rule through the [commit hook](plugins/guardrails/README.md#commit-hook).

@@ -68,6 +68,17 @@ describe("show reads", () => {
   ])
 })
 
+describe("search reads asc's own command index, never the store", () => {
+  table([
+    ["asc search foo", "runs"],
+    ['asc search "external testers"', "runs"],
+    ['asc search --output json "submit app for review"', "runs"],
+    ["asc search --limit 5 cert profiles", "runs"],
+    ["asc search apply --confirm", "refused"],
+    ["asc --profile owner search foo", "refused"]
+  ])
+})
+
 describe("App Store Connect writes, with or without --confirm", () => {
   table([
     [`asc metadata apply ${LISTING}`, "refused"],

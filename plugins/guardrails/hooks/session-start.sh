@@ -8,7 +8,8 @@
 #     reminder that the guards run on the strictest defaults until it is fixed
 #   - in a linked worktree only: the .worktreeinclude files the checkout still lacks (the same rule
 #     Claude Code copies by — match a pattern AND be gitignored — computed by git, so it never drifts),
-#     and the worktree.setup commands from the config
+#     but for the config layers and `.claude/settings.local.json`, read from the main checkout when a
+#     worktree lacks them; and the worktree.setup commands from the config
 #
 # Nothing to say means no output at all. A main checkout in order is silent.
 set -uo pipefail
@@ -46,6 +47,7 @@ if main=$(guard_worktree_main "$cwd"); then
       [[ -n "$rel" ]] || continue
       case "$rel" in
         node_modules/* | */node_modules/* | .claude/worktrees/* | .git/*) continue ;;
+        "$GUARD_COMMITTED_FILE" | "$GUARD_LOCAL_FILE" | .claude/settings.local.json) continue ;;
       esac
       [[ -e "$worktree/$rel" ]] || missing+="${missing:+, }$rel"
     done < <(comm -12 \

@@ -35,8 +35,8 @@
       "type": "object",
       "properties": {
         "forcePush": {
-          "description": "`deny` refuses every force push. `lease` lets `--force-with-lease` and `--force-if-includes` through to a branch outside `protectedBranches`; bare `--force` and `-f` stay refused.",
-          "enum": ["deny", "lease"]
+          "description": "`deny` refuses every force push. `lease` lets `--force-with-lease` and `--force-if-includes` through to a branch outside `protectedBranches`; bare `--force` and `-f` stay refused. `ask` is `lease` with a permission prompt for each lease push it lets through. Strictest first: deny, ask, lease.",
+          "enum": ["deny", "ask", "lease"]
         },
         "envFiles": {
           "description": "Which env files (`.env`, `.env.*`, `.envrc`) an agent may read, edit or write. A candidate is judged in this order: listed in `deny` → refused; listed in `allow` → readable; `policy` `deny` → refused; `policy` `git` → readable when git tracks it, refused when git ignores it or does not know it. Entries are globs against the path relative to the repository root: `*` and `?` as in a shell pattern (`*` crosses `/`), a leading `**/` means at any depth, so `.env` is the one in the root and `**/.env.example` every file of that name. No brace groups. A path outside the repository root, or outside any repository, is judged by its basename against the `**/` entries alone. Defaults: policy `git`, allow the `.env.example`, `.env.sample` and `.env.template` names anywhere, deny nothing. The local override may drop `allow` entries and add `deny` entries, never the reverse.",
