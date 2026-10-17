@@ -5,6 +5,7 @@ import { describe, it } from "node:test"
 import {
   type Check,
   type Probe,
+  claudeConfigDir,
   diagnose,
   render,
   rtkConfigPath,
@@ -310,6 +311,29 @@ describe("diagnose", () => {
     const check = line(diagnose({ root: ROOT, home: HOME, probe: fake(off), config: CONFIG }), "commit signing")
     assert.equal(check.level, "WARN")
     assert.match(check.detail, /git config --global commit.gpgsign true/)
+  })
+
+  it("Claude's config dir is $CLAUDE_CONFIG_DIR when set, else ~/.claude", () => {
+    assert.equal(claudeConfigDir({ CLAUDE_CONFIG_DIR: "/cfg" }, HOME), "/cfg")
+    assert.equal(claudeConfigDir({}, HOME), `${HOME}/.claude`)
+  })
+
+  it("reads the user settings from the Claude config dir it is given", () => {
+    const direct = JSON.stringify({
+      hooks: { PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: "rtk hook claude" }] }] }
+    })
+    const marketplaces = HEALTHY.files?.[`${HOME}/.claude/plugins/known_marketplaces.json`]
+    const swapped = withFile(
+      withFile(HEALTHY, "/cfg/settings.json", direct),
+      "/cfg/plugins/known_marketplaces.json",
+      marketplaces
+    )
+    const check = line(
+      diagnose({ root: ROOT, home: HOME, claudeDir: "/cfg", probe: fake(swapped), config: CONFIG }),
+      "rtk"
+    )
+    assert.equal(check.level, "FAIL")
+    assert.match(check.detail, /\/cfg\/settings\.json wires rtk by hand/)
   })
 
   it("config: names the convention", () => {

@@ -30,6 +30,8 @@ export type Probe = {
 export type Inputs = {
   root: string
   home: string
+  /** Claude Code's config dir; `<home>/.claude` when absent. */
+  claudeDir?: string
   probe: Probe
   config: {
     config: { commit: { convention: string } }
@@ -37,6 +39,11 @@ export type Inputs = {
     /** The checkout each layer was read from, as `resolveConfig` reports it. */
     sources?: { committed: string | undefined; local: string | undefined }
   }
+}
+
+/** Claude Code's config dir: `$CLAUDE_CONFIG_DIR` when set, the way Claude Code reads it, else `~/.claude`. */
+export function claudeConfigDir(env: Record<string, string | undefined>, home: string): string {
+  return env.CLAUDE_CONFIG_DIR ?? join(home, ".claude")
 }
 
 /** The marketplace Claude Code registers this repository under, and the plugin id inside it. */
@@ -87,15 +94,15 @@ function checkJq(probe: Probe): Check {
 /** Where the plugin's hooks run: live from the checkout for a marketplace added from a directory, a
  *  cached snapshot for one added from git. A marker placed in only one of the two settled it. */
 /** The checkout a directory marketplace runs the plugin from, or undefined for a snapshot. */
-function liveCheckout(probe: Probe, home: string): string | undefined {
-  const known = parseJson(probe.read(join(home, ".claude", "plugins", "known_marketplaces.json")))
+function liveCheckout(probe: Probe, claude: string): string | undefined {
+  const known = parseJson(probe.read(join(claude, "plugins", "known_marketplaces.json")))
   const entry = isObject(known) && isObject(known[MARKETPLACE]) ? known[MARKETPLACE] : undefined
   const source = entry !== undefined && isObject(entry.source) ? entry.source : undefined
   return source?.source === "directory" && typeof source.path === "string" ? source.path : undefined
 }
 
-function pluginOrigin(probe: Probe, home: string, installPath: string): string {
-  const checkout = liveCheckout(probe, home)
+function pluginOrigin(probe: Probe, claude: string, installPath: string): string {
+  const checkout = liveCheckout(probe, claude)
   if (checkout !== undefined) {
     return `runs live from ${checkout}/plugins/guardrails; a change there is in the next session`
   }
@@ -103,8 +110,8 @@ function pluginOrigin(probe: Probe, home: string, installPath: string): string {
 }
 
 /** The directory whose hooks run on this machine: the checkout of a directory marketplace, else the installed snapshot. */
-function runningPluginRoot(probe: Probe, home: string): string | undefined {
-  const checkout = liveCheckout(probe, home)
+function runningPluginRoot(probe: Probe, claude: string): string | undefined {
+  const checkout = liveCheckout(probe, claude)
   if (checkout !== undefined) {
     return join(checkout, "plugins", "guardrails")
   }
@@ -117,7 +124,7 @@ function runningPluginRoot(probe: Probe, home: string): string | undefined {
   return entry !== undefined && typeof entry.installPath === "string" ? entry.installPath : undefined
 }
 
-function checkPlugin(probe: Probe, home: string): Check {
+function checkPlugin(probe: Probe, claude: string): Check {
   const { status, stdout } = probe.run("claude", ["plugin", "list", "--json"])
   const list: unknown = status === 0 ? parseJson(stdout) : undefined
   if (!Array.isArray(list)) {
@@ -142,7 +149,7 @@ function checkPlugin(probe: Probe, home: string): Check {
   return {
     name: "plugin",
     level: "PASS",
-    detail: `${version} enabled; ${pluginOrigin(probe, home, String(entry.installPath ?? ""))}`
+    detail: `${version} enabled; ${pluginOrigin(probe, claude, String(entry.installPath ?? ""))}`
   }
 }
 
@@ -206,14 +213,15 @@ function versionBefore(version: string, threshold: string): boolean {
 
 // The plugin's rtk-rewrite.sh is the one wiring of `rtk hook claude`; a second one in the user
 // settings rewrites again, and in a linked worktree that copy is what the isolation check refuses.
-function checkRtk(probe: Probe, home: string): Check {
+function checkRtk(probe: Probe, home: string, claude: string): Check {
   const rtk = probe.shell("command -v rtk")
   if (rtk === "") {
     return { name: "rtk", level: "PASS", detail: "no rtk on this machine, the plugin's rewrite hook stays silent" }
   }
-  const settings = parseJson(probe.read(join(home, ".claude", "settings.json")))
+  const settingsPath = join(claude, "settings.json")
+  const settings = parseJson(probe.read(settingsPath))
   const byHand = hookCommands(settings).find((command) => /\brtk\b/.test(command))
-  const root = runningPluginRoot(probe, home)
+  const root = runningPluginRoot(probe, claude)
   if (root === undefined || probe.read(join(root, "hooks", "rtk-rewrite.sh")) === undefined) {
     const meanwhile = byHand === undefined ? "nothing rewrites" : `the hand-wired ${byHand} carries it until then`
     return {
@@ -226,7 +234,7 @@ function checkRtk(probe: Probe, home: string): Check {
     return {
       name: "rtk",
       level: "FAIL",
-      detail: `~/.claude/settings.json wires rtk by hand (${byHand}), and the plugin's rtk-rewrite.sh already runs it: remove that hook, or every git command in a linked worktree is refused by the isolation check`
+      detail: `${settingsPath} wires rtk by hand (${byHand}), and the plugin's rtk-rewrite.sh already runs it: remove that hook, or every git command in a linked worktree is refused by the isolation check`
     }
   }
   // The filters that misbehave on the installed release have to sit in exclude_commands.
@@ -323,10 +331,11 @@ function checkConfig(config: Inputs["config"], root: string): Check {
 
 export function diagnose(inputs: Inputs): Check[] {
   const { probe, home } = inputs
+  const claude = inputs.claudeDir ?? join(home, ".claude")
   return [
     checkJq(probe),
-    checkPlugin(probe, home),
-    checkRtk(probe, home),
+    checkPlugin(probe, claude),
+    checkRtk(probe, home, claude),
     checkSafeChain(probe),
     checkPnpmReleaseAge(probe, home),
     checkCommitSigning(probe),
@@ -341,7 +350,8 @@ export function render(checks: Check[]): string {
 const USAGE = `Usage: pnpm guardrails:doctor [--root <dir>] [--home <dir>]
 
 One PASS / WARN / FAIL line per machine check the guardrails rely on; read-only. Exit 1 when any
-check fails.`
+check fails. Claude Code's settings are read from $CLAUDE_CONFIG_DIR, or ~/.claude without it; a
+--home reads <home>/.claude.`
 
 function main(argv: string[]): void {
   let values: { help?: boolean; root?: string; home?: string }
@@ -363,6 +373,7 @@ function main(argv: string[]): void {
   const checks = diagnose({
     root,
     home: values.home ?? homedir(),
+    claudeDir: values.home === undefined ? claudeConfigDir(process.env, homedir()) : join(values.home, ".claude"),
     probe: realProbe,
     config: {
       config: resolution.config,
