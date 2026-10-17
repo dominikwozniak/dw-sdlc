@@ -1,7 +1,7 @@
 #!/bin/bash
 # Refuses the commands that destroy work the reflog cannot bring back: git rewriting history or the
-# working tree, `rm` aimed at the root, the home or the current directory — bare, as `/*`, `~/*`, `./*`
-# or a bare `*` — `find -delete`, `shred`.
+# working tree, git force-deleting a branch, a worktree or a stash, `rm` aimed at the root, the home or
+# the current directory — bare, as `/*`, `~/*`, `./*` or a bare `*` — `find -delete`, `shred`.
 # Two parts. The regex arms match a command boundary — line start, or right after ; & | — through
 # the wrappers lib.sh knows (`sudo`, `rtk …`, `VAR=x`), so prose inside quotes never matches. Two verbs
 # are parsed word by word instead, because their policy is not a pattern. Every `git push`: a bare
@@ -39,11 +39,12 @@ Q=$GUARD_OPEN_QUOTE
 PATTERNS=(
   "$GUARD_GIT"' reset( [^;&|]*)? --hard'                                  # discards index and working tree
   "$GUARD_GIT"' clean( +-[A-Za-z-]+)* +(-[A-Za-z]*[dfxX]|--force)'        # deletes untracked files, any flag order
-  "$GUARD_GIT"' branch( [^;&|]*)?( -f'"$END"'| --force'"$END"')'          # force-repoints a branch; -D stays allowed
+  "$GUARD_GIT"' branch( [^;&|]*)? (-[A-Za-z]*[Df][A-Za-z]*|--force)'"$END" # force-repoints or force-deletes a branch; git keeps an unmerged one from a plain -d
   "$GUARD_GIT"' checkout( [^;&|]*)? (-- +)?'"$DOT_ARG"                    # discards every working-tree change, from HEAD or any tree-ish
   "$GUARD_GIT"' checkout( [^;&|]*)?( -f'"$END"'| --force'"$END"')'        # switches over local changes and discards them
   "$GUARD_GIT"' switch( [^;&|]*)?( -f'"$END"'| --force'"$END"'| --discard-changes'"$END"')' # the same, spelled switch
-  "$GUARD_GIT"' stash clear'"$END"                                        # wipes every stash, unrecoverable
+  "$GUARD_GIT"' stash (clear|drop)'"$END"                                 # a stash lives only in the stash reflog
+  "$GUARD_GIT"' worktree remove( [^;&|]*)? (-f+|--force)'"$END"           # deletes modified and untracked files, which a plain remove keeps
   "rm( [^;&|]*)? ${Q}/\\*?${Q} *(\$|[;&|)])"                              # rm aimed at / or /*
   "rm( [^;&|]*)? (~(/\\*?)?|\"?(\\\$HOME|\\\$\\{HOME\\})\"?(/\\*?)?\"?)${Q} *(\$|[;&|)])" # rm aimed at the home directory: ~, ~/ or ~/*
   "rm( [^;&|]*)? ${Q}\\.\\.?${Q}(/\\*?)?${Q} *(\$|[;&|)])"                # rm aimed at . or .., bare, with / or with /*

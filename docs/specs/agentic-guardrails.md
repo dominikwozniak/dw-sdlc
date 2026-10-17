@@ -59,6 +59,11 @@ refuses.
   protected branch are refused (ADR 0004). `guardrails.forcePush: ask` puts each lease push that
   passes behind a permission prompt. A plain push to a protected branch is refused too, from the
   same guard: the rule reads `guardrails.protectedBranches`.
+- A forced deletion is refused and the plain one passes, because git guards the plain form itself:
+  `branch -d` keeps a branch that is not fully merged and `worktree remove` keeps a worktree with
+  modified or untracked files. So `branch -D`, a `branch` option cluster holding `D` or `f`,
+  `--force`, `worktree remove -f`/`--force` and `stash drop` are refused; a stash lives only in the
+  stash reflog. `stash pop` passes: it drops the entry only once the apply succeeds.
 - A push and a commit are judged where they run, for the branch and the config alike: the payload's
   cwd, moved by a literal `cd` earlier in the command, one inside a subshell ending with it, or by
   `git -C`. A path computed at runtime, `cd -` and a directory that is not there leave the cwd.

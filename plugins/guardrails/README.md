@@ -48,8 +48,9 @@ disk is in the next session, a broken edit included.
 ## Guards
 
 - `block-dangerous-commands.sh` (always on) — refuses `git reset --hard`, `clean` with `-d`/`-f`/`-x`,
-  `branch -f`, `checkout .` from any tree-ish, `checkout -f` and `switch --discard-changes`, a
-  `restore` of the whole tree unless `--staged` alone, `stash clear`, remote branch deletion, `rm`
+  `branch -f` and `-D`, `checkout .` from any tree-ish, `checkout -f` and `switch --discard-changes`, a
+  `restore` of the whole tree unless `--staged` alone, `worktree remove --force`, `stash drop` and
+  `stash clear`, remote branch deletion, `rm`
   aimed at `/`, `~` or `.` bare or with `/*`, `rm` with a bare `*`, `find -delete` and `shred`, seen
   through `sudo`, `rtk` and `VAR=x` prefixes. A bare
   `git push --force`, `-f` or `+refspec` is refused; `--force-with-lease` and `--force-if-includes`

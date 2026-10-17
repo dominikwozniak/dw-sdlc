@@ -47,6 +47,7 @@ pnpm guardrails:doctor --root <path to your repository>
 | guard                 | refuses                                                                                                     |
 | --------------------- | ----------------------------------------------------------------------------------------------------------- |
 | dangerous commands    | `reset --hard`, `clean -fd`, `stash clear`, remote branch deletion, `rm` at `/` `~` `.`, `find -delete`     |
+| forced delete         | `branch -D`, `worktree remove --force`, `stash drop`; a plain `branch -d` or `worktree remove` passes       |
 | force push            | bare `push --force`; a lease push passes, or asks first under `forcePush: ask`, never to a protected branch |
 | plain push            | any push straight to a protected branch: those take pull requests                                           |
 | env access            | `.env`, `.env.*`, `.envrc` outside the config's allow list or unknown to git                                |

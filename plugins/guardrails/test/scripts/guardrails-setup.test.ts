@@ -133,7 +133,10 @@ describe("setup", () => {
       "Bash(git push --force)",
       "Bash(rtk git push --force)",
       "Bash(git reset --hard *)",
-      "Bash(rtk git reset --hard *)"
+      "Bash(rtk git reset --hard *)",
+      "Bash(git branch -D *)",
+      "Bash(rtk git stash drop)",
+      "Bash(git worktree remove --force *)"
     ]) {
       assert.ok(deny.includes(rule), rule)
     }
