@@ -125,7 +125,7 @@ export function matchesEnvGlob(glob: string, relativePath: string): boolean {
 // The preset each convention names. `ticket-key` is a ticket key ahead of a short type list;
 // `conventional` is Conventional Commits. Both are POSIX ERE, because `grep -E` runs them.
 export const COMMIT_PATTERNS: Record<CommitConvention, string> = {
-  "ticket-key": "^\\[[A-Z]+-[0-9]+\\] (feat|fix|refactor|docs|chore|test|perf|ci): .+",
+  "ticket-key": "^\\[[A-Z]+-[0-9]+\\] (feat|fix|refactor|docs|chore|test|perf|ci|revert): .+",
   conventional: "^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\\([^)]+\\))?!?: .+"
 }
 
