@@ -116,7 +116,12 @@ const GIT_DENY = [
   "git restore -- .",
   "git branch -f *",
   "git branch --force *",
-  "git stash clear"
+  "git branch -D *",
+  "git stash clear",
+  "git stash drop",
+  "git stash drop *",
+  "git worktree remove --force *",
+  "git worktree remove -f *"
 ]
 
 /** Where Claude Code registers the plugin: the marketplace name and the plugin's name inside it. */
