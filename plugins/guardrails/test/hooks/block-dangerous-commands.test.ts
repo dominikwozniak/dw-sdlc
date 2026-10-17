@@ -7,13 +7,26 @@ import assert from "node:assert/strict"
 import { join } from "node:path"
 import { describe, it } from "node:test"
 
-import { bashPayload, commit, expectExit, git, initRepo, runHook, scratch, write, writeJson } from "../harness.ts"
+import {
+  bashPayload,
+  commit,
+  expectExit,
+  git,
+  initRepo,
+  runHook,
+  scratch,
+  verdictOf,
+  write,
+  writeJson
+} from "../harness.ts"
 
 const TMP = scratch("git")
 const FEAT = initRepo(join(TMP, "feat"), { branch: "feat" })
 const ON_MASTER = initRepo(join(TMP, "on-master"), { branch: "master" })
 const DENY = initRepo(join(TMP, "deny"), { branch: "feat" })
 writeJson(join(DENY, ".ai", "agentic.config.json"), { guardrails: { forcePush: "deny" } })
+const ASK = initRepo(join(TMP, "ask"), { branch: "feat" })
+writeJson(join(ASK, ".ai", "agentic.config.json"), { guardrails: { forcePush: "ask" } })
 const STAGING = initRepo(join(TMP, "staging"), { branch: "feat" })
 writeJson(join(STAGING, ".ai", "agentic.config.local.json"), {
   guardrails: { protectedBranches: ["master", "main", "production", "staging"] }
@@ -65,6 +78,11 @@ function allowed(name: string, command: string, cwd = FEAT): void {
     expectExit(runHook("block-dangerous-commands", bashPayload(command, cwd)), 0)
   })
 }
+function asked(name: string, command: string, cwd = FEAT): void {
+  it(name, () => {
+    assert.equal(verdictOf(runHook("block-dangerous-commands", bashPayload(command, cwd))), "ask")
+  })
+}
 
 describe("force pushes — the lease policy (defaults: lease, master/main/production protected)", () => {
   blocked("push-force", "git push --force")
@@ -99,6 +117,12 @@ describe("force pushes — configured repositories", () => {
   allowed("deny-plain-push", "git push origin feat", DENY)
   blocked("local-adds-staging", "git push --force-with-lease origin staging", STAGING)
   allowed("local-keeps-feature", "git push --force-with-lease origin feat", STAGING)
+  asked("ask-asks-for-a-lease", "git push --force-with-lease origin feat", ASK)
+  asked("ask-asks-for-a-lease-with-its-ref", "git push -q --force-with-lease=feat:abc123 origin feat", ASK)
+  blocked("ask-refuses-a-lease-to-protected", "git push --force-with-lease origin main", ASK)
+  blocked("ask-refuses-bare-force", "git push --force origin feat", ASK)
+  blocked("ask-then-a-protected-push", "git push --force-with-lease origin feat; git push origin main", ASK)
+  allowed("ask-plain-push", "git push origin feat", ASK)
 })
 
 describe("plain pushes — a protected branch takes pull requests", () => {

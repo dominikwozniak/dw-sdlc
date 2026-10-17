@@ -2,10 +2,23 @@
 // payload. A guard's own test calls the guard directly and cannot see whether the dispatcher ever
 // spawns it — this file is where that is pinned.
 
+import assert from "node:assert/strict"
 import { accessSync, constants } from "node:fs"
+import { join } from "node:path"
 import { describe, it } from "node:test"
 
-import { bashPayload, expectExit, hookPath, REPO_ROOT, runHook, type Verdict } from "../harness.ts"
+import {
+  bashPayload,
+  expectExit,
+  hookPath,
+  initRepo,
+  REPO_ROOT,
+  runHook,
+  scratch,
+  verdictOf,
+  writeJson,
+  type Verdict
+} from "../harness.ts"
 
 function run(command: string, cwd = REPO_ROOT): Verdict {
   return runHook("bash-guard", bashPayload(command, cwd))
@@ -86,6 +99,17 @@ describe("block-store-writes fires on asc and on a store script", () => {
   refused("a store command with --confirm", "pnpm store:listing --confirm")
   allowed("a store command without it", "pnpm store:listing --check")
   refused("--confirm on a continuation line", "node scripts/store-pricing.ts \\\n  --confirm")
+})
+
+describe("an ask waits for every guard, so a later refusal still wins", () => {
+  const ask = initRepo(join(scratch("dispatch"), "ask"), { branch: "feat" })
+  writeJson(join(ask, ".ai", "agentic.config.json"), { guardrails: { forcePush: "ask" } })
+  it("a lease push asks", () => {
+    assert.equal(verdictOf(run("git push --force-with-lease origin feat", ask)), "ask")
+  })
+  it("a credential read after it is refused", () => {
+    expectExit(run("git push --force-with-lease origin feat && cat ~/.ssh/id_rsa", ask), 2)
+  })
 })
 
 describe("fails open on garbage", () => {

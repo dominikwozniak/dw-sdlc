@@ -332,7 +332,7 @@ describe("diagnose", () => {
       probe: fake(HEALTHY),
       config: {
         config: { commit: { convention: "ticket-key" } },
-        problems: ['.ai/agentic.config.json: guardrails.forcePush: "allow" is not one of "deny", "lease"']
+        problems: ['.ai/agentic.config.json: guardrails.forcePush: "allow" is not one of "deny", "ask", "lease"']
       }
     })
     const check = line(checks, "config")

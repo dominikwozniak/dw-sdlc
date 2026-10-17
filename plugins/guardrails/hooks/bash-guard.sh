@@ -22,10 +22,11 @@ run() {
   printf '%s' "${2-$SCAN}" | bash "$GUARD_LIB_DIR/$1" --bash-command "$GUARD_CWD"
 }
 
-# guard <guard> [text] — A refusal (exit 2) or an ask (a JSON verdict on stdout) stops the chain; two
-# verdicts would not parse as one. Any other non-zero is a broken guard rather than a verdict — say
-# so, and let the guards below it still run. The always-on guards come first, so a refusal beats a
-# later ask.
+# guard <guard> [text] — A refusal (exit 2) stops the chain. An ask (a JSON verdict on stdout) is held
+# until every guard has run, so a refusal from a later one still wins; the first ask is the one
+# printed, since two verdicts would not parse as one. Any other non-zero is a broken guard rather
+# than a verdict — say so, and let the guards below it still run.
+ASK=""
 guard() {
   local out rc
   out=$(run "$1" "${2-$SCAN}")
@@ -35,10 +36,7 @@ guard() {
     echo "bash-guard.sh: $1 exited $rc, which is not a refusal — the remaining guards still ran, but this one needs fixing." >&2
     return 0
   fi
-  if [[ -n "$out" ]]; then
-    printf '%s\n' "$out"
-    exit 0
-  fi
+  [[ -n "$out" && -z "$ASK" ]] && ASK="$out"
   return 0
 }
 
@@ -64,4 +62,5 @@ case "$SCAN" in
   *git*commit* | *git*add*) guard enforce-commit-hygiene.sh "$GUARD_COMMAND" ;;
 esac
 
+[[ -n "$ASK" ]] && printf '%s\n' "$ASK"
 exit 0

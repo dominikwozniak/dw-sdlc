@@ -18,7 +18,7 @@ import { commit, git, initRepo, REPO_ROOT, runScript, scratch, write } from "../
 
 const LIB = join(import.meta.dirname, "..", "..", "hooks", "lib.sh")
 const ORG_REMOTE = "git@github.com:acme/app.git"
-/** A document no layer may carry: `forcePush` knows `deny` and `lease`, never `allow`. */
+/** A document no layer may carry: `forcePush` knows `deny`, `ask` and `lease`, never `allow`. */
 const FORCE_PUSH_ALLOWED = { version: 1, guardrails: { forcePush: "allow" } }
 const DEFAULT_ENV_FILES = {
   policy: "git",
@@ -140,7 +140,7 @@ describe("the committed file", () => {
     const { config, problems, layers } = resolveConfig(root)
     assert.deepEqual(problems, [
       { file: COMMITTED_FILE, path: "version", message: "2 is not 1" },
-      { file: COMMITTED_FILE, path: "guardrails.forcePush", message: '"allow" is not one of "deny", "lease"' },
+      { file: COMMITTED_FILE, path: "guardrails.forcePush", message: '"allow" is not one of "deny", "ask", "lease"' },
       { file: COMMITTED_FILE, path: "guardrails", message: 'unknown key "extra"' }
     ])
     assert.equal(layers.committed, "invalid")
@@ -184,6 +184,25 @@ describe("the local file", () => {
       protectedBranches: ["master", "staging"]
     })
     assert.deepEqual(config.worktree.setup, ["pnpm install"])
+  })
+
+  it("ranks forcePush ask between deny and lease", () => {
+    const tighter = repo({ files: { [LOCAL_FILE]: { guardrails: { forcePush: "ask" } } } })
+    assert.deepEqual(resolveConfig(tighter).problems, [])
+    assert.equal(resolveConfig(tighter).config.guardrails.forcePush, "ask")
+    const looser = repo({
+      files: {
+        [COMMITTED_FILE]: { guardrails: { forcePush: "ask" } },
+        [LOCAL_FILE]: { guardrails: { forcePush: "lease" } }
+      }
+    })
+    assert.deepEqual(resolveConfig(looser).problems, [
+      {
+        file: LOCAL_FILE,
+        path: "guardrails.forcePush",
+        message: '"lease" loosens "ask"; the local file may tighten guardrails, never loosen them'
+      }
+    ])
   })
 
   it("merges envFiles key by key, each list wholesale", () => {
@@ -324,7 +343,7 @@ describe("validateDocument", () => {
     const result = validateDocument(file, JSON.stringify(FORCE_PUSH_ALLOWED))
     assert.ok("problems" in result)
     assert.deepEqual(result.problems, [
-      { file, path: "guardrails.forcePush", message: '"allow" is not one of "deny", "lease"' }
+      { file, path: "guardrails.forcePush", message: '"allow" is not one of "deny", "ask", "lease"' }
     ])
   })
 
@@ -422,6 +441,20 @@ describe("hooks/lib.sh agrees with resolveConfig", () => {
             [LOCAL_FILE]: { baseBranch: "develop", guardrails: { forcePush: "lease", protectedBranches: ["master"] } }
           }
         })
+    ],
+    [
+      "on a local lease under a committed ask",
+      () =>
+        repo({
+          files: {
+            [COMMITTED_FILE]: { guardrails: { forcePush: "ask" } },
+            [LOCAL_FILE]: { guardrails: { forcePush: "lease" } }
+          }
+        })
+    ],
+    [
+      "on a local ask over the default lease",
+      () => repo({ files: { [LOCAL_FILE]: { guardrails: { forcePush: "ask" } } } })
     ],
     [
       "on a tightening local file",
@@ -559,7 +592,7 @@ describe("the agentic:check command", () => {
     const root = repo({ git: false, files: { "agentic.config.json": FORCE_PUSH_ALLOWED } })
     const verdict = runScript("agentic-config", [join(root, "agentic.config.json")], { cwd: REPO_ROOT })
     assert.equal(verdict.status, 1)
-    assert.match(verdict.stderr, /guardrails\.forcePush: "allow" is not one of "deny", "lease"/)
+    assert.match(verdict.stderr, /guardrails\.forcePush: "allow" is not one of "deny", "ask", "lease"/)
   })
 
   it("exits 1 when the repository's config is invalid, after printing what the guards see", () => {

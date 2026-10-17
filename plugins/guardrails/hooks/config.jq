@@ -9,7 +9,7 @@
 def local_file: ".ai/agentic.config.local.json";
 
 # Strictest value first; the local override may only move towards the front.
-def strictness: {forcePush: ["deny", "lease"], envFiles: ["deny", "git"]};
+def strictness: {forcePush: ["deny", "ask", "lease"], envFiles: ["deny", "git"]};
 
 def strictest: {
   forcePush: "deny",

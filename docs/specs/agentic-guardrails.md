@@ -56,7 +56,8 @@ refuses.
   on in every repository and reads no config. `packageManagers.ruby` is accepted by the schema and
   read by nothing.
 - Lease pushes pass to unprotected branches; bare force, `+refspec`, `--mirror` and any force to a
-  protected branch are refused (ADR 0004). A plain push to a protected branch is refused too, from the
+  protected branch are refused (ADR 0004). `guardrails.forcePush: ask` puts each lease push that
+  passes behind a permission prompt. A plain push to a protected branch is refused too, from the
   same guard: the rule reads `guardrails.protectedBranches`.
 - A push and a commit are judged where they run, for the branch and the config alike: the payload's
   cwd, moved by a literal `cd` earlier in the command, one inside a subshell ending with it, or by
@@ -256,9 +257,9 @@ Open work on the plugin is tracked in GitHub Issues.
   build JSON with. Silence is no output, not empty JSON.
 - The include list and the setup commands are worktree-only. A linked worktree is `--git-dir`
   differing from `--git-common-dir`, both `--path-format=absolute` (git 2.31+).
-- An ask is a verdict: a guard prints the JSON and exits 0, the dispatcher stops the chain at the
-  first non-empty stdout, and the always-on guards run first so a refusal beats a later ask. Inside
-  one guard asks are collected and returned once, after every segment was judged.
+- An ask is a verdict: a guard prints the JSON and exits 0, and the dispatcher holds the first one
+  until every guard has run, so a refusal from any guard beats an ask. Inside one guard asks are
+  collected and returned once, after every segment was judged.
 - The git helpers in `lib.sh` (`guard_git_verb`, `guard_parse_push`, `guard_push_targets`,
   `guard_protected`, `guard_worktree_main`, `guard_segments`) set globals and never print, because a
   caller capturing stdout runs them in a subshell and loses the words.

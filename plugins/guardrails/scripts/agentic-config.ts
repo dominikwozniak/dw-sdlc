@@ -24,7 +24,7 @@ validates that one document against the schema. Exit 1 on any problem.`
 export const COMMIT_CONVENTIONS = ["ticket-key", "conventional"] as const
 export type CommitConvention = (typeof COMMIT_CONVENTIONS)[number]
 export type NodePackageManager = "pnpm" | "npm" | "yarn" | "bun"
-export type ForcePush = "deny" | "lease"
+export type ForcePush = "deny" | "ask" | "lease"
 export type EnvPolicy = "deny" | "git"
 /** Which env files may be read: `deny` list, then `allow` list, then `policy` for the rest. */
 export type EnvFiles = { policy: EnvPolicy; allow: string[]; deny: string[] }
@@ -73,7 +73,7 @@ export type Resolution = {
 
 /** Strictest value first; the local override may only move towards the front. */
 export const STRICTNESS = {
-  forcePush: ["deny", "lease"],
+  forcePush: ["deny", "ask", "lease"],
   envFiles: ["deny", "git"]
 } as const satisfies { forcePush: readonly ForcePush[]; envFiles: readonly EnvPolicy[] }
 

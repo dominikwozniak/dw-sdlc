@@ -7,7 +7,8 @@
 # are parsed word by word instead, because their policy is not a pattern. Every `git push`: a bare
 # `--force`, `-f` or `+refspec` and a `--mirror` are always refused; `--force-with-lease` and
 # `--force-if-includes` pass to a branch outside `guardrails.protectedBranches` — with `--all`, every
-# local branch counts — and nothing passes when `guardrails.forcePush` is `deny`; a plain push to a
+# local branch counts — each one behind a permission prompt when `guardrails.forcePush` is `ask`,
+# and nothing passes when it is `deny`; a plain push to a
 # protected branch is refused too, because those branches take pull requests, and so is a remote
 # branch deletion, `--delete`, `-d` or a `:branch` refspec. A push is judged where it runs: the
 # payload's cwd, moved by a literal `cd` earlier in the command (one inside a subshell ends with it)
@@ -80,6 +81,9 @@ check_push() {
     while IFS= read -r target; do
       guard_protected "$target" && guard_block "'$GUARD_COMMAND' force-pushes to '$target', a protected branch (guardrails.protectedBranches)."
     done <<<"$targets"
+    if [[ "$(guard_config_get '.guardrails.forcePush')" == "ask" && -z "$ASK" ]]; then
+      ASK="A lease push to ${targets//$'\n'/, } rewrites that remote branch; this repository asks before each one (guardrails.forcePush: ask)."
+    fi
     return 0
   fi
 
@@ -130,6 +134,8 @@ check_restore() {
   return 0
 }
 
+# An ask is held until every segment is judged: a refusal further on still wins.
+ASK=""
 while IFS= read -r segment; do
   guard_scope_step "$segment" || continue
   if printf '%s\n' "$segment" | grep -qE "^[[:space:]]*${GUARD_WRAPPER}${GUARD_OPEN_QUOTE}${GUARD_GIT} "; then
@@ -137,5 +143,6 @@ while IFS= read -r segment; do
     check_restore "$segment"
   fi
 done < <(guard_scopes "$SCAN")
+[[ -n "$ASK" ]] && guard_ask "$ASK"
 
 exit 0

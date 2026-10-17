@@ -154,7 +154,7 @@ describe("an invalid config is one loud line, in the main checkout too", () => {
     has(R, "agentic config: INVALID, the guards run on the strictest defaults until it is fixed")
   })
   it("the problem named", () => {
-    has(R, '.ai/agentic.config.json: guardrails.forcePush: "allow" is not one of "deny", "lease"')
+    has(R, '.ai/agentic.config.json: guardrails.forcePush: "allow" is not one of "deny", "ask", "lease"')
   })
   it("valid again, silent again", () => {
     git(MAIN, "checkout", "-q", "--", ".ai/agentic.config.json")
