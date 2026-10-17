@@ -3,15 +3,16 @@
 //
 //   .ai/agentic.config.local.json   the machine's layer, from inference: the Node package manager when
 //                                   the committed config leaves it unset, $schema at the marketplace
-//                                   clone's schema, and commit.convention when --convention names one
-//                                   or the file already pins one. Refused when one exists with other
-//                                   content than those, unless --force.
+//                                   clone's schema, commit.convention when --convention names one
+//                                   or the file already pins one, and the guardrails block the file
+//                                   holds, as it is. Refused when one exists with other content than
+//                                   those, unless --force.
 //   .git/info/exclude               keeps that file and .claude/settings.local.json out of git without
 //                                   touching the repository's tracked .gitignore
 //   .claude/settings.local.json     permissions.deny as the jq-less backstop for the hooks: the
-//                                   destructive git set in plain and rtk form, and Read/Edit rules for
-//                                   every env file the resolved guardrails.envFiles refuses: listed in
-//                                   deny, or ignored by git and not listed in allow
+//                                   destructive git and gh sets in plain and rtk form, and Read/Edit
+//                                   rules for every env file the resolved guardrails.envFiles refuses:
+//                                   listed in deny, or ignored by git and not listed in allow
 //   ~/.claude/settings.json         autoMode.allow plus the lease-push exception ("$defaults" opens a
 //                                   list this run creates), and permissions.deny with the irreversible set;
 //                                   under $CLAUDE_CONFIG_DIR when it is set, as Claude Code reads it
@@ -66,8 +67,9 @@ permissions.deny into .claude/settings.local.json, and adds the lease-push excep
 irreversible deny set to ~/.claude/settings.json, or $CLAUDE_CONFIG_DIR/settings.json without
 --home. From a linked worktree the repository's files go to the main checkout. Every file is
 written only when it would change; --convention ticket-key | conventional pins commit.convention in
-the local config, and a run without it keeps the pin as it is; --force overwrites a local config that
-differs; --dry-run reports without writing.`
+the local config, and a run without it keeps the pin as it is; a guardrails block in the local config
+is kept as it is; --force overwrites a local config that differs in anything else; --dry-run reports
+without writing.`
 
 function isConvention(value: string): value is CommitConvention {
   return COMMIT_CONVENTIONS.some((preset) => preset === value)
@@ -77,7 +79,7 @@ function isConvention(value: string): value is CommitConvention {
 export const LEASE_RULE =
   "Force push with --force-with-lease or --force-if-includes to a branch that is not master, main or production: allowed. The guardrails plugin's hook refuses a bare --force, -f or +refspec and any force to a protected branch, so the lease form is the safe one and needs no prompt."
 
-/** The irreversible set for the user file; rtk rewrites git only, so only git stash clear gets both forms. */
+/** The irreversible set for the user file; `git stash clear` also in the rtk form a permission rule sees once rtk rewrites it. */
 export const GLOBAL_DENY = [
   "Bash(rm -rf /)",
   "Bash(rm -rf /*)",
@@ -123,6 +125,9 @@ const GIT_DENY = [
   "git worktree remove --force *",
   "git worktree remove -f *"
 ]
+
+// The gh commands the guards refuse. rtk rewrites `gh` as it does `git`, so they take both forms too.
+const GH_DENY = ["gh repo delete", "gh repo delete *"]
 
 /** Where Claude Code registers the plugin: the marketplace name and the plugin's name inside it. */
 const MARKETPLACE = "dw-sdlc"
@@ -170,12 +175,12 @@ export function refusedEnvFiles(root: string, envFiles: EnvFiles): string[] {
 }
 
 /**
- * The permissions.deny a repository gets: the git set twice, then Read and Edit per refused env file.
- * A rule written here stays until someone removes it, so while a config layer is invalid the env
- * rules come from the defaults, not from the strictest set the guards run on meanwhile.
+ * The permissions.deny a repository gets: the git and gh sets twice, then Read and Edit per refused
+ * env file. A rule written here stays until someone removes it, so while a config layer is invalid
+ * the env rules come from the defaults, not from the strictest set the guards run on meanwhile.
  */
 export function repositoryDeny(root: string): string[] {
-  const rules = GIT_DENY.flatMap((command) => [`Bash(${command})`, `Bash(rtk ${command})`])
+  const rules = [...GIT_DENY, ...GH_DENY].flatMap((command) => [`Bash(${command})`, `Bash(rtk ${command})`])
   const resolved = resolveConfig(root)
   const envFiles = resolved.problems.length === 0 ? resolved.config.guardrails.envFiles : DEFAULT_GUARDRAILS.envFiles
   for (const file of refusedEnvFiles(root, envFiles)) {
@@ -225,6 +230,17 @@ function pinnedConvention(existing: unknown): CommitConvention | undefined {
 }
 
 /**
+ * The `guardrails` block a local file holds, carried through on every run, `--force` included: the
+ * resolver lets the local layer only tighten, so carrying the block never loosens a guardrail.
+ */
+function keptGuardrails(existing: unknown): JsonObject | undefined {
+  return isObject(existing) && isObject(existing.guardrails) ? existing.guardrails : undefined
+}
+
+/** The machine's layer as the setup writes it; `guardrails` is the file's own block, uninterpreted. */
+type LocalLayer = Omit<AgenticConfig, "guardrails"> & { guardrails?: JsonObject }
+
+/**
  * A layer without the keys the setup owns: `$schema`, which moves with the clone, and a pinned
  * convention, which `--convention` may replace. Everything left is someone's content.
  */
@@ -238,27 +254,36 @@ function unowned(layer: JsonObject): JsonObject {
 }
 
 /** The same layer apart from what the setup owns. */
-function sameContent(existing: unknown, config: AgenticConfig): boolean {
+function sameContent(existing: unknown, config: LocalLayer): boolean {
   return isObject(existing) && render(unowned(existing)) === render(unowned(config))
 }
 
 /**
- * The machine's layer: what inference finds, minus every key the committed config already sets. The
- * local layer outranks the committed one, so an inferred key written here would override it. The
- * commit convention is written only when one is asked for, by `--convention` or by the pin the file
- * already holds: inference always gives the `conventional` default, and pinning it here overrides a
- * convention the repository commits later, so that is a choice, never a guess.
+ * The machine's layer: what inference finds, minus every key the committed config already sets, plus
+ * the `guardrails` block the file already holds. The local layer outranks the committed one, so an
+ * inferred key written here would override it. The commit convention is written only when one is
+ * asked for, by `--convention` or by the pin the file already holds: inference always gives the
+ * `conventional` default, and pinning it here overrides a convention the repository commits later,
+ * so that is a choice, never a guess.
  */
-function localConfig(root: string, claudeDir: string, convention: CommitConvention | undefined): AgenticConfig {
+function localConfig(
+  root: string,
+  claudeDir: string,
+  convention: CommitConvention | undefined,
+  guardrails: JsonObject | undefined
+): LocalLayer {
   const inferred = inferConfig(root)
   const committed = committedConfig(root)
-  const config: AgenticConfig = { $schema: schemaReference(claudeDir) }
+  const config: LocalLayer = { $schema: schemaReference(claudeDir) }
   const managers = { ...inferred.packageManagers }
   if (committed.packageManagers?.node !== undefined) {
     delete managers.node
   }
   if (Object.keys(managers).length > 0) {
     config.packageManagers = managers
+  }
+  if (guardrails !== undefined) {
+    config.guardrails = guardrails
   }
   if (convention !== undefined) {
     config.commit = { convention }
@@ -338,11 +363,13 @@ export function setup(options: SetupOptions): Step[] {
   const { checkout, gitDir } = mainCheckout(root)
   const claudeDir = options.claudeDir ?? join(options.home, ".claude")
 
-  // 1. The local config, from inference and the convention: the flag's, else the one the file pins.
+  // 1. The local config, from inference, the convention (the flag's, else the one the file pins) and
+  // the guardrails block the file holds.
   const localPath = join(checkout, LOCAL_FILE)
   const localCurrent = existsSync(localPath) ? readFileSync(localPath, "utf8") : undefined
   const existing = localCurrent === undefined ? undefined : readJsonText(localCurrent)
-  const local = localConfig(checkout, claudeDir, options.convention ?? pinnedConvention(existing))
+  const convention = options.convention ?? pinnedConvention(existing)
+  const local = localConfig(checkout, claudeDir, convention, keptGuardrails(existing))
   const localText = render(local)
   if (localCurrent !== undefined && !sameContent(existing, local) && !options.force) {
     writer.refuse(LOCAL_FILE, "exists with other content; pass --force to overwrite it")

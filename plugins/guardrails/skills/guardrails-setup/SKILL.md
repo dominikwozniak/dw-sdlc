@@ -35,14 +35,15 @@ and jq.
   without it, so the flag is passed once; a local pin outranks a convention the repository commits
   later, and a repository that commits its convention needs none. `$schema` is a `file://` URL to
   the schema in the marketplace's clone, since the `$id` sits in a private repository an editor
-  cannot fetch. An existing file with other content than `$schema` and the pin is refused; `--force`
-  overwrites it and keeps the pin. Run from a linked worktree, it goes to the main checkout with the
-  two files below, and every worktree without a layer of its own reads it there. Edited by hand, the
+  cannot fetch. A `guardrails` block the file holds is kept as it is on every run. An existing file
+  with other content than `$schema`, the pin and that block is refused; `--force` overwrites it and
+  keeps the pin and the block. Run from a linked worktree, it goes to the main checkout with the two
+  files below, and every worktree without a layer of its own reads it there. Edited by hand, the
   file may tighten `guardrails` and never loosen it.
 - `.git/info/exclude` — that file and `.claude/settings.local.json`, so neither reaches a commit and
   the tracked `.gitignore` stays the repository's.
 - `.claude/settings.local.json` — `permissions.deny` as the backstop for a machine without `jq`: the
-  destructive git commands in plain and `rtk` form, and `Read`/`Edit` rules for every `.env`,
+  destructive git commands and `gh repo delete` in plain and `rtk` form, and `Read`/`Edit` rules for every `.env`,
   `.env.*` or `.envrc` git ignores here, `.env.example`, `.env.sample` and `.env.template` aside.
   A tracked env file stays readable.
 - `~/.claude/settings.json`, or `$CLAUDE_CONFIG_DIR/settings.json` when Claude Code runs from
