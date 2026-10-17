@@ -6,7 +6,7 @@
 
 import { spawnSync } from "node:child_process"
 import { existsSync, readFileSync } from "node:fs"
-import { join } from "node:path"
+import { dirname, join } from "node:path"
 import { parseArgs } from "node:util"
 
 import { validate } from "./json-schema.ts"
@@ -67,6 +67,8 @@ export type Resolution = {
   config: ResolvedConfig
   problems: Problem[]
   layers: { committed: LayerState; local: LayerState }
+  /** The checkout each layer was read from: the root, or the main checkout for a worktree lacking it. */
+  sources: { committed: string | undefined; local: string | undefined }
 }
 
 /** Strictest value first; the local override may only move towards the front. */
@@ -178,24 +180,39 @@ export function validateDocument(file: string, text: string): { value: AgenticCo
   return { value: parsed as AgenticConfig }
 }
 
-type Layer = { state: LayerState; value?: AgenticConfig; problems: Problem[] }
+type Layer = { state: LayerState; value?: AgenticConfig; problems: Problem[]; source?: string }
 
-function readLayer(root: string, file: string): Layer {
-  const path = join(root, file)
-  if (!existsSync(path)) {
+/** `file` from the first of `checkouts` that has it. */
+function readLayer(checkouts: string[], file: string): Layer {
+  const source = checkouts.find((checkout) => existsSync(join(checkout, file)))
+  if (source === undefined) {
     return { state: "absent", problems: [] }
   }
-  const result = validateDocument(file, readFileSync(path, "utf8"))
+  const result = validateDocument(file, readFileSync(join(source, file), "utf8"))
   if ("problems" in result) {
-    return { state: "invalid", problems: result.problems }
+    return { state: "invalid", problems: result.problems, source }
   }
-  return { state: "valid", value: result.value, problems: [] }
+  return { state: "valid", value: result.value, problems: [], source }
 }
 
 /** The top level of the repository holding `dir`, or `dir` itself outside one. */
 export function repositoryRoot(dir: string): string {
   const toplevel = spawnSync("git", ["-C", dir, "rev-parse", "--show-toplevel"], { encoding: "utf8" })
   return toplevel.status === 0 ? toplevel.stdout.trim() : dir
+}
+
+/**
+ * The main checkout of the linked worktree at `root`, or undefined for a main checkout or outside a
+ * repository: a linked worktree's git dir differs from the common one, which sits in the main checkout.
+ */
+export function mainCheckout(root: string): string | undefined {
+  const args = ["-C", root, "rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir"]
+  const result = spawnSync("git", args, { encoding: "utf8" })
+  if (result.status !== 0) {
+    return undefined
+  }
+  const [gitDir, commonDir] = result.stdout.trim().split("\n")
+  return gitDir === undefined || commonDir === undefined || gitDir === commonDir ? undefined : dirname(commonDir)
 }
 
 function inferPackageManagers(root: string): ResolvedConfig["packageManagers"] {
@@ -298,10 +315,15 @@ function finalize(merged: Merged): ResolvedConfig {
   return { ...merged, commit: { ...merged.commit, pattern } }
 }
 
-/** Local over committed over inferred, for the repository at `root`. */
+/**
+ * Local over committed over inferred, for the repository at `root`. A linked worktree reads a layer it
+ * lacks from its main checkout, where a repository that keeps `.ai/` out of git has the only copy.
+ */
 export function resolveConfig(root: string): Resolution {
-  const committed = readLayer(root, COMMITTED_FILE)
-  const local = readLayer(root, LOCAL_FILE)
+  const shared = mainCheckout(root)
+  const checkouts = shared === undefined ? [root] : [root, shared]
+  const committed = readLayer(checkouts, COMMITTED_FILE)
+  const local = readLayer(checkouts, LOCAL_FILE)
   const problems = [...committed.problems, ...local.problems]
   let localState = local.state
 
@@ -321,7 +343,12 @@ export function resolveConfig(root: string): Resolution {
   if (problems.length > 0) {
     config = { ...config, guardrails: cloneGuardrails(STRICTEST_GUARDRAILS) }
   }
-  return { config: finalize(config), problems, layers: { committed: committed.state, local: localState } }
+  return {
+    config: finalize(config),
+    problems,
+    layers: { committed: committed.state, local: localState },
+    sources: { committed: committed.source, local: local.source }
+  }
 }
 
 function fail(message: string, code: 1 | 2): never {
@@ -385,9 +412,11 @@ function main(argv: string[]): void {
     root = repositoryRoot(root)
   }
 
-  const { config, problems, layers } = resolveConfig(root)
-  console.log(`committed  ${COMMITTED_FILE}  ${layers.committed}`)
-  console.log(`local      ${LOCAL_FILE}  ${layers.local}`)
+  const { config, problems, layers, sources } = resolveConfig(root)
+  const from = (source: string | undefined): string =>
+    source === undefined || source === root ? "" : `, from ${source}`
+  console.log(`committed  ${COMMITTED_FILE}  ${layers.committed}${from(sources.committed)}`)
+  console.log(`local      ${LOCAL_FILE}  ${layers.local}${from(sources.local)}`)
   console.log(JSON.stringify(config, null, 2))
   if (problems.length > 0) {
     report(problems)

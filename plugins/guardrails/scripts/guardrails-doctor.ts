@@ -31,7 +31,12 @@ export type Inputs = {
   root: string
   home: string
   probe: Probe
-  config: { config: { commit: { convention: string } }; problems: string[] }
+  config: {
+    config: { commit: { convention: string } }
+    problems: string[]
+    /** The checkout each layer was read from, as `resolveConfig` reports it. */
+    sources?: { committed: string | undefined; local: string | undefined }
+  }
 }
 
 /** The marketplace Claude Code registers this repository under, and the plugin id inside it. */
@@ -297,7 +302,7 @@ function checkCommitSigning(probe: Probe): Check {
   }
 }
 
-function checkConfig(config: Inputs["config"]): Check {
+function checkConfig(config: Inputs["config"], root: string): Check {
   if (config.problems.length > 0) {
     return {
       name: "config",
@@ -305,10 +310,14 @@ function checkConfig(config: Inputs["config"]): Check {
       detail: `the guards run on the strictest defaults: ${config.problems.join("; ")}`
     }
   }
+  // A worktree that lacks a layer reads the main checkout's; say so, since the file is not here.
+  const borrowed = Object.entries(config.sources ?? {})
+    .filter((entry): entry is [string, string] => entry[1] !== undefined && entry[1] !== root)
+    .map(([layer, source]) => `; ${layer} layer from ${source}`)
   return {
     name: "config",
     level: "PASS",
-    detail: `commit ${config.config.commit.convention}`
+    detail: `commit ${config.config.commit.convention}${borrowed.join("")}`
   }
 }
 
@@ -321,7 +330,7 @@ export function diagnose(inputs: Inputs): Check[] {
     checkSafeChain(probe),
     checkPnpmReleaseAge(probe, home),
     checkCommitSigning(probe),
-    checkConfig(inputs.config)
+    checkConfig(inputs.config, inputs.root)
   ]
 }
 
@@ -359,7 +368,8 @@ function main(argv: string[]): void {
       config: resolution.config,
       problems: resolution.problems.map(({ file, path, message }) =>
         path === "" ? `${file}: ${message}` : `${file}: ${path}: ${message}`
-      )
+      ),
+      sources: resolution.sources
     }
   })
   console.log(render(checks))

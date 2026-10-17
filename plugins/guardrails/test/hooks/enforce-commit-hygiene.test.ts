@@ -7,7 +7,7 @@ import { mkdirSync } from "node:fs"
 import { join } from "node:path"
 import { describe, it } from "node:test"
 
-import { bashPayload, expectExit, initRepo, runHook, scratch, writeJson } from "../harness.ts"
+import { bashPayload, commit, expectExit, git, initRepo, runHook, scratch, write, writeJson } from "../harness.ts"
 
 const TMP = scratch("commit")
 
@@ -191,6 +191,20 @@ describe("commit.convention ticket-key asks for a ticket key and no trailer", ()
   blocked("ticket-key-no-ticket", 'git commit -m "docs: x"', TICKETS)
   blocked("ticket-key-unknown-type", 'git commit -m "[ABC-12] build: x"', TICKETS)
   blocked("ticket-key-add-A", "git add -A", TICKETS)
+})
+
+describe("a linked worktree judges by the main checkout's layer it lacks", () => {
+  // The local layer sits only in the main checkout, untracked, the way `.ai/` does in a repository
+  // that keeps it out of git; the worktree is a sibling directory.
+  const main = repo("wt-main", "git@github.com:acme/w.git")
+  writeJson(join(main, ".ai", "agentic.config.local.json"), { commit: { convention: "ticket-key" } })
+  write(join(main, "README.md"), "")
+  git(main, "add", "README.md")
+  commit(main, "-m", "init")
+  const worktree = join(TMP, "wt-main-VER-1")
+  git(main, "worktree", "add", "-q", worktree, "-b", "VER-1")
+  allowed("worktree-ticket-key", 'git commit -m "[VER-1] fix: x"', worktree)
+  blocked("worktree-conventional", 'git commit -m "fix: x"', worktree)
 })
 
 describe("with no convention set, Conventional Commits under any remote", () => {

@@ -318,6 +318,13 @@ describe("diagnose", () => {
     assert.equal(check.detail, "commit ticket-key")
   })
 
+  it("config: names a layer read from the main checkout of a worktree", () => {
+    const config = { ...CONFIG, sources: { committed: undefined, local: "/main" } }
+    const check = line(diagnose({ root: ROOT, home: HOME, probe: fake(HEALTHY), config }), "config")
+    assert.equal(check.level, "PASS")
+    assert.equal(check.detail, "commit ticket-key; local layer from /main")
+  })
+
   it("config: problems fail and are listed", () => {
     const checks = diagnose({
       root: ROOT,

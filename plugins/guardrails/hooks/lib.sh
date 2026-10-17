@@ -337,19 +337,27 @@ guard_ask() {
 
 # guard_config_load <cwd> — resolves the config of the repository holding <cwd>: local over
 # committed over inferred, as scripts/agentic-config.ts does (its tests are the reference and run
-# this too). Sets GUARD_CONFIG (the effective object as one line of JSON), GUARD_CONFIG_ROOT and
-# GUARD_CONFIG_PROBLEMS, one `file: path: message` per line. Any problem drops that layer whole and
-# puts `guardrails` on the strictest set. Returns 1 without jq.
+# this too). A linked worktree reads a layer it lacks from its main checkout, where a repository that
+# keeps `.ai/` out of git has the only copy. Sets GUARD_CONFIG (the effective object as one line of
+# JSON), GUARD_CONFIG_ROOT (the worktree's own top level) and GUARD_CONFIG_PROBLEMS, one
+# `file: path: message` per line. Any problem drops that layer whole and puts `guardrails` on the
+# strictest set. Returns 1 without jq.
 guard_config_load() {
-  local cwd="$1" root inferred committed local_layer resolved loosened
+  local cwd="$1" root git_dir common_dir main="" paths inferred committed local_layer resolved loosened
   command -v jq >/dev/null 2>&1 || return 1
   GUARD_CONFIG_PROBLEMS=""
-  root=$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null) || root="$cwd"
+  # One git call for the three paths; a linked worktree's git dir differs from the common one.
+  if paths=$(git -C "$cwd" rev-parse --path-format=absolute --show-toplevel --git-dir --git-common-dir 2>/dev/null); then
+    { IFS= read -r root && IFS= read -r git_dir && IFS= read -r common_dir; } <<<"$paths"
+    [[ "$git_dir" != "$common_dir" ]] && main=$(dirname "$common_dir")
+  else
+    root="$cwd"
+  fi
   GUARD_CONFIG_ROOT="$root"
   inferred=$(guard_config_infer "$root")
-  guard_config_layer "$root" "$GUARD_COMMITTED_FILE"
+  guard_config_layer "$root" "$main" "$GUARD_COMMITTED_FILE"
   committed="$GUARD_LAYER_JSON"
-  guard_config_layer "$root" "$GUARD_LOCAL_FILE"
+  guard_config_layer "$root" "$main" "$GUARD_LOCAL_FILE"
   local_layer="$GUARD_LAYER_JSON"
   resolved=$(jq -cn -L "$GUARD_LIB_DIR" --argjson inferred "$inferred" --argjson committed "$committed" \
     --argjson local "$local_layer" 'include "config"; resolve($inferred; $committed; $local)')
@@ -387,21 +395,23 @@ guard_config_infer() {
   }'
 }
 
-# guard_config_layer <root> <file> — GUARD_LAYER_JSON becomes the document, or null when the file is
-# absent or invalid; an invalid one adds its problems to GUARD_CONFIG_PROBLEMS.
+# guard_config_layer <root> <main> <file> — GUARD_LAYER_JSON becomes the document at <root>, else at
+# <main> when it is set, or null when the file is absent or invalid; an invalid one adds its problems
+# to GUARD_CONFIG_PROBLEMS.
 guard_config_layer() {
-  local path="$1/$2" problems line
+  local path="$1/$3" problems line
   GUARD_LAYER_JSON="null"
+  [[ ! -f "$path" && -n "$2" ]] && path="$2/$3"
   [[ -f "$path" ]] || return 0
   if ! jq empty "$path" >/dev/null 2>&1; then
-    guard_config_problem "$2" "" "not JSON: $(jq empty "$path" 2>&1 | head -n1)"
+    guard_config_problem "$3" "" "not JSON: $(jq empty "$path" 2>&1 | head -n1)"
     return 0
   fi
   problems=$(jq -r -L "$GUARD_LIB_DIR" --slurpfile schema "$GUARD_SCHEMA" \
     'include "schema"; validate($schema[0])[] | "\(.path)\u0001\(.message)"' "$path")
   if [[ -n "$problems" ]]; then
     while IFS= read -r line; do
-      guard_config_problem "$2" "${line%%$'\001'*}" "${line#*$'\001'}"
+      guard_config_problem "$3" "${line%%$'\001'*}" "${line#*$'\001'}"
     done <<<"$problems"
     return 0
   fi
