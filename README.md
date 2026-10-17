@@ -47,9 +47,12 @@ pnpm guardrails:doctor --root <path to your repository>
 | guard                 | refuses                                                                                                     |
 | --------------------- | ----------------------------------------------------------------------------------------------------------- |
 | dangerous commands    | `reset --hard`, `clean -fd`, `stash clear`, remote branch deletion, `rm` at `/` `~` `.`, `find -delete`     |
-| forced delete         | `branch -D`, `worktree remove --force`, `stash drop`; a plain `branch -d` or `worktree remove` passes       |
+| forced delete         | `branch -D`/`-M`, `worktree remove --force`, `stash drop`; a plain `branch -d` or `worktree remove` passes  |
+| lost-commit record    | `reflog expire`, `gc --prune=now`, `prune`, `update-ref -d`, `rm -rf .git`                                  |
 | force push            | bare `push --force`; a lease push passes, or asks first under `forcePush: ask`, never to a protected branch |
 | plain push            | any push straight to a protected branch: those take pull requests                                           |
+| commit                | a commit on a protected branch, where the repository sets `commitOnProtected: deny`                         |
+| GitHub CLI            | `gh repo delete`, `gh pr merge --delete-branch`, a `gh api` call that deletes or force-moves a ref          |
 | env access            | `.env`, `.env.*`, `.envrc` outside the config's allow list or unknown to git                                |
 | credential leak       | reading `~/.ssh`, `~/.aws`, `~/.kube` and friends; `curl` or `wget` carrying a secret                       |
 | package manager       | `npm`, `npx`, `yarn`, `bun` in a pnpm repository                                                            |
@@ -57,7 +60,9 @@ pnpm guardrails:doctor --root <path to your repository>
 | App Store Connect     | every `asc` write and `--confirm` on a store script, in every repository; reads and `--dry-run` pass        |
 | large file (advisory) | flags a written file over 256 KiB                                                                           |
 
-Every rule in full: [plugin README](plugins/guardrails/README.md#guards). A commit typed in a
+Each rule holds at every command position: an indented line, a loop, a subshell, behind `sudo`,
+`xargs`, `timeout`, `find -exec` or `bash -c`, and in a heredoc a shell reads. Every rule in full:
+[plugin README](plugins/guardrails/README.md#guards). A commit typed in a
 terminal meets the same subject rule through the [commit hook](plugins/guardrails/README.md#commit-hook).
 
 ## Configure your repository
@@ -73,6 +78,9 @@ terminal meets the same subject rule through the [commit hook](plugins/guardrail
 Everything unset is inferred: the package manager from the lockfile, Conventional Commits for the
 subject. A repository whose subjects start with a ticket key sets `"commit": { "convention": "ticket-key" }`;
 on one machine only, `/guardrails-setup ticket-key` pins it in the local layer instead.
+A repository where every change starts on a branch sets `"guardrails": { "commitOnProtected": "deny" }`.
+Plugin 0.8.2 and older read that key as an invalid layer and run the strictest set, so it belongs in
+the local layer until every machine runs 0.9.0.
 Every key: [schema](plugins/guardrails/config/agentic.config.schema.json).
 
 ## Docs

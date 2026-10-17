@@ -56,6 +56,8 @@ const GOOD_MSG = `chore(hook): add the hygiene guard\n\n${TRAILER}`
 
 describe("pattern and trailer from the committed config — refused", () => {
   blocked("no-type-prefix", `git commit -m "added a thing\n\n${TRAILER}"`)
+  blocked("no-type-prefix-absolute-git", `/usr/bin/git commit -m "added a thing\n\n${TRAILER}"`)
+  blocked("no-type-prefix-escaped-git", `\\git commit -m "added a thing\n\n${TRAILER}"`)
   blocked("uppercase-type", `git commit -m "Fix: a thing\n\n${TRAILER}"`)
   blocked("unknown-type", `git commit -m "wip: a thing\n\n${TRAILER}"`)
   blocked("no-space-after-colon", `git commit -m "fix:athing\n\n${TRAILER}"`)

@@ -4,7 +4,7 @@
 // no-op without it, so a machine without it fails these tests loudly instead of passing them empty.
 
 import assert from "node:assert/strict"
-import { spawnSync } from "node:child_process"
+import { spawn, spawnSync } from "node:child_process"
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
@@ -47,6 +47,28 @@ export function runBash(args: string[], input: unknown, options: RunOptions = {}
 /** Runs `hooks/<name>.sh` with `input` on stdin. */
 export function runHook(name: string, input: unknown, options: RunOptions = {}): Verdict {
   return runBash([hookPath(name), ...(options.args ?? [])], input, options)
+}
+
+/** runHook without blocking, for a suite that runs its cases concurrently. */
+export function runHookAsync(name: string, input: unknown): Promise<Verdict> {
+  const env: NodeJS.ProcessEnv = { ...process.env, LC_ALL: "C" }
+  delete env.CLAUDE_MAX_WRITE_BYTES
+  return new Promise((resolve, reject) => {
+    const child = spawn("bash", [hookPath(name)], { env })
+    let stdout = ""
+    let stderr = ""
+    child.stdout.on("data", (chunk: Buffer) => {
+      stdout += chunk.toString("utf8")
+    })
+    child.stderr.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString("utf8")
+    })
+    child.on("error", reject)
+    child.on("close", (status) => {
+      resolve({ status: status ?? -1, stdout, stderr })
+    })
+    child.stdin.end(typeof input === "string" ? input : JSON.stringify(input))
+  })
 }
 
 /** Runs `scripts/<name>.ts` the way its package.json script does: plain `node`, the exit code and both streams. */

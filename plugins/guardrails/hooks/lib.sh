@@ -78,22 +78,14 @@ guard_read_payload() {
   return 0
 }
 
-# --- the text — the scanners in lib-lines.sh, lib-text.sh, lib-live.sh and lib-words.sh -----------
+# --- the text — the scanners in lib-lines.sh, lib-text.sh, lib-live.sh, lib-words.sh, lib-git.sh ---
 source "$GUARD_LIB_DIR/lib-lines.sh"
 source "$GUARD_LIB_DIR/lib-text.sh"
 source "$GUARD_LIB_DIR/lib-live.sh"
 source "$GUARD_LIB_DIR/lib-words.sh"
+source "$GUARD_LIB_DIR/lib-git.sh"
 
-# --- git ----------------------------------------------------------------------------------------
-
-# `git` and the global options git takes before the verb: `-C <path>` aims the same command at another
-# repository — often a sibling worktree of the one being protected — and `-c <key=value>`,
-# `--git-dir <path>`, `--no-pager` and the rest change nothing about what the verb destroys. An option
-# argument is ONE word, a quoted span or a run of non-space characters, never `[^;&|]*`: nothing but
-# options may sit between `git` and the verb, or `git commit -m "never reset --hard"` would match a
-# reset arm. Compose as "${GUARD_BOUNDARY}${GUARD_GIT} push".
-GUARD_GIT_ARG="(\"[^\"]*\"|'[^']*'|[^[:space:];&|]+)"
-GUARD_GIT="git( +(-[Cc] +${GUARD_GIT_ARG}|--(git-dir|work-tree|namespace)( +|=)${GUARD_GIT_ARG}|--[a-z][a-z-]*(=[^[:space:];&|]*)?|-[pP]))*"
+# --- segments and scopes ------------------------------------------------------------------------
 
 # guard_segments <scan> — the masked scan split at real separators, parentheses and backticks (the
 # masked ones inside quotes stay), one non-empty segment per line; `&&` and `||` leave empty segments,
@@ -196,8 +188,7 @@ guard_scope_step() {
       return 1
       ;;
   esac
-  WORDS=()
-  while IFS= read -r word; do WORDS+=("$word"); done < <(guard_words "$1")
+  guard_read_words "$1"
   guard_unwrap_words
   if [[ ${#WORDS[@]} -gt 0 && "${WORDS[0]}" == cd ]]; then
     # `cd -P dir`, `cd -L dir`: the options name no directory.
@@ -209,162 +200,6 @@ guard_scope_step() {
     GUARD_SHELL_DIR=$(guard_cd_dir "$word")
   fi
   return 0
-}
-
-GUARD_PUSH_LOC=""
-GUARD_PUSH_BARE=0
-GUARD_PUSH_LEASE=0
-GUARD_PUSH_DELETE=0
-GUARD_PUSH_MIRROR=0
-GUARD_PUSH_ALL=0
-GUARD_PUSH_TAGS=0
-GUARD_PUSH_DRY=0
-GUARD_PUSH_REMOTE=""
-GUARD_PUSH_REFSPECS=""
-GUARD_GIT_VERB=""
-WORD_INDEX=0
-
-# guard_git_verb <segment> — words in WORDS with the wrappers off; sets GUARD_GIT_VERB, GUARD_PUSH_LOC
-# (where git runs) and WORD_INDEX (the first word after the verb). Returns 1 when the segment is not a
-# git command. Globals, not stdout: a caller capturing stdout would run this in a subshell and lose
-# the words.
-guard_git_verb() {
-  local word i n
-  GUARD_PUSH_LOC="${GUARD_SHELL_DIR:-$GUARD_CWD}"
-  GUARD_GIT_VERB=""
-  WORDS=()
-  while IFS= read -r word; do WORDS+=("$word"); done < <(guard_words "$1")
-  guard_unwrap_words
-  n=${#WORDS[@]}
-  [[ $n -gt 0 && "${WORDS[0]}" == "git" ]] || return 1
-  i=1
-  while ((i < n)); do
-    word="${WORDS[$i]}"
-    case "$word" in
-      -C)
-        i=$((i + 1))
-        GUARD_PUSH_LOC=$(guard_located "${WORDS[$i]:-}")
-        ;;
-      -C?*) GUARD_PUSH_LOC=$(guard_located "${word#-C}") ;;
-      --git-dir=* | --work-tree=*) GUARD_PUSH_LOC=$(guard_located "${word#*=}") ;;
-      -c | --git-dir | --work-tree | --namespace | --exec-path) i=$((i + 1)) ;;
-      -*) ;;
-      *)
-        WORD_INDEX=$((i + 1))
-        GUARD_GIT_VERB="$word"
-        return 0
-        ;;
-    esac
-    i=$((i + 1))
-  done
-  return 1
-}
-
-# guard_parse_push <segment> — 0 when the segment is a `git … push` once the wrappers are off. Fills
-# GUARD_PUSH_LOC (where git runs), GUARD_PUSH_BARE (--force, -f, +refspec), GUARD_PUSH_LEASE
-# (--force-with-lease, --force-if-includes), GUARD_PUSH_DELETE (--delete, -d, a `:branch` refspec
-# with no source; a bare `:` is the matching refspec and deletes nothing), GUARD_PUSH_MIRROR
-# (--mirror, which force-updates and deletes every remote ref), GUARD_PUSH_ALL (--all, --branches:
-# every local branch), GUARD_PUSH_TAGS (--tags: no branch unless a refspec names one), GUARD_PUSH_DRY
-# (--dry-run, -n: nothing is written), GUARD_PUSH_REMOTE and GUARD_PUSH_REFSPECS, one per line with a
-# leading + stripped.
-guard_parse_push() {
-  local word i n
-  GUARD_PUSH_BARE=0
-  GUARD_PUSH_LEASE=0
-  GUARD_PUSH_DELETE=0
-  GUARD_PUSH_MIRROR=0
-  GUARD_PUSH_ALL=0
-  GUARD_PUSH_TAGS=0
-  GUARD_PUSH_DRY=0
-  GUARD_PUSH_REMOTE=""
-  GUARD_PUSH_REFSPECS=""
-  guard_git_verb "$1" || return 1
-  [[ "$GUARD_GIT_VERB" == "push" ]] || return 1
-  n=${#WORDS[@]}
-  i=$WORD_INDEX
-  while ((i < n)); do
-    word="${WORDS[$i]}"
-    case "$word" in
-      --force) GUARD_PUSH_BARE=1 ;;
-      --force-with-lease | --force-with-lease=* | --force-if-includes) GUARD_PUSH_LEASE=1 ;;
-      --delete | -d) GUARD_PUSH_DELETE=1 ;;
-      --mirror) GUARD_PUSH_MIRROR=1 ;;
-      --all | --branches) GUARD_PUSH_ALL=1 ;;
-      --tags) GUARD_PUSH_TAGS=1 ;;
-      --dry-run) GUARD_PUSH_DRY=1 ;;
-      --repo=*) GUARD_PUSH_REMOTE="${word#*=}" ;;
-      --repo)
-        i=$((i + 1))
-        GUARD_PUSH_REMOTE="${WORDS[$i]:-}"
-        ;;
-      -o | --push-option | --receive-pack | --exec) i=$((i + 1)) ;;
-      --*) ;;
-      -*f*) GUARD_PUSH_BARE=1 ;;
-      -*n*) GUARD_PUSH_DRY=1 ;;
-      -*) ;;
-      +*)
-        GUARD_PUSH_BARE=1
-        [[ "$word" == +:?* ]] && GUARD_PUSH_DELETE=1
-        GUARD_PUSH_REFSPECS+="${GUARD_PUSH_REFSPECS:+$'\n'}${word#+}"
-        ;;
-      *)
-        if [[ -z "$GUARD_PUSH_REMOTE" ]]; then
-          GUARD_PUSH_REMOTE="$word"
-        else
-          [[ "$word" == :?* ]] && GUARD_PUSH_DELETE=1
-          GUARD_PUSH_REFSPECS+="${GUARD_PUSH_REFSPECS:+$'\n'}$word"
-        fi
-        ;;
-    esac
-    i=$((i + 1))
-  done
-  return 0
-}
-
-# guard_push_matching — the branches the matching refspec `:` writes to: every local branch the
-# remote has too, read from its remote-tracking refs. A remote with none, such as a URL, gives no way
-# to tell, so every local branch counts.
-guard_push_matching() {
-  local remote="${GUARD_PUSH_REMOTE:-origin}" heads tracked branch
-  heads=$(git -C "$GUARD_PUSH_LOC" for-each-ref --format='%(refname:short)' refs/heads/ 2>/dev/null)
-  tracked=$(git -C "$GUARD_PUSH_LOC" for-each-ref --format='%(refname)' "refs/remotes/$remote/" 2>/dev/null)
-  while IFS= read -r branch; do
-    [[ -n "$branch" ]] || continue
-    if [[ -z "$tracked" || $'\n'"$tracked"$'\n' == *$'\n'"refs/remotes/$remote/$branch"$'\n'* ]]; then
-      printf '%s\n' "$branch"
-    fi
-  done <<<"$heads"
-}
-
-# guard_push_targets — the branches the parsed push writes to, one per line: every local branch of
-# GUARD_PUSH_LOC for --all, else the destination side of each refspec (the matching refspec `:` by
-# guard_push_matching), or the current branch when none names one. Returns 1 when those branches
-# cannot be read.
-guard_push_targets() {
-  local spec target specs="$GUARD_PUSH_REFSPECS"
-  if ((GUARD_PUSH_ALL)); then
-    git -C "$GUARD_PUSH_LOC" for-each-ref --format='%(refname:short)' refs/heads/ 2>/dev/null
-    return
-  fi
-  [[ -n "$specs" ]] || specs="HEAD"
-  while IFS= read -r spec; do
-    if [[ "$spec" == ":" ]]; then
-      guard_push_matching
-      continue
-    fi
-    target="${spec##*:}"
-    target="${target#refs/heads/}"
-    if [[ "$target" == "HEAD" ]]; then
-      target=$(git -C "$GUARD_PUSH_LOC" symbolic-ref --short -q HEAD 2>/dev/null) || return 1
-    fi
-    printf '%s\n' "$target"
-  done <<<"$specs"
-}
-
-# guard_protected <branch> — 0 when the resolved config lists it in guardrails.protectedBranches.
-guard_protected() {
-  [[ -n "$(jq -r --arg b "$1" '.guardrails.protectedBranches[] | select(. == $b)' <<<"$GUARD_CONFIG")" ]]
 }
 
 # guard_worktree_main <cwd> — prints the main checkout of the linked worktree holding <cwd>; returns 1

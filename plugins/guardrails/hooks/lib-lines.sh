@@ -7,7 +7,8 @@
 
 # A heredoc BODY is the text of a file being written, not commands being run, and every guard
 # matches line by line — so `npm install` inside one reads exactly like an invocation. That false
-# refusal stops the agent from writing its own test fixtures, so bodies are dropped once, here.
+# refusal stops the agent from writing its own test fixtures, so bodies are dropped once, here. A
+# body a shell reads as its script (`bash <<EOF`, `cat <<EOF | sh`) is commands, and stays.
 # What the shell runs in a body stays: an unquoted delimiter leaves a `$(…)` or a backtick in it to
 # run, so `cat <<EOF` / `$(cat .env.local)` / `EOF` reads the file before cat sees a line.
 # The opener line is KEPT, because a redirect target on it (`cat > .env <<EOF`) is a real path that
@@ -73,14 +74,65 @@ guard_heredoc_substitutions() {
   return 0
 }
 
-# guard_strip_heredocs — stdin to stdout.
+# guard_heredoc_feeds_shell — 0 when the heredoc guard_heredoc_opener just found is a script: the
+# command holding its `<<`, or one piped after it, is a shell that reads its stdin. `bash <<EOF`,
+# `bash -s <<EOF` and `cat <<EOF | sh` run the body; `bash x.sh <<EOF` hands x.sh data and
+# `cat <<EOF > x.sh` writes a file.
+guard_heredoc_feeds_shell() {
+  local head tail piece consumer=1
+  [[ "$GUARD_HD_HEAD$GUARD_HD_TAIL" == *sh* ]] || return 1
+  tail=$GUARD_HD_TAIL
+  [[ "$GUARD_HD_QUOTE" == [\'\"] ]] && tail=${tail#?}
+  head=$(guard_pipelines "$(guard_mask_quoted_separators "$GUARD_HD_HEAD")" | tail -n 1)
+  tail=$(guard_pipelines "$(guard_mask_quoted_separators "$tail")" | head -n 1)
+  head=${head##*|}
+  while IFS= read -r piece; do
+    if ((consumer)); then
+      piece="$head $piece"
+      consumer=0
+    fi
+    guard_shell_reads_stdin "$piece" && return 0
+  done < <(printf '%s\n' "$tail" | tr '|' '\n')
+  return 1
+}
+
+# guard_shell_reads_stdin <command> — 0 when the command, wrappers off, is sh, bash, zsh, dash or ksh
+# with no `-c` and no script operand, or with `-s`.
+guard_shell_reads_stdin() {
+  local -a WORDS=()
+  local word j
+  while IFS= read -r word; do WORDS+=("$word"); done < <(guard_words "$1")
+  guard_unwrap_words
+  case "${WORDS[0]:-}" in
+    sh | bash | zsh | dash | ksh) ;;
+    *) return 1 ;;
+  esac
+  for ((j = 1; j < ${#WORDS[@]}; j++)); do
+    case "${WORDS[j]}" in
+      --) return $((j + 1 < ${#WORDS[@]})) ;;
+      --*) ;;
+      [-+][oO]) j=$((j + 1)) ;;
+      -*s*) return 0 ;;
+      [-+]*) ;;
+      '<' | '>' | '>>' | [0-9]'>' | [0-9]'>>') j=$((j + 1)) ;;
+      '<'* | '>'* | [0-9]'>'*) ;;
+      *) return 1 ;;
+    esac
+  done
+  return 0
+}
+
+# guard_strip_heredocs — stdin to stdout. A body a shell reads (guard_heredoc_feeds_shell) is its
+# script, so its lines stay as typed and are judged as the commands they are.
 guard_strip_heredocs() {
-  local line delim="" body=0 state="" expanded=0 inner=""
+  local line delim="" body=0 state="" expanded=0 inner="" script=0
   while IFS= read -r line; do
     if [[ $body -eq 1 ]]; then
       if [[ "$line" =~ ^[[:space:]]*$delim[[:space:]]*$ ]]; then
         body=0
         delim=""
+      elif ((script)); then
+        printf '%s\n' "$line"
       elif ((expanded)); then
         guard_heredoc_substitutions "$line" "$inner"
         inner="$GUARD_QW_STATE"
@@ -93,6 +145,8 @@ guard_strip_heredocs() {
       body=1
       expanded=0
       [[ -n "$GUARD_HD_QUOTE" ]] || expanded=1
+      script=0
+      guard_heredoc_feeds_shell && script=1
       inner=H
       line="${GUARD_HD_HEAD}<${GUARD_HD_QUOTE}${GUARD_HD_DELIM}${GUARD_HD_TAIL}"
     fi
@@ -164,7 +218,7 @@ guard_mask_heredoc_bodies() {
       body=1
       inner=H
       # A body a shell reads is a script, judged as typed.
-      if [[ "$line" =~ $GUARD_SHELL_STDIN ]]; then
+      if guard_heredoc_feeds_shell; then
         mode=script
       elif [[ -n "$GUARD_HD_QUOTE" ]]; then
         mode=text

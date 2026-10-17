@@ -99,13 +99,13 @@ done < <(guard_pipelines "$(guard_mask_quoted_separators "$COMMAND")")
 # Printing a credential-ish variable straight out. Referencing one is fine — gh wants $GITHUB_TOKEN
 # and that is its job; putting the VALUE on stdout, where it lands in a transcript, is not.
 echo_secret=0
-if printf '%s' "$COMMAND" | grep -qiE "(^|[;&|][[:space:]]*)(echo|printf|print)[^;&|]*\\\$\{?[A-Za-z_]*$CRED_WORDS"; then
+if printf '%s' "$COMMAND" | grep -qiE "${GUARD_BOUNDARY}(echo|printf|print)[^;&|]*\\\$\{?[A-Za-z_]*$CRED_WORDS"; then
   echo_secret=1
 fi
 
 # --- 3. exfil ---------------------------------------------------------------------------------------
 exfil=0
-if printf '%s' "$COMMAND" | grep -qE '(^|[;&|][[:space:]]*)(sudo[[:space:]]+)?(curl|wget)([[:space:]]|$)'; then
+if printf '%s' "$COMMAND" | grep -qE "${GUARD_BOUNDARY}(curl|wget)([[:space:]]|\$)"; then
   if [[ -n "$CRED_PATH_HIT" ]] ||
     printf '%s' "$COMMAND" | grep -qiE "\\\$\{?[A-Za-z_]*$CRED_WORDS" ||
     printf '%s' "$STRIPPED" | grep -qE '(^|[[:space:]=])[^[:space:]]*\.env([.[:space:]]|$)'; then
