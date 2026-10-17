@@ -1,6 +1,6 @@
 // What rtk-rewrite.sh hands to `rtk hook claude` and what it keeps from it, against a fake rtk on
-// PATH that echoes the payload it received: every command from a main checkout, a non-git command
-// from a linked worktree, and nothing at all for a git command there or on a machine without rtk.
+// PATH that echoes the payload it received: every command from a main checkout, and nothing at all
+// from a linked worktree or on a machine without rtk.
 
 import assert from "node:assert/strict"
 import { spawnSync } from "node:child_process"
@@ -60,10 +60,11 @@ describe("a main checkout hands every command to rtk, the payload untouched", ()
   rewritten("a non-git command", "pnpm install", MAIN)
 })
 
-describe("a linked worktree keeps git away from rtk", () => {
+describe("a linked worktree keeps every command away from rtk", () => {
   silent("git status", "git status --short", WT)
   silent("a chain naming git", "pnpm install && git status", WT)
-  rewritten("a non-git command", "pnpm install", WT)
+  silent("a non-git command", "pnpm install", WT)
+  silent("a glob", `ls -la ${WT}/*`, WT)
 })
 
 describe("without rtk the hook says nothing", () => {

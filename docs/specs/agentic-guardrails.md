@@ -81,12 +81,12 @@ refuses.
   needs nothing but bash and jq. Every guard gets a payload test, because the dispatcher's trigger
   list is what a guard's own self-test cannot see.
 - RTK stays and the plugin carries its hook, `rtk-rewrite.sh`, so the plugin is the one hook layer
-  on a machine: it runs `rtk hook claude` and, in a linked worktree, passes a command naming `git`
-  through unrewritten, because the isolation check refuses `rtk git …` and has no off switch
-  (Claude Code 2.1.282, rtk 0.49.0). Hooks of one event run in parallel, so the guards judge the
-  original command and never see the rewrite; permission rules see the rewritten command, so the
-  setup writes every rule in both forms. Disabling the plugin disables RTK with it; the doctor fails a
-  machine that wires rtk by hand as well.
+  on a machine: it runs `rtk hook claude` and, in a linked worktree, passes every command through
+  unrewritten, because the isolation check refuses `rtk git …` and any `rtk` call with a value
+  computed at runtime, and has no off switch (Claude Code 2.1.302, rtk 0.49.0). Hooks of one event
+  run in parallel, so the guards judge the original command and never see the rewrite; permission
+  rules see the rewritten command, so the setup writes every rule in both forms. Disabling the
+  plugin disables RTK with it; the doctor fails a machine that wires rtk by hand as well.
 - Worktrees live in `.claude/worktrees/` with `.worktreeinclude` carrying the ignored files; the
   session-start hook reports what a fresh checkout lacks and installs nothing. A linked worktree,
   wherever it sits, reads a config layer it lacks from its main checkout, so a repository that keeps
