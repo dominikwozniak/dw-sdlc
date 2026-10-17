@@ -38,6 +38,10 @@
           "description": "`deny` refuses every force push. `lease` lets `--force-with-lease` and `--force-if-includes` through to a branch outside `protectedBranches`; bare `--force` and `-f` stay refused. `ask` is `lease` with a permission prompt for each lease push it lets through. Strictest first: deny, ask, lease.",
           "enum": ["deny", "ask", "lease"]
         },
+        "commitOnProtected": {
+          "description": "`deny` refuses a `git commit` on a branch listed in `protectedBranches`, so every change starts on a branch of its own. `allow` lets it through, for a repository that commits small fixes on its protected branch and pushes them from a person's terminal. Default `allow`. Strictest first: deny, allow.",
+          "enum": ["deny", "allow"]
+        },
         "envFiles": {
           "description": "Which env files (`.env`, `.env.*`, `.envrc`) an agent may read, edit or write. A candidate is judged in this order: listed in `deny` → refused; listed in `allow` → readable; `policy` `deny` → refused; `policy` `git` → readable when git tracks it, refused when git ignores it or does not know it. Entries are globs against the path relative to the repository root: `*` and `?` as in a shell pattern (`*` crosses `/`), a leading `**/` means at any depth, so `.env` is the one in the root and `**/.env.example` every file of that name. No brace groups. A path outside the repository root, or outside any repository, is judged by its basename against the `**/` entries alone. Defaults: policy `git`, allow the `.env.example`, `.env.sample` and `.env.template` names anywhere, deny nothing. The local override may drop `allow` entries and add `deny` entries, never the reverse.",
           "type": "object",
@@ -68,7 +72,7 @@
           "additionalProperties": false
         },
         "protectedBranches": {
-          "description": "Branches no force push may target. The local override may add to this list, never remove from it.",
+          "description": "Branches the guards refuse every push to: plain, lease or force. Under `commitOnProtected: deny` they refuse a commit on one too. The local override may add to this list, never remove from it.",
           "type": "array",
           "items": {
             "type": "string",

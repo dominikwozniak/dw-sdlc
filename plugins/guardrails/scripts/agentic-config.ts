@@ -25,11 +25,17 @@ export const COMMIT_CONVENTIONS = ["ticket-key", "conventional"] as const
 export type CommitConvention = (typeof COMMIT_CONVENTIONS)[number]
 export type NodePackageManager = "pnpm" | "npm" | "yarn" | "bun"
 export type ForcePush = "deny" | "ask" | "lease"
+export type CommitOnProtected = "deny" | "allow"
 export type EnvPolicy = "deny" | "git"
 /** Which env files may be read: `deny` list, then `allow` list, then `policy` for the rest. */
 export type EnvFiles = { policy: EnvPolicy; allow: string[]; deny: string[] }
 
-export type Guardrails = { forcePush: ForcePush; envFiles: EnvFiles; protectedBranches: string[] }
+export type Guardrails = {
+  forcePush: ForcePush
+  commitOnProtected: CommitOnProtected
+  envFiles: EnvFiles
+  protectedBranches: string[]
+}
 /** `guardrails` as one layer writes it: every key optional, `envFiles` key by key. */
 export type GuardrailsLayer = Partial<Omit<Guardrails, "envFiles">> & { envFiles?: Partial<EnvFiles> }
 
@@ -74,12 +80,18 @@ export type Resolution = {
 /** Strictest value first; the local override may only move towards the front. */
 export const STRICTNESS = {
   forcePush: ["deny", "ask", "lease"],
+  commitOnProtected: ["deny", "allow"],
   envFiles: ["deny", "git"]
-} as const satisfies { forcePush: readonly ForcePush[]; envFiles: readonly EnvPolicy[] }
+} as const satisfies {
+  forcePush: readonly ForcePush[]
+  commitOnProtected: readonly CommitOnProtected[]
+  envFiles: readonly EnvPolicy[]
+}
 
 /** What the guards run on while any layer is invalid. */
 export const STRICTEST_GUARDRAILS: Guardrails = {
   forcePush: "deny",
+  commitOnProtected: "deny",
   envFiles: { policy: "deny", allow: [], deny: [] },
   protectedBranches: ["master", "main", "production"]
 }
@@ -87,6 +99,7 @@ export const STRICTEST_GUARDRAILS: Guardrails = {
 /** What a repository gets with nothing declared. */
 export const DEFAULT_GUARDRAILS: Guardrails = {
   forcePush: "lease",
+  commitOnProtected: "allow",
   envFiles: { policy: "git", allow: ["**/.env.example", "**/.env.sample", "**/.env.template"], deny: [] },
   protectedBranches: ["master", "main", "production"]
 }
@@ -94,6 +107,7 @@ export const DEFAULT_GUARDRAILS: Guardrails = {
 function cloneGuardrails(source: Guardrails): Guardrails {
   return {
     forcePush: source.forcePush,
+    commitOnProtected: source.commitOnProtected,
     envFiles: { policy: source.envFiles.policy, allow: [...source.envFiles.allow], deny: [...source.envFiles.deny] },
     protectedBranches: [...source.protectedBranches]
   }
@@ -265,8 +279,8 @@ const LOOSENS = "the local file may tighten guardrails, never loosen them"
 
 /**
  * Every guardrail the local layer sets less strictly than what it would override: a lower-ranked
- * `forcePush` or `envFiles.policy`, an added `envFiles.allow` entry, a dropped `envFiles.deny` entry,
- * a dropped protected branch.
+ * `forcePush`, `commitOnProtected` or `envFiles.policy`, an added `envFiles.allow` entry, a dropped
+ * `envFiles.deny` entry, a dropped protected branch.
  */
 function loosenings(base: Guardrails, local: GuardrailsLayer | undefined): Problem[] {
   if (local === undefined) {
@@ -276,6 +290,13 @@ function loosenings(base: Guardrails, local: GuardrailsLayer | undefined): Probl
   if (local.forcePush !== undefined && rank("forcePush", local.forcePush) > rank("forcePush", base.forcePush)) {
     const message = `${show(local.forcePush)} loosens ${show(base.forcePush)}; ${LOOSENS}`
     problems.push({ file: LOCAL_FILE, path: "guardrails.forcePush", message })
+  }
+  if (
+    local.commitOnProtected !== undefined &&
+    rank("commitOnProtected", local.commitOnProtected) > rank("commitOnProtected", base.commitOnProtected)
+  ) {
+    const message = `${show(local.commitOnProtected)} loosens ${show(base.commitOnProtected)}; ${LOOSENS}`
+    problems.push({ file: LOCAL_FILE, path: "guardrails.commitOnProtected", message })
   }
   const policy = local.envFiles?.policy
   if (policy !== undefined && rank("envFiles", policy) > rank("envFiles", base.envFiles.policy)) {

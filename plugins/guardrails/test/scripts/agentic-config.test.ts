@@ -60,6 +60,7 @@ describe("inference, with no config file", () => {
     assert.equal(config.commit.trailer, undefined)
     assert.deepEqual(config.guardrails, {
       forcePush: "lease",
+      commitOnProtected: "allow",
       envFiles: DEFAULT_ENV_FILES,
       protectedBranches: ["master", "main", "production"]
     })
@@ -113,6 +114,7 @@ describe("the committed file", () => {
     assert.equal(config.baseBranch, "develop")
     assert.deepEqual(config.guardrails, {
       forcePush: "deny",
+      commitOnProtected: "allow",
       envFiles: DEFAULT_ENV_FILES,
       protectedBranches: ["master"]
     })
@@ -180,10 +182,43 @@ describe("the local file", () => {
     assert.equal(config.baseBranch, "develop")
     assert.deepEqual(config.guardrails, {
       forcePush: "deny",
+      commitOnProtected: "allow",
       envFiles: { ...DEFAULT_ENV_FILES, policy: "deny", deny: [".env.staging"] },
       protectedBranches: ["master", "staging"]
     })
     assert.deepEqual(config.worktree.setup, ["pnpm install"])
+  })
+
+  it("ranks commitOnProtected deny before allow, the default", () => {
+    const committed = repo({ files: { [COMMITTED_FILE]: { guardrails: { commitOnProtected: "deny" } } } })
+    assert.deepEqual(resolveConfig(committed).problems, [])
+    assert.equal(resolveConfig(committed).config.guardrails.commitOnProtected, "deny")
+
+    const tighter = repo({ files: { [LOCAL_FILE]: { guardrails: { commitOnProtected: "deny" } } } })
+    assert.deepEqual(resolveConfig(tighter).problems, [])
+    assert.equal(resolveConfig(tighter).config.guardrails.commitOnProtected, "deny")
+
+    const looser = repo({
+      files: {
+        [COMMITTED_FILE]: { guardrails: { commitOnProtected: "deny" } },
+        [LOCAL_FILE]: { guardrails: { commitOnProtected: "allow" } }
+      }
+    })
+    const { config, problems, layers } = resolveConfig(looser)
+    assert.deepEqual(problems, [
+      {
+        file: LOCAL_FILE,
+        path: "guardrails.commitOnProtected",
+        message: '"allow" loosens "deny"; the local file may tighten guardrails, never loosen them'
+      }
+    ])
+    assert.equal(layers.local, "invalid")
+    assert.deepEqual(config.guardrails, STRICTEST_GUARDRAILS)
+    assert.equal(
+      config.guardrails.commitOnProtected,
+      "deny",
+      "the strictest set refuses a commit on a protected branch"
+    )
   })
 
   it("ranks forcePush ask between deny and lease", () => {
@@ -455,6 +490,24 @@ describe("hooks/lib.sh agrees with resolveConfig", () => {
     [
       "on a local ask over the default lease",
       () => repo({ files: { [LOCAL_FILE]: { guardrails: { forcePush: "ask" } } } })
+    ],
+    [
+      "on a committed commitOnProtected deny",
+      () => repo({ files: { [COMMITTED_FILE]: { guardrails: { commitOnProtected: "deny" } } } })
+    ],
+    [
+      "on a local commitOnProtected deny over the default allow",
+      () => repo({ files: { [LOCAL_FILE]: { guardrails: { commitOnProtected: "deny" } } } })
+    ],
+    [
+      "on a local commitOnProtected allow under a committed deny",
+      () =>
+        repo({
+          files: {
+            [COMMITTED_FILE]: { guardrails: { commitOnProtected: "deny" } },
+            [LOCAL_FILE]: { guardrails: { commitOnProtected: "allow" } }
+          }
+        })
     ],
     [
       "on a tightening local file",
