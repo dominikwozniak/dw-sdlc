@@ -9,7 +9,8 @@
 #      git writes it into the message
 #   3. a LIVE backtick inside a `-m` string or an unquoted heredoc — command substitution that
 #      mangles the message and still exits 0, so nobody notices until they read the log
-#   4. `git add -A` / `git add .` — stage session work by name
+#   4. a `git add` of the whole tree — `-A` or `--all` with no path, `.`, `./` or `:/` — stage
+#      session work by name; `-A <paths>` stages those paths and a dry run stages nothing
 #
 # Guardrail against agent sloppiness, not a security boundary; check 4 is a habit rule. Spawned by
 # bash-guard.sh when the command names git with commit or add, and handed the command as typed,
@@ -248,6 +249,13 @@ MSG_FROM_FILE=0
 MSG_FROM_STDIN=0
 STDIN_DELIM=""
 MSG_TRAILERS=""
+# One `git add`: the -A or --all it carries, the whole-tree pathspec it names, whether it names any
+# other path, and whether it is a dry run.
+ADD_ALL=""
+ADD_WHOLE=""
+ADD_NAMED=0
+ADD_DRY=0
+ADD_PATHS_ONLY=0
 
 reset_group() {
   MSG_COUNT=0
@@ -259,6 +267,29 @@ reset_group() {
   MSG_FROM_STDIN=0
   STDIN_DELIM=""
   MSG_TRAILERS=""
+  ADD_ALL=""
+  ADD_WHOLE=""
+  ADD_NAMED=0
+  ADD_DRY=0
+  ADD_PATHS_ONLY=0
+}
+
+# add_path <word> — one pathspec of a `git add`: `.`, `./` and `:/` are the whole tree.
+add_path() {
+  case "$1" in
+    . | ./ | :/) ADD_WHOLE="$1" ;;
+    *) ADD_NAMED=1 ;;
+  esac
+}
+
+# check_add — a `git add` staging the whole tree: a whole-tree pathspec, or -A/--all with no path to
+# narrow it. A dry run stages nothing.
+check_add() {
+  ((ADD_DRY)) && return 0
+  local why="Stage session work by name — 'git add path1 path2' — so an unrelated or half-finished file cannot ride along into the commit."
+  [[ -n "$ADD_WHOLE" ]] && guard_block "'git add $ADD_WHOLE' stages the whole working tree. $why"
+  [[ -n "$ADD_ALL" ]] && ! ((ADD_NAMED)) && guard_block "'git add' is staging the whole working tree ($ADD_ALL). $why"
+  return 0
 }
 
 # add_msg <text> <live-backtick> <expands>
@@ -311,6 +342,7 @@ has_trailer() {
 
 check_group() {
   local subject
+  check_add
   # -F - reads the message from stdin: a heredoc on this command is readable, a pipe is not.
   if ((MSG_FROM_STDIN)); then
     if [[ -n "$STDIN_DELIM" ]] && heredoc_index "$STDIN_DELIM"; then
@@ -506,20 +538,24 @@ while ((i < count)); do
       esac
       ;;
     add)
-      case "$t" in
-        --all)
-          guard_block "'git add' is staging the whole working tree ($t). Stage session work by name — 'git add path1 path2' — so an unrelated or half-finished file cannot ride along into the commit."
-          ;;
-        # Every other long option, and the `--` separator, are none of this guard's business — and
-        # this arm has to precede the short-cluster one, which would read the `A` in a long name.
-        --*) ;;
-        -*A*)
-          guard_block "'git add' is staging the whole working tree ($t). Stage session work by name — 'git add path1 path2' — so an unrelated or half-finished file cannot ride along into the commit."
-          ;;
-        . | ./)
-          guard_block "'git add $t' stages the whole working tree. Stage session work by name — 'git add path1 path2' — so an unrelated or half-finished file cannot ride along into the commit."
-          ;;
-      esac
+      if ((ADD_PATHS_ONLY)); then
+        add_path "$t"
+      else
+        case "$t" in
+          --) ADD_PATHS_ONLY=1 ;;
+          --all) ADD_ALL="$t" ;;
+          --dry-run) ADD_DRY=1 ;;
+          --pathspec-from-file*) ADD_NAMED=1 ;;
+          # Every other long option is none of this guard's business — and this arm has to precede
+          # the short-cluster one, which would read the `A` in a long name.
+          --*) ;;
+          -*)
+            [[ "$t" == *A* ]] && ADD_ALL="$t"
+            [[ "$t" == *n* ]] && ADD_DRY=1
+            ;;
+          *) add_path "$t" ;;
+        esac
+      fi
       ;;
   esac
   i=$((i + 1))

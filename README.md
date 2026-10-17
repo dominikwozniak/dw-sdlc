@@ -52,7 +52,7 @@ pnpm guardrails:doctor --root <path to your repository>
 | env access            | `.env`, `.env.*`, `.envrc` outside the config's allow list or unknown to git                                |
 | credential leak       | reading `~/.ssh`, `~/.aws`, `~/.kube` and friends; `curl` or `wget` carrying a secret                       |
 | package manager       | `npm`, `npx`, `yarn`, `bun` in a pnpm repository                                                            |
-| commit hygiene        | a subject off the convention, a missing trailer, `git add -A`, `git add .`                                  |
+| commit hygiene        | a subject off the convention, a missing trailer, `git add -A` with no path, `git add .`                     |
 | App Store Connect     | every `asc` write and `--confirm` on a store script, in every repository; reads and `--dry-run` pass        |
 | large file (advisory) | flags a written file over 256 KiB                                                                           |
 
