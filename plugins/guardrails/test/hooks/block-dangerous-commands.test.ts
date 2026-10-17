@@ -44,6 +44,16 @@ function tracked(name: string, remoteBranches: string[]): string {
 }
 const TRACKS_MASTER = tracked("tracks-master", ["master", "feat"])
 const TRACKS_FEAT = tracked("tracks-feat", ["feat"])
+// A main checkout on main and a linked worktree of it on a feature branch, each a session's cwd that
+// reaches the other; and a repository whose committed config protects only `release`.
+const ON_MAIN = initRepo(join(TMP, "on-main"), { branch: "main" })
+write(join(ON_MAIN, "a.txt"), "a\n")
+git(ON_MAIN, "add", "a.txt")
+commit(ON_MAIN, "-m", "init")
+const SIBLING = join(TMP, "on-main-topic")
+git(ON_MAIN, "worktree", "add", "-q", SIBLING, "-b", "topic")
+const RELEASE = initRepo(join(TMP, "release"), { branch: "feat" })
+writeJson(join(RELEASE, ".ai", "agentic.config.json"), { guardrails: { protectedBranches: ["release"] } })
 
 function blocked(name: string, command: string, cwd = FEAT): void {
   it(name, () => {
@@ -114,6 +124,21 @@ describe("plain pushes — a protected branch takes pull requests", () => {
   allowed("matching-without-master-on-the-remote", "git push origin :", TRACKS_FEAT)
   // No remote-tracking refs to read the remote side from: every local branch counts.
   blocked("matching-to-a-url", "git push git@example.com:acme/x.git :", TRACKS_FEAT)
+})
+
+describe("a literal cd or git -C moves a push to that repository, its branch and its config", () => {
+  allowed("cd-into-a-feature-worktree", `cd ${SIBLING} && git push`, ON_MAIN)
+  allowed("cd-into-a-feature-worktree-HEAD", `cd ${SIBLING} && git push -u origin HEAD`, ON_MAIN)
+  allowed("cd-relative", "cd ../on-main-topic && git push", ON_MAIN)
+  blocked("cd-into-the-main-checkout", `cd ${ON_MAIN} && git push`, SIBLING)
+  blocked("cd-in-a-subshell-ends-with-it", `(cd ${SIBLING} && git status); git push`, ON_MAIN)
+  blocked("cd-computed-at-runtime", 'cd "$WT" && git push', ON_MAIN)
+  blocked("cd-to-a-missing-directory", "cd /nonexistent/x; git push", ON_MAIN)
+  blocked("cd-back", `cd ${SIBLING} && cd - && git push`, ON_MAIN)
+  blocked("dash-C-computed-at-runtime", 'git -C "$WT" push', ON_MAIN)
+  blocked("dash-C-reads-that-config", `git -C ${RELEASE} push origin release`)
+  blocked("cd-reads-that-config", `cd ${RELEASE} && git push origin release`)
+  allowed("dash-C-protects-only-what-that-config-lists", `git -C ${RELEASE} push origin main`)
 })
 
 describe("the rest of the destructive set", () => {

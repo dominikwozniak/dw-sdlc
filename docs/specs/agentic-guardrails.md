@@ -58,6 +58,9 @@ refuses.
 - Lease pushes pass to unprotected branches; bare force, `+refspec`, `--mirror` and any force to a
   protected branch are refused (ADR 0004). A plain push to a protected branch is refused too, from the
   same guard: the rule reads `guardrails.protectedBranches`.
+- A push and a commit are judged where they run, for the branch and the config alike: the payload's
+  cwd, moved by a literal `cd` earlier in the command, one inside a subshell ending with it, or by
+  `git -C`. A path computed at runtime, `cd -` and a directory that is not there leave the cwd.
 - Env access is declared in the config, not written into the guard: `guardrails.envFiles` is
   `{policy, allow, deny}`, judged deny list → allow list → policy, where `git` lets a tracked file
   through and refuses one git ignores or does not know, since only a tracked file has the

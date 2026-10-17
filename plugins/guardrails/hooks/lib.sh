@@ -23,6 +23,8 @@ GUARD_PAYLOAD=""
 GUARD_EVENT=""
 GUARD_TOOL=""
 GUARD_CWD=""
+# Where the shell stands at the segment being judged: the payload's cwd, moved by a literal `cd`.
+GUARD_SHELL_DIR=""
 GUARD_COMMAND=""
 GUARD_FILE_PATH=""
 GUARD_CONFIG=""
@@ -45,6 +47,7 @@ guard_read_payload() {
     GUARD_EVENT="PreToolUse"
     GUARD_TOOL="Bash"
     GUARD_CWD="${2:-$PWD}"
+    GUARD_SHELL_DIR="$GUARD_CWD"
     GUARD_COMMAND=$(cat)
     [[ -n "$GUARD_COMMAND" ]]
     return
@@ -71,6 +74,7 @@ guard_read_payload() {
   done <<<"$fields"
   [[ $count -eq 6 ]] || return 1
   [[ -n "$GUARD_CWD" ]] || GUARD_CWD="$PWD"
+  GUARD_SHELL_DIR="$GUARD_CWD"
   return 0
 }
 
@@ -115,6 +119,17 @@ guard_pipelines() {
   printf '%s\n' "$s" | sed -E '/^[[:space:]]*$/d'
 }
 
+# guard_scopes <scan> — guard_segments that keeps the subshells: a line of \001 and `(`, `)` or a
+# backtick stands where one opens or closes, so a `cd` inside one ends with it.
+guard_scopes() {
+  # The backtick through variables: bash 3.2 cannot parse one inside `${s//…/…}`.
+  local s="$1" bt='`' bt_line=$'\n\001`\n'
+  s="${s//\(/$'\n\001(\n'}"
+  s="${s//\)/$'\n\001)\n'}"
+  s="${s//"$bt"/$bt_line}"
+  printf '%s\n' "$s" | tr ';&|' '\n\n\n' | sed -E '/^[[:space:]]*$/d'
+}
+
 # guard_absolute <path> [<base>] — the path made absolute against <base>, GUARD_CWD by default: a
 # relative path is the session's, not the hook process's.
 guard_absolute() {
@@ -124,13 +139,76 @@ guard_absolute() {
   esac
 }
 
-# guard_located <path> — the repository a `-C`, `--git-dir` or `--work-tree` points at, against cwd.
+# guard_located <path> — the repository a `-C`, `--git-dir` or `--work-tree` points at, against where
+# the shell stands. A path computed at runtime cannot be followed, so it is where the shell stands.
 guard_located() {
+  local bt='`'
   case "$1" in
     /*) printf '%s' "$1" ;;
-    "") printf '%s' "$GUARD_CWD" ;;
-    *) printf '%s/%s' "$GUARD_CWD" "$1" ;;
+    "" | *'$'* | *"$bt"*) printf '%s' "${GUARD_SHELL_DIR:-$GUARD_CWD}" ;;
+    *) printf '%s/%s' "${GUARD_SHELL_DIR:-$GUARD_CWD}" "$1" ;;
   esac
+}
+
+# guard_cd_dir <word> — where `cd <word>` leaves the shell, from GUARD_SHELL_DIR: no word is the home
+# directory. A word computed at runtime, `cd -` and a directory that is not there give the payload's
+# cwd back, since the guard cannot follow them.
+guard_cd_dir() {
+  local dir bt='`'
+  case "$1" in
+    "" | "~") dir="$HOME" ;;
+    "~/"*) dir="$HOME/${1#"~/"}" ;;
+    - | *'$'* | *"$bt"*) dir="$GUARD_CWD" ;;
+    *) dir=$(guard_absolute "$1" "${GUARD_SHELL_DIR:-$GUARD_CWD}") ;;
+  esac
+  [[ -d "$dir" ]] || dir="$GUARD_CWD"
+  printf '%s' "$dir"
+}
+
+GUARD_SCOPE_STACK=""
+GUARD_SCOPE_BACKTICK=0
+
+# guard_scope_step <line> — one line of guard_scopes against GUARD_SHELL_DIR: a subshell opening saves
+# it, its end restores it, a `cd` (words in WORDS) moves it. Returns 1 for a scope line, which holds
+# no command.
+guard_scope_step() {
+  local word bt_line=$'\001`'
+  case "$1" in
+    "$bt_line")
+      if ((GUARD_SCOPE_BACKTICK)); then
+        GUARD_SCOPE_BACKTICK=0
+        guard_scope_step $'\001)'
+      else
+        GUARD_SCOPE_BACKTICK=1
+        guard_scope_step $'\001('
+      fi
+      return 1
+      ;;
+    $'\001(')
+      GUARD_SCOPE_STACK+=$'\n'"$GUARD_SHELL_DIR"
+      return 1
+      ;;
+    $'\001)')
+      if [[ -n "$GUARD_SCOPE_STACK" ]]; then
+        GUARD_SHELL_DIR="${GUARD_SCOPE_STACK##*$'\n'}"
+        GUARD_SCOPE_STACK="${GUARD_SCOPE_STACK%$'\n'*}"
+      fi
+      return 1
+      ;;
+  esac
+  WORDS=()
+  while IFS= read -r word; do WORDS+=("$word"); done < <(guard_words "$1")
+  guard_unwrap_words
+  if [[ ${#WORDS[@]} -gt 0 && "${WORDS[0]}" == cd ]]; then
+    # `cd -P dir`, `cd -L dir`: the options name no directory.
+    word=""
+    for word in "${WORDS[@]:1}"; do
+      [[ "$word" == -[LPe@]* ]] || break
+      word=""
+    done
+    GUARD_SHELL_DIR=$(guard_cd_dir "$word")
+  fi
+  return 0
 }
 
 GUARD_PUSH_LOC=""
@@ -152,7 +230,7 @@ WORD_INDEX=0
 # the words.
 guard_git_verb() {
   local word i n
-  GUARD_PUSH_LOC="$GUARD_CWD"
+  GUARD_PUSH_LOC="${GUARD_SHELL_DIR:-$GUARD_CWD}"
   GUARD_GIT_VERB=""
   WORDS=()
   while IFS= read -r word; do WORDS+=("$word"); done < <(guard_words "$1")

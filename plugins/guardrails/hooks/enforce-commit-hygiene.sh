@@ -35,9 +35,22 @@ case "$RAW" in
 esac
 
 # --- the policies -----------------------------------------------------------------------------------
-guard_config_load "$GUARD_CWD" || exit 0
-PATTERN=$(guard_config_get '.commit.pattern')
-TRAILER=$(guard_config_get '.commit.trailer')
+# A commit is judged by the config of the repository it runs in: the payload's cwd, moved by a literal
+# `cd` earlier in the command (one inside a subshell ends with it) or by `git -C`. A path computed at
+# runtime cannot be followed and leaves the cwd.
+PATTERN=""
+TRAILER=""
+POLICY_DIR=""
+
+# policies <dir> — PATTERN and TRAILER from the config of the repository holding <dir>, read once per
+# directory in a row. 1 without jq.
+policies() {
+  [[ -n "$POLICY_DIR" && "$1" == "$POLICY_DIR" ]] && return 0
+  guard_config_load "$1" || return 1
+  POLICY_DIR="$1"
+  PATTERN=$(guard_config_get '.commit.pattern')
+  TRAILER=$(guard_config_get '.commit.trailer')
+}
 
 # --- the lexer --------------------------------------------------------------------------------------
 # Splits the command into TOKENS the way a shell would — quotes removed, escapes honoured — and
@@ -321,6 +334,7 @@ check_group() {
   # holds no expansion, and single quotes, an escaping backslash or a quoted heredoc delimiter keep
   # `$HOME` literal: all of those stay checked.
   ((MSG_EXPANDS)) && return 0
+  policies "$GROUP_DIR" || return 0
 
   if ! guard_subject_fits "$subject" "$PATTERN"; then
     guard_block "commit subject \"$subject\" does not match this repository's commit pattern.
@@ -344,6 +358,11 @@ lex "$COMMAND"
 verb=""
 i=0
 count=${#TOKENS[@]}
+# Where the shell stands is GUARD_SHELL_DIR; a subshell saves it on SCOPES and gives it back at its
+# end. GROUP_DIR is where the current `git` runs, AT_START whether the token opens a command.
+SCOPES=""
+GROUP_DIR="$GUARD_CWD"
+AT_START=1
 while ((i < count)); do
   t="${TOKENS[i]}"
   case "$t" in
@@ -351,18 +370,56 @@ while ((i < count)); do
       check_group
       reset_group
       verb=""
+      if [[ "$t" == "(" ]]; then
+        SCOPES+=$'\n'"$GUARD_SHELL_DIR"
+      elif [[ "$t" == ")" && -n "$SCOPES" ]]; then
+        GUARD_SHELL_DIR="${SCOPES##*$'\n'}"
+        SCOPES="${SCOPES%$'\n'*}"
+      fi
+      AT_START=1
       i=$((i + 1))
       continue
+      ;;
+    cd)
+      if ((AT_START)); then
+        # The directory is the first word that is no option (`-L`, `-P`); none is the home directory.
+        dir=""
+        i=$((i + 1))
+        while ((i < count)); do
+          case "${TOKENS[i]}" in
+            ';' | '&' | '|' | '(' | ')') break ;;
+            -[LPe@]*) i=$((i + 1)) ;;
+            *)
+              dir="${TOKENS[i]}"
+              i=$((i + 1))
+              break
+              ;;
+          esac
+        done
+        GUARD_SHELL_DIR=$(guard_cd_dir "$dir")
+        AT_START=0
+        continue
+      fi
       ;;
     git)
       check_group
       reset_group
       verb=""
+      GROUP_DIR="$GUARD_SHELL_DIR"
+      AT_START=0
       i=$((i + 1))
       # Consume everything before the subcommand: `-C <path>`, `-c k=v`, `--git-dir=…`.
       while ((i < count)); do
         case "${TOKENS[i]}" in
-          -C | -c | --git-dir | --work-tree | --namespace)
+          -C)
+            GROUP_DIR=$(guard_located "${TOKENS[i + 1]:-}")
+            i=$((i + 2))
+            ;;
+          -C?*)
+            GROUP_DIR=$(guard_located "${TOKENS[i]#-C}")
+            i=$((i + 1))
+            ;;
+          -c | --git-dir | --work-tree | --namespace)
             i=$((i + 2))
             ;;
           -*)
@@ -378,6 +435,7 @@ while ((i < count)); do
       continue
       ;;
   esac
+  AT_START=0
 
   case "$verb" in
     commit)

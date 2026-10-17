@@ -30,6 +30,15 @@ const TRAILERED = repo("trailered", "https://github.com/dominikwozniak/y.git", {
 const ANY = repo("any", "https://github.com/dominikwozniak/z.git", { commit: { pattern: ".+" } })
 const PLAIN = join(TMP, "plain")
 mkdirSync(PLAIN)
+// A ticket-key layer only in the main checkout, untracked, the way `.ai/` sits in a repository that
+// keeps it out of git, and a linked worktree of it in a sibling directory.
+const WORKTREE_MAIN = repo("wt-main", "git@github.com:acme/w.git")
+writeJson(join(WORKTREE_MAIN, ".ai", "agentic.config.local.json"), { commit: { convention: "ticket-key" } })
+write(join(WORKTREE_MAIN, "README.md"), "")
+git(WORKTREE_MAIN, "add", "README.md")
+commit(WORKTREE_MAIN, "-m", "init")
+const WORKTREE = join(TMP, "wt-main-VER-1")
+git(WORKTREE_MAIN, "worktree", "add", "-q", WORKTREE, "-b", "VER-1")
 
 function blocked(name: string, command: string, cwd = TRAILERED): void {
   it(name, () => {
@@ -194,17 +203,20 @@ describe("commit.convention ticket-key asks for a ticket key and no trailer", ()
 })
 
 describe("a linked worktree judges by the main checkout's layer it lacks", () => {
-  // The local layer sits only in the main checkout, untracked, the way `.ai/` does in a repository
-  // that keeps it out of git; the worktree is a sibling directory.
-  const main = repo("wt-main", "git@github.com:acme/w.git")
-  writeJson(join(main, ".ai", "agentic.config.local.json"), { commit: { convention: "ticket-key" } })
-  write(join(main, "README.md"), "")
-  git(main, "add", "README.md")
-  commit(main, "-m", "init")
-  const worktree = join(TMP, "wt-main-VER-1")
-  git(main, "worktree", "add", "-q", worktree, "-b", "VER-1")
-  allowed("worktree-ticket-key", 'git commit -m "[VER-1] fix: x"', worktree)
-  blocked("worktree-conventional", 'git commit -m "fix: x"', worktree)
+  allowed("worktree-ticket-key", 'git commit -m "[VER-1] fix: x"', WORKTREE)
+  blocked("worktree-conventional", 'git commit -m "fix: x"', WORKTREE)
+})
+
+describe("a literal cd or git -C moves a commit to that repository's config", () => {
+  allowed("dash-C-ticket-repo", `git -C ${TICKETS} commit -m "[ABC-1] fix: x"`)
+  allowed("dash-C-worktree-of-a-ticket-repo", `git -C ${WORKTREE} commit -m "[VER-1] fix: x"`)
+  allowed("cd-ticket-repo", `cd ${TICKETS} && git commit -m "[ABC-1] fix: x"`)
+  allowed("cd-relative", 'cd ../tickets && git commit -m "[ABC-1] fix: x"')
+  blocked("cd-ticket-repo-conventional-subject", `cd ${TICKETS} && git commit -m "fix: x"`)
+  blocked("cd-in-a-subshell-ends-with-it", `(cd ${TICKETS} && git status); git commit -m "[ABC-1] fix: x"`)
+  blocked("dash-C-computed-at-runtime", 'git -C "$REPO" commit -m "[ABC-1] fix: x"')
+  blocked("cd-computed-at-runtime", 'cd "$REPO" && git commit -m "[ABC-1] fix: x"')
+  blocked("cd-to-a-missing-directory", 'cd /nonexistent/x; git commit -m "[ABC-1] fix: x"')
 })
 
 describe("with no convention set, Conventional Commits under any remote", () => {
