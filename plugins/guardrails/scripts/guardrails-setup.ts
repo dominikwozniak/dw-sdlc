@@ -13,12 +13,14 @@
 //                                   every env file the resolved guardrails.envFiles refuses: listed in
 //                                   deny, or ignored by git and not listed in allow
 //   ~/.claude/settings.json         autoMode.allow plus the lease-push exception ("$defaults" opens a
-//                                   list this run creates), and permissions.deny with the irreversible set
+//                                   list this run creates), and permissions.deny with the irreversible set;
+//                                   under $CLAUDE_CONFIG_DIR when it is set, as Claude Code reads it
 //
 // Existing content is merged, never replaced: lists grow by the entries they lack, other keys stay. A
-// settings file that is not JSON is refused, not rewritten. In a linked worktree the local config goes
-// to the worktree (that is the checkout that resolves it) and the other two to the main checkout, where
-// Claude Code reads them. The only thing run in the repository is read-only git.
+// settings file that is not JSON is refused, not rewritten. From a linked worktree all three repository
+// files go to the main checkout: every worktree reads the local config from there when it has none of
+// its own, and Claude Code reads the local settings there. The only thing run in the repository is
+// read-only git.
 
 import { spawnSync } from "node:child_process"
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
@@ -49,6 +51,8 @@ export type Step = { file: string; outcome: Outcome; detail?: string }
 export type SetupOptions = {
   root: string
   home: string
+  /** Claude Code's config dir, `$CLAUDE_CONFIG_DIR`; `<home>/.claude` when absent. */
+  claudeDir?: string | undefined
   force: boolean
   dryRun: boolean
   /** Pins `commit.convention` in the local layer; left out, a pin the layer already holds stays. */
@@ -59,10 +63,11 @@ const USAGE = `Usage: pnpm guardrails:setup [--root <dir>] [--home <dir>] [--con
 
 Writes .ai/agentic.config.local.json from inference, excludes it in .git/info/exclude, generates
 permissions.deny into .claude/settings.local.json, and adds the lease-push exception and the
-irreversible deny set to ~/.claude/settings.json. Every file is written only when it would change;
---convention ticket-key | conventional pins commit.convention in the local config, and a run without
-it keeps the pin as it is; --force overwrites a local config that differs; --dry-run reports without
-writing.`
+irreversible deny set to ~/.claude/settings.json, or $CLAUDE_CONFIG_DIR/settings.json without
+--home. From a linked worktree the repository's files go to the main checkout. Every file is
+written only when it would change; --convention ticket-key | conventional pins commit.convention in
+the local config, and a run without it keeps the pin as it is; --force overwrites a local config that
+differs; --dry-run reports without writing.`
 
 function isConvention(value: string): value is CommitConvention {
   return COMMIT_CONVENTIONS.some((preset) => preset === value)
@@ -190,8 +195,8 @@ function committedConfig(root: string): AgenticConfig {
  * across plugin updates, where the install cache moves with every version. No registered clone
  * holding the schema falls back to the `$id`.
  */
-export function schemaReference(home: string): string {
-  const registry = readJson(join(home, ".claude", "plugins", "known_marketplaces.json"))
+export function schemaReference(claudeDir: string): string {
+  const registry = readJson(join(claudeDir, "plugins", "known_marketplaces.json"))
   const entry = isObject(registry) ? registry[MARKETPLACE] : undefined
   const clone = isObject(entry) && typeof entry.installLocation === "string" ? entry.installLocation : undefined
   if (clone === undefined) {
@@ -239,10 +244,10 @@ function sameContent(existing: unknown, config: AgenticConfig): boolean {
  * already holds: inference always gives the `conventional` default, and pinning it here overrides a
  * convention the repository commits later, so that is a choice, never a guess.
  */
-function localConfig(root: string, home: string, convention: CommitConvention | undefined): AgenticConfig {
+function localConfig(root: string, claudeDir: string, convention: CommitConvention | undefined): AgenticConfig {
   const inferred = inferConfig(root)
   const committed = committedConfig(root)
-  const config: AgenticConfig = { $schema: schemaReference(home) }
+  const config: AgenticConfig = { $schema: schemaReference(claudeDir) }
   const managers = { ...inferred.packageManagers }
   if (committed.packageManagers?.node !== undefined) {
     delete managers.node
@@ -313,7 +318,7 @@ class Writer {
   }
 }
 
-/** Where the exclude file and the local settings live: the main checkout for a linked worktree. */
+/** Where the repository's files live: the main checkout for a linked worktree. */
 function mainCheckout(root: string): { checkout: string; gitDir: string } {
   const common = git(root, ["rev-parse", "--path-format=absolute", "--git-common-dir"])
   if (common === undefined) {
@@ -326,12 +331,13 @@ export function setup(options: SetupOptions): Step[] {
   const writer = new Writer(options.dryRun)
   const root = repositoryRoot(options.root)
   const { checkout, gitDir } = mainCheckout(root)
+  const claudeDir = options.claudeDir ?? join(options.home, ".claude")
 
   // 1. The local config, from inference and the convention: the flag's, else the one the file pins.
-  const localPath = join(root, LOCAL_FILE)
+  const localPath = join(checkout, LOCAL_FILE)
   const localCurrent = existsSync(localPath) ? readFileSync(localPath, "utf8") : undefined
   const existing = localCurrent === undefined ? undefined : readJsonText(localCurrent)
-  const local = localConfig(root, options.home, options.convention ?? pinnedConvention(existing))
+  const local = localConfig(checkout, claudeDir, options.convention ?? pinnedConvention(existing))
   const localText = render(local)
   if (localCurrent !== undefined && !sameContent(existing, local) && !options.force) {
     writer.refuse(LOCAL_FILE, "exists with other content; pass --force to overwrite it")
@@ -365,10 +371,11 @@ export function setup(options: SetupOptions): Step[] {
   }
 
   // 4. The user file: the lease exception, "$defaults" kept, and the irreversible non-git set.
-  const userPath = join(options.home, ".claude", "settings.json")
+  const userPath = join(claudeDir, "settings.json")
+  const userLabel = options.claudeDir === undefined ? "~/.claude/settings.json" : userPath
   const userSettings = readJson(userPath)
   if (userSettings === "invalid") {
-    writer.refuse("~/.claude/settings.json", "is not a JSON object; fix it by hand first")
+    writer.refuse(userLabel, "is not a JSON object; fix it by hand first")
   } else {
     const settings = userSettings ?? {}
     const autoMode = isObject(settings.autoMode) ? settings.autoMode : {}
@@ -378,7 +385,7 @@ export function setup(options: SetupOptions): Step[] {
     settings.autoMode = { ...autoMode, allow }
     const permissions = isObject(settings.permissions) ? settings.permissions : {}
     settings.permissions = { ...permissions, deny: union(permissions.deny, GLOBAL_DENY) }
-    writer.put("~/.claude/settings.json", userPath, render(settings))
+    writer.put(userLabel, userPath, render(settings))
   }
 
   return writer.steps
@@ -423,6 +430,7 @@ function main(argv: string[]): void {
   const steps = setup({
     root: values.root ?? process.cwd(),
     home: values.home ?? homedir(),
+    claudeDir: values.home === undefined ? process.env.CLAUDE_CONFIG_DIR : undefined,
     force: values.force === true,
     dryRun: values["dry-run"] === true,
     convention: values.convention

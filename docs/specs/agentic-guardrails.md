@@ -268,8 +268,9 @@ Open work on the plugin is tracked in GitHub Issues.
   `Bash(git push --force *)` would also match `--force-with-lease`, the one form the plugin lets
   through, and a permission rule sees the rtk-rewritten command, so every git rule ships twice.
 - `"$defaults"` is added only to an `autoMode.allow` the setup creates: a list the user wrote without
-  it replaced the built-ins on purpose. In a linked worktree the local config goes to the worktree and
-  the exclude and the local settings to the main checkout.
+  it replaced the built-ins on purpose. Run from a linked worktree, the setup writes the local
+  config, the exclude and the local settings to the main checkout, where every worktree reads them,
+  and the user settings to `$CLAUDE_CONFIG_DIR` when it is set.
 - The doctor probes the shell the agent gets, `$SHELL -l -c 'command -v …'`, a login shell that is not
   interactive, so an alias-only Safe Chain shows as `npm` resolving to a function, the `--ci` shims as
   a path under `.safe-chain`. A check that does not apply here gives INFO, never a false WARN. It

@@ -36,15 +36,17 @@ and jq.
   later, and a repository that commits its convention needs none. `$schema` is a `file://` URL to
   the schema in the marketplace's clone, since the `$id` sits in a private repository an editor
   cannot fetch. An existing file with other content than `$schema` and the pin is refused; `--force`
-  overwrites it and keeps the pin. In a linked worktree it goes to the worktree, the two files below
-  to the main checkout. Edited by hand, the file may tighten `guardrails` and never loosen it.
+  overwrites it and keeps the pin. Run from a linked worktree, it goes to the main checkout with the
+  two files below, and every worktree without a layer of its own reads it there. Edited by hand, the
+  file may tighten `guardrails` and never loosen it.
 - `.git/info/exclude` — that file and `.claude/settings.local.json`, so neither reaches a commit and
   the tracked `.gitignore` stays the repository's.
 - `.claude/settings.local.json` — `permissions.deny` as the backstop for a machine without `jq`: the
   destructive git commands in plain and `rtk` form, and `Read`/`Edit` rules for every `.env`,
   `.env.*` or `.envrc` git ignores here, `.env.example`, `.env.sample` and `.env.template` aside.
   A tracked env file stays readable.
-- `~/.claude/settings.json` — `autoMode.allow` gains the lease-push exception; a list the run
+- `~/.claude/settings.json`, or `$CLAUDE_CONFIG_DIR/settings.json` when Claude Code runs from
+  another config dir — `autoMode.allow` gains the lease-push exception; a list the run
   creates opens with `"$defaults"`, so the classifier's built-in rules stay, and an existing list
   only gains the exception. `permissions.deny` gains the irreversible set: `rm` at `/`, `~` or `.`,
   `shred`, `find -delete`, `git stash clear` in plain and `rtk` form. Existing entries stay.
@@ -52,5 +54,5 @@ and jq.
 ## After the run
 
 Check what the guards now see with `node "${CLAUDE_PLUGIN_ROOT}/scripts/agentic-config.ts"` from the
-repository. To carry the local config into every new worktree, add `.ai/agentic.config.local.json`
-to the repository's `.worktreeinclude`.
+repository; from a worktree it names the main checkout as the layer's source. One run per repository
+covers its worktrees, wherever they sit, so `.worktreeinclude` needs no entry for the local config.

@@ -179,12 +179,12 @@ describe("setup", () => {
   })
 
   it("falls back to the $id without a registered clone, the plugin in it, or the schema file", () => {
-    assert.equal(schemaReference(scratch("home")), schemaId())
+    assert.equal(schemaReference(join(scratch("home"), ".claude")), schemaId())
     const noPlugin = scratch("clone")
     const home = homeWithClone(noPlugin)
     writeJson(join(noPlugin, ".claude-plugin/marketplace.json"), { name: "dw-sdlc", plugins: [] })
-    assert.equal(schemaReference(home), schemaId())
-    assert.equal(schemaReference(homeWithClone(scratch("clone"), { schema: false })), schemaId())
+    assert.equal(schemaReference(join(home, ".claude")), schemaId())
+    assert.equal(schemaReference(join(homeWithClone(scratch("clone"), { schema: false }), ".claude")), schemaId())
   })
 
   it("rewrites a local file that differs only in $schema instead of refusing it", () => {
@@ -326,20 +326,48 @@ describe("setup", () => {
     assert.ok(!existsSync(join(home, ".claude/settings.json")))
   })
 
-  it("from a linked worktree the exclude and the permissions go to the main checkout", () => {
+  it("from a linked worktree every file goes to the main checkout, which each worktree reads", () => {
     const root = nodeRepo()
     const home = scratch("home")
     git(root, "worktree", "add", "-q", join(root, ".claude/worktrees/wt"), "-b", "wt")
     const worktree = join(root, ".claude/worktrees/wt")
-    const steps = run(worktree, home)
+    const steps = run(worktree, home, { convention: "ticket-key" })
     assert.equal(outcomes(steps)[LOCAL_FILE], "wrote")
-    assert.ok(existsSync(join(worktree, LOCAL_FILE)), "the local config belongs to the checkout that resolves it")
+    assert.ok(existsSync(join(root, LOCAL_FILE)), "one local layer for the repository, in the main checkout")
+    assert.ok(!existsSync(join(worktree, LOCAL_FILE)), "a worktree's own layer would override the main checkout's")
+    assert.equal(resolveConfig(worktree).config.commit.convention, "ticket-key")
     assert.match(readFileSync(join(root, ".git/info/exclude"), "utf8"), /agentic\.config\.local\.json/)
     assert.ok(
       existsSync(join(root, ".claude/settings.local.json")),
       "Claude Code reads the main checkout's local settings"
     )
     assert.ok(!existsSync(join(worktree, ".claude/settings.local.json")))
+  })
+})
+
+describe("Claude's config dir", () => {
+  it("takes the user settings and the marketplace clone from the dir it is given", () => {
+    const root = nodeRepo()
+    const home = scratch("home")
+    const clone = scratch("clone")
+    const claudeDir = join(homeWithClone(clone), ".claude")
+    const steps = setup({ root, home, claudeDir, force: false, dryRun: false })
+    assert.equal(outcomes(steps)[join(claudeDir, "settings.json")], "wrote")
+    assert.ok(existsSync(join(claudeDir, "settings.json")))
+    assert.ok(!existsSync(join(home, ".claude/settings.json")))
+    assert.equal(json(join(root, LOCAL_FILE)).$schema, pathToFileURL(join(clone, SCHEMA_FILE)).href)
+  })
+
+  it("is $CLAUDE_CONFIG_DIR for the command", () => {
+    const root = nodeRepo()
+    const home = scratch("home")
+    const claudeDir = scratch("cfg")
+    const verdict = runScript("guardrails-setup", ["--root", root], {
+      env: { HOME: home, CLAUDE_CONFIG_DIR: claudeDir }
+    })
+    assert.equal(verdict.status, 0, verdict.stderr)
+    assert.ok(existsSync(join(claudeDir, "settings.json")))
+    assert.ok(!existsSync(join(home, ".claude/settings.json")))
   })
 })
 
