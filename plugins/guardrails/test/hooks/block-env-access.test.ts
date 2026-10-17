@@ -78,6 +78,27 @@ write(join(ELSEWHERE, ".env.example"), "")
 const PLAIN = join(TMP, "plain")
 write(join(PLAIN, ".env"), "X=1\n")
 write(join(PLAIN, ".env.example"), "")
+// A main checkout that allows its ignored .env.test.local in an untracked config, and a linked worktree
+// of it in a sibling directory: the main checkout is the same repository under the same config.
+const SHARED = makeRepo(join(TMP, "shared"))
+write(join(SHARED, ".env.test.local"), "DB=1\n")
+writeJson(join(SHARED, ".ai", "agentic.config.json"), {
+  guardrails: { envFiles: { allow: ["**/.env.example", ".env.test.local"] } }
+})
+git(
+  SHARED,
+  "-c",
+  "user.email=t@example.com",
+  "-c",
+  "user.name=t",
+  "-c",
+  "commit.gpgsign=false",
+  "commit",
+  "-qm",
+  "init"
+)
+const SHARED_WT = join(TMP, "shared-wt")
+git(SHARED, "worktree", "add", "-q", SHARED_WT, "-b", "wt")
 
 function blockedFile(name: string, tool: string, path: string, cwd = REPO): void {
   it(name, () => {
@@ -282,6 +303,14 @@ describe("the allow and deny lists decide before git", () => {
   blockedGrep("grep-outside-the-root-ignores-plain-allow", ".env.development", ELSEWHERE, LISTED)
   blockedFile("bracket-is-literal-and-names-the-file", "Read", ".env.[ab]", BRACKET)
   allowedFile("bracket-is-not-a-class", "Read", ".env.a", BRACKET)
+})
+
+describe("from a linked worktree, its main checkout's files are judged as the repository's", () => {
+  allowedBash("copy-an-allowed-file-in", `cp ${SHARED}/.env.test.local .env.test.local`, SHARED_WT)
+  allowedFile("read-an-allowed-file-there", "Read", join(SHARED, ".env.test.local"), SHARED_WT)
+  allowedFile("read-a-tracked-file-there", "Read", join(SHARED, ".env"), SHARED_WT)
+  blockedBash("copy-an-ignored-file-in", `cp ${SHARED}/.env.local .env.local`, SHARED_WT)
+  blockedFile("read-an-untracked-file-there", "Read", join(SHARED, ".env.production"), SHARED_WT)
 })
 
 describe("outside a repository the name decides", () => {

@@ -91,7 +91,8 @@ refuses.
 - Worktrees live in `.claude/worktrees/` with `.worktreeinclude` carrying the ignored files; the
   session-start hook reports what a fresh checkout lacks and installs nothing. A linked worktree,
   wherever it sits, reads a config layer it lacks from its main checkout, so a repository that keeps
-  `.ai/` out of git needs no copy per worktree, and the report leaves the layers out.
+  `.ai/` out of git needs no copy per worktree, and the report leaves the layers out. The env guard
+  judges a file in the main checkout as the repository's, so an allowed one can be copied in.
 - Supply chain on the machine is checked, not built: the doctor reports Safe Chain and the pnpm
   policy. Socket's Claude Code hook is out: fail-open, OAuth, and one external call per install.
 - The one kill switch is on the advisory guard, `large-file-guard.sh` (`CLAUDE_MAX_WRITE_BYTES`): an
