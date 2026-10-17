@@ -9,8 +9,9 @@
 # `store:price-levels --write` included. And every `asc` call that is not a read: a read's verb, the
 # last word before the first flag, is in READ_VERBS — list, view, show, summary, status, the
 # listing's pull, plan, diff, validate, audit, download, init, approve, sizes, and the asset
-# library's specs and placements — or the call has `--help`, no verb at all (`asc --version`), or
-# `--dry-run` without `--confirm`. The verb comes from under any command: `metadata keywords audit`
+# library's specs and placements — or the call is `asc search <query>`, which searches asc's own
+# command index locally, has `--help`, no verb at all (`asc --version`), or `--dry-run` without
+# `--confirm`. The verb comes from under any command: `metadata keywords audit`
 # reads, `metadata keywords push` writes, `localizations placements create` writes; `show` alone
 # takes a word after it, the guide `asc docs show` prints. A flag before the command is refused,
 # since which word is its value is unknown, and so is the verb. `prices set`, `offers introductory
@@ -32,7 +33,7 @@ esac
 READ_VERBS="list view show summary status pull plan diff validate audit download init approve sizes specs placements"
 
 refuse() {
-  guard_block "'$GUARD_COMMAND' $1 Only the owner changes App Store Connect, at a terminal. An agent runs a store command without --confirm and asc reads: a verb of ${READ_VERBS// /, }, --help, or --dry-run without --confirm."
+  guard_block "'$GUARD_COMMAND' $1 Only the owner changes App Store Connect, at a terminal. An agent runs a store command without --confirm and asc reads: a verb of ${READ_VERBS// /, }, asc search, --help, or --dry-run without --confirm."
 }
 
 # check_store — refuses WORDS that name a store script beside a `--confirm`.
@@ -79,6 +80,8 @@ check_asc() {
   done
   ((help)) && return 0
   ((hidden)) && refuse "puts a flag before the asc command, which hides its verb. Put every flag after the command."
+  # `asc search <query>` searches asc's own command index, locally: its words are a query, no verb.
+  [[ "${WORDS[1]:-}" == search ]] && ((!confirm)) && return 0
   ((dry && !confirm)) && return 0
   [[ -z "$verb" ]] && ((!confirm)) && return 0
   [[ " $READ_VERBS " == *" $verb "* ]] && ((!confirm)) && return 0
