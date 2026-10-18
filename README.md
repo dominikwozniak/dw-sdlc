@@ -51,7 +51,7 @@ pnpm guardrails:doctor --root <path to your repository>
 | lost-commit record    | `reflog expire`, `gc --prune=now`, `prune`, `update-ref -d`, `rm -rf .git`                                  |
 | force push            | bare `push --force`; a lease push passes, or asks first under `forcePush: ask`, never to a protected branch |
 | plain push            | any push straight to a protected branch: those take pull requests                                           |
-| commit                | a commit on a protected branch, where the repository sets `commitOnProtected: deny`                         |
+| commit                | a commit, merge, cherry-pick or revert on a protected branch, under `commitOnProtected: deny`               |
 | GitHub CLI            | `gh repo delete`, `gh pr merge --delete-branch`, a `gh api` call that deletes or force-moves a ref          |
 | env access            | `.env`, `.env.*`, `.envrc` outside the config's allow list or unknown to git                                |
 | credential leak       | reading `~/.ssh`, `~/.aws`, `~/.kube` and friends; `curl` or `wget` carrying a secret                       |

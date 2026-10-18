@@ -147,7 +147,7 @@ guard_push_matching() {
 
 # guard_push_targets — the branches the parsed push writes to, one per line: every local branch of
 # GUARD_PUSH_LOC for --all and for a refspec holding a `*`, else the destination side of each refspec
-# (the matching refspec `:` by guard_push_matching), or the current branch when none names one.
+# (the matching refspec `:` by guard_push_matching), or the branch HEAD is on when none names one.
 # Returns 1 when those branches cannot be read.
 guard_push_targets() {
   local spec target specs="$GUARD_PUSH_REFSPECS"
@@ -164,7 +164,7 @@ guard_push_targets() {
     target="${spec##*:}"
     target="${target#refs/heads/}"
     if [[ "$target" == "HEAD" ]]; then
-      target=$(guard_current_branch "$GUARD_PUSH_LOC") || return 1
+      target=$(guard_head_branch "$GUARD_PUSH_LOC") || return 1
     fi
     printf '%s\n' "$target"
   done <<<"$specs"
@@ -175,6 +175,64 @@ guard_push_targets() {
 guard_current_branch() {
   git -C "$1" symbolic-ref --short -q HEAD 2>/dev/null
 }
+
+# The branch each location switched to earlier in this command, one `<dir>\t<branch>` per line, the
+# last line for a location the one that holds; `-` is a detached HEAD.
+GUARD_SWITCHED=""
+
+# guard_note_switch — records where the `git switch` or `git checkout` in WORDS leaves its location:
+# the branch it creates, the branch it names, or `-` for --detach. A checkout's operand counts only
+# when it is the one operand and names a local branch, since `git checkout main -- a.txt` copies a
+# path and stays put.
+guard_note_switch() {
+  local i=$WORD_INDEX n=${#WORDS[@]} word target="" operand="" operands=0
+  while ((i < n)); do
+    word=${WORDS[i]}
+    case "$word" in
+      --)
+        ((i + 1 < n)) && operands=2
+        break
+        ;;
+      -c | -C | -b | -B | --create | --force-create | --orphan)
+        i=$((i + 1))
+        target=${WORDS[i]:-}
+        ;;
+      --create=* | --force-create=* | --orphan=*) target=${word#*=} ;;
+      -d | --detach) target="-" ;;
+      -[cCbB]?*) target=${word:2} ;;
+      -*) ;;
+      *)
+        [[ -z "$operand" ]] && operand=$word
+        operands=$((operands + 1))
+        ;;
+    esac
+    i=$((i + 1))
+  done
+  if [[ -z "$target" && -n "$operand" && "$operand" != "-" ]]; then
+    if [[ "$GUARD_GIT_VERB" == switch ]] || { ((operands == 1)) &&
+      git -C "$GUARD_PUSH_LOC" show-ref --verify -q "refs/heads/$operand" 2>/dev/null; }; then
+      target=$operand
+    fi
+  fi
+  [[ -n "$target" ]] && GUARD_SWITCHED+="$GUARD_PUSH_LOC"$'\t'"$target"$'\n'
+  return 0
+}
+
+# guard_head_branch <dir> — the branch HEAD is on at <dir> once the switches earlier in this command
+# ran, else the one it stands on; 1 on a detached HEAD or outside a repository.
+guard_head_branch() {
+  local line branch=""
+  while IFS= read -r line; do
+    [[ "${line%%$'\t'*}" == "$1" ]] && branch=${line#*$'\t'}
+  done <<<"$GUARD_SWITCHED"
+  [[ "$branch" == "-" ]] && return 1
+  if [[ -n "$branch" ]]; then
+    printf '%s' "$branch"
+    return 0
+  fi
+  guard_current_branch "$1"
+}
+
 
 OPT_FLAGS=" "
 OPT_OPERANDS=()

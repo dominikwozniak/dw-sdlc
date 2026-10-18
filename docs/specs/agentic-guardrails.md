@@ -61,11 +61,12 @@ refuses.
   same guard: the rule reads `guardrails.protectedBranches`. So is a remote branch deletion, a
   `--prune` that reaches past the refspecs named included; `--all` and a wildcard refspec count every
   local branch.
-- `guardrails.commitOnProtected: deny` refuses a commit on a protected branch, for a repository whose
-  every change starts on a branch of its own; the default `allow` keeps a repository that commits a
-  small fix on `main` working. The rule sits in the always-on guard, not the commit guard, so it is
-  read at every command position and where the commit runs, and a `switch -c` or `checkout -b`
-  earlier in the same command moves the branch it judges. A detached HEAD and a dry run pass.
+- `guardrails.commitOnProtected: deny` refuses a commit, merge, cherry-pick or revert on a protected
+  branch, for a repository whose every change starts on a branch of its own; the default `allow`
+  keeps a repository that commits a small fix on `main` working. The rule sits in the always-on
+  guard, not the commit guard, so it is read at every command position and where the commit runs. A
+  `switch -c` or `checkout -b` earlier in the same command moves the branch a commit or a push is
+  judged on, assuming it succeeds. A detached HEAD, a dry run, `--abort` and `merge --ff-only` pass.
 - A forced deletion is refused and the plain one passes, because git guards the plain form itself:
   `branch -d` keeps a branch that is not fully merged and `worktree remove` keeps a worktree with
   modified or untracked files. So `branch -D`, `-f`, `--force`, `-M`, `-C`, `worktree remove
@@ -86,7 +87,10 @@ refuses.
   read a target in place. Out of scope, as no accident spells them: a command assembled at runtime, a
   quoted verb, `env -S`, an abbreviated long option, an alias, a script on disk, `ssh` or
   `docker exec`, `python -c` or `node -e`, `echo … | bash`, operands that arrive on stdin
-  (`… | xargs git checkout --`), and a commit's subject inside a substitution or another shell.
+  (`… | xargs git checkout --`), a commit's subject inside a substitution or another shell, an `rm`
+  that `find -exec` hands its start directory, and a glob such as `.g*` that happens to reach `.git`.
+  `rm` of `.`, `./*` or `*` reads the shell's directory: after a literal `cd` below the payload's
+  cwd it cleans that directory and passes.
 - A push and a commit are judged where they run, for the branch and the config alike: the payload's
   cwd, moved by a literal `cd` earlier in the command, one inside a subshell ending with it, or by
   `git -C`. A path computed at runtime, `cd -` and a directory that is not there leave the cwd.

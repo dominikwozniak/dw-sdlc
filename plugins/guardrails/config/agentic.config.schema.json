@@ -39,7 +39,7 @@
           "enum": ["deny", "ask", "lease"]
         },
         "commitOnProtected": {
-          "description": "`deny` refuses a `git commit` on a branch listed in `protectedBranches`, so every change starts on a branch of its own. `allow` lets it through, for a repository that commits small fixes on its protected branch and pushes them from a person's terminal. Default `allow`. Strictest first: deny, allow.",
+          "description": "`deny` refuses a `git commit`, `merge`, `cherry-pick` or `revert` on a branch listed in `protectedBranches`, so every change starts on a branch of its own. `allow` lets it through, for a repository that commits small fixes on its protected branch and pushes them from a person's terminal. Default `allow`. Strictest first: deny, allow.",
           "enum": ["deny", "allow"]
         },
         "envFiles": {
@@ -72,7 +72,7 @@
           "additionalProperties": false
         },
         "protectedBranches": {
-          "description": "Branches the guards refuse every push to: plain, lease or force. Under `commitOnProtected: deny` they refuse a commit on one too. The local override may add to this list, never remove from it.",
+          "description": "Branches the guards refuse every push to: plain, lease or force. Under `commitOnProtected: deny` they refuse a commit, merge, cherry-pick or revert on one too. The local override may add to this list, never remove from it.",
           "type": "array",
           "items": {
             "type": "string",

@@ -66,13 +66,15 @@ disk is in the next session, a broken edit included.
     protected branch is refused: those branches take pull requests. So is a remote branch deletion:
     `--delete`, `-d`, a `:branch` refspec, or `--prune` with `--all`, `--tags`, no refspec or a
     wildcard one. `--all` and a wildcard refspec count every local branch.
-  - commit: on a protected branch, under `guardrails.commitOnProtected: deny`; a `switch -c` or
-    `checkout -b` earlier in the same command moves the branch.
+  - commit, merge, cherry-pick and revert: on a protected branch, under
+    `guardrails.commitOnProtected: deny`. A `switch -c` or `checkout -b` earlier in the same
+    command moves the branch a commit or a push is judged on.
   - gh: `repo delete`, `pr merge` or `close` with `--delete-branch`, and `api` deleting a ref or a
     repository or force-updating a ref, REST or GraphQL.
-  - rm, read in place: aimed at `/`, `~`, `$HOME`, `.`, `..` and upward, the working directory by
-    name (`$PWD`, `$(pwd)`, `$(git rev-parse --show-toplevel)`), `.git` or a bare `*`, as any
-    operand; `find -delete`; `shred`.
+  - rm, read in place: aimed at `/`, `~`, `$HOME`, `..` and upward, the working directory by name
+    (`$PWD`, `$(pwd)`, `$(git rev-parse --show-toplevel)`), or a `.git` at any path, as any operand;
+    `.`, `./*` or a bare `*` too, unless a `cd` earlier in the command moved below the session's
+    directory; `find -delete`; `shred`.
 - `block-env-access.sh` (file tools and Bash) — an env file (`.env`, `.env.*`, `.envrc`) is judged by
   `guardrails.envFiles` in the resolved config: a path in `deny` is refused, one in `allow` passes,
   the rest go to `policy` — `git` lets a tracked file through and refuses one git ignores or does

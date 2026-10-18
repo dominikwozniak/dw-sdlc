@@ -59,6 +59,7 @@ const DESTRUCTIVE: Probe[] = [
   probe("push-to-main", "git push origin HEAD:main"),
   probe("lease-push-asks", "git push --force-with-lease origin x", "ask", ASK),
   probe("commit-on-protected", "git commit -m x", "deny", ON_MAIN),
+  probe("merge-on-protected", "git merge feat", "deny", ON_MAIN),
   probe("gh-repo-delete", "gh repo delete o/r --yes"),
   probe("gh-api-delete-ref", "gh api -X DELETE repos/o/r/git/refs/heads/x"),
   probe("gh-pr-merge-delete-branch", "gh pr merge 1 --delete-branch"),
@@ -67,6 +68,7 @@ const DESTRUCTIVE: Probe[] = [
   probe("rm-cwd", "rm -rf ."),
   probe("rm-dot-git", "rm -rf .git"),
   probe("rm-pwd", "rm -rf $PWD"),
+  probe("rm-pwd-dot-git", "rm -rf $PWD/.git"),
   probe("find-delete", "find . -delete"),
   probe("shred", "shred secrets.txt"),
   probe("npm-install", "npm install", "deny", PNPM),
@@ -85,6 +87,7 @@ const SAFE: Probe[] = [
   probe("stash-pop", "git stash pop", "pass"),
   probe("restore-staged-dot", "git restore --staged .", "pass"),
   probe("commit-on-a-feature-branch", "git commit -m x", "pass", ON_FEAT),
+  probe("push-after-switch-create", "git switch -c x && git push -u origin HEAD", "pass", ON_MAIN),
   probe("rm-dist", "rm -rf ./dist", "pass"),
   probe("gh-pr-merge", "gh pr merge 1 --squash", "pass"),
   probe("status", "git status", "pass")

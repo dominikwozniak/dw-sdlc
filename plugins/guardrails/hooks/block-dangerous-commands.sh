@@ -17,15 +17,17 @@
 #   plain push to a protected branch is refused, and so is a remote branch deletion: --delete, -d, a
 #   `:branch` refspec, or a --prune that reaches past the refspecs named. --all and a wildcard
 #   refspec count every local branch.
-#   commit: on a protected branch, when guardrails.commitOnProtected is `deny`; a `switch` or
-#   `checkout` earlier in the same command moves the branch.
+#   commit, merge, cherry-pick, revert: on a protected branch, when guardrails.commitOnProtected is
+#   `deny`. A `switch` or `checkout` earlier in the same command moves the branch a commit or a push
+#   is judged on.
 #   gh: `repo delete`, `pr merge|close --delete-branch`, and `api` deleting a ref or a repository or
 #   force-updating a ref, REST or GraphQL.
 # A git command is judged where it runs: the payload's cwd, moved by a literal `cd` earlier in the
 # command (one inside a subshell ends with it) or by `git -C`, for its branch and its config alike. A
 # path computed at runtime cannot be followed and leaves the cwd.
-# rm, find and shred are read as text, where a target is: `rm` at the root, the home, the working
-# directory by any of its names, `..` upward or the repository's `.git`; `find -delete`; `shred`.
+# rm, find and shred are read as text, where a target is: `rm` at the root, the home, a directory
+# above, the working directory by any of its names, or a `.git`; `.`, `./*` and a bare `*` where the
+# command runs, unless a `cd` moved it below the payload's cwd; `find -delete`; `shred`.
 #
 # Guardrail against agent accidents, not a security boundary: a command assembled at runtime, an
 # alias, a script on disk or a remote shell is not read. Runs always-on from bash-guard.sh, or alone
@@ -49,25 +51,35 @@ RM="rm([[:space:]]+[^;&|]*)?[[:space:]]+"
 TEND="${Q}([[:space:]]|\$|[;&|)\`])"
 WORKDIR='(\$PWD|\$\{PWD\}|\$\(pwd\)|`pwd`|\$\(git[[:space:]]+rev-parse[[:space:]]+--show-toplevel\))'
 
+# Wherever the command runs: the root, the home, a directory above, the working directory by name,
+# a repository's `.git` at any path.
 PATTERNS=(
   "${RM}${Q}/+\\*?${TEND}"
   "${RM}(~/*\\*?|\"?(\\\$HOME|\\\$\\{HOME\\})\"?/*\\*?\"?)${TEND}"
-  "${RM}${Q}\\.\\.?(/\\.\\.?)*/*\\*?${TEND}"
-  "${RM}\"?${WORKDIR}\"?/*\\*?\"?${TEND}"
-  "${RM}${Q}(\\./)?\\.git/?${TEND}"
-  "${RM}${Q}\\*${TEND}"
+  "${RM}${Q}\\.\\.(/\\.\\.?)*/*\\*?${TEND}"
+  "${RM}\"?${WORKDIR}\"?(/+(\\.\\.?|\\.git))*/*\\*?\"?${TEND}"
+  "${RM}${Q}([^[:space:];&|'\"]*/)?\\.git(/(\\*|objects|refs|logs))?/?${TEND}"
   "find([[:space:]][^;&|]*)?[[:space:]]-delete${TEND}"
   "shred${END}"
 )
 REASONS=(
   "deletes from the root of the filesystem"
   "deletes the home directory"
+  "deletes a directory above the working directory"
   "deletes the working directory or a directory above it"
-  "deletes the working directory"
-  "deletes the repository's history"
-  "deletes every entry of the working directory"
+  "deletes a repository's history"
   "bulk-deletes through find"
   "destroys files beyond recovery"
+)
+# Where the command runs: `.`, `./*` or a bare `*`. A `cd` into a directory below the payload's cwd
+# earlier in the command moves them there, so `cd dist && rm -rf *` cleans dist.
+HERE_PATTERNS=(
+  "${RM}${Q}\\.(/\\.)*/*\\*?${TEND}"
+  "${RM}${Q}\\*${TEND}"
+)
+HERE_REASONS=(
+  "deletes the working directory"
+  "deletes every entry of the working directory"
 )
 
 # Matched against the masked scan, reported as the command: the user has to see what they typed.
@@ -77,6 +89,21 @@ for i in "${!PATTERNS[@]}"; do
     guard_block "'$GUARD_COMMAND' ${REASONS[i]}."
   fi
 done
+
+# check_rm_here <segment> — an rm segment against HERE_PATTERNS, unless the shell stands below the
+# payload's cwd by then.
+check_rm_here() {
+  local here top i
+  here=$(cd "$GUARD_SHELL_DIR" 2>/dev/null && pwd -P) || here=""
+  top=$(cd "$GUARD_CWD" 2>/dev/null && pwd -P) || top=""
+  [[ -n "$here" && -n "$top" && "$here" == "$top"/* ]] && return 0
+  for i in "${!HERE_PATTERNS[@]}"; do
+    if printf '%s\n' "$1" | grep -qE "${GUARD_BOUNDARY}${HERE_PATTERNS[i]}"; then
+      guard_block "'$GUARD_COMMAND' ${HERE_REASONS[i]}."
+    fi
+  done
+  return 0
+}
 
 # --- git, read as words ---------------------------------------------------------------------------
 
@@ -130,61 +157,16 @@ check_restore() {
   return 0
 }
 
-# The branch each location switched to earlier in this command, one `<dir>\t<branch>` per line, the
-# last line for a location the one that holds; `-` is a detached HEAD.
-SWITCHED=""
-
-# note_switch — records where a `git switch` or `git checkout` leaves its location: the branch it
-# creates, the branch it names, or `-` for --detach. A checkout's operand counts only when it is the
-# one operand and names a local branch, since `git checkout main -- a.txt` copies a path and stays put.
-note_switch() {
-  local i=$WORD_INDEX n=${#WORDS[@]} word target="" operand="" operands=0
-  while ((i < n)); do
-    word=${WORDS[i]}
-    case "$word" in
-      --)
-        ((i + 1 < n)) && operands=2
-        break
-        ;;
-      -c | -C | -b | -B | --create | --force-create | --orphan)
-        i=$((i + 1))
-        target=${WORDS[i]:-}
-        ;;
-      --create=* | --force-create=* | --orphan=*) target=${word#*=} ;;
-      -d | --detach) target="-" ;;
-      -[cCbB]?*) target=${word:2} ;;
-      -*) ;;
-      *)
-        [[ -z "$operand" ]] && operand=$word
-        operands=$((operands + 1))
-        ;;
-    esac
-    i=$((i + 1))
-  done
-  if [[ -z "$target" && -n "$operand" && "$operand" != "-" ]]; then
-    if [[ "$GUARD_GIT_VERB" == switch ]] || { ((operands == 1)) &&
-      git -C "$GUARD_PUSH_LOC" show-ref --verify -q "refs/heads/$operand" 2>/dev/null; }; then
-      target=$operand
-    fi
-  fi
-  [[ -n "$target" ]] && SWITCHED+="$GUARD_PUSH_LOC"$'\t'"$target"$'\n'
-  return 0
-}
-
-# check_commit — a commit on a protected branch, where guardrails.commitOnProtected is `deny`. The
-# branch is the one a switch earlier in this command left the location on, else the one it stands
-# on; a detached HEAD and a dry run pass.
+# check_commit <flag>... — a verb that commits, on a protected branch, where
+# guardrails.commitOnProtected is `deny`; guard_opts has read its options, and one of the flags makes
+# it commit nothing. The branch is the one HEAD is on once the switches earlier in this command ran;
+# a detached HEAD passes.
 check_commit() {
-  local line branch=""
-  guard_opts "mFCcSt" "--message --file --reuse-message --reedit-message --fixup --squash --author --date --template --trailer --cleanup"
-  guard_opt --dry-run && return 0
+  local branch
+  guard_opt "$@" && return 0
   guard_config_load "$GUARD_PUSH_LOC" || return 0
   [[ "$(guard_config_get '.guardrails.commitOnProtected')" == "deny" ]] || return 0
-  while IFS= read -r line; do
-    [[ "${line%%$'\t'*}" == "$GUARD_PUSH_LOC" ]] && branch=${line#*$'\t'}
-  done <<<"$SWITCHED"
-  [[ "$branch" == "-" ]] && return 0
-  [[ -n "$branch" ]] || branch=$(guard_current_branch "$GUARD_PUSH_LOC") || return 0
+  branch=$(guard_head_branch "$GUARD_PUSH_LOC") || return 0
   guard_protected "$branch" &&
     guard_block "'$GUARD_COMMAND' commits on '$branch', a protected branch, and this repository takes no commit there (guardrails.commitOnProtected: deny). Create a branch first: git switch -c <name>."
   return 0
@@ -196,7 +178,18 @@ check_git() {
   case "$GUARD_GIT_VERB" in
     push) check_push "$1" ;;
     restore) check_restore ;;
-    commit) check_commit ;;
+    commit)
+      guard_opts "mFCcSt" "--message --file --reuse-message --reedit-message --fixup --squash --author --date --template --trailer --cleanup"
+      check_commit --dry-run
+      ;;
+    merge)
+      guard_opts "mFsX" "--message --file --strategy --strategy-option --into-name"
+      check_commit --abort --quit --ff-only --no-commit --squash
+      ;;
+    cherry-pick | revert)
+      guard_opts "msX" "--mainline --strategy --strategy-option"
+      check_commit --abort --quit --skip -n --no-commit
+      ;;
     reset)
       guard_opts "" "--pathspec-from-file"
       guard_opt --hard && why="discards the index and every uncommitted change"
@@ -208,17 +201,21 @@ check_git() {
       fi
       ;;
     branch)
+      # A forced create of a branch that is not there yet replaces nothing.
       guard_opts "u" "--sort --format --contains --no-contains --merged --no-merged --points-at --set-upstream-to"
-      guard_opt -D -f --force -M -C && why="force-deletes, force-moves or force-repoints a branch; git keeps an unmerged one from a plain -d"
+      if guard_opt -D -M -C || { guard_opt -f --force && { guard_opt -d --delete -m --move -c --copy ||
+        git -C "$GUARD_PUSH_LOC" show-ref --verify -q "refs/heads/${OPT_OPERANDS[0]:-}" 2>/dev/null; }; }; then
+        why="force-deletes, force-moves or force-repoints a branch; git keeps an unmerged one from a plain -d"
+      fi
       ;;
     checkout)
-      note_switch
+      guard_note_switch
       guard_opts "bB" "--orphan --conflict --pathspec-from-file"
       guard_opt -f --force && why="switches over local changes and discards them"
       guard_whole_tree && why="discards every working-tree change"
       ;;
     switch)
-      note_switch
+      guard_note_switch
       guard_opts "cC" "--create --force-create --orphan --conflict"
       guard_opt -f --force --discard-changes && why="switches over local changes and discards them"
       ;;
@@ -251,7 +248,7 @@ check_git() {
       ;;
     update-ref)
       guard_opts "m" ""
-      guard_opt -d && why="deletes a ref, which drops its reflog with it"
+      guard_opt -d --delete && why="deletes a ref, which drops its reflog with it"
       ;;
   esac
   [[ -n "$why" ]] && guard_block "'$GUARD_COMMAND' $why."
@@ -280,6 +277,9 @@ check_gh() {
   esac
   return 0
 }
+
+GQL_DELETE=$'(deleteRef|deleteRepository)[[:space:]]*[(\002]'
+GQL_UPDATE_REF=$'updateRefs?[[:space:]]*[(\002]'
 
 # check_gh_api — `gh api`: the method (`-X`, `--method`, any case, anywhere), the fields (`-f`, `-F`,
 # `--raw-field`, `--field`) and the endpoint, the first operand without the API host.
@@ -318,9 +318,10 @@ check_gh_api() {
       [[ "$endpoint" == *git/refs/* && "$fields" == *force=true* ]] && guard_block "'$GUARD_COMMAND' force-updates a ref on GitHub."
       ;;
   esac
+  # A mutation is its name and an opening parenthesis, masked to \002 inside the quote.
   if [[ "$endpoint" == graphql ]]; then
-    [[ "$fields" == *deleteRef* ]] && guard_block "'$GUARD_COMMAND' deletes a ref on GitHub through GraphQL."
-    [[ "$fields" == *updateRef* && "$fields" == *force* ]] && guard_block "'$GUARD_COMMAND' force-updates a ref on GitHub through GraphQL."
+    [[ "$fields" =~ $GQL_DELETE ]] && guard_block "'$GUARD_COMMAND' deletes a ref or a repository on GitHub through GraphQL."
+    [[ "$fields" =~ $GQL_UPDATE_REF && "$fields" == *force* ]] && guard_block "'$GUARD_COMMAND' force-updates a ref on GitHub through GraphQL."
   fi
   return 0
 }
@@ -332,6 +333,7 @@ while IFS= read -r segment; do
   case "${WORDS[0]:-}" in
     git) guard_git_verb_words && check_git "$segment" ;;
     gh) check_gh ;;
+    rm) check_rm_here "$segment" ;;
   esac
 done < <(guard_scopes "$SCAN")
 [[ -n "$ASK" ]] && guard_ask "$ASK"
