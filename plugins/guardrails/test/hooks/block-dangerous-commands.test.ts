@@ -4,6 +4,7 @@
 // run against throwaway repositories with known files.
 
 import assert from "node:assert/strict"
+import { readdirSync } from "node:fs"
 import { join } from "node:path"
 import { describe, it } from "node:test"
 
@@ -86,8 +87,9 @@ const BROKEN_ON_MAIN = commitDeny("broken-on-main", "main", { guardrails: { forc
 // A clone of a bare origin whose main took squash merges as GitHub makes them: `fresh` up to date
 // with main, `moved` with main editing its lines after, `behind` once main had moved on, `extra` with
 // one more commit after its squash, `ff` by a fast-forward. `never` was never merged, `spaced` holds a
-// line main took with other whitespace, and `late` was squashed in another clone after this one last
-// fetched.
+// line main took with other whitespace, `netzero` adds a file and drops it while main adds and drops
+// another, so their trees meet, and `late` was squashed in another clone after this one last fetched.
+// A blobless clone of the origin has `never` without its blobs.
 function change(dir: string, file: string, text: string): void {
   write(join(dir, file), text)
   git(dir, "add", file)
@@ -100,8 +102,17 @@ function squash(dir: string, branch: string): void {
 }
 const ORIGIN = join(TMP, "origin.git")
 git(TMP, "init", "-q", "--bare", "-b", "main", ORIGIN)
+git(ORIGIN, "config", "uploadpack.allowFilter", "true")
 const SQUASHED = initRepo(join(TMP, "squashed"), { branch: "main", remote: ORIGIN })
 change(SQUASHED, "a.txt", "a\n")
+git(SQUASHED, "switch", "-q", "-c", "netzero")
+change(SQUASHED, "v.txt", "v\n")
+git(SQUASHED, "rm", "-q", "v.txt")
+commit(SQUASHED, "-m", "drop v.txt")
+git(SQUASHED, "switch", "-q", "main")
+change(SQUASHED, "x.txt", "x\n")
+git(SQUASHED, "rm", "-q", "x.txt")
+commit(SQUASHED, "-m", "drop x.txt")
 git(SQUASHED, "switch", "-q", "-c", "fresh")
 change(SQUASHED, "fresh.txt", "1\n")
 change(SQUASHED, "fresh.txt", "1\n2\n")
@@ -135,12 +146,15 @@ git(SQUASHED, "switch", "-q", "-c", "spaced")
 change(SQUASHED, "spaced.txt", "a  b\n")
 git(SQUASHED, "switch", "-q", "main")
 change(SQUASHED, "spaced.txt", "a b\n")
-git(SQUASHED, "push", "-q", "origin", "main", "late")
+git(SQUASHED, "push", "-q", "origin", "main", "late", "never")
 git(SQUASHED, "remote", "set-head", "origin", "main")
 const ELSEWHERE = join(TMP, "elsewhere")
 git(TMP, "clone", "-q", ORIGIN, ELSEWHERE)
 squash(ELSEWHERE, "origin/late")
 git(ELSEWHERE, "push", "-q", "origin", "main")
+const BLOBLESS = join(TMP, "blobless")
+git(TMP, "clone", "-q", "--filter=blob:none", "--no-checkout", `file://${ORIGIN}`, BLOBLESS)
+git(BLOBLESS, "branch", "never", "origin/never")
 // A branch on main, with origin's main tracked but not its HEAD: the base comes from baseBranch alone.
 function baseRepo(name: string, config?: object): string {
   const dir = initRepo(join(TMP, name), { branch: "main" })
@@ -155,6 +169,8 @@ function baseRepo(name: string, config?: object): string {
 const NO_ORIGIN_HEAD = baseRepo("no-origin-head")
 const NAMED_BASE = baseRepo("named-base", { baseBranch: "main" })
 const MISSING_BASE = baseRepo("missing-base", { baseBranch: "develop" })
+const FORGED_HEAD = baseRepo("forged-head")
+git(FORGED_HEAD, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/heads/merged")
 
 function blocked(name: string, command: string, cwd = FEAT): void {
   it(name, () => {
@@ -429,23 +445,53 @@ describe("a forced branch delete passes once the branch is landed: its work is o
   allowed("after-a-double-dash", "git branch -D -- behind", SQUASHED)
   allowed("rtk", "rtk git branch -D behind", SQUASHED)
   allowed("dash-C", `git -C ${SQUASHED} branch -D behind`, TMP)
-  allowed("cd", `cd ${SQUASHED} && git branch -D behind`, TMP)
+  allowed("both-streams-redirected", "git branch -D behind 2>&1", SQUASHED)
+  allowed("output-discarded", "git branch -D behind >/dev/null", SQUASHED)
+  allowed("errors-discarded-apart", "git branch -D behind 2> /dev/null", SQUASHED)
   allowed("base-branch-from-the-config", "git branch -D merged", NAMED_BASE)
   refused("one-more-commit-after-the-squash", "git branch -D extra", SQUASHED, /'extra'.*git fetch/)
   refused("never-merged", "git branch -D never", SQUASHED, /'never'.*git fetch/)
   refused("merged-with-other-whitespace", "git branch -D spaced", SQUASHED, /'spaced'/)
+  refused("ends-where-it-forked", "git branch -D netzero", SQUASHED, /'netzero'/)
   refused("squashed-after-the-last-fetch", "git branch -D late", SQUASHED, /'late'.*git fetch/)
   refused("one-unmerged-among-merged", "git branch -D fresh never behind", SQUASHED, /'never'/)
   refused("a-missing-branch", "git branch -D gone", SQUASHED, /'gone'/)
-  refused("a-variable", 'git branch -D "$b"', SQUASHED, /names each branch/)
-  refused("a-glob", "git branch -D 'fre*'", SQUASHED, /names each branch/)
-  refused("a-substitution", "git branch -D $(git branch --merged)", SQUASHED, /names each branch/)
-  refused("no-branch-named", "git branch -D", SQUASHED, /names each branch/)
-  refused("xargs-adds-branches", "echo never | xargs git branch -D fresh", SQUASHED, /names each branch/)
-  refused("find-exec-adds-branches", "find . -exec git branch -D fresh {} +", SQUASHED, /names each branch/)
+  refused("a-variable", 'git branch -D "$b"', SQUASHED, /does not write out/)
+  refused("a-glob", "git branch -D 'fre*'", SQUASHED, /does not write out/)
+  refused("no-branch-named", "git branch -D", SQUASHED, /no branch it names/)
   refused("remote-tracking", "git branch -D -r origin/late", SQUASHED, /remote-tracking/)
   refused("no-origin-head", "git branch -D merged", NO_ORIGIN_HEAD, /base branch/)
+  refused("origin-head-outside-origin", "git branch -D merged", FORGED_HEAD, /base branch/)
   refused("a-base-branch-origin-lacks", "git branch -D merged", MISSING_BASE, /origin\/develop/)
+  it("a-partial-clone-fetches-nothing", () => {
+    const packs = (): number => readdirSync(join(BLOBLESS, ".git", "objects", "pack")).length
+    const before = packs()
+    const verdict = runHook("block-dangerous-commands", bashPayload("git branch -D never", BLOBLESS))
+    expectExit(verdict, 2)
+    assert.equal(packs(), before, "no blob fetched from the promisor remote")
+  })
+  // Only as a command of its own: anything else could point git at another repository or other
+  // branches than the guard checks.
+  const longer: [string, string][] = [
+    ["cd-first", `cd ${SQUASHED} && git branch -D behind`],
+    ["pushd-first", `pushd ${SQUASHED} && git branch -D behind`],
+    ["cd-in-a-child-shell", `bash -c 'cd ${SQUASHED}'; git branch -D behind`],
+    ["git-dir-assigned", `GIT_DIR=${SQUASHED}/.git git branch -D behind`],
+    ["env-chdir", `env -C ${SQUASHED} git branch -D behind`],
+    ["git-dir-option", `git --git-dir ${SQUASHED}/.git branch -D behind`],
+    ["dash-C-twice", `git -C ${SQUASHED} -C . branch -D behind`],
+    ["dash-C-variable", 'git -C "$R" branch -D behind'],
+    ["after-a-fetch", `git -C ${SQUASHED} fetch && git -C ${SQUASHED} branch -D behind`],
+    ["in-a-pipeline", `git -C ${SQUASHED} branch -D behind | cat`],
+    ["a-substitution", `git -C ${SQUASHED} branch -D $(git branch --merged)`],
+    ["a-backtick-adds-branches", `git -C ${SQUASHED} branch -D fresh \`echo never\``],
+    ["a-glued-backtick", `git -C ${SQUASHED} branch -D fresh\`echo -v2\``],
+    ["xargs-adds-branches", `echo never | xargs git -C ${SQUASHED} branch -D fresh`],
+    ["find-exec-adds-branches", `find . -exec git -C ${SQUASHED} branch -D fresh {} +`]
+  ]
+  for (const [name, command] of longer) {
+    refused(name, command, TMP, /a command of its own/)
+  }
 })
 
 describe("the wrappers and global options a shell or git accepts before the verb", () => {

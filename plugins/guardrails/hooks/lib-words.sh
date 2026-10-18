@@ -263,16 +263,11 @@ guard_find_exec() {
   WORDS=("${WORDS[@]:from:to-from}")
 }
 
-# 1 once guard_unwrap_words passed an xargs or a find -exec, which hand the command operands its words
-# do not hold.
-GUARD_ADDED_OPERANDS=0
-
 # guard_unwrap_words — drops from the front of the array WORDS every word the table above names, with
 # its options, until the command itself leads. Word by word, so `rtk git` keeps its `git`, `bash
 # script.sh` stays a shell and `command -v git` stays a lookup.
 guard_unwrap_words() {
   local j c
-  GUARD_ADDED_OPERANDS=0
   while [[ ${#WORDS[@]} -gt 0 ]]; do
     if [[ "${WORDS[0]}" == */* && "${WORDS[0]}" != *[[:space:]=]* ]]; then
       WORDS[0]=${WORDS[0]##*/}
@@ -313,12 +308,10 @@ guard_unwrap_words() {
         guard_skip_options "ioe" "--input --output --error"
         ;;
       xargs)
-        GUARD_ADDED_OPERANDS=1
         guard_shift_words
         guard_skip_options "adEIJLnPRsS" "--arg-file --delimiter --eof --replace --max-lines --max-args --max-procs --max-chars --process-slot-var"
         ;;
       find)
-        GUARD_ADDED_OPERANDS=1
         guard_find_exec || return 0
         ;;
       sh | bash | zsh | dash | ksh)

@@ -62,11 +62,14 @@ disk is in the next session, a broken edit included.
     `branch -d` and `worktree remove` pass, because git keeps unmerged and dirty work from them
     itself.
   - forced branch delete: `branch -D`, `-d -f` or `--delete --force` passes when each branch it
-    names is landed: its work is on origin's base branch, `baseBranch` or under `auto` the one
-    `origin/HEAD` names. Its tip is there, or a base commit since it forked holds the tip's tree or
-    the patch-id of its whole diff, as a squash merge leaves them. Only local objects are read, so a
-    base fetched before the merge refuses until `git fetch`. A branch the command does not write out,
-    as a variable, a glob, a substitution or what an `xargs` adds, is refused, and so is `-r`.
+    names is landed: its work is on origin's base branch, `baseBranch` or under `auto` the branch of
+    origin that `origin/HEAD` names. Its tip is there, or a base commit since it forked holds the
+    tip's tree or the patch-id of its whole diff, as a squash merge leaves them; a branch that ends
+    where it forked is not landed. Only local objects are read, never fetched in a partial clone, so
+    a base fetched before the merge refuses until `git fetch`. It passes only as a command of its
+    own, `[rtk] git [-C <path>] branch -D <branch>...` with a redirect at most, each branch and the
+    path written out: a `cd`, a `GIT_DIR`, a pipe, a substitution, a variable or an `xargs` could
+    aim git elsewhere than the guard looks. `-r` is refused.
   - push: a bare `--force`, `-f` or `+refspec` and a `--mirror` are refused; `--force-with-lease`
     and `--force-if-includes` pass to a branch outside `guardrails.protectedBranches`, behind a
     prompt under `guardrails.forcePush: ask`, and nothing passes under `deny`. A plain push to a

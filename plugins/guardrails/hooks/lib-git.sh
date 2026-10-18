@@ -304,17 +304,20 @@ guard_protected() {
 GUARD_BASE_REF=""
 
 # guard_base_ref <dir> — GUARD_BASE_REF becomes the remote-tracking ref of the base branch at <dir>:
-# refs/remotes/origin/<baseBranch>, or the ref refs/remotes/origin/HEAD names for `auto`. Returns 1
-# when it names no commit here, GUARD_BASE_REF then empty for an unset origin/HEAD.
+# refs/remotes/origin/<baseBranch>, or for `auto` the ref refs/remotes/origin/HEAD names, kept only
+# under refs/remotes/origin/. Returns 1 when it is no valid ref naming a commit here, GUARD_BASE_REF
+# then empty when origin/HEAD gave none.
 guard_base_ref() {
   local base
   base=$(guard_config_get '.baseBranch')
   if [[ -z "$base" || "$base" == auto ]]; then
     GUARD_BASE_REF=$(git -C "$1" symbolic-ref -q refs/remotes/origin/HEAD 2>/dev/null) || GUARD_BASE_REF=""
+    [[ "$GUARD_BASE_REF" == refs/remotes/origin/?* ]] || GUARD_BASE_REF=""
   else
     GUARD_BASE_REF="refs/remotes/origin/$base"
   fi
-  [[ -n "$GUARD_BASE_REF" ]] && git -C "$1" rev-parse --verify -q "$GUARD_BASE_REF^{commit}" >/dev/null 2>&1
+  [[ -n "$GUARD_BASE_REF" ]] && git check-ref-format "$GUARD_BASE_REF" &&
+    git -C "$1" rev-parse --verify -q "$GUARD_BASE_REF^{commit}" >/dev/null 2>&1
 }
 
 # The base commits guard_landed reads, newest first: a branch that forked further back is refused
@@ -324,20 +327,26 @@ GUARD_LANDED_SCAN=5000
 # guard_landed <dir> <base-ref> <branch> — 0 when the work of the local <branch> at <dir> is on
 # <base-ref>: its tip is there (a merge or a fast-forward), or a base commit since the fork holds the
 # tip's tree (a squash of a branch up to date with the base) or the patch-id of the branch's whole
-# diff (a squash of one behind it). Local objects only: a base fetched before the squash lacks it.
-# The patch-id is --verbatim, so whitespace counts. grep reads to the end, as `grep -q` would cut the
-# pipe and pipefail fail it.
+# diff (a squash of one behind it). A branch whose tip has the fork's tree is not: its commits may hold
+# work no tree shows. The patch-id is --verbatim, so whitespace counts, though not where in a file a
+# hunk sits. Local objects only, never fetched lazily in a partial clone: a missing one refuses, and a
+# base fetched before the squash lacks it. grep reads to the end, as `grep -q` would cut the pipe and
+# pipefail fail it.
 guard_landed() {
   local tip fork tree patch
+  git check-ref-format "refs/heads/$3" || return 1
   tip=$(git -C "$1" rev-parse --verify -q "refs/heads/$3^{commit}" 2>/dev/null) || return 1
   git -C "$1" merge-base --is-ancestor "$tip" "$2" 2>/dev/null && return 0
   fork=$(git -C "$1" merge-base "$tip" "$2" 2>/dev/null) || return 1
   tree=$(git -C "$1" rev-parse "$tip^{tree}")
+  [[ "$tree" == "$(git -C "$1" rev-parse "$fork^{tree}")" ]] && return 1
   git -C "$1" log --format=%T --max-count="$GUARD_LANDED_SCAN" "$fork..$2" | grep -xF "$tree" >/dev/null && return 0
-  patch=$(git -C "$1" diff-tree -p --binary --no-renames "$fork" "$tip" | git patch-id --verbatim)
+  # pipefail: a diff cut short by a missing object fails here instead of naming part of the work.
+  patch=$(GIT_NO_LAZY_FETCH=1 git -C "$1" diff-tree -p --binary --no-renames "$fork" "$tip" 2>/dev/null |
+    git patch-id --verbatim) || return 1
   patch=${patch%% *}
   [[ -n "$patch" ]] || return 1
   git -C "$1" rev-list --no-merges --max-count="$GUARD_LANDED_SCAN" "$fork..$2" |
-    git -C "$1" diff-tree --stdin -p --binary --no-renames | git patch-id --verbatim | cut -d' ' -f1 |
-    grep -xF "$patch" >/dev/null
+    GIT_NO_LAZY_FETCH=1 git -C "$1" diff-tree --stdin -p --binary --no-renames 2>/dev/null |
+    git patch-id --verbatim | cut -d' ' -f1 | grep -xF "$patch" >/dev/null
 }

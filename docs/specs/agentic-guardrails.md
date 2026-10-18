@@ -74,9 +74,15 @@ refuses.
   reflog. A forced branch delete is the exception, judged by its branch: git's merge check fails
   every squash-merged branch, so `branch -D` passes for a landed branch, whose work is on origin's
   base branch. Its tip is there, or a base commit since it forked holds its tree (squashed up to
-  date) or the patch-id of its whole diff (squashed behind). Both checks read local objects, so a
-  stale base refuses and `git fetch` is the remedy; a branch the command does not write out is
-  refused. `stash pop` passes: it drops the entry only once the apply succeeds. What removes the
+  date) or the patch-id of its whole diff (squashed behind); one that ends where it forked shows no
+  work in its tree and is refused. The checks read local objects and never fetch one, so a stale
+  base or a partial clone refuses and `git fetch` is the remedy. The delete passes only as a
+  command of its own, `[rtk] git [-C <path>] branch -D`, each branch and the path written out, so
+  the repository and the branches checked are the ones git gets. A three-way merge into the base was
+  measured and rejected: it conflicts wherever the base edited the branch's lines after the squash,
+  and it writes objects. The patch-id ignores where in a file a hunk sits, so the same change with
+  the same context landed at another place in that file reads as landed; no accident is expected to
+  make one. `stash pop` passes: it drops the entry only once the apply succeeds. What removes the
   record of lost commits is refused with them: `reflog expire` and `delete`, `gc --prune=now|all`,
   `prune`, `update-ref -d`, `rm` of `.git`. `checkout -B`, `switch -C`, the `--abort` verbs,
   `git rm -f` and `tag -d` pass: what they replace stays in a reflog or is the agent's own call on

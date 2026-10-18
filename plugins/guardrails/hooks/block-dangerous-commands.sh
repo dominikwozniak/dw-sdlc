@@ -11,9 +11,10 @@
 #   move, a copy or an existing branch; checkout -f or of the whole tree; switch -f/--discard-changes;
 #   restore of the whole tree unless --staged alone; stash drop/clear; worktree remove -f; reflog
 #   expire/delete; gc --prune=now|all; prune; update-ref -d.
-#   branch -D, -d -f, --delete --force: unless each branch it names has its work on origin's base
-#   branch (baseBranch, `auto` the one origin/HEAD names): its tip is there, or a base commit since
-#   it forked holds the tip's tree or the patch-id of its whole diff, as a squash merge leaves them.
+#   branch -D, -d -f, --delete --force: unless it is a command of its own and each branch it names
+#   has its work on origin's base branch (baseBranch, `auto` the one origin/HEAD names): its tip is
+#   there, or a base commit since it forked holds the tip's tree or the patch-id of its whole diff,
+#   as a squash merge leaves them.
 #   push: a bare --force, -f or +refspec and a --mirror are always refused; --force-with-lease and
 #   --force-if-includes pass to a branch outside guardrails.protectedBranches, each behind a
 #   permission prompt when guardrails.forcePush is `ask`, and nothing passes when it is `deny`; a
@@ -175,29 +176,51 @@ check_commit() {
   return 0
 }
 
-BRANCH_NAME='^[A-Za-z0-9._/+@#-]+$'
+PLAIN='^[A-Za-z0-9._/+@-]+$'
+REDIRECT='^[0-9]*[<>]'
+REDIRECT_ALONE='^[0-9]*(<|>|>>)$'
 
-# check_branch_delete — a forced `git branch` delete, guard_opts having read it. It skips git's merge
-# check, which a squash-merged branch always fails, so it passes when every branch it names, written
-# out, has its work on the base branch (guard_landed). A variable, a glob, a substitution or what an
-# xargs adds names nothing the guard can check.
+# The whole command is one command: no separator, pipe, background `&`, subshell, substitution or
+# backtick, a redirect's `&` aside. Only then are the repository and the branches a forced delete is
+# checked against the ones git gets.
+ALONE=0
+[[ "$(guard_pipelines "$SCAN")" != *$'\n'* && "$SCAN" != *[\|\(\)\`]* ]] && ALONE=1
+
+# check_branch_delete <segment> — a forced `git branch` delete, guard_opts having read it. It skips
+# git's merge check, which a squash-merged branch always fails, so it passes when every branch it
+# names has its work on the base branch (guard_landed), and only as a command of its own,
+# `[rtk] git [-C <path>] branch …` with each branch and the path written out: a `cd`, a `GIT_DIR`, a
+# variable, a glob or an xargs could point git elsewhere than the guard looks.
 check_branch_delete() {
-  local branch base named=1
+  local word branch base i=0 skip=0 branches=()
   guard_opt -r --remotes && guard_block "'$GUARD_COMMAND' force-deletes remote-tracking branches."
-  ((GUARD_ADDED_OPERANDS || ${#OPT_OPERANDS[@]} == 0)) && named=0
-  for branch in ${OPT_OPERANDS[@]+"${OPT_OPERANDS[@]}"}; do
-    [[ "$branch" =~ $BRANCH_NAME ]] || named=0
+  guard_read_words "$1"
+  [[ "${WORDS[0]:-}" == rtk ]] && i=1
+  [[ "${WORDS[i]:-}" == git ]] && i=$((i + 1))
+  [[ "${WORDS[i]:-}" == -C && "${WORDS[i + 1]:-}" =~ $PLAIN ]] && i=$((i + 2))
+  if ((!ALONE)) || [[ "${WORDS[i]:-}" != branch ]]; then
+    guard_block "'$GUARD_COMMAND' force-deletes a branch as part of a longer command. A forced delete passes as a command of its own: git [-C <path>] branch -D <branch>..., each branch written out."
+  fi
+  for word in ${OPT_OPERANDS[@]+"${OPT_OPERANDS[@]}"}; do
+    if ((skip)); then
+      skip=0
+    elif [[ "$word" =~ $REDIRECT ]]; then
+      [[ "$word" =~ $REDIRECT_ALONE ]] && skip=1
+    elif [[ "$word" =~ $PLAIN ]]; then
+      branches+=("$word")
+    else
+      guard_block "'$GUARD_COMMAND' force-deletes a branch it does not write out: '$word'. A forced delete passes when it names each branch and the work of each is on the base branch."
+    fi
   done
-  ((named)) ||
-    guard_block "'$GUARD_COMMAND' force-deletes branches it does not write out. A forced delete passes when it names each branch and the work of each is on the base branch."
+  ((${#branches[@]})) || guard_block "'$GUARD_COMMAND' force-deletes no branch it names."
   guard_config_load "$GUARD_PUSH_LOC"
   if ! guard_base_ref "$GUARD_PUSH_LOC"; then
     [[ -n "$GUARD_BASE_REF" ]] &&
       guard_block "'$GUARD_COMMAND' force-deletes a branch, and its base branch ${GUARD_BASE_REF#refs/remotes/} is not here to check it against. Run git fetch origin, or fix baseBranch in .ai/agentic.config.json."
-    guard_block "'$GUARD_COMMAND' force-deletes a branch, and no base branch is known to check it against: origin/HEAD is unset. Run git remote set-head origin --auto, or set baseBranch in .ai/agentic.config.json."
+    guard_block "'$GUARD_COMMAND' force-deletes a branch, and no base branch is known to check it against: origin/HEAD names no branch of origin. Run git remote set-head origin --auto, or set baseBranch in .ai/agentic.config.json."
   fi
   base=$GUARD_BASE_REF
-  for branch in "${OPT_OPERANDS[@]}"; do
+  for branch in "${branches[@]}"; do
     guard_landed "$GUARD_PUSH_LOC" "$base" "$branch" ||
       guard_block "'$GUARD_COMMAND' force-deletes '$branch', and the guard finds its work on no commit of ${base#refs/remotes/} since it forked: it is not merged, changed after its merge, or merged after the last fetch. Run git fetch origin, then delete it again; a branch with unmerged work is the user's to delete."
   done
@@ -238,7 +261,7 @@ check_git() {
       if guard_opt -M -C || { guard_opt -f --force && guard_opt -m --move -c --copy; }; then
         why="force-moves or force-copies a branch over one of the same name"
       elif guard_opt -D || { guard_opt -f --force && guard_opt -d --delete; }; then
-        check_branch_delete
+        check_branch_delete "$1"
       elif guard_opt -f --force && git -C "$GUARD_PUSH_LOC" show-ref --verify -q "refs/heads/${OPT_OPERANDS[0]:-}" 2>/dev/null; then
         why="force-repoints a branch, dropping the commits only it held"
       fi
