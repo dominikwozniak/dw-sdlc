@@ -170,7 +170,7 @@ guard_quote_walk() {
 }
 
 # guard_qw_live <text> <offset> — 0 when the text before <offset> ends where a quote is handed to a
-# shell, GUARD_LIVE_QUOTE. Past its first character a match holds only letters, `_`, `+`, `-` and
+# shell, GUARD_LIVE_QUOTE. Past its first character a match holds only letters, `_`, `+`, `-`, `<` and
 # whitespace, so the last 128 characters decide it whenever one of them is anything else; only a
 # longer run of those is read in full. A long command then costs a step per quote, not one per
 # character before it.
@@ -178,7 +178,7 @@ guard_qw_live() {
   local pre
   if (($2 > 128)); then
     pre=${1:$2-128:128}
-    if [[ "$pre" == *[!A-Za-z_+[:space:]-]* ]]; then
+    if [[ "$pre" == *[!A-Za-z_+\<[:space:]-]* ]]; then
       [[ "$pre" =~ $GUARD_LIVE_QUOTE ]]
       return
     fi
@@ -278,8 +278,9 @@ guard_mask_live_text() {
 
 # guard_mask_pieces [<from> [<to>]] — the walk's pieces, all of them or those from <from> up to
 # <to>, joined into GUARD_MASKED, `;` `&` `|` `(` `)` and a backtick made \002 wherever they are text:
-# a quoted span, a `${…}`, a comment, an escape. In the text of an unquoted heredoc body the quotes
-# and a `#` go too, so a walk of the whole command finds none of them there.
+# a quoted span, a `${…}`, a comment, an escape. A newline in a quoted span is text too, so a line of a
+# multi-line message never starts a line of its own. In the text of an unquoted heredoc body the
+# quotes and a `#` go too, so a walk of the whole command finds none of them there.
 GUARD_MASKED=""
 guard_mask_pieces() {
   local i n=${2:-${#GUARD_QW_KIND[@]}} piece
@@ -288,11 +289,11 @@ guard_mask_pieces() {
     piece=${GUARD_QW_TEXT[i]}
     case "${GUARD_QW_KIND[i]}" in
       tS | tA | tC)
-        guard_replace_set "$piece" ';&|()`' $'\002'
+        guard_replace_set "$piece" $';&|()`\n' $'\002'
         piece=$GUARD_REPLACED
         ;;
       tD | tE)
-        guard_replace_set "$piece" ';&|()' $'\002'
+        guard_replace_set "$piece" $';&|()\n' $'\002'
         piece=$GUARD_REPLACED
         ;;
       tH)

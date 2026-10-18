@@ -19,9 +19,10 @@
 # WHY A LEXER AND NOT `xargs -n1`: BSD xargs dies with "unterminated quote" the moment a quoted
 # argument contains a newline, and a multi-line `-m` body is the normal shape here. The scanner
 # below has no such limit and carries the one state checks 1 and 3 need: whether a backtick or a
-# `$` sat in a single-quoted span (inert) or a double-quoted one (live). Wrapper prefixes need no
-# handling: the walk keys off a `git` token, and every token before one — `sudo`, `rtk`,
-# `rtk proxy` — is simply not that token.
+# `$` sat in a single-quoted span (inert) or a double-quoted one (live). Launchers need no handling:
+# the walk keys off a `git` token, `/usr/bin/git` included, and every token before one — `sudo`,
+# `xargs`, `rtk proxy` — is simply not that token. A commit inside a substitution or handed to another
+# shell is out of its reach; the subject is a convention, and git's commit-msg hook checks it there.
 set -uo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
@@ -433,7 +434,7 @@ while ((i < count)); do
         continue
       fi
       ;;
-    git)
+    git | */git)
       check_group
       reset_group
       verb=""

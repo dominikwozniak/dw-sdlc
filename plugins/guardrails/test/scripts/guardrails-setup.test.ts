@@ -136,7 +136,10 @@ describe("setup", () => {
       "Bash(rtk git reset --hard *)",
       "Bash(git branch -D *)",
       "Bash(rtk git stash drop)",
-      "Bash(git worktree remove --force *)"
+      "Bash(git worktree remove --force *)",
+      "Bash(gh repo delete)",
+      "Bash(gh repo delete *)",
+      "Bash(rtk gh repo delete *)"
     ]) {
       assert.ok(deny.includes(rule), rule)
     }
@@ -275,6 +278,44 @@ describe("setup", () => {
     const local = json(join(root, LOCAL_FILE))
     assert.equal(local.baseBranch, undefined, "the other content is gone")
     assert.deepEqual(local.commit, { convention: "ticket-key" }, "the pin is the setup's own content and stays")
+  })
+
+  it("keeps a guardrails block the local file holds on every run, --force included", () => {
+    const root = nodeRepo()
+    const home = scratch("home")
+    run(root, home)
+    const guardrails = { forcePush: "ask", commitOnProtected: "deny" }
+    const byHand = { ...json(join(root, LOCAL_FILE)), guardrails }
+    write(root, LOCAL_FILE, JSON.stringify(byHand, null, 2) + "\n")
+    const text = readFileSync(join(root, LOCAL_FILE), "utf8")
+
+    const again = run(root, home)
+    assert.equal(outcomes(again)[LOCAL_FILE], "unchanged")
+    const forced = run(root, home, { force: true })
+    assert.equal(outcomes(forced)[LOCAL_FILE], "unchanged")
+    assert.equal(readFileSync(join(root, LOCAL_FILE), "utf8"), text, "--force drops no guardrails block")
+    const { config, problems } = resolveConfig(root)
+    assert.deepEqual(problems, [])
+    assert.equal(config.guardrails.forcePush, "ask")
+    assert.equal(config.guardrails.commitOnProtected, "deny")
+
+    const bare = initRepo(scratch("setup"), { branch: "main" })
+    write(bare, LOCAL_FILE, JSON.stringify({ $schema: schemaId(), guardrails: { forcePush: "ask" } }) + "\n")
+    assert.notEqual(outcomes(run(bare, home))[LOCAL_FILE], "refused", "no lockfile, so nothing is inferred beside it")
+    assert.deepEqual(json(join(bare, LOCAL_FILE)).guardrails, { forcePush: "ask" })
+  })
+
+  it("still refuses a local file that holds another key beside its guardrails block", () => {
+    const root = nodeRepo()
+    const home = scratch("home")
+    const byHand = { guardrails: { forcePush: "ask" }, baseBranch: "develop" }
+    write(root, LOCAL_FILE, JSON.stringify(byHand) + "\n")
+    assert.equal(outcomes(run(root, home))[LOCAL_FILE], "refused")
+    assert.deepEqual(json(join(root, LOCAL_FILE)), byHand)
+    assert.equal(outcomes(run(root, home, { force: true }))[LOCAL_FILE], "wrote")
+    const local = json(join(root, LOCAL_FILE))
+    assert.equal(local.baseBranch, undefined, "the other content is gone")
+    assert.deepEqual(local.guardrails, { forcePush: "ask" }, "the guardrails block stays")
   })
 
   it("keeps what the settings files already hold and appends to it", () => {

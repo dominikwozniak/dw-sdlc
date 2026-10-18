@@ -29,8 +29,10 @@ disk is in the next session, a broken edit included.
   lookup; it sources `hooks/lib-lines.sh`, the line scanners — heredoc openers and bodies,
   continuation lines — `hooks/lib-text.sh`, the text scanners — the one quote walker every
   scanner reads, quote masking, substitutions, plain words — `hooks/lib-live.sh`, the live-quote
-  readers — a quote handed to a shell, ended where the outer shell ends it — and
-  `hooks/lib-words.sh`, the word readers — shell words, the wrappers, the boundary.
+  readers — a quote handed to a shell, ended where the outer shell ends it — `hooks/lib-words.sh`,
+  the word readers — shell words, the launcher table and its two readers, the boundary — and
+  `hooks/lib-git.sh`, the git readers — a verb and its options, a push and its targets, the
+  current branch.
 - `hooks/schema.jq`, `hooks/config.jq` — the config contract in jq: schema validation and the
   local-over-committed-over-inferred merge, the same behaviour as `scripts/agentic-config.ts`.
 - `hooks/bash-guard.sh` — the dispatcher: one stdin read, heredoc bodies dropped once but for the
@@ -47,16 +49,32 @@ disk is in the next session, a broken edit included.
 
 ## Guards
 
-- `block-dangerous-commands.sh` (always on) — refuses `git reset --hard`, `clean` with `-d`/`-f`/`-x`,
-  `branch -f` and `-D`, `checkout .` from any tree-ish, `checkout -f` and `switch --discard-changes`, a
-  `restore` of the whole tree unless `--staged` alone, `worktree remove --force`, `stash drop` and
-  `stash clear`, remote branch deletion, `rm`
-  aimed at `/`, `~` or `.` bare or with `/*`, `rm` with a bare `*`, `find -delete` and `shred`, seen
-  through `sudo`, `rtk` and `VAR=x` prefixes. A bare
-  `git push --force`, `-f` or `+refspec` is refused; `--force-with-lease` and `--force-if-includes`
-  pass to a branch outside `guardrails.protectedBranches`, and nothing passes under
-  `guardrails.forcePush: deny`. A plain push to a protected branch is refused: those branches take
-  pull requests.
+- `block-dangerous-commands.sh` (always on) — refuses what destroys work the reflog cannot bring
+  back, and the remote writes others build on, at every command position: indented, after a
+  separator, in a subshell or a substitution, behind `sudo`, `env`, `xargs`, `timeout`, `time`,
+  `nohup`, `nice`, `exec`, `stdbuf`, `find -exec`, `bash -c`, `eval`, `rtk`, a shell keyword, a
+  `VAR=x`, a path or a backslash, and in a heredoc or here-string a shell reads.
+  - git, read word by word: `reset --hard`; `clean` with `-f`, `-d`, `-x`, `-X` or `--force` unless
+    a dry run; `branch -D`, `-f`, `--force`, `-M`, `-C`; `checkout -f` or of the whole tree;
+    `switch -f` and `--discard-changes`; a `restore` of the whole tree unless `--staged` alone;
+    `stash drop` and `clear`; `worktree remove --force`; `reflog expire` and `delete`;
+    `gc --prune=now|all`; `prune`; `update-ref -d`. A plain `branch -d` and `worktree remove` pass,
+    because git keeps unmerged and dirty work from them itself.
+  - push: a bare `--force`, `-f` or `+refspec` and a `--mirror` are refused; `--force-with-lease`
+    and `--force-if-includes` pass to a branch outside `guardrails.protectedBranches`, behind a
+    prompt under `guardrails.forcePush: ask`, and nothing passes under `deny`. A plain push to a
+    protected branch is refused: those branches take pull requests. So is a remote branch deletion:
+    `--delete`, `-d`, a `:branch` refspec, or `--prune` with `--all`, `--tags`, no refspec or a
+    wildcard one. `--all` and a wildcard refspec count every local branch.
+  - commit, merge, cherry-pick and revert: on a protected branch, under
+    `guardrails.commitOnProtected: deny`. A `switch -c` or `checkout -b` earlier in the same
+    command moves the branch a commit or a push is judged on.
+  - gh: `repo delete`, `pr merge` or `close` with `--delete-branch`, and `api` deleting a ref or a
+    repository or force-updating a ref, REST or GraphQL.
+  - rm, read in place: aimed at `/`, `~`, `$HOME`, `..` and upward, the working directory by name
+    (`$PWD`, `$(pwd)`, `$(git rev-parse --show-toplevel)`), or a `.git` at any path, as any operand;
+    `.`, `./*` or a bare `*` too, unless a `cd` earlier in the command moved below the session's
+    directory; `find -delete`; `shred`.
 - `block-env-access.sh` (file tools and Bash) — an env file (`.env`, `.env.*`, `.envrc`) is judged by
   `guardrails.envFiles` in the resolved config: a path in `deny` is refused, one in `allow` passes,
   the rest go to `policy` — `git` lets a tracked file through and refuses one git ignores or does
@@ -116,10 +134,12 @@ The `guardrails-setup` skill runs `scripts/guardrails-setup.ts`: it writes this 
 `.ai/agentic.config.local.json` with `$schema` and, when the committed config leaves it unset, the
 Node package manager from the lockfile. `commit.convention` is written only when
 `--convention ticket-key` or `--convention conventional` asks for it, because a local pin outranks a
-convention the repository commits later; a run without the flag keeps a pin as it is. The script also excludes the local
+convention the repository commits later; a run without the flag keeps a pin as it is. Every run,
+`--force` included, keeps a `guardrails` block the local config holds, since that layer may only
+tighten it. The script also excludes the local
 config and `.claude/settings.local.json` in `.git/info/exclude`, generates `permissions.deny`
 into `.claude/settings.local.json` as the backstop for a machine without `jq` (the destructive git
-set in plain and `rtk` form, `Read`/`Edit` rules for every env file the resolved
+set and `gh repo delete` in plain and `rtk` form, `Read`/`Edit` rules for every env file the resolved
 `guardrails.envFiles` refuses: listed in `deny`, or unknown to git and not listed in `allow`), and adds the lease-push exception and the irreversible deny set
 (`rm` at `/`, `~` or `.`, `shred`, `find -delete`, `git stash clear`) to `~/.claude/settings.json`;
 an `autoMode.allow` list the run creates opens with `"$defaults"`, an existing one only gains the
@@ -152,5 +172,7 @@ payload and asserts its exit code and verdict, `test/scripts/` holds the TypeScr
 `test/harness.ts` is the shared part, and every input a test reads is built beside it in a scratch
 directory. `pnpm test` runs them all on
 `node:test`, a file per process, as part of `pnpm check`. The jq and TypeScript copies of the config
-contract are tested against the same cases. jq is a hard requirement: without it the harness fails
+contract are tested against the same cases. `test/hooks/command-position.test.ts` runs every rule
+through the dispatcher bare and behind each launcher family, and `lib.test.ts` holds the word reader
+and the boundary to every launcher spelling. jq is a hard requirement: without it the harness fails
 loudly instead of passing empty.

@@ -58,12 +58,39 @@ refuses.
 - Lease pushes pass to unprotected branches; bare force, `+refspec`, `--mirror` and any force to a
   protected branch are refused (ADR 0004). `guardrails.forcePush: ask` puts each lease push that
   passes behind a permission prompt. A plain push to a protected branch is refused too, from the
-  same guard: the rule reads `guardrails.protectedBranches`.
+  same guard: the rule reads `guardrails.protectedBranches`. So is a remote branch deletion, a
+  `--prune` that reaches past the refspecs named included; `--all` and a wildcard refspec count every
+  local branch.
+- `guardrails.commitOnProtected: deny` refuses a commit, merge, cherry-pick or revert on a protected
+  branch, for a repository whose every change starts on a branch of its own; the default `allow`
+  keeps a repository that commits a small fix on `main` working. The rule sits in the always-on
+  guard, not the commit guard, so it is read at every command position and where the commit runs. A
+  `switch -c` or `checkout -b` earlier in the same command moves the branch a commit or a push is
+  judged on, assuming it succeeds. A detached HEAD, a dry run, `--abort` and `merge --ff-only` pass.
 - A forced deletion is refused and the plain one passes, because git guards the plain form itself:
   `branch -d` keeps a branch that is not fully merged and `worktree remove` keeps a worktree with
-  modified or untracked files. So `branch -D`, a `branch` option cluster holding `D` or `f`,
-  `--force`, `worktree remove -f`/`--force` and `stash drop` are refused; a stash lives only in the
-  stash reflog. `stash pop` passes: it drops the entry only once the apply succeeds.
+  modified or untracked files. So `branch -D`, `-f`, `--force`, `-M`, `-C`, `worktree remove
+-f`/`--force` and `stash drop` are refused; a stash lives only in the stash reflog. `stash pop`
+  passes: it drops the entry only once the apply succeeds. What removes the record of lost commits is
+  refused with them: `reflog expire` and `delete`, `gc --prune=now|all`, `prune`, `update-ref -d`,
+  `rm` of `.git`. `checkout -B`, `switch -C`, the `--abort` verbs, `git rm -f` and `tag -d` pass:
+  what they replace stays in a reflog or is the agent's own call on named paths.
+- gh is held to the same line as git: `repo delete`, `pr merge|close --delete-branch` and an `api`
+  call that deletes a ref or a repository or force-updates a ref, REST or GraphQL, are refused. A
+  merged branch on GitHub goes with the repository's `delete_branch_on_merge` setting instead.
+- A command is judged at every command position: a line start, indented or not, after a separator,
+  in a subshell or a substitution, behind a launcher (`sudo`, `env`, `command -p`, `eval`, `exec`,
+  `nohup`, `nice`, `time`, `timeout`, `stdbuf`, `xargs`, `find -exec`, a shell's `-c` or `<<<`,
+  `rtk`, a shell keyword, `VAR=x`) with its options, named by a path or a backslash, and in a heredoc
+  a shell reads as its script. One table in `lib-words.sh` has two readers: `guard_unwrap_words` on
+  words, for git, gh, the store and every location, and `GUARD_WRAPPER` on text, for the arms that
+  read a target in place. Out of scope, as no accident spells them: a command assembled at runtime, a
+  quoted verb, `env -S`, an abbreviated long option, an alias, a script on disk, `ssh` or
+  `docker exec`, `python -c` or `node -e`, `echo … | bash`, operands that arrive on stdin
+  (`… | xargs git checkout --`), a commit's subject inside a substitution or another shell, an `rm`
+  that `find -exec` hands its start directory, and a glob such as `.g*` that happens to reach `.git`.
+  `rm` of `.`, `./*` or `*` reads the shell's directory: after a literal `cd` below the payload's
+  cwd it cleans that directory and passes.
 - A push and a commit are judged where they run, for the branch and the config alike: the payload's
   cwd, moved by a literal `cd` earlier in the command, one inside a subshell ending with it, or by
   `git -C`. A path computed at runtime, `cd -` and a directory that is not there leave the cwd.
@@ -74,15 +101,16 @@ refuses.
   root, `**/` for any depth; the defaults keep a repository without a config on the git rule with
   the example names allowed. The local layer may drop `allow` entries and add `deny` entries, never
   the reverse; the strictest set is `policy: deny` with both lists empty.
-- `permissions.deny` is generated per repository into `.claude/settings.local.json`, in plain and
-  `rtk` form, as the backstop for a machine without `jq`; `~/.claude/settings.json` gets only the
+- `permissions.deny` is generated per repository into `.claude/settings.local.json`, the git set and
+  `gh repo delete` in plain and `rtk` form, as the backstop for a machine without `jq`; `~/.claude/settings.json` gets only the
   irreversible non-git set (`rm` at `/`, `~` or `.`, `shred`, `find -delete`, `git stash clear`) and
   the one `autoMode.allow` exception for lease pushes.
 - The setup writes what inference cannot get wrong later, plus the one pin the command line asks
   for: the local layer holds `$schema`, the Node package manager when the committed config leaves it
   unset, and `commit.convention` only when `--convention` names one, because a local value overrides
   a convention the repository commits later. A run without the flag keeps the pin the file holds,
-  `--force` included, so the setup stays safe to repeat.
+  `--force` included, so the setup stays safe to repeat; it keeps the file's `guardrails` block too,
+  which can only tighten.
 - Guards are bash 3.2 plus jq, setup and doctor are TypeScript: a hook runs on every Bash call and
   needs nothing but bash and jq. Every guard gets a payload test, because the dispatcher's trigger
   list is what a guard's own self-test cannot see.
@@ -119,6 +147,10 @@ refuses.
   that tightens.
 - A new case is confirmed by mutating the code back to the broken behaviour and watching exactly that
   case fail.
+- Command position is tested twice: `test/hooks/command-position.test.ts` runs every rule, a probe of
+  each other guard and the safe controls through the dispatcher, bare and behind each launcher
+  family, and a combination that reads differently on purpose is listed there with its reason;
+  `lib.test.ts` holds the word reader and the boundary to every launcher spelling.
 
 ## Tasks
 
@@ -250,9 +282,11 @@ Open work on the plugin is tracked in GitHub Issues.
 - `hooks/schema.jq` and `hooks/config.jq` are the jq twins of the TypeScript contract.
 - The hooks' shebang is `/bin/bash`, bash 3.2 on macOS; the guards stay free of bash 4 (`${var,,}`,
   `declare -A`, `mapfile`) and the hook tests, which spawn that bash, prove it.
-- `git push` is parsed word by word (`guard_words`, `guard_unwrap_words` in `lib-words.sh`, `check_push` in
-  the guard), not regex-matched: a new push spelling gets a `case` arm there. The other destructive
-  commands stay regex arms over the wrapper boundary.
+- git and gh are parsed word by word (`guard_read_words`, `guard_unwrap_words` in `lib-words.sh`;
+  `guard_git_verb`, `guard_opts`, `guard_parse_push` in `lib-git.sh`; `check_git`, `check_gh` in the
+  guard), not regex-matched: a verb's options that take a value are listed with it, and a new
+  spelling gets a `case` arm. `rm`, `find -delete` and `shred` stay regex arms over the boundary,
+  because a target such as `$(pwd)` or a quoted `'~'` must be read in place.
 - The env guard asks git per candidate token (`ls-files --error-unmatch`, then `check-ignore` for the
   reason) with an absolute path, so a path outside the work tree fails as untracked; the config and
   the repository root are resolved once, and only when a token looks like an env file.
@@ -266,9 +300,9 @@ Open work on the plugin is tracked in GitHub Issues.
 - An ask is a verdict: a guard prints the JSON and exits 0, and the dispatcher holds the first one
   until every guard has run, so a refusal from any guard beats an ask. Inside one guard asks are
   collected and returned once, after every segment was judged.
-- The git helpers in `lib.sh` (`guard_git_verb`, `guard_parse_push`, `guard_push_targets`,
-  `guard_protected`, `guard_worktree_main`, `guard_segments`) set globals and never print, because a
-  caller capturing stdout runs them in a subshell and loses the words.
+- The git helpers in `lib-git.sh` and `lib.sh` (`guard_git_verb`, `guard_opts`, `guard_parse_push`,
+  `guard_push_targets`, `guard_protected`, `guard_worktree_main`, `guard_segments`) set globals and
+  never print, because a caller capturing stdout runs them in a subshell and loses the words.
 - The generated `permissions.deny` uses exact or end-anchored spellings only: a prefix rule such as
   `Bash(git push --force *)` would also match `--force-with-lease`, the one form the plugin lets
   through, and a permission rule sees the rtk-rewritten command, so every git rule ships twice.

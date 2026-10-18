@@ -21,7 +21,16 @@ _Avoid_: result, decision
 
 **Scan**:
 The command text the guards judge: heredoc bodies dropped but for the substitutions an unquoted one
-runs, continuation lines joined.
+runs and the body a shell reads as its script, continuation lines joined.
+
+**Command position**:
+Where the shell reads a command, not an argument: a line start, indented or not, after a separator,
+in a subshell or a substitution, or behind a launcher. A guard judges a command only there.
+
+**Launcher**:
+A word that runs the command after it: `sudo`, `env`, `xargs`, `timeout`, `find -exec`, `bash -c`, a
+shell keyword such as `then` or `do`. Its options are read with it, so the command behind stays in
+command position.
 
 **Plain words**:
 A command segment's shell words with the quotes gone and quoted prose dropped.
@@ -37,8 +46,8 @@ The values read from the repository itself when no file sets them: the package m
 and the conventional commit convention.
 
 **Strictest set**:
-The fixed guardrails in force while any layer is invalid: every force push and every env file refused,
-and master, main and production protected.
+The fixed guardrails in force while any layer is invalid: every force push, every env file and every
+commit on a protected branch refused, and master, main and production protected.
 
 **Convention**:
 The preset a commit subject must follow: `ticket-key` (`[KEY-123] type: subject`) or `conventional`
@@ -53,7 +62,8 @@ through, and only to a branch that is not protected.
 _Avoid_: safe force push
 
 **Protected branch**:
-A branch the agent never pushes to, plainly or by force; it changes only through a pull request.
+A branch the agent never pushes to, plainly or by force, and never commits on where the repository
+says so; it changes only through a pull request.
 
 ### Distribution
 

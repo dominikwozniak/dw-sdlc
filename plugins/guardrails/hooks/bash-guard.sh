@@ -1,7 +1,7 @@
 #!/bin/bash
 # PreToolUse Bash dispatcher — the one hook the manifest wires for matcher "Bash". One stdin read,
-# one jq parse, heredoc bodies dropped once, and each guard spawned only when the command could
-# trip it. A guard gets the scan text on stdin — environ shares the exec size limit, and a long
+# one jq parse, heredoc bodies dropped once — all but a body a shell reads, which is its script —
+# and each guard spawned only when the command could trip it. A guard gets the scan text on stdin — environ shares the exec size limit, and a long
 # enough command in it once killed every spawn with 126, so no guard ran and the call went through —
 # and the payload's cwd as argv, which is what its config lookup keys on.
 #

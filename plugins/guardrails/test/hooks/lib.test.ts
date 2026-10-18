@@ -443,6 +443,128 @@ describe("text helpers", () => {
   })
 })
 
+// The launcher table in lib-words.sh, spelling by spelling: guard_unwrap_words must reach the
+// command behind it and GUARD_BOUNDARY must match there. One bash process reads every spelling.
+describe("command position: the word reader and the boundary read the same launchers", () => {
+  // [before the command, after it]
+  const exposes: Array<[string, string]> = [
+    ["", ""],
+    ["  ", ""],
+    ["\t", ""],
+    ["then ", ""],
+    ["do ", ""],
+    ["else ", ""],
+    ["elif ", ""],
+    ["if ", ""],
+    ["while ", ""],
+    ["until ", ""],
+    ["! ", ""],
+    ["{ ", ""],
+    ["time ", ""],
+    ["time -p ", ""],
+    ["sudo ", ""],
+    ["sudo -E ", ""],
+    ["sudo -u me ", ""],
+    ["sudo -n -u me ", ""],
+    ["sudo -uroot ", ""],
+    ["sudo --user=me ", ""],
+    ["env ", ""],
+    ["env -i ", ""],
+    ["env FOO=1 ", ""],
+    ["env -u X ", ""],
+    ["env -C /tmp ", ""],
+    ["command ", ""],
+    ["command -p ", ""],
+    ["eval ", ""],
+    ["nohup ", ""],
+    ["exec ", ""],
+    ["exec -a name ", ""],
+    ["nice ", ""],
+    ["nice -n 10 ", ""],
+    ["nice -n10 ", ""],
+    ["nice -10 ", ""],
+    ["timeout 10 ", ""],
+    ["timeout 5s ", ""],
+    ["timeout -s KILL 5 ", ""],
+    ["timeout --preserve-status 1m ", ""],
+    ["stdbuf -oL ", ""],
+    ["stdbuf -o L ", ""],
+    ["xargs ", ""],
+    ["xargs -0 ", ""],
+    ["xargs -r ", ""],
+    ["xargs -n1 ", ""],
+    ["xargs -n 1 ", ""],
+    ["xargs -I{} ", ""],
+    ["xargs -I {} ", ""],
+    ["xargs -0 -n 1 -P 4 ", ""],
+    ["find . -exec ", " \\;"],
+    ["find . -name x -execdir ", " {} +"],
+    ["find . -ok ", " \\;"],
+    ["bash -c '", "'"],
+    ['sh -c "', '"'],
+    ["bash -lc '", "'"],
+    ["bash -o pipefail -c '", "'"],
+    ["bash -euo pipefail -c '", "'"],
+    ["bash -c 'X=1 ", "'"],
+    ["bash -c 'timeout 5 ", "'"],
+    ["eval 'FOO=1 ", "'"],
+    ["rtk run 'A=1 ", "'"],
+    ["bash <<<'", "'"],
+    ["eval '", "'"],
+    ["rtk ", ""],
+    ["rtk proxy ", ""],
+    ["rtk run ", ""],
+    ["rtk -v ", ""],
+    ["FOO=1 ", ""],
+    ["A=1 B=2 ", ""],
+    ["/usr/bin/", ""],
+    ["\\", ""],
+    ["/usr/bin/env FOO=1 ", ""],
+    ["sudo -u me timeout 5 xargs -n1 ", ""],
+    ["nohup nice -n 5 ", ""],
+    ["if ! ", ""]
+  ]
+  // Neither reader may find the command behind these.
+  const hides: Array<[string, string]> = [
+    ["echo ", ""],
+    ["command -v ", ""],
+    ["bash x.sh ", ""],
+    ["cat ", ""],
+    ["git commit -m '", "'"]
+  ]
+  const script = `shift
+for spec in "$@"; do
+  cmd="\${spec%%$'\\t'*}git x\${spec#*$'\\t'}"
+  guard_read_words "$cmd"
+  guard_unwrap_words
+  words="\${WORDS[*]:-}"
+  boundary=no
+  printf '%s\\n' "$(guard_mask_quoted_separators "$cmd")" | grep -qE "\${GUARD_BOUNDARY}git x" && boundary=yes
+  printf '%s\\t%s\\n' "$words" "$boundary"
+done`
+  const read = (cases: Array<[string, string]>): string[] =>
+    lib(
+      script,
+      cases.map(([before, after]) => `${before}\t${after}`)
+    ).split("\n")
+  const exposed = read(exposes)
+  const hidden = read(hides)
+  exposes.forEach(([before, after], i) => {
+    it(`exposes the command: ${JSON.stringify(before + "git x" + after)}`, () => {
+      const [words = "", boundary = ""] = (exposed[i] ?? "").split("\t")
+      assert.match(words, /^git x/, "guard_unwrap_words")
+      assert.equal(boundary, "yes", "GUARD_BOUNDARY")
+    })
+  })
+  hides.forEach(([before, after], i) => {
+    it(`no command behind: ${JSON.stringify(before + "git x" + after)}`, () => {
+      const [words = "", boundary = ""] = (hidden[i] ?? "").split("\t")
+      assert.doesNotMatch(words, /^git x/, "guard_unwrap_words")
+      assert.equal(boundary, "no", "GUARD_BOUNDARY")
+    })
+  })
+})
+
 describe("git helpers", () => {
   const PUSH = "rtk git -C sub push --force-with-lease=a:sha -o x origin feat:main +topic"
   // The callers hand guard_segments the masked scan, so a separator inside quotes is already \002 and

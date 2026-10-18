@@ -152,91 +152,281 @@ guard_ansi_decode() {
   GUARD_ANSI_TEXT+=$rest
 }
 
-# guard_unwrap_words — drops the wrapper words GUARD_WRAPPER names from the front of the array WORDS:
-# `sudo`, `command`, `eval`, `env` with its options, a `VAR=value` assignment, a shell with the options
-# up to its `-c`, and `rtk` with the subcommand that follows it unless that word is the command
-# itself. Word by word, so `rtk git` keeps its `git` and `bash script.sh` stays a shell.
+# The command position. A command runs where the shell reads one — a line start, indented or not, or
+# after `;` `&` `|` `(` or a backtick — and behind the words that run the command after them:
+#
+#   word                                     its options that take a value (glued or the next word)
+#   then do else elif if while until ! {     —
+#   time                                     -o -f (GNU time; the keyword's -p takes none)
+#   sudo                                     -u -g -h -p -U -r -t -C -D -R -T
+#   env                                      -u -C -S; then any VAR=value
+#   command                                  -p runs the command; -v and -V only look it up
+#   eval  nohup                              —
+#   exec                                     -a
+#   nice                                     -n
+#   timeout                                  -s -k; then one duration
+#   stdbuf                                   -i -o -e
+#   xargs                                    -a -d -E -I -J -L -n -P -R -s -S
+#   find … -exec / -execdir / -ok / -okdir   the command runs up to its `;` or `{} +`
+#   sh bash zsh dash ksh                     the text after a `-c`, or after `<<<`
+#   rtk                                      its flags, then run, proxy, err, test or summary
+#   VAR=value                                —
+#
+# A command named by a path or with a leading backslash, `/usr/bin/git` or `\rm`, is that command.
+# Two readers keep this table: guard_unwrap_words on words and GUARD_WRAPPER on text, for the arms
+# that must read a target in place. test/hooks/lib.test.ts holds them to the same spellings.
+
+# guard_read_words <segment> — WORDS becomes the segment's words, as guard_words reads them. A segment
+# cut out of a quote handed to a shell, `bash -c "${x:-$'a; git reset --hard'}"`, ends in the quotes,
+# braces and parentheses that close outside it; guard_words reads those as a quote left open, and then
+# every word is read without them.
+guard_read_words() {
+  local out word open=0
+  WORDS=()
+  out=$(guard_words "$1") || open=1
+  [[ -n "$out" ]] || return 0
+  while IFS= read -r word; do
+    if ((open)); then
+      while [[ "$word" == *[\'\"\}\)] ]]; do word=${word%?}; done
+    fi
+    WORDS+=("$word")
+  done <<<"$out"
+}
+
+# guard_shift_words [<n>] — drops <n> words, 1 by default, from the front of WORDS.
+guard_shift_words() {
+  local n=${1:-1}
+  if ((${#WORDS[@]} > n)); then
+    WORDS=("${WORDS[@]:n}")
+  else
+    WORDS=()
+  fi
+}
+
+# guard_skip_options <letters> <long options> — drops a launcher's options from the front of WORDS: a
+# cluster of flags, one of <letters> with its value, glued or the next word, a `--name=value`, one of
+# <long options> with the next word, and a closing `--`. Stops at the first word that is no option.
+guard_skip_options() {
+  local short="$1" long=" $2 " word j ch
+  while [[ ${#WORDS[@]} -gt 0 ]]; do
+    word="${WORDS[0]}"
+    case "$word" in
+      --)
+        guard_shift_words
+        return 0
+        ;;
+      --*=*) guard_shift_words ;;
+      --?*)
+        guard_shift_words
+        [[ "$long" == *" $word "* ]] && guard_shift_words
+        ;;
+      -?*)
+        guard_shift_words
+        j=1
+        while ((j < ${#word})); do
+          ch=${word:j:1}
+          if [[ "$short" == *"$ch"* ]]; then
+            ((j == ${#word} - 1)) && guard_shift_words
+            break
+          fi
+          j=$((j + 1))
+        done
+        ;;
+      *) return 0 ;;
+    esac
+  done
+  return 0
+}
+
+# guard_find_exec — WORDS, a `find`, becomes the command its `-exec`, `-execdir`, `-ok` or `-okdir`
+# runs, up to the `;` (a masked one is \002) or the `{} +` that ends it. Returns 1 for a find that runs
+# nothing.
+guard_find_exec() {
+  local i n=${#WORDS[@]} from=0 to word
+  for ((i = 1; i < n; i++)); do
+    case "${WORDS[i]}" in
+      -exec | -execdir | -ok | -okdir)
+        from=$((i + 1))
+        break
+        ;;
+    esac
+  done
+  ((from > 0 && from < n)) || return 1
+  to=$n
+  for ((i = from; i < n; i++)); do
+    word=${WORDS[i]}
+    if [[ "$word" == ";" || "$word" == $'\002' || ("$word" == "+" && "${WORDS[i - 1]}" == "{}") ]]; then
+      to=$i
+      break
+    fi
+  done
+  WORDS=("${WORDS[@]:from:to-from}")
+}
+
+# guard_unwrap_words — drops from the front of the array WORDS every word the table above names, with
+# its options, until the command itself leads. Word by word, so `rtk git` keeps its `git`, `bash
+# script.sh` stays a shell and `command -v git` stays a lookup.
 guard_unwrap_words() {
   local j c
   while [[ ${#WORDS[@]} -gt 0 ]]; do
+    if [[ "${WORDS[0]}" == */* && "${WORDS[0]}" != *[[:space:]=]* ]]; then
+      WORDS[0]=${WORDS[0]##*/}
+    fi
     case "${WORDS[0]}" in
-      sudo | command | eval) WORDS=("${WORDS[@]:1}") ;;
+      then | do | else | elif | if | while | until | '!' | '{' | nohup) guard_shift_words ;;
+      eval)
+        guard_shift_words
+        guard_split_first_word || true
+        ;;
+      time)
+        guard_shift_words
+        guard_skip_options "of" "--output --format"
+        ;;
+      sudo)
+        guard_shift_words
+        guard_skip_options "ugChpUrtDRT" "--user --group --host --prompt --other-user --role --type --chdir --chroot --command-timeout"
+        ;;
+      command)
+        guard_shift_words
+        [[ "${WORDS[0]:-}" == -p ]] && guard_shift_words
+        ;;
+      exec)
+        guard_shift_words
+        guard_skip_options "a" ""
+        ;;
+      nice)
+        guard_shift_words
+        guard_skip_options "n" "--adjustment"
+        ;;
+      timeout)
+        guard_shift_words
+        guard_skip_options "sk" "--signal --kill-after"
+        guard_shift_words
+        ;;
+      stdbuf)
+        guard_shift_words
+        guard_skip_options "ioe" "--input --output --error"
+        ;;
+      xargs)
+        guard_shift_words
+        guard_skip_options "adEIJLnPRsS" "--arg-file --delimiter --eof --replace --max-lines --max-args --max-procs --max-chars --process-slot-var"
+        ;;
+      find)
+        guard_find_exec || return 0
+        ;;
       sh | bash | zsh | dash | ksh)
         j=1
         c=0
         while [[ $j -lt ${#WORDS[@]} && "${WORDS[$j]}" == [-+]* ]]; do
           case "${WORDS[$j]}" in
             --*) ;;
-            [-+][oO]) j=$((j + 1)) ;; # `-o pipefail`: the option name is the next word
+            [-+][oO] | [-+][A-Za-z]*[oO])
+              # `-o pipefail`, `-euo pipefail`: the option name is the next word
+              [[ "${WORDS[$j]}" == -*c* ]] && c=1
+              j=$((j + 1))
+              ;;
             -*c*) c=1 ;;
           esac
           j=$((j + 1))
         done
+        # `bash <<<'git reset --hard'`: the here-string is the script.
+        if [[ "${WORDS[$j]:-}" == '<<<' ]]; then
+          WORDS=("${WORDS[$((j + 1))]:-}")
+          guard_split_first_word || true
+          continue
+        elif [[ "${WORDS[$j]:-}" == '<<<'* ]]; then
+          WORDS=("${WORDS[$j]#<<<}")
+          guard_split_first_word || true
+          continue
+        fi
         ((c)) || return 0
-        WORDS=("${WORDS[@]:$j}")
+        guard_shift_words "$j"
+        # The script is one word, and it may open with a VAR=value of its own.
+        guard_split_first_word || true
         ;;
       env)
-        WORDS=("${WORDS[@]:1}")
-        while [[ ${#WORDS[@]} -gt 0 && "${WORDS[0]}" == -* ]]; do
-          case "${WORDS[0]}" in
-            -u | --unset | -C | --chdir) WORDS=("${WORDS[@]:2}") ;;
-            *) WORDS=("${WORDS[@]:1}") ;;
-          esac
-        done
+        guard_shift_words
+        guard_skip_options "uCS" "--unset --chdir --split-string"
         ;;
-      [A-Za-z_]*=*) WORDS=("${WORDS[@]:1}") ;;
+      [A-Za-z_]*=*)
+        # An assignment names a variable; `git gc --prune=now`, one word from a `bash -c`, is a command.
+        if [[ "${WORDS[0]%%=*}" == *[!A-Za-z0-9_]* ]]; then
+          guard_split_first_word || return 0
+        else
+          guard_shift_words
+        fi
+        ;;
       rtk)
-        WORDS=("${WORDS[@]:1}")
-        if [[ ${#WORDS[@]} -gt 1 && "${WORDS[0]}" =~ ^[a-z-]+$ && "${WORDS[1]}" != "" ]]; then
+        guard_shift_words
+        while [[ "${WORDS[0]:-}" == -?* ]]; do guard_shift_words; done
+        if [[ ${#WORDS[@]} -gt 1 ]]; then
           case "${WORDS[0]}" in
-            git | sudo | rm | find | shred | grep | rg | asc) ;;
-            *) WORDS=("${WORDS[@]:1}") ;;
+            run | proxy | err | test | summary)
+              guard_shift_words
+              guard_split_first_word || true
+              ;;
           esac
         fi
         ;;
-      *)
-        # `rtk run "git push --force"`: the command arrived as one quoted word. Split it in place.
-        if [[ "${WORDS[0]}" == *[[:space:]]* ]]; then
-          local -a inner=()
-          local w
-          while IFS= read -r w; do inner+=("$w"); done < <(guard_words "${WORDS[0]}")
-          WORDS=("${inner[@]+"${inner[@]}"}" "${WORDS[@]:1}")
-        fi
-        return 0
-        ;;
+      *) guard_split_first_word || return 0 ;;
     esac
   done
   return 0
 }
 
-# Wrapper prefixes a pattern must see through: `sudo`, `command`, `env` with its options, `rtk <cmd>`
-# (the auto-rewrite), `rtk proxy <cmd>` and the rtk subcommands that execute an arbitrary command
-# (`run` is a raw `sh -c`; `err`, `summary`, `test` run it and filter the output), `eval`, a shell
-# with a `-c` among its options (`bash -c`, `sh -ec`, `bash -o pipefail -c`), and a leading
-# `VAR=value` assignment, which the shell strips before running what follows —
-# `RTK_DISABLED=1 git push --force` included. Zero or more of them, so `sudo rtk run git push
-# --force` matches the same as the bare form.
-GUARD_SHELL_OPTION='([[:space:]]+(-[A-Za-z]+|--[a-z-]+|[-+][oO][[:space:]]+[A-Za-z_]+))'
-GUARD_SHELL_C="(ba|da|k|z)?sh${GUARD_SHELL_OPTION}*[[:space:]]+-[A-Za-z]*c[A-Za-z]*${GUARD_SHELL_OPTION}*[[:space:]]+"
-GUARD_WRAPPER="(sudo[[:space:]]+|command[[:space:]]+|eval[[:space:]]+|${GUARD_SHELL_C}|env([[:space:]]+-[^[:space:]]+)*[[:space:]]+|rtk[[:space:]]+([a-z-]+[[:space:]]+)?|[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*"
+# guard_split_first_word — `rtk run "git push --force"` and `bash -c 'git reset --hard'` hand the
+# command over as one quoted word: split WORDS[0] in place into its words, so unwrapping goes on with
+# them. Returns 1 when the first word holds no whitespace, or nothing that splits.
+guard_split_first_word() {
+  local -a inner=()
+  local w
+  [[ "${WORDS[0]}" == *[[:space:]]* ]] || return 1
+  while IFS= read -r w; do inner+=("$w"); done < <(guard_words "${WORDS[0]}")
+  [[ ${#inner[@]} -gt 1 || "${inner[0]:-}" != "${WORDS[0]}" ]] || return 1
+  WORDS=("${inner[@]+"${inner[@]}"}" "${WORDS[@]:1}")
+}
 
-# What precedes a quote that holds a command, not text: a shell's `-c`, `eval` or `rtk run`. Past its
-# first character a match holds only letters, `_`, `+`, `-` and whitespace, which guard_qw_live's
-# window relies on.
-GUARD_LIVE_PREFIX="(^|[[:space:];&|(\`])(${GUARD_SHELL_C}|eval[[:space:]]+|rtk[[:space:]]+run[[:space:]]+)"
+# The table above as text: zero or more of its words in front of the command, so `sudo -u me rtk run
+# git push --force` matches the same as the bare form. A flag is any `-word`; an option that takes a
+# value is spelled out with it. rtk's own subcommands are left optional, so `rtk git` and `rtk proxy
+# git` both read.
+GUARD_SHELL_OPTION='([[:space:]]+(-[A-Za-z]+|--[a-z-]+|[-+][A-Za-z]*[oO][[:space:]]+[A-Za-z_]+))'
+GUARD_SHELL_C="(ba|da|k|z)?sh${GUARD_SHELL_OPTION}*[[:space:]]+-[A-Za-z]*c[A-Za-z]*${GUARD_SHELL_OPTION}*[[:space:]]+"
+GUARD_SHELL_HERE="(ba|da|k|z)?sh${GUARD_SHELL_OPTION}*[[:space:]]*<<<[[:space:]]*"
+GUARD_OPT_FLAG='[[:space:]]+-[^[:space:];&|]*'
+GUARD_OPT_VALUE="[[:space:]]+(\"[^\"]*\"|'[^']*'|[^[:space:];&|]+)"
+# A command named by a path, `/usr/bin/git`, or with a leading backslash, `\rm`.
+GUARD_CMD_DIR="(\\\\|[^[:space:];&|()\`'\"]*/)?"
+GUARD_LAUNCHER="(then|do|else|elif|if|while|until|!|\\{)[[:space:]]+"
+GUARD_LAUNCHER+="|time([[:space:]]+-p|[[:space:]]+-[of]${GUARD_OPT_VALUE})*[[:space:]]+"
+GUARD_LAUNCHER+="|sudo([[:space:]]+-[A-Za-z]*[ugChpUrtDRT]${GUARD_OPT_VALUE}|${GUARD_OPT_FLAG})*[[:space:]]+"
+GUARD_LAUNCHER+="|env([[:space:]]+-[A-Za-z]*[uCS]${GUARD_OPT_VALUE}|${GUARD_OPT_FLAG})*[[:space:]]+"
+GUARD_LAUNCHER+="|command([[:space:]]+-p)?[[:space:]]+|eval[[:space:]]+|nohup[[:space:]]+"
+GUARD_LAUNCHER+="|exec([[:space:]]+-a${GUARD_OPT_VALUE}|${GUARD_OPT_FLAG})*[[:space:]]+"
+GUARD_LAUNCHER+="|nice([[:space:]]+-n${GUARD_OPT_VALUE}|${GUARD_OPT_FLAG})*[[:space:]]+"
+GUARD_LAUNCHER+="|timeout([[:space:]]+-[sk]${GUARD_OPT_VALUE}|${GUARD_OPT_FLAG})*[[:space:]]+[0-9.]+[smhd]?[[:space:]]+"
+GUARD_LAUNCHER+="|stdbuf([[:space:]]+-[ioe]${GUARD_OPT_VALUE}|${GUARD_OPT_FLAG})*[[:space:]]+"
+GUARD_LAUNCHER+="|xargs([[:space:]]+-[0-9A-Za-z]*[adEIJLnPRsS]${GUARD_OPT_VALUE}|${GUARD_OPT_FLAG})*[[:space:]]+"
+GUARD_LAUNCHER+="|find[[:space:]]+([^;&|]*[[:space:]]+)?-(exec|execdir|ok|okdir)[[:space:]]+"
+GUARD_LAUNCHER+="|${GUARD_SHELL_C}|${GUARD_SHELL_HERE}"
+GUARD_LAUNCHER+="|rtk(${GUARD_OPT_FLAG})*[[:space:]]+([a-z-]+[[:space:]]+)?"
+GUARD_LAUNCHER+="|[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+"
+GUARD_WRAPPER="(${GUARD_CMD_DIR}(${GUARD_LAUNCHER}))*"
+
+# What precedes a quote that holds a command, not text: a shell's `-c` or `<<<`, `eval` or `rtk run`.
+# Past its first character a match holds only letters, `_`, `+`, `-`, `<` and whitespace, which
+# guard_qw_live's window relies on.
+GUARD_LIVE_PREFIX="(^|[[:space:];&|(\`])(${GUARD_SHELL_C}|${GUARD_SHELL_HERE}|eval[[:space:]]+|rtk[[:space:]]+run[[:space:]]+)"
 GUARD_LIVE_QUOTE="${GUARD_LIVE_PREFIX}\$"
 
 # A text that holds such a quote somewhere: the prefix, then `'`, `"`, `$'` or `$"`.
 GUARD_HAS_LIVE_QUOTE="${GUARD_LIVE_PREFIX}\\\$?[\"']"
 
-# A heredoc opener line whose command, or a command piped after it, is a shell reading its stdin.
-GUARD_SHELL_STDIN="(^|[;&|(][[:space:]]*)${GUARD_WRAPPER}(ba|da|k|z)?sh([[:space:]]|\$)"
-
 # An optional opening quote for an ERE: `'`, `"`, `$'` or `$"`.
 GUARD_OPEN_QUOTE="(\\\$?[\"'])?"
 
-# Start-of-command boundary for an ERE: line start or right after `;` `&` `|` `(` or a backtick — the
-# last two open a subshell or a command substitution — then the wrappers and an optional quote for
-# the `rtk run "git push --force"`, `bash -c 'git reset --hard'` and `bash -c $'…'` forms.
-# `grep -E "${GUARD_BOUNDARY}git push"`.
-GUARD_BOUNDARY="(^|[;&|(\`][[:space:]]*)${GUARD_WRAPPER}${GUARD_OPEN_QUOTE}"
+# Start-of-command boundary for an ERE: a line start, indented or not, or right after `;` `&` `|` `(`
+# or a backtick — the last two open a subshell or a command substitution — then the wrappers, each
+# one free to open a quote for the `rtk run "git push --force"`, `bash -c 'X=1 rm -rf /'` and
+# `bash -c $'…'` forms, and the command's path. `grep -E "${GUARD_BOUNDARY}rm"`.
+GUARD_BOUNDARY="(^[[:space:]]*|[;&|(\`][[:space:]]*)(${GUARD_CMD_DIR}(${GUARD_LAUNCHER})|\\\$?[\"'])*${GUARD_CMD_DIR}"
