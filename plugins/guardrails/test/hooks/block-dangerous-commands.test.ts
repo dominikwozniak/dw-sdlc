@@ -93,8 +93,9 @@ function change(dir: string, file: string, text: string): void {
   git(dir, "add", file)
   commit(dir, "-m", `edit ${file}`)
 }
+// A three-way squash wants an identity, as a commit does; a CI runner has none.
 function squash(dir: string, branch: string): void {
-  git(dir, "merge", "-q", "--squash", branch)
+  git(dir, "-c", "user.email=t@example.com", "-c", "user.name=t", "merge", "-q", "--squash", branch)
   commit(dir, "-m", `squash ${branch}`)
 }
 const ORIGIN = join(TMP, "origin.git")
