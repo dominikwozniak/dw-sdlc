@@ -1,5 +1,5 @@
 # Gitignored files a fresh worktree needs. Syntax is .gitignore's; a file is copied only when it
 # matches a pattern here and is gitignored, so tracked files are never duplicated. Claude Code applies
-# this to every worktree it creates.
-.ai/agentic.config.local.json
+# this to every worktree it creates. Not .ai/agentic.config.local.json: a worktree reads that layer
+# from its main checkout, and a copy here would go stale and win over it.
 .claude/settings.local.json
