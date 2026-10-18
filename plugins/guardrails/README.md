@@ -55,11 +55,18 @@ disk is in the next session, a broken edit included.
   `nohup`, `nice`, `exec`, `stdbuf`, `find -exec`, `bash -c`, `eval`, `rtk`, a shell keyword, a
   `VAR=x`, a path or a backslash, and in a heredoc or here-string a shell reads.
   - git, read word by word: `reset --hard`; `clean` with `-f`, `-d`, `-x`, `-X` or `--force` unless
-    a dry run; `branch -D`, `-f`, `--force`, `-M`, `-C`; `checkout -f` or of the whole tree;
-    `switch -f` and `--discard-changes`; a `restore` of the whole tree unless `--staged` alone;
-    `stash drop` and `clear`; `worktree remove --force`; `reflog expire` and `delete`;
-    `gc --prune=now|all`; `prune`; `update-ref -d`. A plain `branch -d` and `worktree remove` pass,
-    because git keeps unmerged and dirty work from them itself.
+    a dry run; `branch -M` and `-C`, and `-f` or `--force` on a move, a copy or an existing branch;
+    `checkout -f` or of the whole tree; `switch -f` and `--discard-changes`; a `restore` of the
+    whole tree unless `--staged` alone; `stash drop` and `clear`; `worktree remove --force`;
+    `reflog expire` and `delete`; `gc --prune=now|all`; `prune`; `update-ref -d`. A plain
+    `branch -d` and `worktree remove` pass, because git keeps unmerged and dirty work from them
+    itself.
+  - forced branch delete: `branch -D`, `-d -f` or `--delete --force` passes when each branch it
+    names is landed: its work is on origin's base branch, `baseBranch` or under `auto` the one
+    `origin/HEAD` names. Its tip is there, or a base commit since it forked holds the tip's tree or
+    the patch-id of its whole diff, as a squash merge leaves them. Only local objects are read, so a
+    base fetched before the merge refuses until `git fetch`. A branch the command does not write out,
+    as a variable, a glob, a substitution or what an `xargs` adds, is refused, and so is `-r`.
   - push: a bare `--force`, `-f` or `+refspec` and a `--mirror` are refused; `--force-with-lease`
     and `--force-if-includes` pass to a branch outside `guardrails.protectedBranches`, behind a
     prompt under `guardrails.forcePush: ask`, and nothing passes under `deny`. A plain push to a
@@ -141,7 +148,9 @@ in it, and a pin that loosens the committed value is refused. The script also ex
 config and `.claude/settings.local.json` in `.git/info/exclude`, generates `permissions.deny`
 into `.claude/settings.local.json` as the backstop for a machine without `jq` (the destructive git
 set and `gh repo delete` in plain and `rtk` form, `Read`/`Edit` rules for every env file the resolved
-`guardrails.envFiles` refuses: listed in `deny`, or unknown to git and not listed in `allow`), and adds the lease-push exception and the irreversible deny set
+`guardrails.envFiles` refuses: listed in `deny`, or unknown to git and not listed in `allow`), and
+removes `git branch -D *` in both forms from it, since a deny rule there would refuse the landed
+branch the guard lets through. It adds the lease-push exception and the irreversible deny set
 (`rm` at `/`, `~` or `.`, `shred`, `find -delete`, `git stash clear`) to `~/.claude/settings.json`;
 an `autoMode.allow` list the run creates opens with `"$defaults"`, an existing one only gains the
 exception. Every file is written only when it would change; `--dry-run` shows the changes, `--force`

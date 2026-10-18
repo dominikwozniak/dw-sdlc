@@ -300,3 +300,44 @@ guard_whole_tree() {
 guard_protected() {
   [[ -n "$(jq -r --arg b "$1" '.guardrails.protectedBranches[] | select(. == $b)' <<<"$GUARD_CONFIG")" ]]
 }
+
+GUARD_BASE_REF=""
+
+# guard_base_ref <dir> — GUARD_BASE_REF becomes the remote-tracking ref of the base branch at <dir>:
+# refs/remotes/origin/<baseBranch>, or the ref refs/remotes/origin/HEAD names for `auto`. Returns 1
+# when it names no commit here, GUARD_BASE_REF then empty for an unset origin/HEAD.
+guard_base_ref() {
+  local base
+  base=$(guard_config_get '.baseBranch')
+  if [[ -z "$base" || "$base" == auto ]]; then
+    GUARD_BASE_REF=$(git -C "$1" symbolic-ref -q refs/remotes/origin/HEAD 2>/dev/null) || GUARD_BASE_REF=""
+  else
+    GUARD_BASE_REF="refs/remotes/origin/$base"
+  fi
+  [[ -n "$GUARD_BASE_REF" ]] && git -C "$1" rev-parse --verify -q "$GUARD_BASE_REF^{commit}" >/dev/null 2>&1
+}
+
+# The base commits guard_landed reads, newest first: a branch that forked further back is refused
+# rather than read for seconds.
+GUARD_LANDED_SCAN=5000
+
+# guard_landed <dir> <base-ref> <branch> — 0 when the work of the local <branch> at <dir> is on
+# <base-ref>: its tip is there (a merge or a fast-forward), or a base commit since the fork holds the
+# tip's tree (a squash of a branch up to date with the base) or the patch-id of the branch's whole
+# diff (a squash of one behind it). Local objects only: a base fetched before the squash lacks it.
+# The patch-id is --verbatim, so whitespace counts. grep reads to the end, as `grep -q` would cut the
+# pipe and pipefail fail it.
+guard_landed() {
+  local tip fork tree patch
+  tip=$(git -C "$1" rev-parse --verify -q "refs/heads/$3^{commit}" 2>/dev/null) || return 1
+  git -C "$1" merge-base --is-ancestor "$tip" "$2" 2>/dev/null && return 0
+  fork=$(git -C "$1" merge-base "$tip" "$2" 2>/dev/null) || return 1
+  tree=$(git -C "$1" rev-parse "$tip^{tree}")
+  git -C "$1" log --format=%T --max-count="$GUARD_LANDED_SCAN" "$fork..$2" | grep -xF "$tree" >/dev/null && return 0
+  patch=$(git -C "$1" diff-tree -p --binary --no-renames "$fork" "$tip" | git patch-id --verbatim)
+  patch=${patch%% *}
+  [[ -n "$patch" ]] || return 1
+  git -C "$1" rev-list --no-merges --max-count="$GUARD_LANDED_SCAN" "$fork..$2" |
+    git -C "$1" diff-tree --stdin -p --binary --no-renames | git patch-id --verbatim | cut -d' ' -f1 |
+    grep -xF "$patch" >/dev/null
+}

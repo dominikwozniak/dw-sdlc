@@ -48,7 +48,6 @@ const GIT_DENY = [
   "git restore -- .",
   "git branch -f *",
   "git branch --force *",
-  "git branch -D *",
   "git stash clear",
   "git stash drop",
   "git stash drop *",
@@ -58,6 +57,12 @@ const GIT_DENY = [
 
 // The gh commands the guards refuse. rtk rewrites `gh` as it does `git`, so they take both forms too.
 const GH_DENY = ["gh repo delete", "gh repo delete *"]
+
+/**
+ * The rules the setup removes from a repository's deny list. The guard lets a forced delete of a
+ * landed branch through, and a deny rule would refuse it whatever the guard decides.
+ */
+export const RETIRED_DENY = ["Bash(git branch -D *)", "Bash(rtk git branch -D *)"]
 
 const ENV_NAME = /^\.env(\..+)?$|^\.envrc$/
 

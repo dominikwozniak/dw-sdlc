@@ -17,11 +17,11 @@
 //                                   list this run creates), and permissions.deny with the irreversible set;
 //                                   under $CLAUDE_CONFIG_DIR when it is set, as Claude Code reads it
 //
-// Existing content is merged, never replaced: lists grow by the entries they lack, other keys stay. A
-// settings file that is not JSON is refused, not rewritten. From a linked worktree all three repository
-// files go to the main checkout: every worktree reads the local config from there when it has none of
-// its own, and Claude Code reads the local settings there. The only thing run in the repository is
-// read-only git.
+// Existing content is merged, never replaced: lists grow by the entries they lack, the repository's
+// deny list loses the rules RETIRED_DENY names, other keys stay. A settings file that is not JSON is
+// refused, not rewritten. From a linked worktree all three repository files go to the main checkout:
+// every worktree reads the local config from there when it has none of its own, and Claude Code reads
+// the local settings there. The only thing run in the repository is read-only git.
 
 import { spawnSync } from "node:child_process"
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
@@ -46,7 +46,7 @@ import {
   schemaId,
   validateDocument
 } from "./agentic-config.ts"
-import { GLOBAL_DENY, LEASE_RULE, repositoryDeny } from "./setup-rules.ts"
+import { GLOBAL_DENY, LEASE_RULE, RETIRED_DENY, repositoryDeny } from "./setup-rules.ts"
 
 export type Outcome = "wrote" | "unchanged" | "refused"
 export type Step = { file: string; outcome: Outcome; detail?: string }
@@ -353,7 +353,8 @@ export function setup(options: SetupOptions): Step[] {
   } else {
     const settings = localSettings ?? {}
     const permissions = isObject(settings.permissions) ? settings.permissions : {}
-    settings.permissions = { ...permissions, deny: union(permissions.deny, repositoryDeny(root)) }
+    const deny = union(permissions.deny, repositoryDeny(root)).filter((rule) => !RETIRED_DENY.includes(rule))
+    settings.permissions = { ...permissions, deny }
     writer.put(".claude/settings.local.json", localSettingsPath, render(settings))
   }
 

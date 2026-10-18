@@ -47,7 +47,7 @@ pnpm guardrails:doctor --root <path to your repository>
 | guard                 | refuses                                                                                                     |
 | --------------------- | ----------------------------------------------------------------------------------------------------------- |
 | dangerous commands    | `reset --hard`, `clean -fd`, `stash clear`, remote branch deletion, `rm` at `/` `~` `.`, `find -delete`     |
-| forced delete         | `branch -D`/`-M`, `worktree remove --force`, `stash drop`; a plain `branch -d` or `worktree remove` passes  |
+| forced delete         | `branch -D` of a branch not yet on the base, `-M`, `worktree remove --force`, `stash drop`                  |
 | lost-commit record    | `reflog expire`, `gc --prune=now`, `prune`, `update-ref -d`, `rm -rf .git`                                  |
 | force push            | bare `push --force`; a lease push passes, or asks first under `forcePush: ask`, never to a protected branch |
 | plain push            | any push straight to a protected branch: those take pull requests                                           |

@@ -131,7 +131,7 @@ describe("setup", () => {
       "Bash(rtk git push --force)",
       "Bash(git reset --hard *)",
       "Bash(rtk git reset --hard *)",
-      "Bash(git branch -D *)",
+      "Bash(git branch -f *)",
       "Bash(rtk git stash drop)",
       "Bash(git worktree remove --force *)",
       "Bash(gh repo delete)",
@@ -155,6 +155,10 @@ describe("setup", () => {
     assert.ok(
       !deny.some((rule) => rule.includes("push --force *")),
       "no push prefix rule that could catch --force-with-lease"
+    )
+    assert.ok(
+      !deny.some((rule) => rule.includes("branch -D")),
+      "no forced branch delete rule, which would refuse a merged branch the guard lets through"
     )
 
     const user = json(join(home, ".claude/settings.json"))
@@ -383,6 +387,25 @@ describe("setup", () => {
     const local = json(join(root, ".claude/settings.local.json"))
     assert.deepEqual((local.permissions as { allow: string[] }).allow, ["Bash(gh pr *)"])
     assert.equal((local.permissions as { deny: string[] }).deny[0], "Read(./secret)")
+  })
+
+  it("removes the forced branch delete rules from the local settings and keeps every other entry", () => {
+    const root = nodeRepo()
+    const home = scratch("home")
+    const deny = ["Read(./secret)", "Bash(git branch -D *)", "Bash(git branch -D main)", "Bash(rtk git branch -D *)"]
+    write(root, ".claude/settings.local.json", JSON.stringify({ permissions: { allow: ["Bash(gh pr *)"], deny } }))
+    assert.equal(outcomes(run(root, home))[".claude/settings.local.json"], "wrote")
+    const local = json(join(root, ".claude/settings.local.json"))
+    const kept = (local.permissions as { deny: string[] }).deny
+    assert.ok(!kept.includes("Bash(git branch -D *)"))
+    assert.ok(!kept.includes("Bash(rtk git branch -D *)"))
+    assert.deepEqual(
+      kept.slice(0, 2),
+      ["Read(./secret)", "Bash(git branch -D main)"],
+      "a rule the setup never writes stays"
+    )
+    assert.deepEqual((local.permissions as { allow: string[] }).allow, ["Bash(gh pr *)"])
+    assert.equal(outcomes(run(root, home))[".claude/settings.local.json"], "unchanged")
   })
 
   it("refuses a settings file that is not JSON and leaves it alone", () => {

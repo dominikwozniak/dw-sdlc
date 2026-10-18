@@ -55,7 +55,8 @@ and jq.
 - `.claude/settings.local.json` — `permissions.deny` as the backstop for a machine without `jq`: the
   destructive git commands and `gh repo delete` in plain and `rtk` form, and `Read`/`Edit` rules for every `.env`,
   `.env.*` or `.envrc` git ignores here, `.env.example`, `.env.sample` and `.env.template` aside.
-  A tracked env file stays readable.
+  A tracked env file stays readable. The run removes `Bash(git branch -D *)` and its `rtk` form:
+  the guard lets a forced delete of a landed branch through, and the rule would refuse it anyway.
 - `~/.claude/settings.json`, or `$CLAUDE_CONFIG_DIR/settings.json` when Claude Code runs from
   another config dir — `autoMode.allow` gains the lease-push exception; a list the run
   creates opens with `"$defaults"`, so the classifier's built-in rules stay, and an existing list

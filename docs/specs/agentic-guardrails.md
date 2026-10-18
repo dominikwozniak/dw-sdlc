@@ -69,12 +69,18 @@ refuses.
   judged on, assuming it succeeds. A detached HEAD, a dry run, `--abort` and `merge --ff-only` pass.
 - A forced deletion is refused and the plain one passes, because git guards the plain form itself:
   `branch -d` keeps a branch that is not fully merged and `worktree remove` keeps a worktree with
-  modified or untracked files. So `branch -D`, `-f`, `--force`, `-M`, `-C`, `worktree remove
--f`/`--force` and `stash drop` are refused; a stash lives only in the stash reflog. `stash pop`
-  passes: it drops the entry only once the apply succeeds. What removes the record of lost commits is
-  refused with them: `reflog expire` and `delete`, `gc --prune=now|all`, `prune`, `update-ref -d`,
-  `rm` of `.git`. `checkout -B`, `switch -C`, the `--abort` verbs, `git rm -f` and `tag -d` pass:
-  what they replace stays in a reflog or is the agent's own call on named paths.
+  modified or untracked files. So `branch -M`, `-C`, `-f` or `--force` on an existing branch,
+  `worktree remove -f`/`--force` and `stash drop` are refused; a stash lives only in the stash
+  reflog. A forced branch delete is the exception, judged by its branch: git's merge check fails
+  every squash-merged branch, so `branch -D` passes for a landed branch, whose work is on origin's
+  base branch. Its tip is there, or a base commit since it forked holds its tree (squashed up to
+  date) or the patch-id of its whole diff (squashed behind). Both checks read local objects, so a
+  stale base refuses and `git fetch` is the remedy; a branch the command does not write out is
+  refused. `stash pop` passes: it drops the entry only once the apply succeeds. What removes the
+  record of lost commits is refused with them: `reflog expire` and `delete`, `gc --prune=now|all`,
+  `prune`, `update-ref -d`, `rm` of `.git`. `checkout -B`, `switch -C`, the `--abort` verbs,
+  `git rm -f` and `tag -d` pass: what they replace stays in a reflog or is the agent's own call on
+  named paths.
 - gh is held to the same line as git: `repo delete`, `pr merge|close --delete-branch` and an `api`
   call that deletes a ref or a repository or force-updates a ref, REST or GraphQL, are refused. A
   merged branch on GitHub goes with the repository's `delete_branch_on_merge` setting instead.
@@ -102,7 +108,9 @@ refuses.
   the example names allowed. The local layer may drop `allow` entries and add `deny` entries, never
   the reverse; the strictest set is `policy: deny` with both lists empty.
 - `permissions.deny` is generated per repository into `.claude/settings.local.json`, the git set and
-  `gh repo delete` in plain and `rtk` form, as the backstop for a machine without `jq`; `~/.claude/settings.json` gets only the
+  `gh repo delete` in plain and `rtk` form, as the backstop for a machine without `jq`. It leaves out
+  `branch -D` and a run removes that rule: a deny rule refuses whatever the guard decides, so it
+  would refuse a landed branch too. `~/.claude/settings.json` gets only the
   irreversible non-git set (`rm` at `/`, `~` or `.`, `shred`, `find -delete`, `git stash clear`) and
   the one `autoMode.allow` exception for lease pushes.
 - The setup writes what inference cannot get wrong later, plus the pins the command line asks for:

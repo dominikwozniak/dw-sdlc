@@ -65,6 +65,12 @@ _Avoid_: safe force push
 A branch the agent never pushes to, plainly or by force, and never commits on where the repository
 says so; it changes only through a pull request.
 
+**Landed branch**:
+A local branch whose work is on origin's base branch: its tip is there, or a base commit since it
+forked holds its tree or the patch-id of its whole diff, as a squash merge leaves them. The one
+branch a forced delete may remove.
+_Avoid_: merged branch, which git's `--merged` keeps for a tip the base contains
+
 ### Distribution
 
 **Marketplace**:
