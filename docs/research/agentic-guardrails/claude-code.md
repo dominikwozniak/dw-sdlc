@@ -86,6 +86,9 @@ these facts shape are in `docs/specs/agentic-guardrails.md`; what follows from t
 - Approvals granted in a worktree are saved to the main checkout's `.claude/settings.local.json`.
   Untracked `.claude/skills`, `agents`, `commands` of the main checkout load in a worktree that has
   none.
+- Observed on 2.1.302, 2026-10-18: a session in a linked worktree, under `.claude/worktrees/` or
+  outside it, applies the `permissions.deny` of the main checkout's `.claude/settings.local.json`,
+  with no copy of the file in the worktree and with an older one.
 - Settings: `worktree.baseRef` (`fresh` = `origin/<default>`, `head`), `worktree.symlinkDirectories`
   (e.g. `node_modules`), `worktree.sparsePaths`, `worktree.bgIsolation` (`worktree` | `none`).
 - `WorktreeCreate` "replaces that default git behavior"; the hook prints the path as the last stdout
