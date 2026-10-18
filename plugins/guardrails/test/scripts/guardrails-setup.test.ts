@@ -4,14 +4,9 @@ import { join } from "node:path"
 import { describe, it } from "node:test"
 import { pathToFileURL } from "node:url"
 
-import {
-  COMMITTED_FILE,
-  type CommitConvention,
-  LOCAL_FILE,
-  resolveConfig,
-  schemaId
-} from "../../scripts/agentic-config.ts"
-import { GLOBAL_DENY, LEASE_RULE, type Step, schemaReference, setup } from "../../scripts/guardrails-setup.ts"
+import { COMMITTED_FILE, LOCAL_FILE, resolveConfig, schemaId } from "../../scripts/agentic-config.ts"
+import { type SetupOptions, type Step, schemaReference, setup } from "../../scripts/guardrails-setup.ts"
+import { GLOBAL_DENY, LEASE_RULE } from "../../scripts/setup-rules.ts"
 import { commit, git, initRepo, runScript, scratch, write as writeFile, writeJson } from "../harness.ts"
 
 function write(root: string, file: string, text: string): void {
@@ -63,14 +58,16 @@ function outcomes(steps: Step[]): Record<string, string> {
 function run(
   root: string,
   home: string,
-  options: { force?: boolean; dryRun?: boolean; convention?: CommitConvention } = {}
+  options: Partial<Pick<SetupOptions, "force" | "dryRun" | "convention" | "forcePush" | "commitOnProtected">> = {}
 ): Step[] {
   return setup({
     root,
     home,
     force: options.force ?? false,
     dryRun: options.dryRun ?? false,
-    convention: options.convention
+    convention: options.convention,
+    forcePush: options.forcePush,
+    commitOnProtected: options.commitOnProtected
   })
 }
 
@@ -305,6 +302,43 @@ describe("setup", () => {
     assert.deepEqual(json(join(bare, LOCAL_FILE)).guardrails, { forcePush: "ask" })
   })
 
+  it("pins forcePush and commitOnProtected the flags name, keeps them on a run without the flags, and lets a flag replace one", () => {
+    const root = nodeRepo()
+    const home = scratch("home")
+    const pinned = run(root, home, { forcePush: "ask", commitOnProtected: "deny" })
+    assert.equal(outcomes(pinned)[LOCAL_FILE], "wrote")
+    assert.deepEqual(json(join(root, LOCAL_FILE)).guardrails, { forcePush: "ask", commitOnProtected: "deny" })
+    const { config, problems } = resolveConfig(root)
+    assert.deepEqual(problems, [])
+    assert.equal(config.guardrails.forcePush, "ask")
+    assert.equal(config.guardrails.commitOnProtected, "deny")
+
+    assert.equal(outcomes(run(root, home))[LOCAL_FILE], "unchanged", "a run without the flags keeps the pins")
+    assert.equal(outcomes(run(root, home, { forcePush: "deny" }))[LOCAL_FILE], "wrote", "a flag replaces its own key")
+    assert.deepEqual(json(join(root, LOCAL_FILE)).guardrails, { forcePush: "deny", commitOnProtected: "deny" })
+  })
+
+  it("refuses a pin that loosens the committed value and leaves the local file alone", () => {
+    const root = nodeRepo()
+    const home = scratch("home")
+    write(
+      root,
+      ".ai/agentic.config.json",
+      JSON.stringify({ guardrails: { forcePush: "ask", commitOnProtected: "deny" } }) + "\n"
+    )
+    run(root, home)
+    const text = readFileSync(join(root, LOCAL_FILE), "utf8")
+    for (const options of [{ forcePush: "lease" as const }, { commitOnProtected: "allow" as const }]) {
+      const steps = run(root, home, options)
+      const step = steps.find((item) => item.file === LOCAL_FILE)
+      assert.equal(step?.outcome, "refused")
+      assert.match(step?.detail ?? "", /loosens/)
+      assert.equal(readFileSync(join(root, LOCAL_FILE), "utf8"), text)
+    }
+    assert.equal(outcomes(run(root, home, { forcePush: "deny" }))[LOCAL_FILE], "wrote", "a tighter pin passes")
+    assert.equal(outcomes(run(root, home, { commitOnProtected: "deny" }))[LOCAL_FILE], "wrote", "an equal pin passes")
+  })
+
   it("still refuses a local file that holds another key beside its guardrails block", () => {
     const root = nodeRepo()
     const home = scratch("home")
@@ -441,5 +475,23 @@ describe("the guardrails:setup command", () => {
     assert.equal(off.status, 2)
     assert.match(off.stderr, /--convention.*ticket-key.*conventional/)
     assert.match(off.stderr, /^Usage:/m)
+  })
+
+  it("--force-push and --commit-on-protected pin their values; a value off the enum is a usage error", () => {
+    const root = nodeRepo()
+    const home = scratch("home")
+    const args = ["--root", root, "--home", home]
+    const pinned = runScript("guardrails-setup", [...args, "--force-push", "ask", "--commit-on-protected", "deny"])
+    assert.equal(pinned.status, 0, pinned.stderr)
+    assert.deepEqual(json(join(root, LOCAL_FILE)).guardrails, { forcePush: "ask", commitOnProtected: "deny" })
+
+    for (const [flag, value] of [
+      ["--force-push", "always"],
+      ["--commit-on-protected", "ask"]
+    ]) {
+      const off = runScript("guardrails-setup", [...args, flag ?? "", value ?? ""])
+      assert.equal(off.status, 2)
+      assert.match(off.stderr, new RegExp(`${flag} must be`))
+    }
   })
 })
