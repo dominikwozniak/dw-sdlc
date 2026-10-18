@@ -457,6 +457,14 @@ describe("a command at any command position: indented, behind a keyword or a lau
   blocked("escaped-git-push-force", "\\git push --force")
   blocked("absolute-rm-home", "/bin/rm -rf ~")
   blocked("escaped-rm-home", "\\rm -rf ~")
+  blocked("bash-c-assignment-reset", "bash -c 'X=1 git reset --hard'")
+  blocked("eval-assignment-reset", "eval 'X=1 git reset --hard'")
+  blocked("rtk-run-assignment-reset", "rtk run 'GIT_DIR=.git git reset --hard'")
+  blocked("sh-c-assignment-branch-D", 'sh -c "FOO=1 git branch -D x"')
+  blocked("bash-c-assignment-rm-root", "bash -c 'X=1 rm -rf /'")
+  blocked("bash-c-timeout-rm-home", "bash -c 'timeout 5 rm -rf ~'")
+  blocked("bash-euo-pipefail-c-reset", "bash -euo pipefail -c 'git reset --hard'")
+  blocked("bash-euo-pipefail-c-rm-home", "bash -euo pipefail -c 'rm -rf ~'")
   allowed("xargs-add", "git ls-files -m | xargs git add")
   allowed("command-v-git", "command -v git reset --hard")
   allowed("time-status", "time git status")
@@ -532,6 +540,8 @@ describe("a heredoc or here-string a shell reads is a script", () => {
   dispatched("deny", "bash-indented-heredoc-push-force", "bash <<'EOF'\n  cd sub\n  git push --force\nEOF")
   dispatched("deny", "bash-here-string-reset", 'bash <<<"git reset --hard"')
   dispatched("deny", "bash-here-string-chained", "bash <<<'cd sub; git clean -fd'")
+  dispatched("deny", "bash-here-string-assignment", "bash <<<'X=1 git reset --hard'")
+  dispatched("deny", "bash-euo-pipefail-heredoc-reset", "bash -euo pipefail <<'EOF'\ngit reset --hard\nEOF")
   dispatched("pass", "heredoc-into-a-file", "cat > x.sh <<'EOF'\ngit reset --hard\nEOF")
   dispatched("pass", "heredoc-to-a-script-operand", "bash x.sh <<'EOF'\ngit reset --hard\nEOF")
   dispatched("pass", "heredoc-written-then-run", "cat > x.sh <<'EOF' && bash x.sh\ngit reset --hard\nEOF")
@@ -567,6 +577,7 @@ describe("gh: what deletes on the remote", () => {
   allowed("gh-api-patch-ref", "gh api -X PATCH repos/o/r/git/refs/heads/x -F sha=abc")
   allowed("gh-pr-merge-squash", "gh pr merge 1 --squash")
   allowed("gh-pr-merge-body-value", "gh pr merge 1 --squash --body -d")
+  allowed("gh-pr-merge-keep-branch", "gh pr merge 1 --squash --delete-branch=false")
   allowed("rtk-gh-pr-view", "rtk gh pr view 1")
 })
 
@@ -582,6 +593,12 @@ describe("a commit on a protected branch, where the repository takes none (commi
   allowed("commit-after-switch-create", 'git switch -c fix && git commit -m "fix: x"', DENY_ON_MAIN)
   allowed("commit-after-checkout-b", 'git checkout -b fix && git commit -m "fix: x"', DENY_ON_MAIN)
   allowed("commit-after-detach", 'git switch --detach && git commit -m "fix: x"', DENY_ON_MAIN)
+  allowed("commit-after-a-checkout-of-a-path", 'git checkout main -- a.txt && git commit -m "fix: x"', DENY_ON_FEAT)
+  allowed(
+    "commit-after-a-checkout-of-a-path-no-dashes",
+    'git checkout main a.txt && git commit -m "fix: x"',
+    DENY_ON_FEAT
+  )
   allowed("commit-dry-run", 'git commit --dry-run -m "fix: x"', DENY_ON_MAIN)
   allowed("commit-message-naming-dry-run", "git commit -m --dry-run", DENY_ON_FEAT)
   allowed("commit-on-main-by-default", 'git commit -m "fix: x"', ON_MAIN)

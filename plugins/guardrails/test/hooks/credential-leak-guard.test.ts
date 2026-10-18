@@ -80,6 +80,13 @@ describe("hunting the environment — refused", () => {
   blocked("echo-AUTHORIZATION", "echo $AUTHORIZATION")
   blocked("echo-AUTH-TOKEN", "echo $AUTH_TOKEN")
   blocked("echo-secret-in-a-loop", "for x in 1; do echo $GITHUB_TOKEN; done")
+  allowed("commit-naming-an-echo-in-backticks", "git commit -m 'fix(ci): stop `echo $GITHUB_TOKEN` in the workflow'")
+  allowed("commit-naming-an-echo-in-parentheses", "git commit -m 'fix(ci): stop the (echo $GITHUB_TOKEN) step'")
+  allowed("pr-title-naming-an-echo", "gh pr create --title 'ci: drop `echo $NPM_TOKEN`' --body x")
+  allowed(
+    "pr-title-naming-a-curl",
+    "gh pr create --title 'docs: show `curl -H \"Authorization: Bearer $GITHUB_TOKEN\"`' --body x"
+  )
 })
 
 describe("hunting the environment — allowed", () => {

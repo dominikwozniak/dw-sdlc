@@ -135,14 +135,17 @@ check_restore() {
 SWITCHED=""
 
 # note_switch — records where a `git switch` or `git checkout` leaves its location: the branch it
-# creates, the branch it names, or `-` for --detach. A checkout's operand counts only when it names a
-# local branch, since it may as well be a path.
+# creates, the branch it names, or `-` for --detach. A checkout's operand counts only when it is the
+# one operand and names a local branch, since `git checkout main -- a.txt` copies a path and stays put.
 note_switch() {
-  local i=$WORD_INDEX n=${#WORDS[@]} word target="" operand=""
+  local i=$WORD_INDEX n=${#WORDS[@]} word target="" operand="" operands=0
   while ((i < n)); do
     word=${WORDS[i]}
     case "$word" in
-      --) break ;;
+      --)
+        ((i + 1 < n)) && operands=2
+        break
+        ;;
       -c | -C | -b | -B | --create | --force-create | --orphan)
         i=$((i + 1))
         target=${WORDS[i]:-}
@@ -151,13 +154,16 @@ note_switch() {
       -d | --detach) target="-" ;;
       -[cCbB]?*) target=${word:2} ;;
       -*) ;;
-      *) [[ -z "$operand" ]] && operand=$word ;;
+      *)
+        [[ -z "$operand" ]] && operand=$word
+        operands=$((operands + 1))
+        ;;
     esac
     i=$((i + 1))
   done
   if [[ -z "$target" && -n "$operand" && "$operand" != "-" ]]; then
-    if [[ "$GUARD_GIT_VERB" == switch ]] ||
-      git -C "$GUARD_PUSH_LOC" show-ref --verify -q "refs/heads/$operand" 2>/dev/null; then
+    if [[ "$GUARD_GIT_VERB" == switch ]] || { ((operands == 1)) &&
+      git -C "$GUARD_PUSH_LOC" show-ref --verify -q "refs/heads/$operand" 2>/dev/null; }; then
       target=$operand
     fi
   fi
@@ -267,7 +273,7 @@ check_gh() {
         *) return 0 ;;
       esac
       # Drop this rule to let a merge delete its branch.
-      guard_opt -d --delete-branch &&
+      guard_opt -d --delete-branch && [[ " ${WORDS[*]} " != *" --delete-branch=false "* ]] &&
         guard_block "'$GUARD_COMMAND' deletes the pull request's branch on GitHub and here. A merged branch on GitHub goes with the repository's delete_branch_on_merge setting; a local one is the user's to delete."
       ;;
     api) check_gh_api ;;

@@ -111,7 +111,10 @@ guard_shell_reads_stdin() {
     case "${WORDS[j]}" in
       --) return $((j + 1 < ${#WORDS[@]})) ;;
       --*) ;;
-      [-+][oO]) j=$((j + 1)) ;;
+      [-+][oO] | [-+][A-Za-z]*[oO])
+        [[ "${WORDS[j]}" == -*s* ]] && return 0
+        j=$((j + 1))
+        ;;
       -*s*) return 0 ;;
       [-+]*) ;;
       '<' | '>' | '>>' | [0-9]'>' | [0-9]'>>') j=$((j + 1)) ;;

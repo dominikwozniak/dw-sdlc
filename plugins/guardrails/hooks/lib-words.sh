@@ -273,7 +273,11 @@ guard_unwrap_words() {
       WORDS[0]=${WORDS[0]##*/}
     fi
     case "${WORDS[0]}" in
-      then | do | else | elif | if | while | until | '!' | '{' | eval | nohup) guard_shift_words ;;
+      then | do | else | elif | if | while | until | '!' | '{' | nohup) guard_shift_words ;;
+      eval)
+        guard_shift_words
+        guard_split_first_word || true
+        ;;
       time)
         guard_shift_words
         guard_skip_options "of" "--output --format"
@@ -316,7 +320,11 @@ guard_unwrap_words() {
         while [[ $j -lt ${#WORDS[@]} && "${WORDS[$j]}" == [-+]* ]]; do
           case "${WORDS[$j]}" in
             --*) ;;
-            [-+][oO]) j=$((j + 1)) ;; # `-o pipefail`: the option name is the next word
+            [-+][oO] | [-+][A-Za-z]*[oO])
+              # `-o pipefail`, `-euo pipefail`: the option name is the next word
+              [[ "${WORDS[$j]}" == -*c* ]] && c=1
+              j=$((j + 1))
+              ;;
             -*c*) c=1 ;;
           esac
           j=$((j + 1))
@@ -324,13 +332,17 @@ guard_unwrap_words() {
         # `bash <<<'git reset --hard'`: the here-string is the script.
         if [[ "${WORDS[$j]:-}" == '<<<' ]]; then
           WORDS=("${WORDS[$((j + 1))]:-}")
+          guard_split_first_word || true
           continue
         elif [[ "${WORDS[$j]:-}" == '<<<'* ]]; then
           WORDS=("${WORDS[$j]#<<<}")
+          guard_split_first_word || true
           continue
         fi
         ((c)) || return 0
         guard_shift_words "$j"
+        # The script is one word, and it may open with a VAR=value of its own.
+        guard_split_first_word || true
         ;;
       env)
         guard_shift_words
@@ -349,7 +361,10 @@ guard_unwrap_words() {
         while [[ "${WORDS[0]:-}" == -?* ]]; do guard_shift_words; done
         if [[ ${#WORDS[@]} -gt 1 ]]; then
           case "${WORDS[0]}" in
-            run | proxy | err | test | summary) guard_shift_words ;;
+            run | proxy | err | test | summary)
+              guard_shift_words
+              guard_split_first_word || true
+              ;;
           esac
         fi
         ;;
@@ -375,7 +390,7 @@ guard_split_first_word() {
 # git push --force` matches the same as the bare form. A flag is any `-word`; an option that takes a
 # value is spelled out with it. rtk's own subcommands are left optional, so `rtk git` and `rtk proxy
 # git` both read.
-GUARD_SHELL_OPTION='([[:space:]]+(-[A-Za-z]+|--[a-z-]+|[-+][oO][[:space:]]+[A-Za-z_]+))'
+GUARD_SHELL_OPTION='([[:space:]]+(-[A-Za-z]+|--[a-z-]+|[-+][A-Za-z]*[oO][[:space:]]+[A-Za-z_]+))'
 GUARD_SHELL_C="(ba|da|k|z)?sh${GUARD_SHELL_OPTION}*[[:space:]]+-[A-Za-z]*c[A-Za-z]*${GUARD_SHELL_OPTION}*[[:space:]]+"
 GUARD_SHELL_HERE="(ba|da|k|z)?sh${GUARD_SHELL_OPTION}*[[:space:]]*<<<[[:space:]]*"
 GUARD_OPT_FLAG='[[:space:]]+-[^[:space:];&|]*'
@@ -411,7 +426,7 @@ GUARD_HAS_LIVE_QUOTE="${GUARD_LIVE_PREFIX}\\\$?[\"']"
 GUARD_OPEN_QUOTE="(\\\$?[\"'])?"
 
 # Start-of-command boundary for an ERE: a line start, indented or not, or right after `;` `&` `|` `(`
-# or a backtick — the last two open a subshell or a command substitution — then the wrappers, an
-# optional quote for the `rtk run "git push --force"`, `bash -c 'git reset --hard'` and `bash -c $'…'`
-# forms, and the command's path. `grep -E "${GUARD_BOUNDARY}rm"`.
-GUARD_BOUNDARY="(^[[:space:]]*|[;&|(\`][[:space:]]*)${GUARD_WRAPPER}${GUARD_OPEN_QUOTE}${GUARD_CMD_DIR}"
+# or a backtick — the last two open a subshell or a command substitution — then the wrappers, each
+# one free to open a quote for the `rtk run "git push --force"`, `bash -c 'X=1 rm -rf /'` and
+# `bash -c $'…'` forms, and the command's path. `grep -E "${GUARD_BOUNDARY}rm"`.
+GUARD_BOUNDARY="(^[[:space:]]*|[;&|(\`][[:space:]]*)(${GUARD_CMD_DIR}(${GUARD_LAUNCHER})|\\\$?[\"'])*${GUARD_CMD_DIR}"
