@@ -105,12 +105,13 @@ refuses.
   `gh repo delete` in plain and `rtk` form, as the backstop for a machine without `jq`; `~/.claude/settings.json` gets only the
   irreversible non-git set (`rm` at `/`, `~` or `.`, `shred`, `find -delete`, `git stash clear`) and
   the one `autoMode.allow` exception for lease pushes.
-- The setup writes what inference cannot get wrong later, plus the one pin the command line asks
-  for: the local layer holds `$schema`, the Node package manager when the committed config leaves it
-  unset, and `commit.convention` only when `--convention` names one, because a local value overrides
-  a convention the repository commits later. A run without the flag keeps the pin the file holds,
-  `--force` included, so the setup stays safe to repeat; it keeps the file's `guardrails` block too,
-  which can only tighten.
+- The setup writes what inference cannot get wrong later, plus the pins the command line asks for:
+  the local layer holds `$schema`, the Node package manager when the committed config leaves it
+  unset, `commit.convention` only when `--convention` names one, because a local value overrides a
+  convention the repository commits later, and `guardrails.forcePush` or `commitOnProtected` when
+  `--force-push` or `--commit-on-protected` names one. A run without a flag keeps the pin the file
+  holds, `--force` included, so the setup stays safe to repeat; it keeps the file's `guardrails` block
+  too, which can only tighten, and a pin that would loosen the committed value is refused.
 - Guards are bash 3.2 plus jq, setup and doctor are TypeScript: a hook runs on every Bash call and
   needs nothing but bash and jq. Every guard gets a payload test, because the dispatcher's trigger
   list is what a guard's own self-test cannot see.

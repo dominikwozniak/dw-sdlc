@@ -136,7 +136,8 @@ Node package manager from the lockfile. `commit.convention` is written only when
 `--convention ticket-key` or `--convention conventional` asks for it, because a local pin outranks a
 convention the repository commits later; a run without the flag keeps a pin as it is. Every run,
 `--force` included, keeps a `guardrails` block the local config holds, since that layer may only
-tighten it. The script also excludes the local
+tighten it; `--force-push deny|ask|lease` and `--commit-on-protected deny|allow` pin those two keys
+in it, and a pin that loosens the committed value is refused. The script also excludes the local
 config and `.claude/settings.local.json` in `.git/info/exclude`, generates `permissions.deny`
 into `.claude/settings.local.json` as the backstop for a machine without `jq` (the destructive git
 set and `gh repo delete` in plain and `rtk` form, `Read`/`Edit` rules for every env file the resolved

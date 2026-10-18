@@ -80,7 +80,8 @@ subject. A repository whose subjects start with a ticket key sets `"commit": { "
 on one machine only, `/guardrails-setup ticket-key` pins it in the local layer instead.
 A repository where every change starts on a branch sets `"guardrails": { "commitOnProtected": "deny" }`.
 Plugin 0.8.2 and older read that key as an invalid layer and run the strictest set, so it belongs in
-the local layer until every machine runs 0.9.0.
+the local layer until every machine runs 0.9.0: `/guardrails-setup` with `--commit-on-protected deny`,
+and `--force-push ask` for a prompt before each lease push.
 Every key: [schema](plugins/guardrails/config/agentic.config.schema.json).
 
 ## Docs

@@ -35,17 +35,18 @@ import {
   COMMIT_CONVENTIONS,
   COMMITTED_FILE,
   type CommitConvention,
+  type CommitOnProtected,
   DEFAULT_GUARDRAILS,
-  type EnvFiles,
+  type ForcePush,
   LOCAL_FILE,
   SCHEMA_PATH,
+  STRICTNESS,
   inferConfig,
-  matchesEnvGlob,
   repositoryRoot,
-  resolveConfig,
   schemaId,
   validateDocument
 } from "./agentic-config.ts"
+import { GLOBAL_DENY, LEASE_RULE, repositoryDeny } from "./setup-rules.ts"
 
 export type Outcome = "wrote" | "unchanged" | "refused"
 export type Step = { file: string; outcome: Outcome; detail?: string }
@@ -58,9 +59,14 @@ export type SetupOptions = {
   dryRun: boolean
   /** Pins `commit.convention` in the local layer; left out, a pin the layer already holds stays. */
   convention?: CommitConvention | undefined
+  /** Pins `guardrails.forcePush` in the local layer; refused where it loosens the committed value. */
+  forcePush?: ForcePush | undefined
+  /** Pins `guardrails.commitOnProtected` in the local layer; refused where it loosens the committed value. */
+  commitOnProtected?: CommitOnProtected | undefined
 }
 
-const USAGE = `Usage: pnpm guardrails:setup [--root <dir>] [--home <dir>] [--convention <preset>] [--force] [--dry-run]
+const USAGE = `Usage: pnpm guardrails:setup [--root <dir>] [--home <dir>] [--convention <preset>]
+       [--force-push deny|ask|lease] [--commit-on-protected deny|allow] [--force] [--dry-run]
 
 Writes .ai/agentic.config.local.json from inference, excludes it in .git/info/exclude, generates
 permissions.deny into .claude/settings.local.json, and adds the lease-push exception and the
@@ -68,73 +74,26 @@ irreversible deny set to ~/.claude/settings.json, or $CLAUDE_CONFIG_DIR/settings
 --home. From a linked worktree the repository's files go to the main checkout. Every file is
 written only when it would change; --convention ticket-key | conventional pins commit.convention in
 the local config, and a run without it keeps the pin as it is; a guardrails block in the local config
-is kept as it is; --force overwrites a local config that differs in anything else; --dry-run reports
-without writing.`
+is kept, and --force-push and --commit-on-protected pin those two keys in it, refused where they would
+loosen what the committed config sets; --force overwrites a local config that differs in anything
+else; --dry-run reports without writing.`
 
 function isConvention(value: string): value is CommitConvention {
   return COMMIT_CONVENTIONS.some((preset) => preset === value)
 }
 
-/** The auto-mode exception that lets a lease push through the classifier's default force-push block. */
-export const LEASE_RULE =
-  "Force push with --force-with-lease or --force-if-includes to a branch that is not master, main or production: allowed. The guardrails plugin's hook refuses a bare --force, -f or +refspec and any force to a protected branch, so the lease form is the safe one and needs no prompt."
+function isForcePush(value: string): value is ForcePush {
+  return STRICTNESS.forcePush.some((item) => item === value)
+}
 
-/** The irreversible set for the user file; `git stash clear` also in the rtk form a permission rule sees once rtk rewrites it. */
-export const GLOBAL_DENY = [
-  "Bash(rm -rf /)",
-  "Bash(rm -rf /*)",
-  "Bash(rm -rf ~)",
-  "Bash(rm -rf ~/)",
-  "Bash(rm -rf $HOME)",
-  "Bash(rm -rf .)",
-  "Bash(rm -rf ..)",
-  "Bash(shred *)",
-  "Bash(find * -delete)",
-  "Bash(git stash clear)",
-  "Bash(rtk git stash clear)"
-]
-
-// Exact or end-anchored spellings only. A prefix rule such as `git push --force *` would also match
-// `git push --force-with-lease`, the one form the plugin lets through; the hooks cover the rest.
-const GIT_DENY = [
-  "git push --force",
-  "git push -f",
-  "git push * --force",
-  "git push * -f",
-  "git push --delete *",
-  "git push * --delete *",
-  "git reset --hard",
-  "git reset --hard *",
-  "git clean -fd",
-  "git clean -fd *",
-  "git clean -fdx",
-  "git clean -xdf",
-  "git clean -df",
-  "git clean -f -d",
-  "git clean --force",
-  "git checkout .",
-  "git checkout -- .",
-  "git restore .",
-  "git restore -- .",
-  "git branch -f *",
-  "git branch --force *",
-  "git branch -D *",
-  "git stash clear",
-  "git stash drop",
-  "git stash drop *",
-  "git worktree remove --force *",
-  "git worktree remove -f *"
-]
-
-// The gh commands the guards refuse. rtk rewrites `gh` as it does `git`, so they take both forms too.
-const GH_DENY = ["gh repo delete", "gh repo delete *"]
+function isCommitOnProtected(value: string): value is CommitOnProtected {
+  return STRICTNESS.commitOnProtected.some((item) => item === value)
+}
 
 /** Where Claude Code registers the plugin: the marketplace name and the plugin's name inside it. */
 const MARKETPLACE = "dw-sdlc"
 const PLUGIN = "guardrails"
 const PLUGIN_ROOT = join(import.meta.dirname, "..")
-
-const ENV_NAME = /^\.env(\..+)?$|^\.envrc$/
 
 type JsonObject = Record<string, unknown>
 
@@ -145,48 +104,6 @@ function isObject(value: unknown): value is JsonObject {
 function git(root: string, args: string[]): string | undefined {
   const result = spawnSync("git", ["-C", root, ...args], { encoding: "utf8" })
   return result.status === 0 ? result.stdout.trim() : undefined
-}
-
-function listedIn(globs: string[], file: string): boolean {
-  return globs.some((glob) => matchesEnvGlob(glob, file))
-}
-
-function isEnvName(file: string): boolean {
-  return ENV_NAME.test(file.slice(file.lastIndexOf("/") + 1))
-}
-
-function gitFiles(root: string, ...flags: string[]): string[] {
-  const listed = git(root, ["-c", "core.quotePath=false", "ls-files", ...flags, "--exclude-standard"]) ?? ""
-  return listed.split("\n").filter((file) => file !== "")
-}
-
-/**
- * The env files the guard refuses in this repository, relative to its root: the verdict
- * `hooks/block-env-access.sh` gives under `envFiles`, one predicate per file git knows — tracked,
- * untracked or ignored. The tracked, allowed ones stay readable.
- */
-export function refusedEnvFiles(root: string, envFiles: EnvFiles): string[] {
-  const tracked = new Set(gitFiles(root, "-c"))
-  const known = new Set([...tracked, ...gitFiles(root, "-o"), ...gitFiles(root, "-o", "-i")])
-  const refused = (file: string): boolean =>
-    listedIn(envFiles.deny, file) ||
-    (!listedIn(envFiles.allow, file) && (envFiles.policy === "deny" || !tracked.has(file)))
-  return [...known].filter(isEnvName).filter(refused).toSorted()
-}
-
-/**
- * The permissions.deny a repository gets: the git and gh sets twice, then Read and Edit per refused
- * env file. A rule written here stays until someone removes it, so while a config layer is invalid
- * the env rules come from the defaults, not from the strictest set the guards run on meanwhile.
- */
-export function repositoryDeny(root: string): string[] {
-  const rules = [...GIT_DENY, ...GH_DENY].flatMap((command) => [`Bash(${command})`, `Bash(rtk ${command})`])
-  const resolved = resolveConfig(root)
-  const envFiles = resolved.problems.length === 0 ? resolved.config.guardrails.envFiles : DEFAULT_GUARDRAILS.envFiles
-  for (const file of refusedEnvFiles(root, envFiles)) {
-    rules.push(`Read(./${file})`, `Edit(./${file})`)
-  }
-  return rules
 }
 
 /** The committed layer when it is valid; an absent or invalid one sets nothing, as the resolver drops it. */
@@ -241,16 +158,50 @@ function keptGuardrails(existing: unknown): JsonObject | undefined {
 type LocalLayer = Omit<AgenticConfig, "guardrails"> & { guardrails?: JsonObject }
 
 /**
- * A layer without the keys the setup owns: `$schema`, which moves with the clone, and a pinned
- * convention, which `--convention` may replace. Everything left is someone's content.
+ * A layer without the keys the setup owns: `$schema`, which moves with the clone, a pinned
+ * convention, which `--convention` may replace, and a `guardrails` object, which the setup carries
+ * and the flags pin keys in. Everything left is someone's content.
  */
 function unowned(layer: JsonObject): JsonObject {
-  const { $schema: _schema, commit, ...rest } = layer
+  const { $schema: _schema, commit, guardrails, ...other } = layer
+  const rest = guardrails === undefined || isObject(guardrails) ? other : { ...other, guardrails }
   if (!isObject(commit) || pinnedConvention(layer) === undefined) {
     return commit === undefined ? rest : { ...rest, commit }
   }
   const { convention: _pinned, ...otherCommit } = commit
   return Object.keys(otherCommit).length === 0 ? rest : { ...rest, commit: otherCommit }
+}
+
+/**
+ * The guardrails block to write: the one the file holds, with the keys the flags pin. A pin less
+ * strict than the committed config's value is a loosening the resolver would drop the whole layer
+ * for, so it comes back as a refusal instead.
+ */
+function pinnedGuardrails(
+  kept: JsonObject | undefined,
+  committed: AgenticConfig,
+  options: SetupOptions
+): { guardrails: JsonObject | undefined } | { refusal: string } {
+  const base = { ...DEFAULT_GUARDRAILS, ...committed.guardrails }
+  const pins: Array<[string, string | undefined, readonly string[], string]> = [
+    ["--force-push", options.forcePush, STRICTNESS.forcePush, base.forcePush],
+    ["--commit-on-protected", options.commitOnProtected, STRICTNESS.commitOnProtected, base.commitOnProtected]
+  ]
+  for (const [flag, value, order, current] of pins) {
+    if (value !== undefined && order.indexOf(value) > order.indexOf(current)) {
+      return {
+        refusal: `${flag} ${value} loosens '${current}' from ${COMMITTED_FILE}; the local layer may only tighten it`
+      }
+    }
+  }
+  const guardrails: JsonObject = { ...kept }
+  if (options.forcePush !== undefined) {
+    guardrails.forcePush = options.forcePush
+  }
+  if (options.commitOnProtected !== undefined) {
+    guardrails.commitOnProtected = options.commitOnProtected
+  }
+  return { guardrails: Object.keys(guardrails).length === 0 ? kept : guardrails }
 }
 
 /** The same layer apart from what the setup owns. */
@@ -364,17 +315,21 @@ export function setup(options: SetupOptions): Step[] {
   const claudeDir = options.claudeDir ?? join(options.home, ".claude")
 
   // 1. The local config, from inference, the convention (the flag's, else the one the file pins) and
-  // the guardrails block the file holds.
+  // the guardrails block the file holds, with the keys the flags pin.
   const localPath = join(checkout, LOCAL_FILE)
   const localCurrent = existsSync(localPath) ? readFileSync(localPath, "utf8") : undefined
   const existing = localCurrent === undefined ? undefined : readJsonText(localCurrent)
   const convention = options.convention ?? pinnedConvention(existing)
-  const local = localConfig(checkout, claudeDir, convention, keptGuardrails(existing))
-  const localText = render(local)
-  if (localCurrent !== undefined && !sameContent(existing, local) && !options.force) {
-    writer.refuse(LOCAL_FILE, "exists with other content; pass --force to overwrite it")
+  const pinned = pinnedGuardrails(keptGuardrails(existing), committedConfig(checkout), options)
+  if ("refusal" in pinned) {
+    writer.refuse(LOCAL_FILE, pinned.refusal)
   } else {
-    writer.put(LOCAL_FILE, localPath, localText)
+    const local = localConfig(checkout, claudeDir, convention, pinned.guardrails)
+    if (localCurrent !== undefined && !sameContent(existing, local) && !options.force) {
+      writer.refuse(LOCAL_FILE, "exists with other content; pass --force to overwrite it")
+    } else {
+      writer.put(LOCAL_FILE, localPath, render(local))
+    }
   }
 
   // 2. The exclude entries, appended to whatever the file holds.
@@ -434,6 +389,8 @@ function main(argv: string[]): void {
     root?: string
     home?: string
     convention?: string
+    "force-push"?: string
+    "commit-on-protected"?: string
     force?: boolean
     "dry-run"?: boolean
   }
@@ -445,6 +402,8 @@ function main(argv: string[]): void {
         root: { type: "string" },
         home: { type: "string" },
         convention: { type: "string" },
+        "force-push": { type: "string" },
+        "commit-on-protected": { type: "string" },
         force: { type: "boolean" },
         "dry-run": { type: "boolean" }
       }
@@ -459,13 +418,26 @@ function main(argv: string[]): void {
   if (values.convention !== undefined && !isConvention(values.convention)) {
     fail(`--convention must be ${COMMIT_CONVENTIONS.join(" or ")}, not '${values.convention}'\n\n${USAGE}`, 2)
   }
+  const forcePush = values["force-push"]
+  if (forcePush !== undefined && !isForcePush(forcePush)) {
+    fail(`--force-push must be ${STRICTNESS.forcePush.join(", ")}, not '${forcePush}'\n\n${USAGE}`, 2)
+  }
+  const commitOnProtected = values["commit-on-protected"]
+  if (commitOnProtected !== undefined && !isCommitOnProtected(commitOnProtected)) {
+    fail(
+      `--commit-on-protected must be ${STRICTNESS.commitOnProtected.join(" or ")}, not '${commitOnProtected}'\n\n${USAGE}`,
+      2
+    )
+  }
   const steps = setup({
     root: values.root ?? process.cwd(),
     home: values.home ?? homedir(),
     claudeDir: values.home === undefined ? process.env.CLAUDE_CONFIG_DIR : undefined,
     force: values.force === true,
     dryRun: values["dry-run"] === true,
-    convention: values.convention
+    convention: values.convention,
+    forcePush,
+    commitOnProtected
   })
   for (const step of steps) {
     const verb = step.outcome === "wrote" && values["dry-run"] === true ? "would write" : step.outcome
