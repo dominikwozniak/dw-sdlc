@@ -88,7 +88,8 @@ const BROKEN_ON_MAIN = commitDeny("broken-on-main", "main", { guardrails: { forc
 // with main, `moved` with main editing its lines after, `behind` once main had moved on, `extra` with
 // one more commit after its squash, `ff` by a fast-forward. `never` was never merged, `spaced` holds a
 // line main took with other whitespace, `netzero` adds a file and drops it while main adds and drops
-// another, so their trees meet, and `late` was squashed in another clone after this one last fetched.
+// another, so their trees meet, `late` was squashed in another clone after this one last fetched, and
+// `>never`, a name git allows, points where `never` does.
 // A blobless clone of the origin has `never` without its blobs.
 function change(dir: string, file: string, text: string): void {
   write(join(dir, file), text)
@@ -136,6 +137,7 @@ git(SQUASHED, "switch", "-q", "extra")
 change(SQUASHED, "extra.txt", "1\n2\n")
 git(SQUASHED, "switch", "-q", "-c", "never", "main")
 change(SQUASHED, "never.txt", "1\n")
+git(SQUASHED, "branch", ">never", "never")
 git(SQUASHED, "switch", "-q", "-c", "ff", "main")
 change(SQUASHED, "ff.txt", "1\n")
 git(SQUASHED, "switch", "-q", "-c", "late", "main")
@@ -458,6 +460,7 @@ describe("a forced branch delete passes once the branch is landed: its work is o
   refused("a-missing-branch", "git branch -D gone", SQUASHED, /'gone'/)
   refused("a-variable", 'git branch -D "$b"', SQUASHED, /does not write out/)
   refused("a-glob", "git branch -D 'fre*'", SQUASHED, /does not write out/)
+  refused("a-quoted-name-that-reads-as-a-redirect", 'git branch -D fresh ">never"', SQUASHED, /reads as a redirect/)
   refused("no-branch-named", "git branch -D", SQUASHED, /no branch it names/)
   refused("remote-tracking", "git branch -D -r origin/late", SQUASHED, /remote-tracking/)
   refused("no-origin-head", "git branch -D merged", NO_ORIGIN_HEAD, /base branch/)

@@ -201,11 +201,16 @@ check_branch_delete() {
   if ((!ALONE)) || [[ "${WORDS[i]:-}" != branch ]]; then
     guard_block "'$GUARD_COMMAND' force-deletes a branch as part of a longer command. A forced delete passes as a command of its own: git [-C <path>] branch -D <branch>..., each branch written out."
   fi
+  # A redirect and its target are skipped, unless a branch has that name: quoted, it is one.
   for word in ${OPT_OPERANDS[@]+"${OPT_OPERANDS[@]}"}; do
-    if ((skip)); then
-      skip=0
-    elif [[ "$word" =~ $REDIRECT ]]; then
-      [[ "$word" =~ $REDIRECT_ALONE ]] && skip=1
+    if ((skip)) || [[ "$word" =~ $REDIRECT ]]; then
+      git -C "$GUARD_PUSH_LOC" show-ref --verify -q "refs/heads/$word" 2>/dev/null &&
+        guard_block "'$GUARD_COMMAND' force-deletes '$word', which reads as a redirect and names a branch too; a branch of that name is the user's to delete."
+      if ((skip)); then
+        skip=0
+      else
+        [[ "$word" =~ $REDIRECT_ALONE ]] && skip=1
+      fi
     elif [[ "$word" =~ $PLAIN ]]; then
       branches+=("$word")
     else
