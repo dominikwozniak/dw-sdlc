@@ -17,11 +17,12 @@ is its long form: how a guard works, why the design, adopting and releasing.
   `skills/guardrails-setup/` the user-invoked skill that runs the setup script
 - `.ai/` — `agentic.config.json`, this repo's own agent rules against the plugin's schema
   (`agentic.config.local.json` is one machine's layer, kept out of git through `.git/info/exclude`)
-- `.claude/settings.json` — tracked; turns the dw-solo plugins off in this repo.
+- `.claude/settings.json` — tracked; turns the dw-solo plugins off in this repo, keeps the clones'
+  `CLAUDE.md` and `AGENTS.md` out of context, and at session start runs
+  `.claude/hooks/sync-references.sh`, which clones or updates `references/`.
   `.claude/settings.local.json` is one machine's permission backstop, written by the setup and
   excluded from git. A worktree reads it and the local config from the main checkout, so nothing is
-  copied into one. The references are not copied either: a fresh worktree runs the `worktree.setup`
-  commands in `.ai/agentic.config.json`, which the session-start report lists
+  copied into one. The references are not copied either: the session-start sync clones them
 - `.agents/skills/` — the engineering skills this repo works with, pinned in `skills-lock.json`;
   `.claude/skills/` links to them
 - `docs/agents/` — how those skills use this repo: the issue tracker and the domain docs
@@ -33,7 +34,7 @@ is its long form: how a guard works, why the design, adopting and releasing.
   dated by when they were read. New work is specified in GitHub Issues, not here
 - `GLOSSARY.md` — what a word means in this repo
 - `references/` — repositories cloned on each machine for reading, never tracked; the router and the
-  list are `references/AGENTS.md`, and `pnpm references:sync` fetches them
+  list are `references/AGENTS.md`; the SessionStart hook or `pnpm references:sync` fetches them
 - `ideas/` — local-only notes; everything but `.gitkeep` is gitignored, so nothing in it reaches a clone
 - `.github/` — CI: `workflows/quality-gate.yaml` runs `pnpm check` on every pull request and on `main`.
   Dependabot (`dependabot.yml`) opens grouped npm and GitHub Actions updates weekly, 7 days after a
