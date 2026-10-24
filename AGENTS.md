@@ -15,9 +15,11 @@ is its long form: how a guard works, why the design, adopting and releasing.
   `harness.ts` spawns a guard on the real stdin payload; every input a test reads is built beside it;
   `skills/sdlc-guardrails-setup/` the user-invoked skill that runs the setup script
 - `plugins/references/` — the references plugin, published beside guardrails and enabled at user
-  scope: `hooks/` the session-start hook that runs the Sync, `scripts/` the Sync and the strict parser
-  of the `references` key, `config/` that key's JSON Schema, which the guardrails schema leaves
-  unnamed, and `test/` the hook, CLI and contract tests on a harness of their own
+  scope: `hooks/` the session-start hook that runs the Sync, `scripts/` the Sync, the strict parser
+  of the `references` key and the setup, `config/` that key's JSON Schema, which the guardrails
+  schema leaves unnamed, `templates/` the Router the setup writes, `skills/sdlc-references-add/` the
+  user-invoked skill that adds a Reference, and `test/` the hook, CLI and contract tests on a
+  harness of their own
 - `.ai/` — `agentic.config.json`, this repo's own agent rules against the plugin's schema, its
   References under the `references` key
   (`agentic.config.local.json` is one machine's layer, kept out of git through `.git/info/exclude`)
@@ -60,6 +62,9 @@ is its long form: how a guard works, why the design, adopting and releasing.
   staged files.
 - **CI runs on `ubuntu-latest`.** External actions are pinned to a full commit SHA with a `# vX.Y.Z`
   comment.
+- **A skill a plugin ships is named `sdlc-<plugin>-<verb>`**, as `sdlc-references-add`, so the skills
+  group in the slash menu and never collide with the `dw-*` skills of dw-solo. `guardrails-setup`
+  takes the name under #66.
 
 ## Git
 
