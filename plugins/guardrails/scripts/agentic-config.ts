@@ -428,16 +428,10 @@ function main(argv: string[]): void {
     return
   }
 
-  let root = cli.root
-  if (root === undefined) {
-    const toplevel = spawnSync("git", ["rev-parse", "--show-toplevel"], { encoding: "utf8" })
-    if (toplevel.status !== 0) {
-      fail("not inside a git repository; pass --root <dir>", 1)
-    }
-    root = toplevel.stdout.trim()
-  } else {
-    root = repositoryRoot(root)
-  }
+  const root =
+    cli.root === undefined
+      ? (findRepository(process.cwd()) ?? fail("not inside a git repository; pass --root <dir>", 1))
+      : repositoryRoot(cli.root)
 
   const { config, problems, layers, sources } = resolveConfig(root)
   const from = (source: string | undefined): string =>
