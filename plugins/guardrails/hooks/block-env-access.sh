@@ -247,8 +247,10 @@ fi
 
 # The first line holds the command's own words, each line after it a substitution's or those of a
 # quote handed to a shell: a markdown backtick span in a double-quoted `--body` is one, and the
-# refusal says so.
-if [[ -n "$GUARD_COMMAND" ]]; then
+# refusal says so. Every env name holds `.env`, so a text without one has no token to read.
+STRIPPED=""
+[[ -n "$GUARD_COMMAND" ]] && STRIPPED=$(guard_strip_quoted "$GUARD_COMMAND")
+if [[ "$STRIPPED" == *.env* ]]; then
   WHO="'$GUARD_COMMAND'"
   NOTE=""
   while IFS= read -r words; do
@@ -257,7 +259,7 @@ if [[ -n "$GUARD_COMMAND" ]]; then
     done < <(guard_tokens "$words")
     WHO="A command substitution or a quoted command in '$GUARD_COMMAND'"
     NOTE="The shell runs the quote handed to bash -c, eval or rtk run, and a \$(…) or a backtick span inside double quotes and an unquoted heredoc body too; to keep a substitution as text, escape it, single-quote it, or quote the heredoc's delimiter (<<'EOF')."
-  done < <(guard_strip_quoted "$GUARD_COMMAND")
+  done <<<"$STRIPPED"
 fi
 
 exit 0

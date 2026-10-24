@@ -66,16 +66,20 @@ STRIPPED=$(guard_strip_quoted "$COMMAND")
 CRED_PATH_HIT=""
 CRED_PATH_WHERE=""
 WHERE=""
-while IFS= read -r words; do
-  while IFS= read -r token; do
-    if is_cred_path "$token"; then
-      CRED_PATH_HIT="$token"
-      CRED_PATH_WHERE="$WHERE"
-      break 2
-    fi
-  done < <(guard_tokens "$words")
-  WHERE=" in a command substitution or a quoted command, which the shell runs inside double quotes, an unquoted heredoc body and a quote handed to bash -c, eval or rtk run too"
-done <<<"$STRIPPED"
+# Every name is_cred_path knows holds one of these, so a text without one has no token to read.
+CRED_NAMES='\.(ssh|aws|gnupg|kube|netrc|git-credentials|pypirc|pgpass|npmrc)'
+if [[ "$STRIPPED" =~ $CRED_NAMES ]]; then
+  while IFS= read -r words; do
+    while IFS= read -r token; do
+      if is_cred_path "$token"; then
+        CRED_PATH_HIT="$token"
+        CRED_PATH_WHERE="$WHERE"
+        break 2
+      fi
+    done < <(guard_tokens "$words")
+    WHERE=" in a command substitution or a quoted command, which the shell runs inside double quotes, an unquoted heredoc body and a quote handed to bash -c, eval or rtk run too"
+  done <<<"$STRIPPED"
+fi
 
 # --- 2. hunting the environment -------------------------------------------------------------------
 # An env dump on its own is ordinary. Filtered for a credential name it is not a look, it is a
@@ -88,16 +92,13 @@ done <<<"$STRIPPED"
 # runs it, inside double quotes as well, and the mask leaves that substitution live.
 ENV_DUMP='(^[[:space:]]*|[;&|(`][[:space:]]*)((env|printenv)([[:space:]]|$|[;&|)`])|export -p|declare -x|set[[:space:]]*($|[;&|)`]))'
 
-env_hunt=0
-while IFS= read -r pipeline; do
-  if printf '%s' "$pipeline" | grep -qE "$ENV_DUMP" &&
-    printf '%s' "$pipeline" | grep -qiE "(grep|rg|ag|awk|sed|fgrep|egrep)[^;&|]*$CRED_WORDS"; then
-    env_hunt=1
-    break
-  fi
-done < <(guard_pipelines "$(guard_mask_quoted_separators "$COMMAND")")
 # The command position is read on the masked text: a backtick or a `(` inside a quoted message is prose.
 MASKED=$(guard_mask_quoted_separators "$COMMAND")
+# One pipeline per line: the first grep keeps the dumps, the second those filtered for a credential.
+# Read to the end, not with -q, so no grep exits while the one before it still writes.
+env_hunt=0
+HUNTS=$(guard_pipelines "$MASKED" | grep -E "$ENV_DUMP" | grep -iE "(grep|rg|ag|awk|sed|fgrep|egrep)[^;&|]*$CRED_WORDS")
+[[ -n "$HUNTS" ]] && env_hunt=1
 # Printing a credential-ish variable straight out. Referencing one is fine — gh wants $GITHUB_TOKEN
 # and that is its job; putting the VALUE on stdout, where it lands in a transcript, is not.
 echo_secret=0

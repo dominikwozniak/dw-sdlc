@@ -439,13 +439,13 @@ guard_search_segment() {
 # reads as that file. An unterminated quote hands back the text as typed — fail closed, judge what was
 # typed.
 guard_plain_words() {
-  local words word plain=""
-  words=$(guard_words "$1") || {
+  local word plain=""
+  if ! guard_split_words "$1"; then
     printf '%s' "$1"
     return 0
-  }
-  while IFS= read -r word; do
+  fi
+  for word in "${GUARD_WORDS[@]+"${GUARD_WORDS[@]}"}"; do
     [[ -n "$word" && "$word" != *[[:space:]]* ]] && plain+="${plain:+ }$word"
-  done <<<"$words"
+  done
   printf '%s' "$plain"
 }
