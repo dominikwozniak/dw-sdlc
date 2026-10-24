@@ -96,30 +96,23 @@ guard_segments() {
 
 # guard_pipelines <scan> — the masked scan split into pipelines, one non-empty per line: at `;`, `&&`,
 # `||`, a lone `&` and a newline, never at `|`. The `&` of a redirect (`2>&1`, `&>`, `|&`) becomes
-# \003, no separator. It stays \003: bash 5.2 reads a `&` in a `${s//…/…}` replacement as the match,
-# so putting it back would differ by shell.
+# \003, no separator. sed splits, not `${s//…/…}`, which bash 3.2 makes rescan the text for every
+# match: seconds on a command of a few thousand separators. A newline in a sed replacement is a
+# backslash and a newline, for BSD and GNU sed alike.
 guard_pipelines() {
-  local s="$1"
-  s="${s//||/$'\n'}"
-  s="${s//&&/$'\n'}"
-  s="${s//;/$'\n'}"
-  s="${s//>&/>$'\003'}"
-  s="${s//<&/<$'\003'}"
-  s="${s//|&/|$'\003'}"
-  s="${s//&>/$'\003'>}"
-  s="${s//&/$'\n'}"
-  printf '%s\n' "$s" | sed -E '/^[[:space:]]*$/d'
+  printf '%s\n' "$1" |
+    sed -E -e $'s/[|][|]|&&|;/\\\n/g' -e $'s/>&/>\003/g' -e $'s/<&/<\003/g' -e $'s/[|]&/|\003/g' \
+      -e $'s/&>/\003>/g' -e $'s/&/\\\n/g' |
+    sed -E '/^[[:space:]]*$/d'
 }
 
 # guard_scopes <scan> — guard_segments that keeps the subshells: a line of \001 and `(`, `)` or a
-# backtick stands where one opens or closes, so a `cd` inside one ends with it.
+# backtick stands where one opens or closes, so a `cd` inside one ends with it. Split by sed, as
+# guard_pipelines is.
 guard_scopes() {
-  # The backtick through variables: bash 3.2 cannot parse one inside `${s//…/…}`.
-  local s="$1" bt='`' bt_line=$'\n\001`\n'
-  s="${s//\(/$'\n\001(\n'}"
-  s="${s//\)/$'\n\001)\n'}"
-  s="${s//"$bt"/$bt_line}"
-  printf '%s\n' "$s" | tr ';&|' '\n\n\n' | sed -E '/^[[:space:]]*$/d'
+  printf '%s\n' "$1" |
+    sed -e $'s/[(]/\\\n\001(\\\n/g' -e $'s/[)]/\\\n\001)\\\n/g' -e $'s/`/\\\n\001`\\\n/g' |
+    tr ';&|' '\n\n\n' | sed -E '/^[[:space:]]*$/d'
 }
 
 # guard_absolute <path> [<base>] — the path made absolute against <base>, GUARD_CWD by default: a
