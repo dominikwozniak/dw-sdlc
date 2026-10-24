@@ -78,10 +78,11 @@ guard_read_payload() {
   return 0
 }
 
-# --- the text — the scanners in lib-lines.sh, lib-text.sh, lib-live.sh, lib-words.sh, lib-git.sh ---
+# --- the text — the scanners in the files below --------------------------------------------------
 source "$GUARD_LIB_DIR/lib-lines.sh"
 source "$GUARD_LIB_DIR/lib-text.sh"
 source "$GUARD_LIB_DIR/lib-live.sh"
+source "$GUARD_LIB_DIR/lib-mask.sh"
 source "$GUARD_LIB_DIR/lib-words.sh"
 source "$GUARD_LIB_DIR/lib-git.sh"
 
