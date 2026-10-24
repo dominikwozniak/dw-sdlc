@@ -16,6 +16,15 @@
       "keywords": ["guardrails", "hooks", "git", "env", "pnpm", "worktree"],
       "category": "utilities",
       "tags": ["guardrails", "hooks", "safety"]
+    },
+    {
+      "name": "references",
+      "version": "0.1.0",
+      "source": "./plugins/references",
+      "description": "Brings the repositories a project reads for prior art, declared as the references key of its .ai/agentic.config.json, to their ref under references/: shallow, at a branch or a tag, sparse where paths are skipped.",
+      "keywords": ["references", "hooks", "git", "clone"],
+      "category": "utilities",
+      "tags": ["references", "hooks", "research"]
     }
   ]
 }

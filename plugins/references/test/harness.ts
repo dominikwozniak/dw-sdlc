@@ -1,6 +1,7 @@
 // What the plugin's tests share: throwaway repositories kept apart from the machine's git config and
-// from the git variables of the process running the tests, and the plugin's scripts spawned the way
-// their callers spawn them: plain `node`, the exit code and both streams.
+// from the git variables of the process running the tests, and the plugin's scripts and hooks spawned
+// the way their callers spawn them: plain `node` for a script, `/bin/bash` with the JSON payload on
+// stdin for a hook, the exit code and both streams.
 
 import { spawnSync } from "node:child_process"
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs"
@@ -9,6 +10,9 @@ import { dirname, join } from "node:path"
 import { after } from "node:test"
 
 const SCRIPTS_DIR = join(import.meta.dirname, "..", "scripts")
+const HOOKS_DIR = join(import.meta.dirname, "..", "hooks")
+/** The hooks' shebang, bash 3.2 on macOS — never the first bash in PATH, which may be a newer one. */
+const BASH = "/bin/bash"
 
 export type Run = { status: number; stdout: string; stderr: string }
 
@@ -26,17 +30,22 @@ function scratchEnv(): NodeJS.ProcessEnv {
   return { ...env, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" }
 }
 
-/** Runs `scripts/<name>.ts` from `cwd` under `scratchEnv()`, `env` over it. */
-export function runScript(name: string, args: string[], cwd: string, env: NodeJS.ProcessEnv = {}): Run {
-  const result = spawnSync(process.execPath, [join(SCRIPTS_DIR, `${name}.ts`), ...args], {
-    cwd,
-    env: { ...scratchEnv(), ...env },
-    encoding: "utf8"
-  })
+function run(command: string, args: string[], cwd: string, env: NodeJS.ProcessEnv, input?: string): Run {
+  const result = spawnSync(command, args, { cwd, env: { ...scratchEnv(), ...env }, input, encoding: "utf8" })
   if (result.error !== undefined) {
     throw result.error
   }
   return { status: result.status ?? -1, stdout: result.stdout, stderr: result.stderr }
+}
+
+/** Runs `scripts/<name>.ts` from `cwd` under `scratchEnv()`, `env` over it. */
+export function runScript(name: string, args: string[], cwd: string, env: NodeJS.ProcessEnv = {}): Run {
+  return run(process.execPath, [join(SCRIPTS_DIR, `${name}.ts`), ...args], cwd, env)
+}
+
+/** Runs `hooks/<name>.sh` from `cwd` under `scratchEnv()`, `env` over it, with `payload` on stdin. */
+export function runHook(name: string, payload: object, cwd: string, env: NodeJS.ProcessEnv = {}): Run {
+  return run(BASH, [join(HOOKS_DIR, `${name}.sh`)], cwd, env, JSON.stringify(payload))
 }
 
 const made: string[] = []

@@ -3,8 +3,26 @@
 The Sync for a repository's References, shipped as a plugin: the repositories an agent reads to see
 how a problem was solved before, declared as the `references` key of `.ai/agentic.config.json` and
 cloned under `references/`. Only the committed file is read; the local layer adds no References. A
-repository without the key gets no output at all. The marketplace does not list the plugin yet, so
-dw-sdlc runs its script from the checkout.
+repository without the key gets no output at all.
+
+## Install
+
+```bash
+claude plugin marketplace add dominikwozniak/dw-sdlc --sparse .claude-plugin plugins
+claude plugin install references@dw-sdlc --scope user
+```
+
+Enabled once at user scope, it syncs a repository's References when a local Claude Code session
+starts, a new worktree's session included. A cloud session, Codex and a plain terminal load no
+plugin, so a Reference there is what the last local session left on disk (ADR 0006). A repository
+that runs a Sync hook of its own drops it, or the Sync runs twice.
+
+## The session hook
+
+`hooks/session-start.sh` runs on `SessionStart` with matcher `startup` and a 60 s timeout. It runs the
+Sync from the project directory and prints its lines, both streams, as the session's context. When the
+Sync fails, one line more says the clones stay where they were and names the script to rerun. It always
+exits 0, so being offline never blocks a session.
 
 ## The key
 
@@ -49,11 +67,13 @@ A directory under `references/` the list does not name is reported and never del
 
 ## Layout
 
-- `.claude-plugin/plugin.json` — the manifest.
+- `.claude-plugin/plugin.json` — the manifest; its `hooks` key wires the session hook.
+- `hooks/session-start.sh` — the session hook.
 - `config/references.schema.json` — the JSON Schema of the key.
 - `scripts/` — `references-sync.ts` the Sync, `references-key.ts` the parser of the key, `pins.ts`
   the version a ref's `{name}` resolves to. No dependencies, and no import from another plugin.
 - `test/` — `harness.ts` builds throwaway repositories apart from the machine's git config and
-  spawns a script the way its caller does; `scripts/references-sync.test.ts` drives the Sync's CLI
-  against upstreams served over `file://`, `scripts/references-key.test.ts` runs one case list
-  through the parser and the schema, the latter on the guardrails validator in the test only.
+  spawns a script or a hook the way its caller does; `hooks/session-start.test.ts` feeds the hook a
+  `SessionStart` payload, `scripts/references-sync.test.ts` drives the Sync's CLI against upstreams
+  served over `file://`, `scripts/references-key.test.ts` runs one case list through the parser and
+  the schema, the latter on the guardrails validator in the test only.
