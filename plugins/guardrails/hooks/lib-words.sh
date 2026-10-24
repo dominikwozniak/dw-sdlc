@@ -454,9 +454,9 @@ guard_unwrap_words() {
 
 # guard_split_first_word — `rtk run "git push --force"` and `bash -c 'git reset --hard'` hand the
 # command over as one quoted word: split WORDS[0] in place into its words, so unwrapping goes on with
-# them. Returns 1 when the first word holds no whitespace, or nothing that splits.
+# them. Returns 1 when there is no first word, it holds no whitespace, or nothing splits.
 guard_split_first_word() {
-  [[ "${WORDS[0]}" == *[[:space:]]* ]] || return 1
+  [[ "${WORDS[0]:-}" == *[[:space:]]* ]] || return 1
   guard_split_words "${WORDS[0]}"
   [[ ${#GUARD_WORDS[@]} -gt 1 || "${GUARD_WORDS[0]:-}" != "${WORDS[0]}" ]] || return 1
   WORDS=("${GUARD_WORDS[@]+"${GUARD_WORDS[@]}"}" "${WORDS[@]:1}")
