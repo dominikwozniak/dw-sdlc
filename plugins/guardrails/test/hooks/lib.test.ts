@@ -53,10 +53,7 @@ function walked(call: string, args: string[]): string {
 
 /** The kind of the first piece a live walk resumed at the text's first `'` reads. */
 function opened(text: string): string {
-  return lib(`GUARD_QW_SRC=$2; guard_qw_walk "\${#2}" 1 P "$3"; printf '%s' "\${GUARD_QW_KIND[0]}"`, [
-    text,
-    String(text.indexOf("'"))
-  ])
+  return lib(`guard_quote_walk "$2" 1 P "$3"; printf '%s' "\${GUARD_QW_KIND[0]}"`, [text, String(text.indexOf("'"))])
 }
 
 function unwrap(words: string): string {
