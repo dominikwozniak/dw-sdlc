@@ -12,7 +12,7 @@ import { homedir } from "node:os"
 import { join } from "node:path"
 import { parseArgs } from "node:util"
 
-import { repositoryRoot, resolveConfig } from "./agentic-config.ts"
+import { findRepository, resolveConfig } from "./agentic-config.ts"
 
 export type Level = "PASS" | "WARN" | "FAIL" | "INFO"
 export type Check = { name: string; level: Level; detail: string }
@@ -27,18 +27,21 @@ export type Probe = {
   shell(script: string): string
 }
 
+export type RepositoryConfig = {
+  config: { commit: { convention: string } }
+  problems: string[]
+  /** The checkout each layer was read from, as `resolveConfig` reports it. */
+  sources?: { committed: string | undefined; local: string | undefined }
+}
+
 export type Inputs = {
   root: string
   home: string
   /** Claude Code's config dir; `<home>/.claude` when absent. */
   claudeDir?: string
   probe: Probe
-  config: {
-    config: { commit: { convention: string } }
-    problems: string[]
-    /** The checkout each layer was read from, as `resolveConfig` reports it. */
-    sources?: { committed: string | undefined; local: string | undefined }
-  }
+  /** Undefined when no repository holds `root`. */
+  config: RepositoryConfig | undefined
 }
 
 /** Claude Code's config dir: `$CLAUDE_CONFIG_DIR` when set, the way Claude Code reads it, else `~/.claude`. */
@@ -310,7 +313,10 @@ function checkCommitSigning(probe: Probe): Check {
   }
 }
 
-function checkConfig(config: Inputs["config"], root: string): Check {
+function checkConfig(config: RepositoryConfig | undefined, root: string): Check {
+  if (config === undefined) {
+    return { name: "config", level: "INFO", detail: `no repository found at ${root}; run from one or pass --root` }
+  }
   if (config.problems.length > 0) {
     return {
       name: "config",
@@ -347,11 +353,23 @@ export function render(checks: Check[]): string {
   return checks.map((check) => `${check.level.padEnd(5)} ${check.name.padEnd(17)} ${check.detail}`).join("\n")
 }
 
-const USAGE = `Usage: pnpm guardrails:doctor [--root <dir>] [--home <dir>]
+const USAGE = `Usage: node <plugin root>/scripts/guardrails-doctor.ts [--root <dir>] [--home <dir>]
+  or:  pnpm guardrails:doctor [--root <dir>] [--home <dir>], in a checkout of dw-sdlc
 
 One PASS / WARN / FAIL line per machine check the guardrails rely on; read-only. Exit 1 when any
 check fails. Claude Code's settings are read from $CLAUDE_CONFIG_DIR, or ~/.claude without it; a
 --home reads <home>/.claude.`
+
+function repositoryConfig(root: string): RepositoryConfig {
+  const resolution = resolveConfig(root)
+  return {
+    config: resolution.config,
+    problems: resolution.problems.map(({ file, path, message }) =>
+      path === "" ? `${file}: ${message}` : `${file}: ${path}: ${message}`
+    ),
+    sources: resolution.sources
+  }
+}
 
 function main(argv: string[]): void {
   let values: { help?: boolean; root?: string; home?: string }
@@ -368,20 +386,14 @@ function main(argv: string[]): void {
     console.log(USAGE)
     return
   }
-  const root = repositoryRoot(values.root ?? process.cwd())
-  const resolution = resolveConfig(root)
+  const dir = values.root ?? process.cwd()
+  const root = findRepository(dir)
   const checks = diagnose({
-    root,
+    root: root ?? dir,
     home: values.home ?? homedir(),
     claudeDir: values.home === undefined ? claudeConfigDir(process.env, homedir()) : join(values.home, ".claude"),
     probe: realProbe,
-    config: {
-      config: resolution.config,
-      problems: resolution.problems.map(({ file, path, message }) =>
-        path === "" ? `${file}: ${message}` : `${file}: ${path}: ${message}`
-      ),
-      sources: resolution.sources
-    }
+    config: root === undefined ? undefined : repositoryConfig(root)
   })
   console.log(render(checks))
   if (checks.some((check) => check.level === "FAIL")) {

@@ -72,8 +72,9 @@ behind that and the plugin is in
 
 ## Adopting it in your repository
 
-Add `.ai/agentic.config.json` and validate it with `pnpm agentic:check <file>` from a checkout of this
-repository. This repository's own file is the smallest useful example:
+Add `.ai/agentic.config.json` and validate it with
+`node <plugin root>/scripts/agentic-config.ts <file>`, where the plugin root is the `installPath` that
+`claude plugin list --json` names. This repository's own file is the smallest useful example:
 
 ```json
 {
@@ -101,8 +102,9 @@ for editors; the guards always validate against the schema the plugin ships.
 The `/guardrails-setup` skill then writes this machine's local config layer from what it infers,
 plus the commit convention when asked for one, excludes it from git, and adds a permission backstop
 to `.claude/settings.local.json` plus the lease-push exception to `~/.claude/settings.json`. It shows
-a dry run first and writes only what would change. `pnpm guardrails:doctor --root <path>`, run from a
-checkout of this repository, prints one PASS / WARN / FAIL line per machine check.
+a dry run first, writes only what would change, and ends with the doctor: one PASS / WARN / FAIL line
+per machine check. The doctor needs only Node 24 and runs from the installed plugin, as
+`node "${CLAUDE_PLUGIN_ROOT}/scripts/guardrails-doctor.ts"` from the repository.
 
 ## From GitHub or from a clone
 

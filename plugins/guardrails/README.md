@@ -166,8 +166,12 @@ repository is read-only `git`.
 nothing: `jq`, the plugin enabled, rtk not wired by hand beside the plugin's hook and the filters
 that misbehave on the installed release excluded (`find` below rtk 0.46.0), Safe Chain visible to
 the agent's login shell with `npm` going through it (a WARN when absent), pnpm's global
-`minimumReleaseAge`, commit signing, and the resolved config. A check that does not apply here is
-INFO. Exit 1 on a FAIL. `pnpm guardrails:doctor` in this repository, `--root` for another.
+`minimumReleaseAge`, commit signing, and the resolved config of the repository holding `--root` or
+the current directory. A check that does not apply here is INFO, the config outside any repository
+among them. Exit 1 on a FAIL. The setup skill runs it last, as
+`node "${CLAUDE_PLUGIN_ROOT}/scripts/guardrails-doctor.ts"` from the repository; a terminal runs
+`node <plugin root>/scripts/guardrails-doctor.ts`, where `claude plugin list --json` names the plugin
+root as `installPath`. It needs only Node 24.
 
 ## Session start
 

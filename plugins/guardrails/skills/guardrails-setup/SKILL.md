@@ -68,3 +68,11 @@ and jq.
 Check what the guards now see with `node "${CLAUDE_PLUGIN_ROOT}/scripts/agentic-config.ts"` from the
 repository; from a worktree it names the main checkout as the layer's source. One run per repository
 covers its worktrees, wherever they sit, so `.worktreeinclude` needs no entry for the local config.
+
+Then run the doctor from the repository and show its lines, one PASS / WARN / FAIL per machine check:
+`jq`, the plugin, rtk, Safe Chain, pnpm's release age, commit signing and the config. It installs
+nothing, and a FAIL names the command that fixes it; run that only when the user asks.
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/scripts/guardrails-doctor.ts"
+```

@@ -65,8 +65,10 @@ export type SetupOptions = {
   commitOnProtected?: CommitOnProtected | undefined
 }
 
-const USAGE = `Usage: pnpm guardrails:setup [--root <dir>] [--home <dir>] [--convention <preset>]
-       [--force-push deny|ask|lease] [--commit-on-protected deny|allow] [--force] [--dry-run]
+const USAGE = `Usage: node <plugin root>/scripts/guardrails-setup.ts [--root <dir>] [--home <dir>]
+       [--convention <preset>] [--force-push deny|ask|lease] [--commit-on-protected deny|allow]
+       [--force] [--dry-run]
+  or:  pnpm guardrails:setup with the same flags, in a checkout of dw-sdlc
 
 Writes .ai/agentic.config.local.json from inference, excludes it in .git/info/exclude, generates
 permissions.deny into .claude/settings.local.json, and adds the lease-push exception and the

@@ -28,19 +28,21 @@ repository is private, so the clone uses your git credentials.
 
 ## Setup
 
-In a repository you work on, run the setup skill in Claude Code. It shows a dry run first, then writes
-this machine's local layer:
+In a repository you work on, run the setup skill in Claude Code. It shows a dry run first, writes
+this machine's local layer, and ends with the doctor: one PASS / WARN / FAIL line per machine check.
 
 ```bash
 /guardrails-setup
 ```
 
-The doctor runs from a checkout of this repository and prints one PASS / WARN / FAIL line per machine
-check:
+The doctor ships in the plugin and needs only Node 24. To run it again from a terminal in the
+repository:
 
 ```bash
-pnpm guardrails:doctor --root <path to your repository>
+node <plugin root>/scripts/guardrails-doctor.ts
 ```
+
+`claude plugin list --json` names the plugin root as the `installPath` of `guardrails@dw-sdlc`.
 
 ## What it stops
 
