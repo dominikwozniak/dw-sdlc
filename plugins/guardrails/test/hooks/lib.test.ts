@@ -441,6 +441,27 @@ describe("text helpers", () => {
     )
     assert.ok(seconds < 5, `${seconds.toFixed(1)} s`)
   })
+  it("words read a 60 KB quoted body a piece at a time, not a character at a time", () => {
+    const body = Array.from(
+      { length: 900 },
+      () => "The guard reads the body once; it is (mostly) linear | fast & small."
+    ).join("\n")
+    const start = performance.now()
+    const got = lib(`guard_words "$2"`, [`gh pr create --title "perf: x" --body "${body}"`])
+    const seconds = (performance.now() - start) / 1000
+    assert.equal(got, ["gh", "pr", "create", "--title", "perf: x", "--body", body].join("\n"))
+    assert.ok(seconds < 1, `${seconds.toFixed(2)} s`)
+  })
+  it("words keep a substitution whole and read a comment's quotes as text", () => {
+    assert.equal(
+      lib(`guard_words "$2" | paste -sd, -`, [
+        'git -C $(git rev-parse --show-toplevel) push "$(echo "a b")" `x y` ${v:-\'c d\'}'
+      ]),
+      "git,-C,$(git rev-parse --show-toplevel),push,$(echo a b),`x y`,${v:-c d}"
+    )
+    assert.equal(lib(`guard_words "$2" | paste -sd, -`, ["git push # it's"]), "git,push,#,it's")
+    assert.equal(lib(`guard_words "$2" | paste -sd, -`, ["cat <<'EOF' x << \"END\""]), "cat,<<EOF,x,<<,END")
+  })
 })
 
 // The launcher table in lib-words.sh, spelling by spelling: guard_unwrap_words must reach the

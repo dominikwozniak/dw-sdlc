@@ -7,8 +7,9 @@
 # --- the quotes ---------------------------------------------------------------------------------
 
 # guard_quote_walk <text> [<live>] [<state>] [<from>] [<stop>] — the one reader of shell quoting: the
-# mask, the substitution split, the heredoc opener and the heredoc body passes are each a loop over
-# the pieces it leaves, GUARD_QW_KIND[i] and GUARD_QW_TEXT[i], whose texts joined are the text again.
+# mask, the substitution split, the word reader, the heredoc opener and the heredoc body passes are
+# each a loop over the pieces it leaves, GUARD_QW_KIND[i] and GUARD_QW_TEXT[i], whose texts joined are
+# the text again.
 # A kind:
 #   t<c>  text read in context <c>        e<c>  a backslash and the character it keeps
 #   o<c>  what opens context <c>          c<c>  what closes it
@@ -415,7 +416,7 @@ guard_strip_quoted_text() {
 
 # guard_search_segment <segment> — 0 when the segment, wrappers off, runs grep, egrep, fgrep, rg, ag,
 # ack or git grep. The command word sits at the start, so only the first 256 bytes are scanned: a long
-# message further on would cost a character loop for nothing.
+# message further on would cost a walk for nothing.
 guard_search_segment() {
   local word head="${1:0:256}"
   WORDS=()

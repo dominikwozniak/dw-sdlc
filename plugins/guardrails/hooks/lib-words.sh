@@ -10,73 +10,136 @@ guard_tokens() {
   printf '%s\n' "$1" | tr -s "[:space:];|&()<>=\`\"'" '\n' | sed '/^$/d'
 }
 
-# guard_words <segment> — the segment split into words the way a shell would, one per line: whitespace
-# separates, quotes group and are dropped, the `$` of a `$'…'` or a `$"…"` with them, a backslash
-# keeps the next character, and in a `$'…'` stands for what bash decodes it to, a newline read as a
-# space and the text ending at a NUL. For one command's
+# guard_words <segment> — the segment split into words the way a shell would, one per line, read on
+# guard_quote_walk's pieces: whitespace at the top level separates, quotes group and are dropped, the
+# `$` of a `$'…'` or a `$"…"` with them, a backslash keeps the next character, and in a `$'…'` stands
+# for what bash decodes it to, a newline read as a space and the text ending at a NUL. A `$(…)`, a
+# backtick substitution or a `${…}` stays in its word, delimiters and whitespace included, with the
+# quotes and backslashes inside it read the same way. A comment's text splits as the command's does,
+# and a heredoc operator reads as `<<EOF`, the delimiter's quotes dropped. For one command's
 # arguments, where `-C 'my repo'` must stay one word; a segment holds no newline. Returns 1 when a
-# quote is left open, after printing what it read.
+# quote or substitution is left open, after printing what it read.
 guard_words() {
-  local s="$1"
-  local n=${#s}
-  local i=0 ch word="" have=0 state=plain
-  while ((i < n)); do
-    ch=${s:i:1}
-    if [[ "$ch" == '\' && ("$state" == ansi || "$state" == cut) ]]; then
-      guard_ansi_escape "${s:i+1:9}"
-      if [[ "$state" == ansi ]]; then
-        ((GUARD_ANSI_NUL)) && state=cut
-        if [[ "$GUARD_ANSI_CHAR" == $'\n' ]]; then word+=' '; else word+=$GUARD_ANSI_CHAR; fi
-      fi
-      i=$((i + 1 + GUARD_ANSI_LEN))
-      continue
+  local i n kind piece word="" have=0 depth=0 cut=0 quote="" status=0 noglob=0 run k
+  local -a parts
+  guard_quote_walk "$1" || status=1
+  # Top-level text splits on the shell's own rule: IFS whitespace, no glob.
+  local IFS=$' \t'
+  [[ $- == *f* ]] && noglob=1
+  set -f
+  n=${#GUARD_QW_KIND[@]}
+  for ((i = 0; i < n; i++)); do
+    kind=${GUARD_QW_KIND[i]}
+    piece=${GUARD_QW_TEXT[i]}
+    if [[ -n "$quote" ]]; then
+      [[ "${piece:0:1}" == "$quote" ]] && piece=${piece:1}
+      quote=""
     fi
-    if [[ "$ch" == '\' && "$state" != sq ]]; then
-      i=$((i + 1))
-      ((i < n)) && word+=${s:i:1}
-      have=1
-      i=$((i + 1))
-      continue
-    fi
-    case "$state" in
-      plain)
-        case "$ch" in
-          "'") state=sq; have=1 ;;
-          '"') state=dq; have=1 ;;
-          '$')
-            case "${s:i+1:1}" in
-              '$')
-                word+='$$'
-                i=$((i + 1))
-                ;;
-              "'")
-                state=ansi
-                i=$((i + 1))
-                ;;
-              '"')
-                state=dq
-                i=$((i + 1))
-                ;;
-              *) word+=$ch ;;
-            esac
-            have=1
-            ;;
-          ' ' | $'\t')
-            ((have)) && printf '%s\n' "$word"
-            word=""
-            have=0
-            ;;
-          *) word+=$ch; have=1 ;;
-        esac
+    case "$kind" in
+      tP | tC | h)
+        # The quote that closes a heredoc's quoted delimiter is the first character of the next piece.
+        if [[ "$kind" == h ]]; then
+          quote=${piece//[!\'\"]/}
+          piece=${piece//[\'\"\\]/}
+        fi
+        if ((depth > 0)); then
+          word+=$piece
+          continue
+        fi
         ;;
-      sq | ansi) if [[ "$ch" == "'" ]]; then state=plain; else word+=$ch; fi ;;
-      cut) [[ "$ch" == "'" ]] && state=plain ;;
-      dq) if [[ "$ch" == '"' ]]; then state=plain; else word+=$ch; fi ;;
+      tA)
+        ((cut)) || word+=$piece
+        continue
+        ;;
+      eA)
+        if ((!cut)); then
+          guard_ansi_escape "${piece:1}"
+          if ((GUARD_ANSI_NUL)); then
+            cut=1
+          elif [[ "$GUARD_ANSI_CHAR" == $'\n' ]]; then
+            word+=' '
+          else
+            word+=$GUARD_ANSI_CHAR
+          fi
+        fi
+        continue
+        ;;
+      e?)
+        word+=${piece:1}
+        have=1
+        continue
+        ;;
+      t?)
+        word+=$piece
+        have=1
+        continue
+        ;;
+      oD)
+        # The `$` of a `$"…"` is the text's last, unless it pairs with the one before as `$$`.
+        if ((i > 0)) && [[ "${GUARD_QW_KIND[i - 1]}" == t? && "${GUARD_QW_TEXT[i - 1]}" == *'$' ]]; then
+          run=${GUARD_QW_TEXT[i - 1]}
+          k=0
+          while [[ "$run" == *'$' ]]; do
+            run=${run%?}
+            k=$((k + 1))
+          done
+          ((k % 2)) && word=${word%?}
+        fi
+        depth=$((depth + 1))
+        have=1
+        continue
+        ;;
+      o[SA])
+        depth=$((depth + 1))
+        have=1
+        continue
+        ;;
+      c[SDA])
+        depth=$((depth - 1))
+        cut=0
+        continue
+        ;;
+      o?)
+        word+=$piece
+        depth=$((depth + 1))
+        have=1
+        continue
+        ;;
+      c?)
+        word+=$piece
+        depth=$((depth - 1))
+        continue
+        ;;
     esac
-    i=$((i + 1))
+    [[ -n "$piece" ]] || continue
+    if [[ "$piece" != *[[:blank:]]* ]]; then
+      word+=$piece
+      have=1
+      continue
+    fi
+    if [[ "$piece" == [[:blank:]]* ]]; then
+      ((have)) && printf '%s\n' "$word"
+      word=""
+      have=0
+    fi
+    parts=($piece)
+    for ((k = 0; k < ${#parts[@]}; k++)); do
+      if ((k > 0)); then
+        printf '%s\n' "$word"
+        word=""
+      fi
+      word+=${parts[k]}
+      have=1
+    done
+    if [[ "$piece" == *[[:blank:]] ]]; then
+      ((have)) && printf '%s\n' "$word"
+      word=""
+      have=0
+    fi
   done
+  ((noglob)) || set +f
   ((have)) && printf '%s\n' "$word"
-  [[ "$state" == plain ]]
+  return $status
 }
 
 # guard_ansi_escape <text after a backslash> — what an escape in a `$'…'` stands for, the way bash
