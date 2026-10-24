@@ -349,6 +349,12 @@ describe("diagnose", () => {
     assert.equal(check.detail, "commit ticket-key; local layer from /main")
   })
 
+  it("config: outside a repository is INFO and says no repository was found", () => {
+    const check = line(diagnose({ root: "/tmp/x", home: HOME, probe: fake(HEALTHY), config: undefined }), "config")
+    assert.equal(check.level, "INFO")
+    assert.match(check.detail, /^no repository found at \/tmp\/x/)
+  })
+
   it("config: problems fail and are listed", () => {
     const checks = diagnose({
       root: ROOT,
@@ -388,5 +394,12 @@ describe("the doctor command", () => {
     })
     assert.match(verdict.stdout, /^FAIL {2}config {12}the guards run on the strictest defaults/m)
     assert.equal(verdict.status, 1)
+  })
+
+  it("--root outside any repository judges no config", () => {
+    const dir = scratch("doctor-bare")
+    const verdict = runScript("guardrails-doctor", ["--root", dir, "--home", scratch("home")], { env: BARE_MACHINE })
+    assert.match(verdict.stdout, /^INFO {2}config {12}no repository found at /m)
+    assert.ok(verdict.stdout.includes(`no repository found at ${dir}`), verdict.stdout)
   })
 })

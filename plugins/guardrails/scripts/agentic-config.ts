@@ -15,7 +15,8 @@ export const COMMITTED_FILE = ".ai/agentic.config.json"
 export const LOCAL_FILE = ".ai/agentic.config.local.json"
 export const SCHEMA_PATH = join(import.meta.dirname, "..", "config", "agentic.config.schema.json")
 
-const USAGE = `Usage: pnpm agentic:check [--root <dir>] [file]
+const USAGE = `Usage: node <plugin root>/scripts/agentic-config.ts [--root <dir>] [file]
+  or:  pnpm agentic:check [--root <dir>] [file], in a checkout of dw-sdlc
 
 Without a file: resolves the agentic config of the repository holding --root (default: the current
 directory) — local over committed over inferred — and prints what the guards see. With a file:
@@ -209,10 +210,15 @@ function readLayer(checkouts: string[], file: string): Layer {
   return { state: "valid", value: result.value, problems: [], source }
 }
 
+/** The top level of the repository holding `dir`, or undefined outside one. */
+export function findRepository(dir: string): string | undefined {
+  const toplevel = spawnSync("git", ["-C", dir, "rev-parse", "--show-toplevel"], { encoding: "utf8" })
+  return toplevel.status === 0 ? toplevel.stdout.trim() : undefined
+}
+
 /** The top level of the repository holding `dir`, or `dir` itself outside one. */
 export function repositoryRoot(dir: string): string {
-  const toplevel = spawnSync("git", ["-C", dir, "rev-parse", "--show-toplevel"], { encoding: "utf8" })
-  return toplevel.status === 0 ? toplevel.stdout.trim() : dir
+  return findRepository(dir) ?? dir
 }
 
 /**
@@ -422,16 +428,10 @@ function main(argv: string[]): void {
     return
   }
 
-  let root = cli.root
-  if (root === undefined) {
-    const toplevel = spawnSync("git", ["rev-parse", "--show-toplevel"], { encoding: "utf8" })
-    if (toplevel.status !== 0) {
-      fail("not inside a git repository; pass --root <dir>", 1)
-    }
-    root = toplevel.stdout.trim()
-  } else {
-    root = repositoryRoot(root)
-  }
+  const root =
+    cli.root === undefined
+      ? (findRepository(process.cwd()) ?? fail("not inside a git repository; pass --root <dir>", 1))
+      : repositoryRoot(cli.root)
 
   const { config, problems, layers, sources } = resolveConfig(root)
   const from = (source: string | undefined): string =>

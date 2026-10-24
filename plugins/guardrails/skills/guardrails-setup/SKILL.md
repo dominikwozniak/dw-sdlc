@@ -13,7 +13,7 @@ disable-model-invocation: true
 Four files, each written only when its content would change. Run the dry run first and show its
 lines; then run for real and show those. A `refused` line ends the run: show it and stop, and never
 add `--force` yourself, since it overwrites a file nothing brings back. Nothing is installed; the
-only thing run in the repository is read-only `git`.
+only thing the setup runs in the repository is read-only `git`.
 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/scripts/guardrails-setup.ts" --dry-run
@@ -68,3 +68,10 @@ and jq.
 Check what the guards now see with `node "${CLAUDE_PLUGIN_ROOT}/scripts/agentic-config.ts"` from the
 repository; from a worktree it names the main checkout as the layer's source. One run per repository
 covers its worktrees, wherever they sit, so `.worktreeinclude` needs no entry for the local config.
+
+Then run the doctor from the repository and show its lines, one PASS / WARN / FAIL per machine
+check. It installs nothing; run a fix a line names only when the user asks.
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/scripts/guardrails-doctor.ts"
+```

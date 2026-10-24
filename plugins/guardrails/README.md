@@ -40,8 +40,9 @@ disk is in the next session, a broken edit included.
 - `hooks/commit-msg.sh` — a git hook, not a Claude Code one: the Commit hook below.
 - `config/agentic.config.schema.json` — the JSON Schema for `.ai/agentic.config.json`.
 - `scripts/` — the TypeScript side: `agentic-config.ts` reads, validates and resolves the config
-  (`pnpm agentic:check` in the repository runs it), `guardrails-setup.ts` and `guardrails-doctor.ts`
-  are the Setup and Doctor below, `json-schema.ts` is the dependency-free schema validator they share.
+  (`node <plugin root>/scripts/agentic-config.ts` from a repository runs it), `guardrails-setup.ts`
+  and `guardrails-doctor.ts` are the Setup and Doctor below, `json-schema.ts` is the dependency-free
+  schema validator they share.
 - `skills/guardrails-setup/` — the skill a user invokes to run the setup script; the model cannot
   start it on its own.
 - `test/` — the tests, mirroring `hooks/` and `scripts/`: `harness.ts` spawns a guard on the real
@@ -166,8 +167,12 @@ repository is read-only `git`.
 nothing: `jq`, the plugin enabled, rtk not wired by hand beside the plugin's hook and the filters
 that misbehave on the installed release excluded (`find` below rtk 0.46.0), Safe Chain visible to
 the agent's login shell with `npm` going through it (a WARN when absent), pnpm's global
-`minimumReleaseAge`, commit signing, and the resolved config. A check that does not apply here is
-INFO. Exit 1 on a FAIL. `pnpm guardrails:doctor` in this repository, `--root` for another.
+`minimumReleaseAge`, commit signing, and the resolved config of the repository holding `--root` or
+the current directory. A check that does not apply here is INFO, the config outside any repository
+among them. Exit 1 on a FAIL. The setup skill runs it last, as
+`node "${CLAUDE_PLUGIN_ROOT}/scripts/guardrails-doctor.ts"` from the repository; a terminal runs
+`node <plugin root>/scripts/guardrails-doctor.ts`, where `claude plugin list --json` names the plugin
+root as `installPath`. It needs only Node 24.
 
 ## Session start
 
