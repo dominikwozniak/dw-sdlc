@@ -85,3 +85,12 @@ One installable unit the marketplace lists: hooks and skills under one version.
 A repository cloned on one machine so an agent can read how a problem was solved before. Read-only, and never
 part of this repository's history.
 _Avoid_: vendored repo, subtree
+
+**Router**:
+The file an agent reads first under a repository's References: the rules for reading them and where
+their list is declared.
+_Avoid_: manifest, index
+
+**Sync**:
+Bringing every Reference a repository declares to its ref: a missing one cloned, an existing one moved.
+_Avoid_: pull, update
