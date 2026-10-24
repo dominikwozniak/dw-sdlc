@@ -8,7 +8,8 @@
 //   .ai/agentic.config.json    an empty references key when the config has none
 //
 // Existing content stays: a list gains the entries it lacks at its end, and nothing is removed or
-// reordered. A settings file or a config that is not a JSON object is refused, not rewritten.
+// reordered. A settings file or a config that is not a JSON object is refused, not rewritten, and so
+// is an ignore file that ignores references/ itself.
 
 import { spawnSync } from "node:child_process"
 import { existsSync, lstatSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs"
@@ -33,6 +34,8 @@ const EXCLUDES = [
 /** Every clone ignored, then the Router and its symlink tracked: an exception counts after its pattern. */
 const IGNORED = "references/*"
 const TRACKED = ["!references/AGENTS.md", "!references/CLAUDE.md"]
+/** Lines that ignore references/ itself: git never looks inside it, so no exception tracks the Router. */
+const WHOLE = new Set(["references", "references/", "/references", "/references/"])
 const IGNORE_COMMENT = "# References are cloned on each machine by the references plugin; only the Router is tracked."
 
 const USAGE = `Usage: node <plugin root>/scripts/references-setup.ts [--root <dir>] [--dry-run]
@@ -86,13 +89,13 @@ class Writer {
     this.dryRun = dryRun
   }
 
-  private record(file: string, written: boolean, write: (path: string) => void): void {
-    if (written && !this.dryRun) {
+  private record(file: string, changed: boolean, write: (path: string) => void): void {
+    if (changed && !this.dryRun) {
       const path = join(this.root, file)
       mkdirSync(dirname(path), { recursive: true })
       write(path)
     }
-    this.steps.push({ file, outcome: written ? "wrote" : "unchanged" })
+    this.steps.push({ file, outcome: changed ? "wrote" : "unchanged" })
   }
 
   /** The text `change` gives `file`, from what `file` holds now; written when the two differ. */
@@ -124,10 +127,11 @@ function withExcludes(current: string | undefined): Change {
   if (settings === undefined) {
     return { refusal: "is not a JSON object; fix it by hand first" }
   }
-  const existing = settings.claudeMdExcludes ?? []
-  if (!Array.isArray(existing)) {
+  const value = settings.claudeMdExcludes ?? []
+  if (!Array.isArray(value)) {
     return { refusal: "claudeMdExcludes is not a list; fix it by hand first" }
   }
+  const existing: unknown[] = value
   const missing = EXCLUDES.filter((glob) => !existing.includes(glob))
   return { text: missing.length === 0 ? current : render({ ...settings, claudeMdExcludes: [...existing, ...missing] }) }
 }
@@ -139,6 +143,9 @@ function withExcludes(current: string | undefined): Change {
 function withIgnoreLines(current: string | undefined): Change {
   const text = current ?? ""
   const lines = text.split(/\r?\n/).map((line) => line.trimEnd())
+  if (lines.some((line) => WHOLE.has(line))) {
+    return { refusal: `ignores references/ itself, so no exception tracks the Router; ignore ${IGNORED} instead` }
+  }
   const ignored = lines.includes(IGNORED)
   const missing = ignored ? TRACKED.filter((line) => !lines.includes(line)) : [IGNORE_COMMENT, IGNORED, ...TRACKED]
   if (missing.length === 0) {

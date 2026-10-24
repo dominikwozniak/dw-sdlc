@@ -27,34 +27,36 @@ show it and stop.
 
 ## 2. A look at the repository
 
-When the key already lists the repository, name its `dir` and stop. Otherwise clone it into a new
-temporary directory, shallow and without blobs, so the steps below read its tree without a checkout:
+When the key already lists the repository, name its `dir` and stop. Otherwise make a directory with
+`mktemp -d`, the scout, and clone the repository into it, shallow and without blobs, so the steps
+below read its tree without a checkout. Each Bash call starts a new shell, so write the scout's path
+out in every command where `<scout>` stands:
 
 ```bash
-scout="$(mktemp -d)"
-GIT_TERMINAL_PROMPT=0 git clone --quiet --depth 1 --filter=blob:none --no-checkout <repository> "$scout"
+GIT_TERMINAL_PROMPT=0 git clone --quiet --depth 1 --filter=blob:none --no-checkout <url> <scout>
 ```
 
-For a `https://github.com/` repository, add `-c credential.helper= -c 'credential.helper=!gh auth
-git-credential'` after `clone`, the credentials the Sync uses: a private one clones without a
-prompt, and every later read through `$scout` fetches with them. Delete `$scout` once the entry is
-written.
+`<url>` is the repository's URL, `https://github.com/owner/repo` for `owner/repo`. For a
+`https://github.com/` one, add `-c credential.helper= -c 'credential.helper=!gh auth
+git-credential'` after `clone`, the credentials the Sync uses: a private repository clones without
+a prompt, and every later read through the scout fetches with them. Delete the scout once the entry
+is written.
 
 ## 3. The licence
 
-Find the licence file at the top of the tree (`git -C "$scout" ls-tree --name-only HEAD`), read it
-with `git -C "$scout" show HEAD:<file>` and name it by its SPDX id. Without one, say the repository
+Find the licence file at the top of the tree (`git -C <scout> ls-tree --name-only HEAD`), read it
+with `git -C <scout> show HEAD:<file>` and name it by its SPDX id. Without one, say the repository
 grants no licence. A Reference is read and never copied in, so the licence never stops the run; the
 summary names it.
 
 ## 4. The ref
 
-The default is the head of the default branch, `git -C "$scout" branch --show-current`.
+The default is the head of the default branch, `git -C <scout> branch --show-current`.
 
 When the repository is a dependency of this one, the clone sits at the release this repository runs
 instead. It is one when the root `package.json` depends on a package it publishes: the `name` of its
 `package.json`, or of a workspace package's in a monorepo. Find that version's tag in
-`git -C "$scout" ls-remote --tags --refs origin` (`v1.2.3`, `1.2.3`, `name@1.2.3`), then:
+`git -C <scout> ls-remote --tags --refs origin` (`v1.2.3`, `1.2.3`, `name@1.2.3`), then:
 
 - an exact pin, direct or `catalog:` through the default catalog of `pnpm-workspace.yaml`: the ref
   names the package, the tag with `{name}` for the version (`v{effect}`, `effect@{effect}`), so the
@@ -66,11 +68,13 @@ the lockfile pins.
 
 ## 5. The paths to skip
 
-Count the files, in all and per directory:
+Count the files of the tree the ref checks out, in all and per directory. `<at>` is `HEAD` for a
+branch head; for a tag, fetch it first and read the tag:
+`git -C <scout> fetch --quiet --depth 1 origin tag <tag>`.
 
 ```bash
-git -C "$scout" ls-tree -r --name-only HEAD | wc -l
-git -C "$scout" ls-tree -r --name-only HEAD | awk -F/ 'NF > 1 { print $1 "/" }' | sort | uniq -c | sort -rn
+git -C <scout> ls-tree -r --name-only <at> | wc -l
+git -C <scout> ls-tree -r --name-only <at> | awk -F/ 'NF > 1 { print $1 "/" }' | sort | uniq -c | sort -rn
 ```
 
 Go a level deeper into a large directory. Propose `skip` for directories that are not what a reader
@@ -82,7 +86,7 @@ it. A path is relative to the clone, a directory ending in `/`. Nothing like tha
 ## 6. The entry
 
 Read the entries the key holds and write in their style. Read the repository's README
-(`git -C "$scout" show HEAD:README.md`) for what it is.
+(`git -C <scout> show <at>:README.md`) for what it is.
 
 - `dir`: the repository's name, its owner's in front when the name alone says little
   (`mattpocock-skills` for `mattpocock/skills`); unique in the key, and not a directory under

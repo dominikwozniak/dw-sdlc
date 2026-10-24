@@ -88,7 +88,8 @@ node <plugin root>/scripts/references-setup.ts [--root <dir>] [--dry-run]
 
 A list gains only the entries it lacks, and nothing is removed, so a repeat writes nothing. Each
 file prints one line: `wrote`, `unchanged` or `refused`, and `would write` on a dry run. A settings
-file or a config that is not a JSON object is refused and left as it is; the run then exits 1.
+file or a config that is not a JSON object is refused and left as it is, and so is a `.gitignore`
+that ignores `references/` itself, since git then tracks nothing under it; the run then exits 1.
 
 ## Layout
 

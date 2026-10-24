@@ -217,6 +217,24 @@ describe("what the setup refuses", () => {
     assert.equal(read(root, ".ai/agentic.config.json"), "[]\n")
   })
 
+  it("an ignore file that ignores references/ itself, where no exception can track the Router", () => {
+    for (const line of ["references/", "/references"]) {
+      const root = initRepo(scratch("repo"))
+      write(join(root, ".gitignore"), `dist/\n${line}\n`)
+      for (const flags of [["--dry-run"], []]) {
+        const run = setup(root, ...flags)
+        expectStatus(run, 1)
+        assert.ok(
+          lines(run.stdout).includes(
+            "refused     .gitignore — ignores references/ itself, so no exception tracks the Router; ignore references/* instead"
+          ),
+          run.stdout
+        )
+      }
+      assert.equal(read(root, ".gitignore"), `dist/\n${line}\n`)
+    }
+  })
+
   it("a claudeMdExcludes that is not a list", () => {
     const root = initRepo(scratch("repo"))
     writeJson(join(root, ".claude/settings.json"), { claudeMdExcludes: "**/CLAUDE.md" })

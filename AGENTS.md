@@ -63,8 +63,7 @@ is its long form: how a guard works, why the design, adopting and releasing.
 - **CI runs on `ubuntu-latest`.** External actions are pinned to a full commit SHA with a `# vX.Y.Z`
   comment.
 - **A skill a plugin ships is named `sdlc-<plugin>-<verb>`**, as `sdlc-references-add`, so the skills
-  group in the slash menu and never collide with the `dw-*` skills of dw-solo. `guardrails-setup`
-  takes the name under #66.
+  group in the slash menu and never collide with the `dw-*` skills of dw-solo.
 
 ## Git
 
