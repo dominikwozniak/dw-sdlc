@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # The Sync ships as one plugin and runs in local Claude Code sessions only
