@@ -95,7 +95,7 @@ refuses.
   `nohup`, `nice`, `time`, `timeout`, `stdbuf`, `xargs`, `find -exec`, a shell's `-c` or `<<<`,
   `rtk`, a shell keyword, `VAR=x`) with its options, named by a path or a backslash, and in a heredoc
   a shell reads as its script. One table in `lib-words.sh` has two readers: `guard_unwrap_words` on
-  words, for git, gh, the store and every location, and `GUARD_WRAPPER` on text, for the arms that
+  words, for git, gh, the store and every location, and `GUARD_BOUNDARY` on text, for the arms that
   read a target in place. Out of scope, as no accident spells them: a command assembled at runtime, a
   quoted verb, `env -S`, an abbreviated long option, an alias, a script on disk, `ssh` or
   `docker exec`, `python -c` or `node -e`, `echo … | bash`, operands that arrive on stdin
