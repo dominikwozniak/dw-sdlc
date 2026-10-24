@@ -155,10 +155,11 @@ refuses.
   stdin; every input a test reads is built beside it in a scratch directory.
 - The jq and TypeScript copies of the config contract run on one case list, so a change to either
   side fails there first.
-- The hook tests spawn `/bin/bash`, the hooks' shebang, never the first `bash` in PATH: bash 3.2 on
-  macOS, so a bash 4 construct fails the suite run on a Mac. CI's `ubuntu-latest` runs bash 5.2 and
-  passes it; a macOS runner is left out for its cost, so the bash 3.2 proof is `pnpm test` run by
-  hand on a Mac.
+- The hook tests spawn `/bin/bash`, the hooks' shebang, never the first `bash` in PATH: `pnpm check`
+  on a Mac runs them on bash 3.2, so a bash 4 construct fails there. CI's `ubuntu-latest` runs them
+  on bash 5.2, where it passes; a macOS runner is left out for its cost. On both,
+  `test/hooks/bash-3.2.test.ts` reads every hook's code lines and fails on a listed bash 4 construct,
+  naming the file and line.
 - The env rules are proven on scratch repositories (a tracked `.env`, an ignored `.env.development`),
   not by running the plugin inside a real one; the env lists on the same shape with a committed config
   that allows the ignored file and denies the tracked one, plus a local layer that loosens and one
