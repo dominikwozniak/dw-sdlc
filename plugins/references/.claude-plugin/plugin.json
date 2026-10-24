@@ -1,0 +1,9 @@
+{
+  "name": "references",
+  "version": "0.1.0",
+  "description": "Brings the repositories a project reads for prior art, declared as the references key of its .ai/agentic.config.json, to their ref under references/: shallow, at a branch or a tag, sparse where paths are skipped.",
+  "author": {
+    "name": "Dominik Woźniak"
+  },
+  "repository": "https://github.com/dominikwozniak/dw-sdlc"
+}

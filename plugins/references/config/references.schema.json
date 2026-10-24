@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/dominikwozniak/dw-sdlc/main/plugins/references/config/references.schema.json",
+  "title": "references",
+  "description": "The `references` key of `.ai/agentic.config.json`: the repositories an agent reads to see how a problem was solved before, each brought to its ref under `references/<dir>` by the Sync. Only the committed file is read; the local layer adds no References. Every `dir` is unique in the list, which this schema cannot say and the Sync refuses. A key the Sync refuses syncs nothing.",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "properties": {
+      "dir": {
+        "description": "The one directory under `references/` the clone lives in: letters, digits, `_`, `.` and `-`, not starting with `.` or `-`.",
+        "type": "string",
+        "pattern": "^[A-Za-z0-9_][A-Za-z0-9_.-]*$"
+      },
+      "repository": {
+        "description": "A URL `git` can fetch. A `https://github.com/` one fetches with the GitHub CLI's credentials. No whitespace, and no leading `-`, which `git` would read as an option.",
+        "type": "string",
+        "pattern": "^[^\\s-]\\S*$"
+      },
+      "ref": {
+        "description": "A branch, whose head the clone moves to, or a tag. `{name}` in it stands for the exact version the root `package.json` pins for package `name`, read through the default catalog of `pnpm-workspace.yaml` when the pin says `catalog:` or `catalog:default`. No whitespace, and no leading `-`.",
+        "type": "string",
+        "pattern": "^[^\\s-]\\S*$"
+      },
+      "skip": {
+        "description": "Paths the sparse checkout leaves out, relative to the clone and inside it. Empty or absent, the whole tree is checked out.",
+        "type": "array",
+        "items": {
+          "type": "string",
+          "pattern": "^(?!/)(?!(?:.*/)?\\.\\.(?:/|$)).+$"
+        }
+      },
+      "what": {
+        "description": "What the Reference is.",
+        "type": "string",
+        "minLength": 1
+      },
+      "when": {
+        "description": "When an agent reaches for it.",
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "required": ["dir", "repository", "ref", "what", "when"],
+    "additionalProperties": false
+  }
+}

@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# SessionStart hook: clone or update every repository references/AGENTS.md lists and say where each
-# stands. Never fails the session: offline or slow, a clone stays where it was and the line says so.
+# SessionStart hook: run the references plugin's Sync from this checkout over the references key of
+# .ai/agentic.config.json and say where each clone stands. Never fails the session: offline or slow,
+# a clone stays where it was and the line says so.
 cd "${CLAUDE_PROJECT_DIR:-.}" || exit 0
-if out="$(node scripts/references-sync.ts 2>&1)"; then
+if out="$(node plugins/references/scripts/references-sync.ts 2>&1)"; then
   printf '%s\n' "$out"
 else
   printf '%s\n' "$out"
