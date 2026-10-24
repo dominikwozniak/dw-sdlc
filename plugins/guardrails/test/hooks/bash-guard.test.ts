@@ -12,16 +12,18 @@ import {
   expectExit,
   hookPath,
   initRepo,
+  pathWithFakeBash,
   REPO_ROOT,
   runHook,
   scratch,
   verdictOf,
   writeJson,
+  type RunOptions,
   type Verdict
 } from "../harness.ts"
 
-function run(command: string, cwd = REPO_ROOT): Verdict {
-  return runHook("bash-guard", bashPayload(command, cwd))
+function run(command: string, cwd = REPO_ROOT, options: RunOptions = {}): Verdict {
+  return runHook("bash-guard", bashPayload(command, cwd), options)
 }
 function allowed(name: string, command: string): void {
   it(name, () => {
@@ -109,6 +111,12 @@ describe("an ask waits for every guard, so a later refusal still wins", () => {
   })
   it("a credential read after it is refused", () => {
     expectExit(run("git push --force-with-lease origin feat && cat ~/.ssh/id_rsa", ask), 2)
+  })
+})
+
+describe("a guard runs on the bash the dispatcher runs on", () => {
+  it("a refusal holds with another bash first in PATH", () => {
+    expectExit(run("rm -rf /", REPO_ROOT, { env: { PATH: pathWithFakeBash() } }), 2)
   })
 })
 

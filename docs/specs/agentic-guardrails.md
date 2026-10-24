@@ -151,11 +151,13 @@ refuses.
 
 ## Testing
 
-- `plugins/guardrails/test/harness.ts` spawns `bash hooks/<guard>.sh` with the JSON payload on stdin;
+- `plugins/guardrails/test/harness.ts` spawns `hooks/<guard>.sh` with the JSON payload on stdin;
   every input a test reads is built beside it in a scratch directory.
 - The jq and TypeScript copies of the config contract run on one case list, so a change to either
   side fails there first.
-- The hook tests spawn `/bin/bash`, bash 3.2 on macOS, so a bash 4 construct fails in the suite.
+- The hook tests spawn `/bin/bash`, the hooks' shebang, never the first `bash` in PATH: `pnpm check`
+  on a Mac runs them on bash 3.2, so a bash 4 construct fails there. CI's `ubuntu-latest` runs them
+  on bash 5.2, where it passes; a macOS runner is left out for its cost.
 - The env rules are proven on scratch repositories (a tracked `.env`, an ignored `.env.development`),
   not by running the plugin inside a real one; the env lists on the same shape with a committed config
   that allows the ignored file and denies the tracked one, plus a local layer that loosens and one
@@ -295,8 +297,9 @@ Open work on the plugin is tracked in GitHub Issues.
   marketplace install copies `plugins/guardrails/` alone. The repository's `scripts/` keeps repo
   tooling only.
 - `hooks/schema.jq` and `hooks/config.jq` are the jq twins of the TypeScript contract.
-- The hooks' shebang is `/bin/bash`, bash 3.2 on macOS; the guards stay free of bash 4 (`${var,,}`,
-  `declare -A`, `mapfile`) and the hook tests, which spawn that bash, prove it.
+- The hooks' shebang is `/bin/bash`, bash 3.2 on macOS, and the dispatcher starts each guard on its
+  own `$BASH`; the guards stay free of bash 4 (`${var,,}`, `declare -A`, `mapfile`) and the hook
+  tests, which spawn that bash, prove it on a Mac.
 - git and gh are parsed word by word (`guard_read_words`, `guard_unwrap_words` in `lib-words.sh`;
   `guard_git_verb`, `guard_opts`, `guard_parse_push` in `lib-git.sh`; `check_git`, `check_gh` in the
   guard), not regex-matched: a verb's options that take a value are listed with it, and a new

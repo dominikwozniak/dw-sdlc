@@ -10,7 +10,7 @@
   "plugins": [
     {
       "name": "guardrails",
-      "version": "0.12.0",
+      "version": "0.12.1",
       "source": "./plugins/guardrails",
       "description": "Deterministic guardrails for an agent session: refuses destructive git, the env files the repository does not vouch for, the wrong package manager, sloppy commits and writes to App Store Connect; a repository's own rules come from its .ai/agentic.config.json.",
       "keywords": ["guardrails", "hooks", "git", "env", "pnpm", "worktree"],

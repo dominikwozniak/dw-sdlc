@@ -1,5 +1,4 @@
 import assert from "node:assert/strict"
-import { spawnSync } from "node:child_process"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { describe, it } from "node:test"
@@ -14,7 +13,7 @@ import {
   resolveConfig,
   validateDocument
 } from "../../scripts/agentic-config.ts"
-import { commit, git, initRepo, REPO_ROOT, runScript, scratch, write } from "../harness.ts"
+import { commit, git, initRepo, REPO_ROOT, runBash, runScript, scratch, write } from "../harness.ts"
 
 const LIB = join(import.meta.dirname, "..", "..", "hooks", "lib.sh")
 const ORG_REMOTE = "git@github.com:acme/app.git"
@@ -415,7 +414,7 @@ describe("validateDocument", () => {
 /** The same resolution through hooks/lib.sh, the copy the guards run. */
 function libResolve(root: string): { config: unknown; problems: string[] } {
   const script = `source "$1"; guard_config_load "$2" || exit 9; printf '%s\\n' "$GUARD_CONFIG"; printf '%s' "$GUARD_CONFIG_PROBLEMS"`
-  const result = spawnSync("bash", ["-c", script, "lib", LIB, root], { encoding: "utf8" })
+  const result = runBash(["-c", script, "lib", LIB, root], "")
   assert.equal(result.status, 0, result.stderr)
   const [first, ...rest] = result.stdout.split("\n")
   return { config: JSON.parse(first ?? ""), problems: rest.filter((line) => line !== "") }
