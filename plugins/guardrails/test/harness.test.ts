@@ -2,11 +2,20 @@
 // must not decide whether a guard's test passes.
 
 import assert from "node:assert/strict"
-import { chmodSync } from "node:fs"
 import { join } from "node:path"
 import { describe, it } from "node:test"
 
-import { commit, expectExit, git, initRepo, runBash, runHookAsync, scratch, write } from "./harness.ts"
+import {
+  commit,
+  expectExit,
+  git,
+  initRepo,
+  pathWithFakeBash,
+  runBash,
+  runHookAsync,
+  scratch,
+  write
+} from "./harness.ts"
 
 /** Runs `body` with `vars` set in this process's environment, then puts the old values back. */
 function withEnv<T>(vars: Record<string, string>, body: () => T): T {
@@ -23,14 +32,6 @@ function withEnv<T>(vars: Record<string, string>, body: () => T): T {
       }
     }
   }
-}
-
-/** The machine's PATH behind a `bash` that exits 97, so a spawn that looks bash up in PATH shows. */
-function pathWithFakeBash(): string {
-  const bin = scratch("harness-bash")
-  write(join(bin, "bash"), "#!/bin/sh\nexit 97\n")
-  chmodSync(join(bin, "bash"), 0o755)
-  return `${bin}:${process.env.PATH ?? ""}`
 }
 
 describe("harness", () => {
@@ -65,7 +66,8 @@ describe("harness", () => {
     assert.equal(verdict.stdout, "/bin/bash")
   })
 
-  it("so does a hook run concurrently", async () => {
+  it("a hook run concurrently runs on /bin/bash too", async () => {
+    // runHookAsync spawns before it returns, so the PATH is still in place for the spawn.
     const pending = withEnv({ PATH: pathWithFakeBash() }, () => runHookAsync("bash-guard", ""))
     expectExit(await pending, 0)
   })

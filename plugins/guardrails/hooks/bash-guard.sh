@@ -15,11 +15,11 @@ guard_read_payload "$@" || exit 0
 
 SCAN=$(printf '%s\n' "$GUARD_COMMAND" | guard_strip_heredocs | guard_join_continuations)
 
-# run <guard> [text] — the scan on stdin unless another text is given. A guard pruned from the
-# directory is a skip, not a failure.
+# run <guard> [text] — the scan on stdin unless another text is given, on this dispatcher's own bash
+# rather than the first one in PATH. A guard pruned from the directory is a skip, not a failure.
 run() {
   [[ -f "$GUARD_LIB_DIR/$1" ]] || return 0
-  printf '%s' "${2-$SCAN}" | bash "$GUARD_LIB_DIR/$1" --bash-command "$GUARD_CWD"
+  printf '%s' "${2-$SCAN}" | "$BASH" "$GUARD_LIB_DIR/$1" --bash-command "$GUARD_CWD"
 }
 
 # guard <guard> [text] — A refusal (exit 2) stops the chain. An ask (a JSON verdict on stdout) is held

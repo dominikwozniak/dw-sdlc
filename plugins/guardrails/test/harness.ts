@@ -5,7 +5,7 @@
 
 import assert from "node:assert/strict"
 import { spawn, spawnSync } from "node:child_process"
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs"
+import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { after } from "node:test"
@@ -167,6 +167,14 @@ export function initRepo(dir: string, options: { branch?: string; remote?: strin
 export function write(path: string, content: string): void {
   mkdirSync(dirname(path), { recursive: true })
   writeFileSync(path, content)
+}
+
+/** The machine's PATH behind a `bash` that exits 97, so a spawn that looks bash up in PATH shows. */
+export function pathWithFakeBash(): string {
+  const bin = scratch("fake-bash")
+  write(join(bin, "bash"), "#!/bin/sh\nexit 97\n")
+  chmodSync(join(bin, "bash"), 0o755)
+  return `${bin}:${process.env.PATH ?? ""}`
 }
 
 export function writeJson(path: string, value: unknown): void {
