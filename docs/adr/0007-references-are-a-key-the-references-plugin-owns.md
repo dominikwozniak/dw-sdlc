@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # A repository's References are a key of its agentic config that the references plugin owns

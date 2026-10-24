@@ -23,8 +23,8 @@ Read the entries before you research, and open the clones whose `when` matches t
   `AGENTS.md`. It describes _that_ repo; the rules here come from the root `AGENTS.md`, and
   `claudeMdExcludes` in `.claude/settings.json` keeps Claude Code from loading them.
 - **Missing is normal.** CI, a fresh clone and a new worktree have none of them until the
-  SessionStart hook or `pnpm references:sync` runs. A directory that is absent is not a broken link,
-  and neither is a path its entry's `skip` leaves out.
+  references plugin's session hook or `pnpm references:sync` runs. A directory that is absent is not
+  a broken link, and neither is a path its entry's `skip` leaves out.
 - **A starting point, not the whole field.** The list is hand-picked, and each clone is its ref at
   the last sync. Research into a feature or an approach reads the matching entries first, then looks
   further: other repositories, upstream docs and web search.

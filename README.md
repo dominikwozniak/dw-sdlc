@@ -3,20 +3,22 @@
 **The software delivery process Dominik works by, and the Claude Code tooling that carries it.**
 
 A plugin marketplace and the code behind it. The process is proven in this repository before it goes
-wider. Today the marketplace ships one plugin, `guardrails`.
+wider. Today the marketplace ships two plugins: `guardrails`, and `references`, which syncs the
+repositories an agent reads for prior art.
 
 ## Install
 
 ```bash
 claude plugin marketplace add dominikwozniak/dw-sdlc --sparse .claude-plugin plugins
 claude plugin install guardrails@dw-sdlc --scope user
+claude plugin install references@dw-sdlc --scope user
 ```
 
 `--sparse` checks out only the catalogue and the plugins, not the docs and tooling around them. The
 repository is private, so the clone uses your git credentials.
 
 > [!NOTE]
-> The hooks need `jq`. Without it every guard is silent, and the doctor says so.
+> The guardrails hooks need `jq`. Without it every guard is silent, and the doctor says so.
 
 ## Why guardrails
 
@@ -86,9 +88,17 @@ the local layer until every machine runs 0.9.0: `/sdlc-guardrails-setup` with `-
 and `--force-push ask` for a prompt before each lease push.
 Every key: [schema](plugins/guardrails/config/agentic.config.schema.json).
 
+## References
+
+A Reference is a repository cloned under `references/` so an agent reads how a problem was solved
+before. A repository declares its References as the `references` key of `.ai/agentic.config.json`,
+and the plugin brings each one to its ref when a local Claude Code session starts: one line per
+Reference, and nothing at all in a repository without the key. Offline, a clone stays where it was
+and the session starts anyway. The key and the Sync in full: [plugin README](plugins/references/README.md).
+
 ## Docs
 
-[how it works, why, releasing](docs/overview.md) · [plugin README](plugins/guardrails/README.md) · [decisions](docs/adr/) · [terms](GLOSSARY.md) · [references](references/AGENTS.md)
+[how it works, why, releasing](docs/overview.md) · [guardrails README](plugins/guardrails/README.md) · [references README](plugins/references/README.md) · [decisions](docs/adr/) · [terms](GLOSSARY.md) · [Router](references/AGENTS.md)
 
 ## Agent instructions
 

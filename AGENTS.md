@@ -14,18 +14,18 @@ is its long form: how a guard works, why the design, adopting and releasing.
   declares how this repo works for an agent, and `test/` the tests, mirroring `hooks/` and `scripts/`:
   `harness.ts` spawns a guard on the real stdin payload; every input a test reads is built beside it;
   `skills/sdlc-guardrails-setup/` the user-invoked skill that runs the setup script
-- `plugins/references/` — the references plugin, not yet in the marketplace: `scripts/` the Sync and
-  the strict parser of the `references` key, `config/` that key's JSON Schema, which the guardrails
-  schema leaves unnamed, and `test/` the CLI and contract tests on a harness of their own
+- `plugins/references/` — the references plugin, published beside guardrails and enabled at user
+  scope: `hooks/` the session-start hook that runs the Sync, `scripts/` the Sync and the strict parser
+  of the `references` key, `config/` that key's JSON Schema, which the guardrails schema leaves
+  unnamed, and `test/` the hook, CLI and contract tests on a harness of their own
 - `.ai/` — `agentic.config.json`, this repo's own agent rules against the plugin's schema, its
   References under the `references` key
   (`agentic.config.local.json` is one machine's layer, kept out of git through `.git/info/exclude`)
-- `.claude/settings.json` — tracked; turns the dw-solo plugins off in this repo, keeps the clones'
-  `CLAUDE.md` and `AGENTS.md` out of context, and at session start runs
-  `.claude/hooks/sync-references.sh`, which runs the references plugin's Sync from this checkout.
-  `.claude/settings.local.json` is one machine's permission backstop, written by the setup and
-  excluded from git. A worktree reads it and the local config from the main checkout, so nothing is
-  copied into one. The references are not copied either: the session-start sync clones them
+- `.claude/settings.json` — tracked; turns the dw-solo plugins off in this repo and keeps the clones'
+  `CLAUDE.md` and `AGENTS.md` out of context. `.claude/settings.local.json` is one machine's
+  permission backstop, written by the setup and excluded from git. A worktree reads it and the local
+  config from the main checkout, so nothing is copied into one. The references are not copied either:
+  the references plugin's session-start hook clones them
 - `.agents/skills/` — the engineering skills this repo works with, pinned in `skills-lock.json`;
   `.claude/skills/` links to them
 - `docs/agents/` — how those skills use this repo: the issue tracker and the domain docs
@@ -38,7 +38,7 @@ is its long form: how a guard works, why the design, adopting and releasing.
 - `GLOSSARY.md` — what a word means in this repo
 - `references/` — repositories cloned on each machine for reading, never tracked; the router is
   `references/AGENTS.md`, the list the `references` key of `.ai/agentic.config.json`; the
-  SessionStart hook or `pnpm references:sync` fetches them
+  references plugin's session-start hook or `pnpm references:sync` fetches them
 - `ideas/` — local-only notes; everything but `.gitkeep` is gitignored, so nothing in it reaches a clone
 - `.github/` — CI: `workflows/quality-gate.yaml` runs `pnpm check` on every pull request and on `main`.
   Dependabot (`dependabot.yml`) opens grouped npm and GitHub Actions updates weekly, 7 days after a

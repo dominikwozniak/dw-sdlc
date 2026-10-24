@@ -5,5 +5,20 @@
   "author": {
     "name": "Dominik Woźniak"
   },
-  "repository": "https://github.com/dominikwozniak/dw-sdlc"
+  "repository": "https://github.com/dominikwozniak/dw-sdlc",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/session-start.sh\"",
+            "timeout": 60,
+            "statusMessage": "Syncing references/ to each Reference's ref"
+          }
+        ]
+      }
+    ]
+  }
 }
