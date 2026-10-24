@@ -247,7 +247,7 @@ guard_ansi_decode() {
 #   VAR=value                                —
 #
 # A command named by a path or with a leading backslash, `/usr/bin/git` or `\rm`, is that command.
-# Two readers keep this table: guard_unwrap_words on words and GUARD_WRAPPER on text, for the arms
+# Two readers keep this table: guard_unwrap_words on words and GUARD_BOUNDARY on text, for the arms
 # that must read a target in place. test/hooks/lib.test.ts holds them to the same spellings.
 
 # guard_read_words <segment> — WORDS becomes the segment's words, as guard_split_words reads them. A
@@ -462,10 +462,10 @@ guard_split_first_word() {
   WORDS=("${GUARD_WORDS[@]+"${GUARD_WORDS[@]}"}" "${WORDS[@]:1}")
 }
 
-# The table above as text: zero or more of its words in front of the command, so `sudo -u me rtk run
-# git push --force` matches the same as the bare form. A flag is any `-word`; an option that takes a
-# value is spelled out with it. rtk's own subcommands are left optional, so `rtk git` and `rtk proxy
-# git` both read.
+# The table above as text: one of its words with its options. GUARD_BOUNDARY reads zero or more in
+# front of the command, so `sudo -u me rtk run git push --force` matches the same as the bare form.
+# A flag is any `-word`; an option that takes a value is spelled out with it. rtk's own subcommands
+# are left optional, so `rtk git` and `rtk proxy git` both read.
 GUARD_SHELL_OPTION='([[:space:]]+(-[A-Za-z]+|--[a-z-]+|[-+][A-Za-z]*[oO][[:space:]]+[A-Za-z_]+))'
 GUARD_SHELL_C="(ba|da|k|z)?sh${GUARD_SHELL_OPTION}*[[:space:]]+-[A-Za-z]*c[A-Za-z]*${GUARD_SHELL_OPTION}*[[:space:]]+"
 GUARD_SHELL_HERE="(ba|da|k|z)?sh${GUARD_SHELL_OPTION}*[[:space:]]*<<<[[:space:]]*"
@@ -487,7 +487,6 @@ GUARD_LAUNCHER+="|find[[:space:]]+([^;&|]*[[:space:]]+)?-(exec|execdir|ok|okdir)
 GUARD_LAUNCHER+="|${GUARD_SHELL_C}|${GUARD_SHELL_HERE}"
 GUARD_LAUNCHER+="|rtk(${GUARD_OPT_FLAG})*[[:space:]]+([a-z-]+[[:space:]]+)?"
 GUARD_LAUNCHER+="|[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+"
-GUARD_WRAPPER="(${GUARD_CMD_DIR}(${GUARD_LAUNCHER}))*"
 
 # What precedes a quote that holds a command, not text: a shell's `-c` or `<<<`, `eval` or `rtk run`.
 # Past its first character a match holds only letters, `_`, `+`, `-`, `<` and whitespace, which
