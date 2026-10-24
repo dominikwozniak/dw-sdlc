@@ -1,7 +1,28 @@
 {
+  "claudeMdExcludes": [
+    "**/references/*/CLAUDE.md",
+    "**/references/*/**/CLAUDE.md",
+    "**/references/*/AGENTS.md",
+    "**/references/*/**/AGENTS.md"
+  ],
   "enabledPlugins": {
     "dw-solo@dw-solo-skills": false,
     "dw-solo-setup@dw-solo-skills": false,
     "dw-solo-extras@dw-solo-skills": false
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/sync-references.sh\"",
+            "timeout": 60,
+            "statusMessage": "Syncing references/ to the head of each branch"
+          }
+        ]
+      }
+    ]
   }
 }

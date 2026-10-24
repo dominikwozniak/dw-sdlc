@@ -14,9 +14,10 @@ reference material only.
 - **Never import from them.** Nothing outside `references/` may point at a path inside it. To reuse
   code, read it and write it again.
 - **Their agent instructions are not ours.** A cloned repo may carry its own `CLAUDE.md` /
-  `AGENTS.md`. It describes _that_ repo; the rules here come from the root `AGENTS.md`.
-- **Missing is normal.** A fresh clone of this repo has none of them until `pnpm references:sync`
-  runs. A directory that is absent is not a broken link.
+  `AGENTS.md`. It describes _that_ repo; the rules here come from the root `AGENTS.md`, and
+  `claudeMdExcludes` in `.claude/settings.json` keeps Claude Code from loading them.
+- **Missing is normal.** CI, a fresh clone and a new worktree have none of them until the
+  SessionStart hook or `pnpm references:sync` runs. A directory that is absent is not a broken link.
 - **A starting point, not the whole field.** The list is hand-picked, and each clone is the head of
   its branch at the last sync. Research into a feature or an approach reads the matching rows first,
   then looks further: other repositories, upstream docs and web search.
@@ -46,9 +47,10 @@ checked out, detached, at that branch's head. A clone with local edits the updat
 fails its row and is left as it is. The command reports each row and any directory under
 `references/` the table no longer lists; it never deletes one.
 
-A worktree Claude Code creates starts without the clones: `.worktreeinclude` does not copy a nested
-repository. `pnpm references:sync` is one of the `worktree.setup` commands in `.ai/agentic.config.json`,
-and the session-start report names it in a fresh worktree.
+A `SessionStart` hook, `.claude/hooks/sync-references.sh`, runs the same sync when a Claude Code
+session starts and prints where each clone stands. It covers a fresh worktree too, which starts
+without the clones: `.worktreeinclude` does not copy a nested repository. Offline, a clone stays where
+it was and the hook says so; it never fails the session.
 
 ## Add a repository
 
