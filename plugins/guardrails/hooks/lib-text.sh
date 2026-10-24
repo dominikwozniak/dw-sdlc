@@ -271,7 +271,14 @@ guard_replace_set() {
 # but for the substitutions an unquoted one runs. An unterminated quote or substitution hands back the
 # original — fail closed, judge what was typed.
 guard_mask_quoted_separators() {
-  local s="$1" st=P from=0 n kind out=""
+  guard_mask_text "$1"
+  printf '%s' "$GUARD_MASKED"
+}
+
+# guard_mask_text <command> — guard_mask_quoted_separators into GUARD_MASKED, in the caller's shell. A
+# quote's text is masked by a call of its own rather than a fork: every name the loop keeps is a local.
+guard_mask_text() {
+  local s="$1" st=P from=0 n kind out="" rc close
   if [[ "$s" == *'<<'* ]]; then
     s=$(printf '%s\n' "$s" | guard_mask_heredoc_bodies)
   fi
@@ -287,7 +294,9 @@ guard_mask_quoted_separators() {
     kind=${GUARD_QW_KIND[n - 1]}
     st=${st%?}
     guard_live_walk "$total" "$st" "$from" "$kind"
-    case $? in
+    rc=$?
+    from=$((from + GUARD_LIVE_LEN))
+    case $rc in
       0)
         guard_mask_pieces 0 $((GUARD_LIVE_END + 1))
         out+=$GUARD_MASKED
@@ -297,17 +306,15 @@ guard_mask_quoted_separators() {
         break
         ;;
       *)
+        # The text's own mask walks again, so the closing quote is read first.
+        close=${GUARD_QW_TEXT[GUARD_LIVE_END]}
         guard_mask_live_text
-        out+=$GUARD_MASKED${GUARD_QW_TEXT[GUARD_LIVE_END]}
+        out+=$GUARD_MASKED$close
         ;;
     esac
-    from=$((from + GUARD_LIVE_LEN))
   done
-  if [[ "$st" != P ]]; then
-    printf '%s' "$s"
-  else
-    printf '%s' "$out"
-  fi
+  [[ "$st" == P ]] && s=$out
+  GUARD_MASKED=$s
 }
 
 # guard_mask_live_text — GUARD_LIVE_TEXT, the text a quote hands a shell, masked as the command it is
@@ -317,11 +324,10 @@ guard_mask_live_text() {
   local text=$GUARD_LIVE_TEXT
   [[ "$GUARD_LIVE_CTX" == A ]] && text=${text//$'\n'/;}
   if [[ "$text" == *[\'\"\`\$\\#\<]* ]]; then
-    # The dot keeps the text's trailing newlines from the command substitution.
-    text=$(guard_mask_quoted_separators "$text" && printf .)
-    text=${text%.}
+    guard_mask_text "$text"
+  else
+    GUARD_MASKED=$text
   fi
-  GUARD_MASKED=$text
 }
 
 # guard_mask_pieces [<from> [<to>]] — the walk's pieces, all of them or those from <from> up to
