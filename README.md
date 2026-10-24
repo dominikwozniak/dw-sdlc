@@ -98,7 +98,7 @@ and the session starts anyway. The key and the Sync in full: [plugin README](plu
 
 ## Docs
 
-[how it works, why, releasing](docs/overview.md) · [plugin README](plugins/guardrails/README.md) · [references plugin](plugins/references/README.md) · [decisions](docs/adr/) · [terms](GLOSSARY.md) · [references](references/AGENTS.md)
+[how it works, why, releasing](docs/overview.md) · [guardrails README](plugins/guardrails/README.md) · [references README](plugins/references/README.md) · [decisions](docs/adr/) · [terms](GLOSSARY.md) · [Router](references/AGENTS.md)
 
 ## Agent instructions
 
