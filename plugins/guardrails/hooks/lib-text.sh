@@ -29,7 +29,9 @@
 # GUARD_QW_STATE is the stack the text ends in, one context per character, starting from <state>, P by
 # default; the walk returns 1 when it ends elsewhere, a quote or substitution left open. It jumps from
 # one character that can change the context to the next, so a long quoted body costs a step per
-# quote, backslash and substitution, not one per character.
+# quote, backslash and substitution, not one per character. A step reads a window of the text,
+# GUARD_QW_WINDOW characters: in bash 3.2 a substring costs the length of the string it is taken from,
+# so a step on the whole text would cost the text's length and a long command the square of it.
 # The walk starts at offset <from>, 0 by default, with the text before it read as what precedes it.
 # <stop> ends it early: `o` just after a quote handed to a shell opens, `c` just after the context it
 # starts in closes. GUARD_QW_END is the offset it stops at.
@@ -37,14 +39,30 @@ GUARD_QW_KIND=()
 GUARD_QW_TEXT=()
 GUARD_QW_STATE=""
 GUARD_QW_END=0
+GUARD_QW_WINDOW=1024
 guard_quote_walk() {
   local text="$1" live="${2:-0}" st="${3:-P}" from="${4:-0}" stop="${5:-}"
-  local rest total=${#1} top run ch kind len quote pre prev="" depth=${#st}
-  rest=${text:from}
+  local rest pos=${4:-0} wend total=${#1} top run ch kind len quote prev="" depth=${#st} behind=""
+  rest=${text:pos:GUARD_QW_WINDOW}
+  wend=$((pos + ${#rest}))
   ((from > 0)) && prev=${text:from-1:1}
+  # What a live quote is judged on: the text before it, kept to a tail guard_qw_live reads alike.
+  if ((live)); then
+    behind=${text:0:from}
+    ((from > 512)) && [[ "${text:from-512:511}" == *$GUARD_QW_NOT_LIVE* ]] && behind=${text:from-512:512}
+  fi
   GUARD_QW_KIND=()
   GUARD_QW_TEXT=()
-  while [[ -n "$rest" ]]; do
+  while :; do
+    # Refilled while 300 characters are left, more than the longest look ahead, a heredoc delimiter.
+    if ((wend - pos < 300 && wend < total || wend - pos > GUARD_QW_WINDOW)); then
+      rest=${text:pos:GUARD_QW_WINDOW}
+      wend=$((pos + ${#rest}))
+    fi
+    [[ -n "$rest" ]] || break
+    if ((live && ${#behind} > 1024)) && [[ "${behind:${#behind}-512:511}" == *$GUARD_QW_NOT_LIVE* ]]; then
+      behind=${behind:${#behind}-512}
+    fi
     top=${st:${#st}-1}
     case "$top" in
       S) run=${rest%%\'*} ;;
@@ -57,8 +75,10 @@ guard_quote_walk() {
     if [[ -n "$run" ]]; then
       guard_qw_piece "t$top" "$run"
       rest=${rest:${#run}}
+      pos=$((pos + ${#run}))
       prev=${run:${#run}-1}
-      [[ -n "$rest" ]] || break
+      ((live)) && behind+=$run
+      continue
     fi
     # Only a character that can change the context is left at the front; by default it is text.
     ch=${rest:0:1}
@@ -91,7 +111,7 @@ guard_quote_walk() {
             if [[ "$top" == [PUVBdEe] ]]; then
               kind=oA
               len=2
-              ((live)) && guard_qw_live "$text" $((total - ${#rest})) && kind=oa
+              ((live)) && guard_qw_live "$behind" && kind=oa
               [[ "$top" == e ]] && kind=oa
             fi
             ;;
@@ -105,7 +125,7 @@ guard_quote_walk() {
           e) kind=os ;;
           *)
             kind=oS
-            ((live)) && guard_qw_live "$text" $((total - ${#rest})) && kind=os
+            ((live)) && guard_qw_live "$behind" && kind=os
             ;;
         esac
         ;;
@@ -116,9 +136,13 @@ guard_quote_walk() {
           *)
             # A `$"…"` handed to a shell is live as a `"…"` is.
             kind=oD
-            pre=$((total - ${#rest}))
-            ((pre > 0)) && [[ "${text:pre-1:1}" == '$' ]] && pre=$((pre - 1))
-            ((live)) && guard_qw_live "$text" "$pre" && kind=od
+            if ((live)); then
+              if [[ "$behind" == *'$' ]]; then
+                guard_qw_live "${behind%?}" && kind=od
+              else
+                guard_qw_live "$behind" && kind=od
+              fi
+            fi
             ;;
         esac
         ;;
@@ -131,6 +155,12 @@ guard_quote_walk() {
           case "$prev" in
             '' | ' ' | $'\t' | $'\n' | ';' | '&' | '|' | '(' | ')')
               run=${rest%%$'\n'*}
+              # A comment longer than the window is read from the text itself.
+              if [[ "$run" == "$rest" ]] && ((wend < total)); then
+                rest=${text:pos}
+                wend=$total
+                run=${rest%%$'\n'*}
+              fi
               kind=tC
               len=${#run}
               ;;
@@ -154,11 +184,15 @@ guard_quote_walk() {
     esac
     # An escaped character is part of a word, so a `#` after it opens no comment.
     if [[ "$kind" == e? ]]; then prev=x; else prev=${rest:len-1:1}; fi
+    ((live)) && behind+=${rest:0:len}
     rest=${rest:len}
+    pos=$((pos + len))
     # The quote closing a quoted delimiter opens nothing.
     if [[ -n "$quote" && "$quote" != '\' && "${rest:0:1}" == "$quote" ]]; then
       guard_qw_piece "t$top" "$quote"
+      ((live)) && behind+=$quote
       rest=${rest:1}
+      pos=$((pos + 1))
     fi
     case "$stop$kind" in
       oo[sad]) break ;;
@@ -166,25 +200,25 @@ guard_quote_walk() {
     esac
   done
   GUARD_QW_STATE=$st
-  GUARD_QW_END=$((total - ${#rest}))
+  # A backslash that ends the text takes one character, not two.
+  ((pos > total)) && pos=$total
+  GUARD_QW_END=$pos
   [[ "$st" == "${3:-P}" ]]
 }
 
-# guard_qw_live <text> <offset> — 0 when the text before <offset> ends where a quote is handed to a
-# shell, GUARD_LIVE_QUOTE. Past its first character a match holds only letters, `_`, `+`, `-`, `<` and
-# whitespace, so the last 128 characters decide it whenever one of them is anything else; only a
-# longer run of those is read in full. A long command then costs a step per quote, not one per
-# character before it.
+# guard_qw_live <before> — 0 when the text before a quote ends where a quote is handed to a shell,
+# GUARD_LIVE_QUOTE. Past its first character a match holds only letters, `_`, `+`, `-`, `<` and
+# whitespace, so a match starts at or after the last character outside those: <before> is the whole
+# text before the quote or any tail of it that holds such a character, and the walk keeps it to one.
+# The last 128 characters decide it whenever one of them is such a character; only a longer run of
+# the others is read in full. A long command then costs a step per quote, not one per character
+# before it.
+GUARD_QW_NOT_LIVE='[!A-Za-z_+<[:space:]-]'
 guard_qw_live() {
-  local pre
-  if (($2 > 128)); then
-    pre=${1:$2-128:128}
-    if [[ "$pre" == *[!A-Za-z_+\<[:space:]-]* ]]; then
-      [[ "$pre" =~ $GUARD_LIVE_QUOTE ]]
-      return
-    fi
-  fi
-  [[ "${1:0:$2}" =~ $GUARD_LIVE_QUOTE ]]
+  local pre=$1
+  ((${#pre} > 128)) && pre=${pre:${#pre}-128}
+  [[ "$pre" == *$GUARD_QW_NOT_LIVE* ]] || pre=$1
+  [[ "$pre" =~ $GUARD_LIVE_QUOTE ]]
 }
 
 # guard_qw_piece <kind> <text> — appends a piece; text after text of the same kind joins it.
