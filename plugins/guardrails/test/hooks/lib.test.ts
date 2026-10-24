@@ -441,6 +441,15 @@ describe("text helpers", () => {
     )
     assert.ok(seconds < 5, `${seconds.toFixed(1)} s`)
   })
+  it("the walk reads past its window: a live quote, a comment, a long launcher, a closing backslash", () => {
+    const live = `echo ${"a;b ".repeat(400)}; bash -c 'cd x && git push -f'`
+    assert.equal(mask(live), live)
+    const comment = `git status # ${"c; ".repeat(800)}\ngit push -f`
+    assert.equal(mask(comment), `git status # ${"c\u0002 ".repeat(800)}\ngit push -f`)
+    const launcher = `bash${" -o pipefail".repeat(120)} -c 'a; b'`
+    assert.equal(mask(launcher), launcher)
+    assert.equal(lib(`guard_quote_walk "$2"; printf '%s' "$GUARD_QW_END"`, [`${"x".repeat(2000)}\\`]), "2001")
+  })
   it("words read a 60 KB quoted body a piece at a time, not a character at a time", () => {
     const body = Array.from(
       { length: 900 },

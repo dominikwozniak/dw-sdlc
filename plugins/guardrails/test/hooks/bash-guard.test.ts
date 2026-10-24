@@ -112,6 +112,17 @@ describe("an ask waits for every guard, so a later refusal still wins", () => {
   })
 })
 
+describe("a long command is judged in seconds", () => {
+  it("200 copies of a quote handed to a shell, every guard run, under 5 s", () => {
+    const command = Array.from({ length: 200 }, () => "bash -c 'echo \"' ; ls x ; echo '\"'").join(" ; ")
+    const start = performance.now()
+    const verdict = run(command)
+    const seconds = (performance.now() - start) / 1000
+    expectExit(verdict, 0)
+    assert.ok(seconds < 5, `${seconds.toFixed(1)} s`)
+  })
+})
+
 describe("fails open on garbage", () => {
   it("empty payload", () => {
     expectExit(runHook("bash-guard", ""), 0)

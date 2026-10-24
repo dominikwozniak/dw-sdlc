@@ -10,18 +10,21 @@ guard_tokens() {
   printf '%s\n' "$1" | tr -s "[:space:];|&()<>=\`\"'" '\n' | sed '/^$/d'
 }
 
-# guard_words <segment> — the segment split into words the way a shell would, one per line, read on
-# guard_quote_walk's pieces: whitespace at the top level separates, quotes group and are dropped, the
-# `$` of a `$'…'` or a `$"…"` with them, a backslash keeps the next character, and in a `$'…'` stands
-# for what bash decodes it to, a newline read as a space and the text ending at a NUL. A `$(…)`, a
-# backtick substitution or a `${…}` stays in its word, delimiters and whitespace included, with the
-# quotes and backslashes inside it read the same way. A comment's text splits as the command's does,
-# and a heredoc operator reads as `<<EOF`, the delimiter's quotes dropped. For one command's
-# arguments, where `-C 'my repo'` must stay one word; a segment holds no newline. Returns 1 when a
-# quote or substitution is left open, after printing what it read.
-guard_words() {
+# guard_split_words <segment> — GUARD_WORDS becomes the segment split into words the way a shell
+# would, read on guard_quote_walk's pieces: whitespace at the top level separates, quotes group and
+# are dropped, the `$` of a `$'…'` or a `$"…"` with them, a backslash keeps the next character, and in
+# a `$'…'` stands for what bash decodes it to, a newline read as a space and the text ending at a NUL.
+# A `$(…)`, a backtick substitution or a `${…}` stays in its word, delimiters and whitespace included,
+# with the quotes and backslashes inside it read the same way. A comment's text splits as the
+# command's does, and a heredoc operator reads as `<<EOF`, the delimiter's quotes dropped. For one
+# command's arguments, where `-C 'my repo'` must stay one word; a segment holds no newline. Returns 1
+# when a quote or substitution is left open, with what it read. Runs in the caller's shell, so a
+# segment costs no fork, and overwrites the walk's pieces.
+GUARD_WORDS=()
+guard_split_words() {
   local i n kind piece word="" have=0 depth=0 cut=0 quote="" status=0 noglob=0 run k
   local -a parts
+  GUARD_WORDS=()
   guard_quote_walk "$1" || status=1
   # Top-level text splits on the shell's own rule: IFS whitespace, no glob.
   local IFS=$' \t'
@@ -118,27 +121,35 @@ guard_words() {
       continue
     fi
     if [[ "$piece" == [[:blank:]]* ]]; then
-      ((have)) && printf '%s\n' "$word"
+      ((have)) && GUARD_WORDS+=("$word")
       word=""
       have=0
     fi
     parts=($piece)
     for ((k = 0; k < ${#parts[@]}; k++)); do
       if ((k > 0)); then
-        printf '%s\n' "$word"
+        GUARD_WORDS+=("$word")
         word=""
       fi
       word+=${parts[k]}
       have=1
     done
     if [[ "$piece" == *[[:blank:]] ]]; then
-      ((have)) && printf '%s\n' "$word"
+      ((have)) && GUARD_WORDS+=("$word")
       word=""
       have=0
     fi
   done
   ((noglob)) || set +f
-  ((have)) && printf '%s\n' "$word"
+  ((have)) && GUARD_WORDS+=("$word")
+  return $status
+}
+
+# guard_words <segment> — guard_split_words' words, one per line, for a pipe.
+guard_words() {
+  local status=0
+  guard_split_words "$1" || status=1
+  ((${#GUARD_WORDS[@]} == 0)) || printf '%s\n' "${GUARD_WORDS[@]}"
   return $status
 }
 
@@ -239,21 +250,25 @@ guard_ansi_decode() {
 # Two readers keep this table: guard_unwrap_words on words and GUARD_WRAPPER on text, for the arms
 # that must read a target in place. test/hooks/lib.test.ts holds them to the same spellings.
 
-# guard_read_words <segment> — WORDS becomes the segment's words, as guard_words reads them. A segment
-# cut out of a quote handed to a shell, `bash -c "${x:-$'a; git reset --hard'}"`, ends in the quotes,
-# braces and parentheses that close outside it; guard_words reads those as a quote left open, and then
-# every word is read without them.
+# guard_read_words <segment> — WORDS becomes the segment's words, as guard_split_words reads them. A
+# segment cut out of a quote handed to a shell, `bash -c "${x:-$'a; git reset --hard'}"`, ends in the
+# quotes, braces and parentheses that close outside it; guard_split_words reads those as a quote left
+# open, and then every word is read without them. A trailing empty word, `git push ''`, is dropped.
 guard_read_words() {
-  local out word open=0
+  local word status=0
   WORDS=()
-  out=$(guard_words "$1") || open=1
-  [[ -n "$out" ]] || return 0
-  while IFS= read -r word; do
-    if ((open)); then
-      while [[ "$word" == *[\'\"\}\)] ]]; do word=${word%?}; done
-    fi
+  guard_split_words "$1" || status=1
+  while ((${#GUARD_WORDS[@]} > 0)) && [[ -z "${GUARD_WORDS[${#GUARD_WORDS[@]} - 1]}" ]]; do
+    unset "GUARD_WORDS[$((${#GUARD_WORDS[@]} - 1))]"
+  done
+  if ((status == 0)); then
+    WORDS=("${GUARD_WORDS[@]+"${GUARD_WORDS[@]}"}")
+    return 0
+  fi
+  for word in "${GUARD_WORDS[@]+"${GUARD_WORDS[@]}"}"; do
+    while [[ "$word" == *[\'\"\}\)] ]]; do word=${word%?}; done
     WORDS+=("$word")
-  done <<<"$out"
+  done
 }
 
 # guard_shift_words [<n>] — drops <n> words, 1 by default, from the front of WORDS.
@@ -441,12 +456,10 @@ guard_unwrap_words() {
 # command over as one quoted word: split WORDS[0] in place into its words, so unwrapping goes on with
 # them. Returns 1 when the first word holds no whitespace, or nothing that splits.
 guard_split_first_word() {
-  local -a inner=()
-  local w
   [[ "${WORDS[0]}" == *[[:space:]]* ]] || return 1
-  while IFS= read -r w; do inner+=("$w"); done < <(guard_words "${WORDS[0]}")
-  [[ ${#inner[@]} -gt 1 || "${inner[0]:-}" != "${WORDS[0]}" ]] || return 1
-  WORDS=("${inner[@]+"${inner[@]}"}" "${WORDS[@]:1}")
+  guard_split_words "${WORDS[0]}"
+  [[ ${#GUARD_WORDS[@]} -gt 1 || "${GUARD_WORDS[0]:-}" != "${WORDS[0]}" ]] || return 1
+  WORDS=("${GUARD_WORDS[@]+"${GUARD_WORDS[@]}"}" "${WORDS[@]:1}")
 }
 
 # The table above as text: zero or more of its words in front of the command, so `sudo -u me rtk run
