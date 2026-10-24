@@ -169,14 +169,14 @@ export function write(path: string, content: string): void {
   writeFileSync(path, content)
 }
 
+export function writeJson(path: string, value: unknown): void {
+  write(path, `${JSON.stringify(value)}\n`)
+}
+
 /** The machine's PATH behind a `bash` that exits 97, so a spawn that looks bash up in PATH shows. */
 export function pathWithFakeBash(): string {
   const bin = scratch("fake-bash")
   write(join(bin, "bash"), "#!/bin/sh\nexit 97\n")
   chmodSync(join(bin, "bash"), 0o755)
   return `${bin}:${process.env.PATH ?? ""}`
-}
-
-export function writeJson(path: string, value: unknown): void {
-  write(path, `${JSON.stringify(value)}\n`)
 }
