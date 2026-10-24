@@ -40,8 +40,9 @@ disk is in the next session, a broken edit included.
 - `hooks/commit-msg.sh` — a git hook, not a Claude Code one: the Commit hook below.
 - `config/agentic.config.schema.json` — the JSON Schema for `.ai/agentic.config.json`.
 - `scripts/` — the TypeScript side: `agentic-config.ts` reads, validates and resolves the config
-  (`pnpm agentic:check` in the repository runs it), `guardrails-setup.ts` and `guardrails-doctor.ts`
-  are the Setup and Doctor below, `json-schema.ts` is the dependency-free schema validator they share.
+  (`node <plugin root>/scripts/agentic-config.ts` from a repository runs it), `guardrails-setup.ts`
+  and `guardrails-doctor.ts` are the Setup and Doctor below, `json-schema.ts` is the dependency-free
+  schema validator they share.
 - `skills/guardrails-setup/` — the skill a user invokes to run the setup script; the model cannot
   start it on its own.
 - `test/` — the tests, mirroring `hooks/` and `scripts/`: `harness.ts` spawns a guard on the real

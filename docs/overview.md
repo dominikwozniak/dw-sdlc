@@ -103,8 +103,8 @@ The `/guardrails-setup` skill then writes this machine's local config layer from
 plus the commit convention when asked for one, excludes it from git, and adds a permission backstop
 to `.claude/settings.local.json` plus the lease-push exception to `~/.claude/settings.json`. It shows
 a dry run first, writes only what would change, and ends with the doctor: one PASS / WARN / FAIL line
-per machine check. The doctor needs only Node 24 and runs from the installed plugin, as
-`node "${CLAUDE_PLUGIN_ROOT}/scripts/guardrails-doctor.ts"` from the repository.
+per machine check. The doctor needs only Node 24 and runs from the installed plugin: in a terminal,
+`node <plugin root>/scripts/guardrails-doctor.ts` from the repository.
 
 ## From GitHub or from a clone
 
