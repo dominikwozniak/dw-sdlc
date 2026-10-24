@@ -1,6 +1,6 @@
 // The half of the bash 3.2 proof that CI runs: the hook tests there run on bash 5, where a bash 4
 // construct passes, so this file reads every hook's code lines and holds those constructs out. `|&`
-// and `;&` stay out of the list: the guards match them as text, which a source scan cannot tell apart.
+// and `;&` stay out of the list: the guards match them as text, which a source check cannot tell apart.
 
 import assert from "node:assert/strict"
 import { readdirSync, readFileSync } from "node:fs"
@@ -62,7 +62,7 @@ const CONSTRUCTS: Construct[] = [
 
 /**
  * A hook's lines by number, each cut at its comment: a `#` at the start or after a blank. A ` #` inside
- * a quote cuts the line too, which can only hide code from the scan.
+ * a quote cuts the line too, which can only hide code from this test.
  */
 function codeLines(text: string): Array<{ line: number; code: string }> {
   return text.split("\n").map((raw, index) => ({ line: index + 1, code: raw.replace(/(?:^|\s+)#.*$/, "") }))

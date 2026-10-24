@@ -301,7 +301,7 @@ Open work on the plugin is tracked in GitHub Issues.
 - `hooks/schema.jq` and `hooks/config.jq` are the jq twins of the TypeScript contract.
 - The hooks' shebang is `/bin/bash`, bash 3.2 on macOS, and the dispatcher starts each guard on its
   own `$BASH`; the guards stay free of bash 4 (`${var,,}`, `declare -A`, `mapfile`): the hook tests,
-  which spawn that bash, prove it on a Mac, and the source scan holds the listed constructs out on CI.
+  which spawn that bash, prove it on a Mac, and the source test holds the listed constructs out on CI.
 - git and gh are parsed word by word (`guard_read_words`, `guard_unwrap_words` in `lib-words.sh`;
   `guard_git_verb`, `guard_opts`, `guard_parse_push` in `lib-git.sh`; `check_git`, `check_gh` in the
   guard), not regex-matched: a verb's options that take a value are listed with it, and a new
