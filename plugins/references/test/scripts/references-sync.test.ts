@@ -12,15 +12,12 @@ import { commit, git, initRepo, runScript, scratch, tag, write, writeJson, type 
 
 const CONFIG = ".ai/agentic.config.json"
 
+/** A repository to clone from: its directory, and the file:// URL a Reference names it by. */
 type Upstream = { dir: string; url: string }
 
-/** A repository with a README and a vendored tree, one commit on main. */
-function upstream(): Upstream {
-  const dir = initRepo(scratch("upstream"))
-  write(join(dir, "README.md"), "one\n")
-  write(join(dir, "repos", "vendored.txt"), "heavy\n")
-  git(dir, "add", ".")
-  commit(dir, "-m", "one")
+/** An empty repository on main. */
+function newUpstream(prefix: string): Upstream {
+  const dir = initRepo(scratch(prefix))
   return { dir, url: pathToFileURL(dir).href }
 }
 
@@ -31,14 +28,21 @@ function advance(source: Upstream, file: string, content = `${file}\n`): void {
   commit(source.dir, "-m", file)
 }
 
+/** A repository with a README and a vendored tree. */
+function upstream(): Upstream {
+  const source = newUpstream("upstream")
+  advance(source, "README.md")
+  advance(source, "repos/vendored.txt")
+  return source
+}
+
 /** A library with tags v1.0.0 and v2.0.0, and a commit on main past the last release. */
 function library(): Upstream {
-  const source = initRepo(scratch("library"))
-  const lib = { dir: source, url: pathToFileURL(source).href }
+  const lib = newUpstream("library")
   advance(lib, "README.md")
-  tag(source, "v1.0.0")
+  tag(lib.dir, "v1.0.0")
   advance(lib, "NEW.md")
-  tag(source, "v2.0.0")
+  tag(lib.dir, "v2.0.0")
   advance(lib, "UNRELEASED.md")
   return lib
 }
@@ -48,22 +52,22 @@ function catalog(version: string): string {
   return `packages:\n  - packages/*\n\ncatalog:\n  lib: ${version}\n`
 }
 
-function entry(dir: string, source: Upstream, fields: Record<string, unknown> = {}): Record<string, unknown> {
-  return { dir, repository: source.url, ref: "main", what: `the ${dir} clone`, when: "a test reads it", ...fields }
+function entry(dir: string, url: string, fields: Record<string, unknown> = {}): Record<string, unknown> {
+  return { dir, repository: url, ref: "main", what: `the ${dir} clone`, when: "a test reads it", ...fields }
+}
+
+function declare(root: string, references: unknown, file = CONFIG): void {
+  writeJson(join(root, file), { version: 1, references })
 }
 
 /** A repository whose committed config declares `references`, beside `files` when given. */
 function consumer(references: unknown, files: Record<string, string> = {}): string {
   const root = initRepo(scratch("consumer"))
-  writeJson(join(root, CONFIG), { version: 1, references })
+  declare(root, references)
   for (const [path, content] of Object.entries(files)) {
     write(join(root, path), content)
   }
   return root
-}
-
-function declare(root: string, references: unknown): void {
-  writeJson(join(root, CONFIG), { version: 1, references })
 }
 
 function sync(root: string, ...dirs: string[]): Run {
@@ -92,7 +96,7 @@ function lines(text: string): string[] {
 
 describe("a fresh clone and an update", () => {
   const source = upstream()
-  const root = consumer([entry("full", source), entry("slim", source, { skip: ["repos/"] })])
+  const root = consumer([entry("full", source.url), entry("slim", source.url, { skip: ["repos/"] })])
 
   it("clones every entry shallow and prints one line each: directory, short commit, repository and ref", () => {
     const run = sync(root)
@@ -124,10 +128,10 @@ describe("a fresh clone and an update", () => {
   })
 
   it("checks out the whole tree once skip is gone, and leaves the path out again once it is back", () => {
-    declare(root, [entry("full", source), entry("slim", source)])
+    declare(root, [entry("full", source.url), entry("slim", source.url)])
     expectStatus(sync(root, "slim"), 0)
     assert.ok(has(root, "slim", "repos/vendored.txt"))
-    declare(root, [entry("full", source), entry("slim", source, { skip: ["repos/"] })])
+    declare(root, [entry("full", source.url), entry("slim", source.url, { skip: ["repos/"] })])
     expectStatus(sync(root, "slim"), 0)
     assert.ok(!has(root, "slim", "repos"))
   })
@@ -135,20 +139,20 @@ describe("a fresh clone and an update", () => {
 
 describe("a branch and a tag", () => {
   const lib = library()
-  const root = consumer([entry("lib", lib)])
+  const root = consumer([entry("lib", lib.url)])
 
   it("moves a clone from a branch's head to a tag and back", () => {
     expectStatus(sync(root), 0)
     assert.ok(has(root, "lib", "UNRELEASED.md"))
 
-    declare(root, [entry("lib", lib, { ref: "v1.0.0" })])
+    declare(root, [entry("lib", lib.url, { ref: "v1.0.0" })])
     const tagged = sync(root)
     expectStatus(tagged, 0)
     assert.match(tagged.stdout, /^references\/lib {2}\w+ {2}\S+ v1\.0\.0$/m)
     assert.ok(has(root, "lib", "README.md"))
     assert.ok(!has(root, "lib", "NEW.md"))
 
-    declare(root, [entry("lib", lib)])
+    declare(root, [entry("lib", lib.url)])
     expectStatus(sync(root), 0)
     assert.ok(has(root, "lib", "UNRELEASED.md"))
   })
@@ -158,7 +162,7 @@ describe("a ref naming a package", () => {
   const lib = library()
 
   it("follows the exact version package.json pins", () => {
-    const root = consumer([entry("lib", lib, { ref: "v{lib}" })], {
+    const root = consumer([entry("lib", lib.url, { ref: "v{lib}" })], {
       "package.json": JSON.stringify({ dependencies: { lib: "1.0.0" } })
     })
     const run = sync(root)
@@ -168,7 +172,7 @@ describe("a ref naming a package", () => {
   })
 
   it("follows a catalog: pin through the default catalog, and moves with it", () => {
-    const root = consumer([entry("lib", lib, { ref: "v{lib}" })], {
+    const root = consumer([entry("lib", lib.url, { ref: "v{lib}" })], {
       "package.json": JSON.stringify({ devDependencies: { lib: "catalog:" } }),
       "pnpm-workspace.yaml": catalog("1.0.0")
     })
@@ -183,9 +187,23 @@ describe("a ref naming a package", () => {
     assert.ok(!has(root, "lib", "UNRELEASED.md"), "a tag, not the branch's head")
   })
 
+  it("reads a catalog:default pin the same, under a catalog: line carrying a comment", () => {
+    const root = consumer([entry("lib", lib.url, { ref: "v{lib}" })], {
+      "package.json": JSON.stringify({ devDependencies: { lib: "catalog:default" } }),
+      "pnpm-workspace.yaml": "catalog: # one bump moves every package\n  lib: 1.0.0\n"
+    })
+    const run = sync(root)
+    expectStatus(run, 0)
+    assert.match(run.stdout, /^references\/lib {2}\w+ {2}\S+ v1\.0\.0$/m)
+  })
+
   it("fails an entry whose pin is a range or missing, and syncs the others", () => {
     const root = consumer(
-      [entry("ranged", lib, { ref: "v{lib}" }), entry("missing", lib, { ref: "v{nope}" }), entry("fine", lib)],
+      [
+        entry("ranged", lib.url, { ref: "v{lib}" }),
+        entry("missing", lib.url, { ref: "v{nope}" }),
+        entry("fine", lib.url)
+      ],
       { "package.json": JSON.stringify({ devDependencies: { lib: "^1.0.0" } }) }
     )
     const run = sync(root)
@@ -202,7 +220,7 @@ describe("a ref naming a package", () => {
 describe("what the Sync leaves alone", () => {
   it("a clone with local edits the update would overwrite, reported and as it was", () => {
     const source = upstream()
-    const root = consumer([entry("edited", source), entry("fine", source)])
+    const root = consumer([entry("edited", source.url), entry("fine", source.url)])
     expectStatus(sync(root), 0)
     const before = head(clone(root, "edited"))
     write(join(clone(root, "edited"), "README.md"), "mine\n")
@@ -218,7 +236,7 @@ describe("what the Sync leaves alone", () => {
 
   it("a directory that is not a clone of its repository, reported and as it was", () => {
     const source = upstream()
-    const root = consumer([entry("plain", source), entry("foreign", source), entry("fine", source)])
+    const root = consumer([entry("plain", source.url), entry("foreign", source.url), entry("fine", source.url)])
     write(join(clone(root, "plain"), "mine.txt"), "")
     git(root, "clone", "-q", upstream().url, clone(root, "foreign"))
 
@@ -233,7 +251,7 @@ describe("what the Sync leaves alone", () => {
 
   it("a directory the list does not name, reported and never deleted", () => {
     const source = upstream()
-    const root = consumer([entry("full", source)])
+    const root = consumer([entry("full", source.url)])
     write(join(clone(root, "old"), "x.txt"), "")
     const run = sync(root)
     expectStatus(run, 0)
@@ -248,7 +266,7 @@ describe("what the Sync leaves alone", () => {
     git(pushed, "add", ".")
     commit(pushed, "-m", "mine")
     const before = head(pushed)
-    const root = consumer([entry("full", upstream())])
+    const root = consumer([entry("full", upstream().url)])
 
     const run = runScript("references-sync", [], root, { GIT_DIR: join(pushed, ".git") })
     expectStatus(run, 0)
@@ -262,11 +280,11 @@ describe("what the Sync leaves alone", () => {
 describe("how the Sync fails", () => {
   it("syncs nothing on a key the parser refuses, and names the entry, the field and the reason", () => {
     const source = upstream()
-    const root = consumer([entry("full", source)])
+    const root = consumer([entry("full", source.url)])
     expectStatus(sync(root), 0)
     const before = head(clone(root, "full"))
     advance(source, "NEW.md")
-    declare(root, [entry("full", source), entry("new", source, { skip: ["../x"] })])
+    declare(root, [entry("full", source.url), entry("new", source.url, { skip: ["../x"] })])
 
     const run = sync(root)
     expectStatus(run, 2)
@@ -280,8 +298,8 @@ describe("how the Sync fails", () => {
 
   it("fails an unreachable repository alone", () => {
     const source = upstream()
-    const gone = { dir: "", url: pathToFileURL(join(scratch("gone"), "nothing")).href }
-    const root = consumer([entry("gone", gone), entry("fine", source)])
+    const gone = pathToFileURL(join(scratch("gone"), "nothing")).href
+    const root = consumer([entry("gone", gone), entry("fine", source.url)])
     const run = sync(root)
     expectStatus(run, 1)
     assert.match(run.stderr, /^references\/gone {2}FAILED {2}git fetch/m)
@@ -291,7 +309,7 @@ describe("how the Sync fails", () => {
 
   it("exits 2 on a dir the list does not name, and syncs nothing", () => {
     const source = upstream()
-    const root = consumer([entry("full", source)])
+    const root = consumer([entry("full", source.url)])
     const run = sync(root, "full", "nope")
     expectStatus(run, 2)
     assert.match(run.stderr, /^references:sync: not in the references of \.ai\/agentic\.config\.json: nope$/m)
@@ -318,6 +336,14 @@ describe("a repository that declares no References", () => {
     writeJson(join(root, CONFIG), { version: 1 })
     write(join(root, "references", "mine", "x.txt"), "")
     assert.deepEqual(sync(root), { status: 0, stdout: "", stderr: "" })
+  })
+
+  it("prints nothing and exits 0 when only the local layer declares one", () => {
+    const root = initRepo(scratch("local"))
+    writeJson(join(root, CONFIG), { version: 1 })
+    declare(root, [entry("full", upstream().url)], ".ai/agentic.config.local.json")
+    assert.deepEqual(sync(root), { status: 0, stdout: "", stderr: "" })
+    assert.ok(!existsSync(clone(root, "full")))
   })
 
   it("exits 2 on a named dir", () => {

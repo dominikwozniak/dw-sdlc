@@ -13,12 +13,12 @@ import { readPins, resolveRef, type Pins } from "./pins.ts"
 import { parseReferences, type Reference } from "./references-key.ts"
 
 const CONFIG = ".ai/agentic.config.json"
-const DIR = "references"
+const CLONES = "references"
 
 const USAGE = `Usage: node <plugin root>/scripts/references-sync.ts [dir...]
   or:  pnpm references:sync [dir...], in a checkout of dw-sdlc
 
-Brings every Reference the references key of ${CONFIG} declares to its ref under ${DIR}/<dir>, or
+Brings every Reference the references key of ${CONFIG} declares to its ref under ${CLONES}/<dir>, or
 only the given dirs: a missing one cloned shallow, an existing one moved to its branch's head or its
 tag, without the paths its skip names. Prints one line per Reference. Exit 1 when any Reference
 fails, 2 on a bad key, config or argument, in which case nothing is synced.`
@@ -51,9 +51,9 @@ function git(args: string[], cwd?: string): { ok: boolean; out: string; err: str
   return { ok: result.status === 0, out: (result.stdout ?? "").trim(), err }
 }
 
-/** Runs one git step of a sync, `config` ahead of it; throws with git's error when it fails. */
-function step(args: string[], cwd?: string, config: string[] = []): void {
-  const result = git([...config, ...args], cwd)
+/** Runs one git step of a sync, `gitOptions` ahead of it; throws with git's error when it fails. */
+function step(args: string[], cwd?: string, gitOptions: string[] = []): void {
+  const result = git([...gitOptions, ...args], cwd)
   if (!result.ok) {
     throw new Error(`git ${args.join(" ")}: ${result.err}`)
   }
@@ -69,7 +69,7 @@ function credentials(repository: string): string[] {
 /** Clones or updates one Reference at `ref`, already resolved; the reason it failed, or undefined. */
 function sync(root: string, reference: Reference, ref: string): string | undefined {
   const { dir, repository, skip } = reference
-  const target = join(root, DIR, dir)
+  const target = join(root, CLONES, dir)
   // Each step that can fetch carries the credentials: a partial clone's sparse-checkout and checkout
   // fetch the blobs they need.
   const fetching = (args: string[]): void => {
@@ -79,7 +79,7 @@ function sync(root: string, reference: Reference, ref: string): string | undefin
     if (existsSync(target)) {
       const origin = git(["remote", "get-url", "origin"], target)
       if (!existsSync(join(target, ".git")) || !origin.ok || origin.out !== repository) {
-        return `${DIR}/${dir} exists and is not a clone of ${repository}; move it aside and run again`
+        return `${CLONES}/${dir} exists and is not a clone of ${repository}; move it aside and run again`
       }
     } else {
       // An empty repository, so the one fetch below brings only the ref, a branch or a tag alike.
@@ -181,19 +181,19 @@ function main(argv: string[]): void {
       problem = messageOf(error)
     }
     if (problem === undefined) {
-      const head = git(["rev-parse", "--short", "HEAD"], join(root, DIR, reference.dir)).out
-      console.log(`${DIR}/${reference.dir}  ${head}  ${reference.repository} ${ref}`)
+      const head = git(["rev-parse", "--short", "HEAD"], join(root, CLONES, reference.dir)).out
+      console.log(`${CLONES}/${reference.dir}  ${head}  ${reference.repository} ${ref}`)
     } else {
       failed = true
-      console.error(`${DIR}/${reference.dir}  FAILED  ${problem}`)
+      console.error(`${CLONES}/${reference.dir}  FAILED  ${problem}`)
     }
   }
 
   const listed = new Set(references.map((reference) => reference.dir))
-  const stray = existsSync(join(root, DIR))
-    ? readdirSync(join(root, DIR), { withFileTypes: true })
+  const stray = existsSync(join(root, CLONES))
+    ? readdirSync(join(root, CLONES), { withFileTypes: true })
         .filter((entry) => entry.isDirectory() && !listed.has(entry.name))
-        .map((entry) => `${DIR}/${entry.name}`)
+        .map((entry) => `${CLONES}/${entry.name}`)
     : []
   if (stray.length > 0) {
     console.log(`Not listed in ${CONFIG}, left alone: ${stray.join(", ")}`)

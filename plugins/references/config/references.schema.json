@@ -18,7 +18,7 @@
         "pattern": "^[^\\s-]\\S*$"
       },
       "ref": {
-        "description": "A branch, whose head the clone moves to, or a tag. `{name}` in it stands for the exact version the root `package.json` pins for package `name`, read through the default catalog of `pnpm-workspace.yaml` when the pin says `catalog:`. No whitespace, and no leading `-`.",
+        "description": "A branch, whose head the clone moves to, or a tag. `{name}` in it stands for the exact version the root `package.json` pins for package `name`, read through the default catalog of `pnpm-workspace.yaml` when the pin says `catalog:` or `catalog:default`. No whitespace, and no leading `-`.",
         "type": "string",
         "pattern": "^[^\\s-]\\S*$"
       },

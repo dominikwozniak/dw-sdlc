@@ -9,7 +9,7 @@ export type KeyProblem = { path: string; message: string }
 const FIELDS = ["dir", "repository", "ref", "skip", "what", "when"]
 const REQUIRED = ["dir", "repository", "ref", "what", "when"]
 
-const DIR = /^[A-Za-z0-9_][A-Za-z0-9_.-]*$/
+const DIR_NAME = /^[A-Za-z0-9_][A-Za-z0-9_.-]*$/
 // No whitespace and no leading `-`, which git would read as an option.
 const GIT_ARGUMENT = /^[^\s-]\S*$/
 const INSIDE_CLONE = /^(?!\/)(?!(?:.*\/)?\.\.(?:\/|$)).+$/
@@ -36,7 +36,7 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
-function text(value: unknown, path: string): string {
+function nonEmpty(value: unknown, path: string): string {
   if (typeof value !== "string") {
     throw new KeyError(path, `must be a string, not ${kind(value)}`)
   }
@@ -47,7 +47,7 @@ function text(value: unknown, path: string): string {
 }
 
 function matching(value: unknown, path: string, pattern: RegExp, rule: string): string {
-  const string = text(value, path)
+  const string = nonEmpty(value, path)
   if (!pattern.test(string)) {
     throw new KeyError(path, `${JSON.stringify(string)} must be ${rule}`)
   }
@@ -82,7 +82,7 @@ function parseEntry(value: unknown, path: string): Reference {
     dir: matching(
       value.dir,
       `${path}.dir`,
-      DIR,
+      DIR_NAME,
       "one directory name: letters, digits, _, . and -, not starting with . or -"
     ),
     repository: matching(
@@ -93,8 +93,8 @@ function parseEntry(value: unknown, path: string): Reference {
     ),
     ref: matching(value.ref, `${path}.ref`, GIT_ARGUMENT, "a branch or a tag, with no whitespace and no leading -"),
     skip: skipPaths(value.skip, `${path}.skip`),
-    what: text(value.what, `${path}.what`),
-    when: text(value.when, `${path}.when`)
+    what: nonEmpty(value.what, `${path}.what`),
+    when: nonEmpty(value.when, `${path}.when`)
   }
 }
 

@@ -1,7 +1,7 @@
 // The exact version a repository pins for a package, for a ref that names one: the root package.json's
-// dependencies and devDependencies, a `catalog:` pin read through the default catalog in
-// pnpm-workspace.yaml. A ref without `{name}` reads neither file, so a broken manifest fails only the
-// References that name a package.
+// dependencies and devDependencies, a `catalog:` or `catalog:default` pin read through the default
+// catalog in pnpm-workspace.yaml. A ref without `{name}` reads neither file, so a broken manifest
+// fails only the References that name a package.
 
 import { existsSync, readFileSync } from "node:fs"
 import { join } from "node:path"
@@ -10,14 +10,16 @@ import { join } from "node:path"
 export type Pins = Record<string, string>
 
 const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[\w.]+)?$/
+/** The two ways a pin names the default catalog: by its name, or by pnpm's shorthand. */
+const DEFAULT_CATALOG = new Set(["catalog:", "catalog:default"])
 
 /**
  * The default catalog in pnpm-workspace.yaml's text: each `name: version` line of its top-level
- * `catalog:` block. Without the block, it is empty.
+ * `catalog:` block, a comment after the key allowed. Without the block, it is empty.
  */
 export function parseCatalog(yaml: string): Pins {
   const lines = yaml.split(/\r?\n/)
-  const start = lines.indexOf("catalog:")
+  const start = lines.findIndex((line) => /^catalog:\s*(?:#.*)?$/.test(line))
   const catalog: Pins = {}
   if (start === -1) {
     return catalog
@@ -36,8 +38,8 @@ export function parseCatalog(yaml: string): Pins {
 }
 
 /**
- * The pins in a package.json's text, a `catalog:` one replaced by what `catalog` lists for it; a
- * missing or malformed section pins nothing.
+ * The pins in a package.json's text, one naming the default catalog replaced by what `catalog` lists
+ * for it; a missing or malformed section pins nothing.
  */
 export function parsePins(json: string, catalog: Pins): Pins {
   const manifest: unknown = JSON.parse(json)
@@ -52,7 +54,7 @@ export function parsePins(json: string, catalog: Pins): Pins {
     }
     for (const [name, version] of Object.entries(section)) {
       if (typeof version === "string") {
-        pins[name] = version === "catalog:" ? (catalog[name] ?? version) : version
+        pins[name] = DEFAULT_CATALOG.has(version) ? (catalog[name] ?? version) : version
       }
     }
   }

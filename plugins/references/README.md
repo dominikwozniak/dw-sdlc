@@ -15,7 +15,7 @@ An array of entries, each with:
   credentials, so a private repository clones without a prompt;
 - `ref` — a branch or a tag; `{name}` in it stands for the exact version the root `package.json`
   pins for package `name`, read through the default catalog of `pnpm-workspace.yaml` when the pin
-  says `catalog:`;
+  says `catalog:` or `catalog:default`;
 - `skip` — optional, paths the sparse checkout leaves out, relative and inside the clone;
 - `what` and `when` — what the Reference is, and when an agent reaches for it.
 

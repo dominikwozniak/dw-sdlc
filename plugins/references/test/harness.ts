@@ -8,7 +8,7 @@ import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { after } from "node:test"
 
-export const SCRIPTS_DIR = join(import.meta.dirname, "..", "scripts")
+const SCRIPTS_DIR = join(import.meta.dirname, "..", "scripts")
 
 export type Run = { status: number; stdout: string; stderr: string }
 
@@ -21,7 +21,7 @@ const REPOSITORY_VARS = new Set(
  * This environment without them, and without the machine's git config. A git hook exports GIT_DIR:
  * inherited, it would aim every scratch commit at the repository the hook runs for.
  */
-export function scratchEnv(): NodeJS.ProcessEnv {
+function scratchEnv(): NodeJS.ProcessEnv {
   const env = Object.fromEntries(Object.entries(process.env).filter(([name]) => !REPOSITORY_VARS.has(name)))
   return { ...env, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" }
 }
