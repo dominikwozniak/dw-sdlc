@@ -12,7 +12,7 @@
     "trailer": "Co-Authored-By"
   },
   "validation": { "commands": ["pnpm check"] },
-  "worktree": { "setup": ["pnpm install", "pnpm references:sync"] },
+  "worktree": { "setup": ["pnpm install"] },
   "references": [
     {
       "dir": "dw-solo-skills",
