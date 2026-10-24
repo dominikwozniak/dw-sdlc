@@ -40,24 +40,38 @@ GUARD_QW_TEXT=()
 GUARD_QW_STATE=""
 GUARD_QW_END=0
 GUARD_QW_WINDOW=1024
+GUARD_QW_SRC=""
 guard_quote_walk() {
-  local text="$1" live="${2:-0}" st="${3:-P}" from="${4:-0}" stop="${5:-}"
-  local rest pos=${4:-0} wend total=${#1} top run ch kind len quote prev="" depth=${#st} behind=""
-  rest=${text:pos:GUARD_QW_WINDOW}
-  wend=$((pos + ${#rest}))
-  ((from > 0)) && prev=${text:from-1:1}
+  GUARD_QW_SRC=$1
+  guard_qw_walk "${#1}" "${@:2}"
+}
+
+# guard_qw_walk <end> [<live>] [<state>] [<from>] [<stop>] — guard_quote_walk over GUARD_QW_SRC, cut
+# at offset <end>. An argument costs its length in bash 3.2, so a loop of walks over one text sets the
+# text once; whatever runs between its walks must walk another text only in a subshell. A walk starts
+# with one read of the text: its window and the 512 characters before it, guard_qw_live's tail.
+guard_qw_walk() {
+  local live="${2:-0}" st="${3:-P}" from="${4:-0}" stop="${5:-}"
+  local around base=0 rest pos=${4:-0} wend total=$1 top run ch kind len quote prev="" depth=${#st} behind=""
+  ((from > 512)) && base=$((from - 512))
+  wend=$((from + GUARD_QW_WINDOW))
+  ((wend > total)) && wend=$total
+  around=${GUARD_QW_SRC:base:wend-base}
+  rest=${around:from-base}
+  ((from > 0)) && prev=${around:from-base-1:1}
   # What a live quote is judged on: the text before it, kept to a tail guard_qw_live reads alike.
   if ((live)); then
-    behind=${text:0:from}
-    ((from > 512)) && [[ "${text:from-512:511}" == *$GUARD_QW_NOT_LIVE* ]] && behind=${text:from-512:512}
+    behind=${around:0:from-base}
+    ((from > 512)) && [[ "${behind:0:511}" != *$GUARD_QW_NOT_LIVE* ]] && behind=${GUARD_QW_SRC:0:from}
   fi
   GUARD_QW_KIND=()
   GUARD_QW_TEXT=()
   while :; do
     # Refilled while 300 characters are left, more than the longest look ahead, a heredoc delimiter.
     if ((wend - pos < 300 && wend < total || wend - pos > GUARD_QW_WINDOW)); then
-      rest=${text:pos:GUARD_QW_WINDOW}
-      wend=$((pos + ${#rest}))
+      wend=$((pos + GUARD_QW_WINDOW))
+      ((wend > total)) && wend=$total
+      rest=${GUARD_QW_SRC:pos:wend-pos}
     fi
     [[ -n "$rest" ]] || break
     if ((live && ${#behind} > 1024)) && [[ "${behind:${#behind}-512:511}" == *$GUARD_QW_NOT_LIVE* ]]; then
@@ -157,7 +171,7 @@ guard_quote_walk() {
               run=${rest%%$'\n'*}
               # A comment longer than the window is read from the text itself.
               if [[ "$run" == "$rest" ]] && ((wend < total)); then
-                rest=${text:pos}
+                rest=${GUARD_QW_SRC:pos:total-pos}
                 wend=$total
                 run=${rest%%$'\n'*}
               fi
@@ -259,12 +273,13 @@ guard_replace_set() {
 # but for the substitutions an unquoted one runs. An unterminated quote or substitution hands back the
 # original — fail closed, judge what was typed.
 guard_mask_quoted_separators() {
-  local s="$1" st=P from=0 n kind out=""
+  local s="$1" st=P from=0 n kind out="" total
   if [[ "$s" == *'<<'* ]]; then
     s=$(printf '%s\n' "$s" | guard_mask_heredoc_bodies)
   fi
+  GUARD_QW_SRC=$s total=${#s}
   while :; do
-    guard_quote_walk "$s" 1 "$st" "$from" o
+    guard_qw_walk "$total" 1 "$st" "$from" o
     guard_mask_pieces
     out+=$GUARD_MASKED
     st=$GUARD_QW_STATE
@@ -273,7 +288,7 @@ guard_mask_quoted_separators() {
     ((n > 0)) && [[ "${GUARD_QW_KIND[n - 1]}" == o[sad] ]] || break
     kind=${GUARD_QW_KIND[n - 1]}
     st=${st%?}
-    guard_live_walk "$s" "$st" "$from" "$kind"
+    guard_live_walk "$total" "$st" "$from" "$kind"
     case $? in
       0)
         guard_mask_pieces 0 $((GUARD_LIVE_END + 1))
@@ -381,11 +396,12 @@ guard_strip_quoted() {
 # lines follow, read where the outer shell ends the quote. Each line is folded to one, its newlines
 # spaces. An unterminated quote or substitution hands back the text as typed.
 guard_split_substitutions() {
-  local s="$1" st=P from=0 i n kind piece depth=0 buf="" bodies=""
+  local s="$1" st=P from=0 i n kind piece depth=0 buf="" bodies="" total=${#1}
   # The text of each enclosing substitution while a nested one is read.
   local -a outer=()
+  GUARD_QW_SRC=$s
   while :; do
-    guard_quote_walk "$s" 1 "$st" "$from" o
+    guard_qw_walk "$total" 1 "$st" "$from" o
     n=${#GUARD_QW_KIND[@]}
     kind=""
     for ((i = 0; i < n; i++)); do
@@ -411,7 +427,7 @@ guard_split_substitutions() {
     from=$GUARD_QW_END
     [[ "$kind" == o[sad] ]] || break
     st=${st%?}
-    if ! guard_live_body "$s" "$st" "$from" "$kind"; then
+    if ! guard_live_body "$total" "$st" "$from" "$kind"; then
       st=x
       break
     fi

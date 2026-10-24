@@ -43,6 +43,22 @@ function walk(text: string, live = 0): string {
   )
 }
 
+/** The walk `call` makes, printed as walk() prints it, then the offset it stops at. */
+function walked(call: string, args: string[]): string {
+  return lib(
+    `${call}; for i in "\${!GUARD_QW_KIND[@]}"; do printf '%s[%s] ' "\${GUARD_QW_KIND[i]}" "\${GUARD_QW_TEXT[i]}"; done; printf '%s %s' "$GUARD_QW_STATE" "$GUARD_QW_END"`,
+    args
+  )
+}
+
+/** The kind of the first piece a live walk resumed at the text's first `'` reads. */
+function opened(text: string): string {
+  return lib(`GUARD_QW_SRC=$2; guard_qw_walk "\${#2}" 1 P "$3"; printf '%s' "\${GUARD_QW_KIND[0]}"`, [
+    text,
+    String(text.indexOf("'"))
+  ])
+}
+
 function unwrap(words: string): string {
   return lib(`WORDS=(${words}); guard_unwrap_words; printf '%s' "\${WORDS[*]}"`)
 }
@@ -449,6 +465,28 @@ describe("text helpers", () => {
     const launcher = `bash${" -o pipefail".repeat(120)} -c 'a; b'`
     assert.equal(mask(launcher), launcher)
     assert.equal(lib(`guard_quote_walk "$2"; printf '%s' "$GUARD_QW_END"`, [`${"x".repeat(2000)}\\`]), "2001")
+  })
+  it("a walk to an end short of its text reads the text as if it ended there", () => {
+    assert.equal(walked(`GUARD_QW_SRC=$2; guard_qw_walk 10`, ["echo 'a b' ; ls"]), "tP[echo ] oS['] tS[a b] cS['] P 10")
+    const live = `bash -c 'cd x && echo "a' ; echo '"'`
+    const from = live.indexOf("'") + 1
+    const cases: [string, number, string[]][] = [
+      [`echo ${"a;b ".repeat(600)}'x' ; ls`, 2000, []],
+      [`git status # ${"c; ".repeat(800)}\ngit push -f`, 1500, []],
+      [`${"x".repeat(2000)}\\y`, 2001, []],
+      [live, live.indexOf("'", from) + 1, ["1", "P", String(from), "c"]]
+    ]
+    for (const [text, end, rest] of cases) {
+      assert.equal(
+        walked(`GUARD_QW_SRC=$2; guard_qw_walk "$3" "\${@:4}"`, [text, String(end), ...rest]),
+        walked(`guard_quote_walk "$2" "\${@:4}"`, [text.slice(0, end), String(end), ...rest])
+      )
+    }
+  })
+  it("a walk resumed past 512 characters judges its first quote on the text before it", () => {
+    assert.equal(opened(`${"x;".repeat(100)} bash${" -o pipefail".repeat(60)} -c 'x' ; y`), "os")
+    assert.equal(opened(`${"a;".repeat(400)}eval 'x' ; y`), "os")
+    assert.equal(opened(`${"a;".repeat(400)}echo 'x' ; y`), "oS")
   })
   it("words read a 60 KB quoted body a piece at a time, not a character at a time", () => {
     const body = Array.from(

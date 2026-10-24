@@ -106,10 +106,11 @@ guard_live_span() {
   return 0
 }
 
-# guard_live_walk <text> <state> <from> <opening kind> — walks a quote a live walk opened with
-# <opening kind> in <state>, <from> the offset just after its opening quote, and reads it with
-# guard_live_span. The outer shell's walk finds where the quote ends, and the live walk reads only up
-# to there, so each walk stops at the quote's end and a command costs time linear in its live quotes.
+# guard_live_walk <end> <state> <from> <opening kind> — walks a quote of GUARD_QW_SRC, whose text ends
+# at <end>, that a live walk opened with <opening kind> in <state>, <from> the offset just after its
+# opening quote, and reads it with guard_live_span. The outer shell's walk finds where the quote ends,
+# and the live walk reads only up to there, so each walk stops at the quote's end and a command costs
+# time linear in its live quotes.
 # Returns guard_live_span's 0 or 3 when the live walk ends the quote there too and reads it so, else
 # 2 with the outer shell's reading in its place, or 1 when the quote never closes.
 guard_live_walk() {
@@ -119,21 +120,21 @@ guard_live_walk() {
     oa) ctx=A ;;
     *) ctx=D ;;
   esac
-  guard_quote_walk "$1" 0 "$2$ctx" "$3" c
+  guard_qw_walk "$1" 0 "$2$ctx" "$3" c
   [[ "$GUARD_QW_STATE" == "$2" ]] || return 1
   end=$GUARD_QW_END
-  guard_quote_walk "${1:0:end}" 1 "$2${4:1}" "$3" c
+  guard_qw_walk "$end" 1 "$2${4:1}" "$3" c
   if [[ "$GUARD_QW_STATE" == "$2" && $GUARD_QW_END -eq $end ]]; then
     guard_live_span "$4"
     rc=$?
     ((rc == 0 || rc == 3)) && return "$rc"
   fi
-  guard_quote_walk "$1" 0 "$2$ctx" "$3" c
+  guard_qw_walk "$1" 0 "$2$ctx" "$3" c
   guard_live_span "o$ctx"
   return 2
 }
 
-# guard_live_body <text> <state> <from> <opening kind> — the quote guard_live_walk reads, split for
+# guard_live_body <end> <state> <from> <opening kind> — the quote guard_live_walk reads, split for
 # the path check: GUARD_LIVE_LINES holds each substitution's lines, then those of the text the shell
 # is handed, split again. Returns 1 when the quote never closes.
 GUARD_LIVE_LINES=""
