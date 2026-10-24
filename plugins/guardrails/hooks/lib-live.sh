@@ -2,8 +2,8 @@
 # The live-quote readers lib.sh sources — a quote handed to a shell's `-c`, `eval` or `rtk run`, read
 # where the outer shell ends it, for the mask and the substitution split. Not a hook and not sourced
 # on its own: lib.sh sets the locale and GUARD_LIB_DIR first and sources lib-lines.sh and
-# lib-text.sh, then this file, then lib-words.sh, whose escape decoder and GUARD_HAS_LIVE_QUOTE these
-# readers call only once every file is sourced.
+# lib-text.sh, then this file, then lib-mask.sh and lib-words.sh, whose escape decoder and
+# GUARD_HAS_LIVE_QUOTE these readers call only once every file is sourced.
 # --- the live quotes ----------------------------------------------------------------------------
 
 # guard_live_span <opening kind> — a quote handed to a shell, read from the walk's pieces, which start

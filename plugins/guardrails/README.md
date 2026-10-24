@@ -28,8 +28,9 @@ disk is in the next session, a broken edit included.
 - `hooks/lib.sh` — the library every guard sources: payload reader, git helpers, refusal, config
   lookup; it sources `hooks/lib-lines.sh`, the line scanners — heredoc openers and bodies,
   continuation lines — `hooks/lib-text.sh`, the text scanners — the one quote walker every
-  scanner reads, quote masking, substitutions, plain words — `hooks/lib-live.sh`, the live-quote
-  readers — a quote handed to a shell, ended where the outer shell ends it — `hooks/lib-words.sh`,
+  scanner reads, substitutions, plain words — `hooks/lib-live.sh`, the live-quote readers — a
+  quote handed to a shell, ended where the outer shell ends it — `hooks/lib-mask.sh`, the quote
+  mask — separators inside a quote made text — `hooks/lib-words.sh`,
   the word readers — shell words, the launcher table and its two readers, the boundary — and
   `hooks/lib-git.sh`, the git readers — a verb and its options, a push and its targets, the
   current branch.
