@@ -11,8 +11,9 @@ import { HOOKS_DIR } from "../harness.ts"
 
 type Construct = { name: string; pattern: RegExp; caught: string[]; passed: string[] }
 
-/** A parameter name with an optional subscript, as it opens a `${…}` expansion. */
-const PARAMETER = String.raw`[A-Za-z_][A-Za-z0-9_]*(?:\[[^\]]*\])?`
+const NAME = String.raw`[A-Za-z_][A-Za-z0-9_]*`
+/** What opens a `${…}` expansion: a name with an optional subscript, a positional parameter, `@` or `*`. */
+const PARAMETER = String.raw`(?:${NAME}(?:\[[^\]]*\])?|[0-9]+|[@*])`
 
 const CONSTRUCTS: Construct[] = [
   {
@@ -30,14 +31,14 @@ const CONSTRUCTS: Construct[] = [
   {
     name: "case modification",
     pattern: new RegExp(String.raw`\$\{${PARAMETER}[,^]`),
-    caught: ["${x,,}", "${x,}", "${x^^}", "${x^}", "${a[0],,}"],
-    passed: ["${x:-a,b}", "${x//,/ }", "${#x}", "${x#^}"]
+    caught: ["${x,,}", "${x,}", "${x^^}", "${x^}", "${a[0],,}", "${1,,}", "${@^^}", "${*,}"],
+    passed: ["${x:-a,b}", "${x//,/ }", "${#x}", "${x#^}", "${1:-a,b}"]
   },
   {
     name: "transformation",
     pattern: new RegExp(String.raw`\$\{${PARAMETER}@[A-Za-z]\}`),
-    caught: ["${x@Q}", "${a[@]@Q}"],
-    passed: ["${a[@]}", "${@}", "$@"]
+    caught: ["${x@Q}", "${a[@]@Q}", "${@@Q}", "${1@Q}"],
+    passed: ["${a[@]}", "${@}", "$@", "${!x@}"]
   },
   {
     name: "coproc",
@@ -53,13 +54,16 @@ const CONSTRUCTS: Construct[] = [
   },
   {
     name: "negative subscript",
-    pattern: /\$\{[A-Za-z_][A-Za-z0-9_]*\[\s*-/,
-    caught: ["${a[-1]}", "${a[ -2]}"],
+    pattern: new RegExp(String.raw`\$\{[#!]?${NAME}\[\s*-`),
+    caught: ["${a[-1]}", "${a[ -2]}", "${#a[-1]}"],
     passed: ["${a[0]}", "${a[@]: -1}", "${x:-1}"]
   }
 ]
 
-/** A hook's lines by number, with a whole-line comment and a `#` after a blank, and all past it, dropped. */
+/**
+ * A hook's lines by number, each cut at its comment: a `#` at the start or after a blank. A ` #` inside
+ * a quote cuts the line too, which can only hide code from the scan.
+ */
 function codeLines(text: string): Array<{ line: number; code: string }> {
   return text.split("\n").map((raw, index) => ({ line: index + 1, code: raw.replace(/(?:^|\s+)#.*$/, "") }))
 }
