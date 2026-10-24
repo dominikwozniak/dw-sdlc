@@ -13,7 +13,7 @@ is its long form: how a guard works, why the design, adopting and releasing.
   TypeScript that reads the config, `config/` the JSON Schema for `.ai/agentic.config.json`, which
   declares how this repo works for an agent, and `test/` the tests, mirroring `hooks/` and `scripts/`:
   `harness.ts` spawns a guard on the real stdin payload; every input a test reads is built beside it;
-  `skills/guardrails-setup/` the user-invoked skill that runs the setup script
+  `skills/sdlc-guardrails-setup/` the user-invoked skill that runs the setup script
 - `plugins/references/` — the references plugin, not yet in the marketplace: `scripts/` the Sync and
   the strict parser of the `references` key, `config/` that key's JSON Schema, which the guardrails
   schema leaves unnamed, and `test/` the CLI and contract tests on a harness of their own

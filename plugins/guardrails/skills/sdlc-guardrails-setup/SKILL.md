@@ -1,5 +1,5 @@
 ---
-name: guardrails-setup
+name: sdlc-guardrails-setup
 description: >-
   Set a repository and this machine up for the guardrails plugin: the machine's
   `.ai/agentic.config.local.json` from inference, its git exclude entry, the repository's
@@ -8,7 +8,7 @@ description: >-
 disable-model-invocation: true
 ---
 
-# guardrails-setup
+# sdlc-guardrails-setup
 
 Four files, each written only when its content would change. Run the dry run first and show its
 lines; then run for real and show those. A `refused` line ends the run: show it and stop, and never
@@ -23,7 +23,7 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/guardrails-setup.ts"
 Pass a flag only for what the argument or the request names, to both commands; a pin the local
 config already holds stays without one:
 
-- a commit convention, as `/guardrails-setup ticket-key` does: `--convention ticket-key` or
+- a commit convention, as `/sdlc-guardrails-setup ticket-key` does: `--convention ticket-key` or
   `--convention conventional`;
 - how a lease push goes: `--force-push ask` (a prompt each time), `--force-push deny` or
   `--force-push lease`;

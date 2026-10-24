@@ -32,7 +32,7 @@ In a repository you work on, run the setup skill in Claude Code. It shows a dry 
 this machine's local layer, and ends with the doctor: one PASS / WARN / FAIL line per machine check.
 
 ```bash
-/guardrails-setup
+/sdlc-guardrails-setup
 ```
 
 The doctor ships in the plugin and needs only Node 24. To run it again from a terminal in the
@@ -79,10 +79,10 @@ terminal meets the same subject rule through the [commit hook](plugins/guardrail
 
 Everything unset is inferred: the package manager from the lockfile, Conventional Commits for the
 subject. A repository whose subjects start with a ticket key sets `"commit": { "convention": "ticket-key" }`;
-on one machine only, `/guardrails-setup ticket-key` pins it in the local layer instead.
+on one machine only, `/sdlc-guardrails-setup ticket-key` pins it in the local layer instead.
 A repository where every change starts on a branch sets `"guardrails": { "commitOnProtected": "deny" }`.
 Plugin 0.8.2 and older read that key as an invalid layer and run the strictest set, so it belongs in
-the local layer until every machine runs 0.9.0: `/guardrails-setup` with `--commit-on-protected deny`,
+the local layer until every machine runs 0.9.0: `/sdlc-guardrails-setup` with `--commit-on-protected deny`,
 and `--force-push ask` for a prompt before each lease push.
 Every key: [schema](plugins/guardrails/config/agentic.config.schema.json).
 
