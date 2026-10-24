@@ -44,7 +44,7 @@ disk is in the next session, a broken edit included.
   (`node <plugin root>/scripts/agentic-config.ts` from a repository runs it), `guardrails-setup.ts`
   and `guardrails-doctor.ts` are the Setup and Doctor below, `json-schema.ts` is the dependency-free
   schema validator they share.
-- `skills/guardrails-setup/` — the skill a user invokes to run the setup script; the model cannot
+- `skills/sdlc-guardrails-setup/` — the skill a user invokes to run the setup script; the model cannot
   start it on its own.
 - `test/` — the tests, mirroring `hooks/` and `scripts/`: `harness.ts` spawns a guard on the real
   stdin payload; every input a test reads is built beside it.
@@ -142,7 +142,7 @@ so and lets the commit through. A repository wires it from its own hook manager;
 
 ## Setup
 
-The `guardrails-setup` skill runs `scripts/guardrails-setup.ts`: it writes this machine's
+The `sdlc-guardrails-setup` skill runs `scripts/guardrails-setup.ts`: it writes this machine's
 `.ai/agentic.config.local.json` with `$schema` and, when the committed config leaves it unset, the
 Node package manager from the lockfile. `commit.convention` is written only when
 `--convention ticket-key` or `--convention conventional` asks for it, because a local pin outranks a

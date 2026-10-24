@@ -99,7 +99,7 @@ key and its inferred value is described in the
 [schema](../plugins/guardrails/config/agentic.config.schema.json). The `$schema` URL is an annotation
 for editors; the guards always validate against the schema the plugin ships.
 
-The `/guardrails-setup` skill then writes this machine's local config layer from what it infers,
+The `/sdlc-guardrails-setup` skill then writes this machine's local config layer from what it infers,
 plus the commit convention when asked for one, excludes it from git, and adds a permission backstop
 to `.claude/settings.local.json` plus the lease-push exception to `~/.claude/settings.json`. It shows
 a dry run first, writes only what would change, and ends with the doctor: one PASS / WARN / FAIL line

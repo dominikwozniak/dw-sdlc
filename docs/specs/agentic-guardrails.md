@@ -203,7 +203,7 @@ refuses.
   - Verify: `test/scripts/guardrails-setup.test.ts`: a run against a scratch repo writes the local
     config, the exclude entries and the deny rules; a second run changes nothing; `--convention`
     pins the named preset in the local config and a repeat with or without the flag changes nothing
-  - Files: `plugins/guardrails/skills/guardrails-setup/SKILL.md`, `plugins/guardrails/scripts/guardrails-setup.ts`
+  - Files: `plugins/guardrails/skills/sdlc-guardrails-setup/SKILL.md`, `plugins/guardrails/scripts/guardrails-setup.ts`
 - [x] Task: Doctor
   - Verify: `test/scripts/guardrails-doctor.test.ts` fakes each probe and asserts its PASS / WARN /
     FAIL line; `pnpm guardrails:doctor` lists every check here
