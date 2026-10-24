@@ -7,6 +7,12 @@ reference material only.
 
 > `CLAUDE.md` is a symlink to this file, so it loads whenever you open anything under `references/`.
 
+## The list
+
+The `references` key of `.ai/agentic.config.json` declares every Reference: its directory here, the
+repository, the ref it sits at, the paths its clone skips, `what` it is and `when` to reach for it.
+Read the entries before you research, and open the clones whose `when` matches the task.
+
 ## Rules
 
 - **Read-only.** Never edit, build, run, install or lint anything under `references/`. A fix belongs
@@ -17,47 +23,10 @@ reference material only.
   `AGENTS.md`. It describes _that_ repo; the rules here come from the root `AGENTS.md`, and
   `claudeMdExcludes` in `.claude/settings.json` keeps Claude Code from loading them.
 - **Missing is normal.** CI, a fresh clone and a new worktree have none of them until the
-  SessionStart hook or `pnpm references:sync` runs. A directory that is absent is not a broken link.
-- **A starting point, not the whole field.** The list is hand-picked, and each clone is the head of
-  its branch at the last sync. Research into a feature or an approach reads the matching rows first,
-  then looks further: other repositories, upstream docs and web search.
-
-## Repositories
-
-| dir                       | repository                                         | branch | skip               | what it is                                                                                                                                                                                                                                                                   | reach for it when                                                                                                         |
-| ------------------------- | -------------------------------------------------- | ------ | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `dw-solo-skills`          | `https://github.com/dominikwozniak/dw-solo-skills` | `main` |                    | Claude Code plugins for a solo change loop — `dw-grill` → `dw-shape` → `dw-next` → `dw-check` → `dw-land` — with the change doc under `.ai/work/`, guard hooks and evals                                                                                                     | a skill, hook or plugin for a repo one person reads, or keeping a change alive across `/clear`                            |
-| `mattpocock-skills`       | `https://github.com/mattpocock/skills`             | `main` |                    | small, composable skills by Matt Pocock: grilling, TDD, bug diagnosis, domain modelling, codebase design, `to-spec` / `to-tickets`, handoff                                                                                                                                  | writing a small single-purpose skill, or a prompt that interrogates an idea, drives TDD or hunts a bug                    |
-| `addyosmani-agent-skills` | `https://github.com/addyosmani/agent-skills`       | `main` |                    | Addy Osmani's lifecycle skills, spec → plan → build → test → review → ship, with 9 slash commands, reviewer agents and evals, packaged for many coding agents                                                                                                                | a phase-by-phase workflow with quality gates, or one skill shipped to Claude, Codex, Gemini and Cursor at once            |
-| `open-mercato-skills`     | `https://github.com/open-mercato/skills`           | `main` |                    | 42 `om-*` skills that run a GitHub PR pipeline from issue to merge — plan, implement in a worktree, review, QA gate, labels — configured per repo in `.ai/agentic.config.json`                                                                                               | automating a team PR flow: labels, autopilot loops, review and QA gates, many contributors                                |
-| `dw-mc`                   | `https://github.com/dominikwozniak/dw-mc`          | `main` | `repos/`           | a local CLI that tracks your open PRs: reads GitHub through `gh`, runs reviews with Claude Code and puts each PR in one bucket; TypeScript on Effect 4, published to npm                                                                                                     | a CLI over `gh` and Claude Code, or Effect in a real tool                                                                 |
-| `kcd-skills`              | `https://github.com/kentcdodds/kcd-skills`         | `main` |                    | Kent C. Dodds's personal skills, shipped as the `kcd-skills` CLI with their scripts and tests: `autopilot` audits a repo for good PRs, review and verification, and blast radius, then opens one setup PR; `ship-pr`, `visual-recap`, `review-and-recommend`, `friction-log` | a skill that carries its own CLI and tests, auditing how ready a repo is for agents, or a loop that drives a PR to merged |
-| `kody`                    | `https://github.com/kody-hq/kody`                  | `main` | `packages/worker/` | Kent C. Dodds's Kody, a cloud for an agent's memory, credentials, code and automations, on Cloudflare Workers and MCP; an Nx monorepo whose `AGENTS.md` routes to contributor docs, task skills in `.agents/skills/` and CI tools                                            | agent instructions and docs for a large repo, harness engineering, or the skills `kcd-skills` comes from                  |
-
-`skip` lists paths, in backticks, that the clone leaves out through a sparse checkout. `dw-mc` skips
-`repos/`, where it vendors Effect: 4044 of its 4298 files. `kody` skips `packages/worker/`, its app
-Worker: 4809 of its 6038 files.
-
-## Sync
-
-```bash
-pnpm references:sync          # every row in the table
-pnpm references:sync <dir>... # only these
-```
-
-A missing directory is cloned with `--depth 1` from the row's branch; an existing one is fetched and
-checked out, detached, at that branch's head. A clone with local edits the update would overwrite
-fails its row and is left as it is. The command reports each row and any directory under
-`references/` the table no longer lists; it never deletes one.
-
-A `SessionStart` hook, `.claude/hooks/sync-references.sh`, runs the same sync when a Claude Code
-session starts and prints where each clone stands. It covers a fresh worktree too, which starts
-without the clones: `.worktreeinclude` does not copy a nested repository. Offline, a clone stays where
-it was and the hook says so; it never fails the session.
-
-## Add a repository
-
-Add its row to the table, then run `pnpm references:sync <dir>`. The script reads the `dir`,
-`repository`, `branch` and `skip` cells, so they hold exactly what it needs, in backticks: `dir` a
-single directory name, `repository` a URL `git` can fetch, `skip` empty or one backticked path per
-entry. Read the licence before you add a row: a reference is read, never copied in.
+  SessionStart hook or `pnpm references:sync` runs. A directory that is absent is not a broken link,
+  and neither is a path its entry's `skip` leaves out.
+- **A starting point, not the whole field.** The list is hand-picked, and each clone is its ref at
+  the last sync. Research into a feature or an approach reads the matching entries first, then looks
+  further: other repositories, upstream docs and web search.
+- **Read the licence before you add one.** A Reference is read, never copied in. Add its entry to the
+  key, then run `pnpm references:sync <dir>`.

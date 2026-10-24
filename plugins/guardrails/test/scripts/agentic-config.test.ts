@@ -24,6 +24,13 @@ const DEFAULT_ENV_FILES = {
   allow: ["**/.env.example", "**/.env.sample", "**/.env.template"],
   deny: []
 }
+/** This repository's committed config, its `references` key included. */
+const OWN_CONFIG = readFileSync(join(REPO_ROOT, COMMITTED_FILE), "utf8")
+/** A `references` key the references plugin refuses, which the guardrails schema never names (ADR 0007). */
+const MALFORMED_REFERENCES = {
+  guardrails: { protectedBranches: ["main"] },
+  references: [{ dir: "../x", branch: "main" }, "kody"]
+}
 
 /** A throwaway repository; `files` maps a relative path to its text, an object is written as JSON. */
 function repo(options: { git?: false; remote?: string; files?: Record<string, string | object> } = {}): string {
@@ -146,6 +153,19 @@ describe("the committed file", () => {
     ])
     assert.equal(layers.committed, "invalid")
     assert.deepEqual(config.guardrails, STRICTEST_GUARDRAILS)
+  })
+
+  it("leaves the references key to its plugin: a malformed one keeps the guards off the strictest set", () => {
+    const root = repo({ files: { [COMMITTED_FILE]: MALFORMED_REFERENCES } })
+    const { config, problems, layers } = resolveConfig(root)
+    assert.deepEqual(problems, [])
+    assert.equal(layers.committed, "valid")
+    assert.deepEqual(config.guardrails, {
+      forcePush: "lease",
+      commitOnProtected: "allow",
+      envFiles: DEFAULT_ENV_FILES,
+      protectedBranches: ["main"]
+    })
   })
 
   it("that is not JSON is one problem", () => {
@@ -463,6 +483,14 @@ describe("hooks/lib.sh agrees with resolveConfig", () => {
         })
     ],
     [
+      "on a malformed references key, left to its plugin",
+      () => repo({ files: { [COMMITTED_FILE]: MALFORMED_REFERENCES } })
+    ],
+    [
+      "on this repository's committed file and its references key",
+      () => repo({ files: { [COMMITTED_FILE]: OWN_CONFIG } })
+    ],
+    [
       "on a committed file with schema violations",
       () => repo({ files: { [COMMITTED_FILE]: { version: 2, guardrails: { forcePush: "allow", extra: 1 } } } })
     ],
@@ -638,6 +666,16 @@ describe("the agentic:check command", () => {
     const verdict = runScript("agentic-config", [COMMITTED_FILE], { cwd: REPO_ROOT })
     assert.equal(verdict.status, 0, verdict.stderr)
     assert.equal(verdict.stdout, `${COMMITTED_FILE}: valid\n`)
+  })
+
+  it("resolves a repository holding this one's config and its references key off the strictest set, exit 0", () => {
+    assert.ok(Array.isArray(JSON.parse(OWN_CONFIG).references), "the committed config declares References")
+    const root = repo({ files: { [COMMITTED_FILE]: OWN_CONFIG } })
+    const verdict = runScript("agentic-config", ["--root", root])
+    assert.equal(verdict.status, 0, verdict.stderr)
+    assert.match(verdict.stdout, /^committed {2}\.ai\/agentic\.config\.json {2}valid$/m)
+    assert.match(verdict.stdout, /"forcePush": "lease"/)
+    assert.equal(verdict.stderr, "")
   })
 
   it("names the problem in a file that allows a force push and exits 1", () => {

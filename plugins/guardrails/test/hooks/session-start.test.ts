@@ -7,9 +7,9 @@ import assert from "node:assert/strict"
 import { spawnSync } from "node:child_process"
 import { chmodSync, copyFileSync, mkdirSync } from "node:fs"
 import { join } from "node:path"
-import { before, describe, it } from "node:test"
+import { after, before, describe, it } from "node:test"
 
-import { commit, expectExit, git, initRepo, runHook, scratch, write, writeJson } from "../harness.ts"
+import { commit, expectExit, git, initRepo, REPO_ROOT, runHook, scratch, write, writeJson } from "../harness.ts"
 
 const TMP = scratch("session")
 
@@ -158,6 +158,20 @@ describe("an invalid config is one loud line, in the main checkout too", () => {
   })
   it("valid again, silent again", () => {
     git(MAIN, "checkout", "-q", "--", ".ai/agentic.config.json")
+    assert.equal(report(MAIN), "")
+  })
+})
+
+describe("a references key is its plugin's, never a config problem", () => {
+  after(() => {
+    git(MAIN, "checkout", "-q", "--", ".ai/agentic.config.json")
+  })
+  it("silent on this repository's own config, its key included", () => {
+    copyFileSync(join(REPO_ROOT, ".ai", "agentic.config.json"), join(MAIN, ".ai", "agentic.config.json"))
+    assert.equal(report(MAIN), "")
+  })
+  it("silent on a key the references plugin refuses", () => {
+    writeJson(join(MAIN, ".ai", "agentic.config.json"), { references: [{ dir: "../x", branch: "main" }, "kody"] })
     assert.equal(report(MAIN), "")
   })
 })
