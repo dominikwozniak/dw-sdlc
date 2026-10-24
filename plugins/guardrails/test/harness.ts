@@ -13,6 +13,8 @@ import { after } from "node:test"
 export const HOOKS_DIR = join(import.meta.dirname, "..", "hooks")
 export const SCRIPTS_DIR = join(import.meta.dirname, "..", "scripts")
 export const REPO_ROOT = join(import.meta.dirname, "..", "..", "..")
+/** The hooks' shebang, bash 3.2 on macOS — never the first bash in PATH, which may be a newer one. */
+const BASH = "/bin/bash"
 
 if (spawnSync("jq", ["--version"]).status !== 0) {
   throw new Error("jq is missing; the guards no-op without it and their tests cannot run")
@@ -26,13 +28,13 @@ export function hookPath(name: string): string {
 }
 
 /**
- * `bash <args>` with `input` on stdin — a string verbatim, anything else as JSON — under LC_ALL=C and
- * without the large-file guard's kill switch, which a developer's shell may export.
+ * `/bin/bash <args>` with `input` on stdin — a string verbatim, anything else as JSON — under LC_ALL=C
+ * and without the large-file guard's kill switch, which a developer's shell may export.
  */
 export function runBash(args: string[], input: unknown, options: RunOptions = {}): Verdict {
   const env: NodeJS.ProcessEnv = { ...process.env, LC_ALL: "C" }
   delete env.CLAUDE_MAX_WRITE_BYTES
-  const result = spawnSync("bash", args, {
+  const result = spawnSync(BASH, args, {
     input: typeof input === "string" ? input : JSON.stringify(input),
     cwd: options.cwd,
     env: { ...env, ...options.env },
@@ -54,7 +56,7 @@ export function runHookAsync(name: string, input: unknown): Promise<Verdict> {
   const env: NodeJS.ProcessEnv = { ...process.env, LC_ALL: "C" }
   delete env.CLAUDE_MAX_WRITE_BYTES
   return new Promise((resolve, reject) => {
-    const child = spawn("bash", [hookPath(name)], { env })
+    const child = spawn(BASH, [hookPath(name)], { env })
     let stdout = ""
     let stderr = ""
     child.stdout.on("data", (chunk: Buffer) => {

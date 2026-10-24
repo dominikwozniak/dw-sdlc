@@ -2,17 +2,18 @@
 // must not decide whether a guard's test passes.
 
 import assert from "node:assert/strict"
+import { chmodSync } from "node:fs"
 import { join } from "node:path"
 import { describe, it } from "node:test"
 
-import { commit, git, initRepo, runBash, scratch, write } from "./harness.ts"
+import { commit, expectExit, git, initRepo, runBash, runHookAsync, scratch, write } from "./harness.ts"
 
 /** Runs `body` with `vars` set in this process's environment, then puts the old values back. */
-function withEnv(vars: Record<string, string>, body: () => void): void {
+function withEnv<T>(vars: Record<string, string>, body: () => T): T {
   const saved = Object.fromEntries(Object.keys(vars).map((key) => [key, process.env[key]]))
   Object.assign(process.env, vars)
   try {
-    body()
+    return body()
   } finally {
     for (const [key, value] of Object.entries(saved)) {
       if (value === undefined) {
@@ -22,6 +23,14 @@ function withEnv(vars: Record<string, string>, body: () => void): void {
       }
     }
   }
+}
+
+/** The machine's PATH behind a `bash` that exits 97, so a spawn that looks bash up in PATH shows. */
+function pathWithFakeBash(): string {
+  const bin = scratch("harness-bash")
+  write(join(bin, "bash"), "#!/bin/sh\nexit 97\n")
+  chmodSync(join(bin, "bash"), 0o755)
+  return `${bin}:${process.env.PATH ?? ""}`
 }
 
 describe("harness", () => {
@@ -49,5 +58,15 @@ describe("harness", () => {
       const verdict = runBash(["-c", 'printf %s "${CLAUDE_MAX_WRITE_BYTES-unset}"'], "")
       assert.equal(verdict.stdout, "unset")
     })
+  })
+
+  it("a hook runs on /bin/bash, its shebang, whatever bash comes first in PATH", () => {
+    const verdict = withEnv({ PATH: pathWithFakeBash() }, () => runBash(["-c", 'printf %s "$BASH"'], ""))
+    assert.equal(verdict.stdout, "/bin/bash")
+  })
+
+  it("so does a hook run concurrently", async () => {
+    const pending = withEnv({ PATH: pathWithFakeBash() }, () => runHookAsync("bash-guard", ""))
+    expectExit(await pending, 0)
   })
 })

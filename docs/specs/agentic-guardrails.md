@@ -151,11 +151,14 @@ refuses.
 
 ## Testing
 
-- `plugins/guardrails/test/harness.ts` spawns `bash hooks/<guard>.sh` with the JSON payload on stdin;
-  every input a test reads is built beside it in a scratch directory.
+- `plugins/guardrails/test/harness.ts` spawns `/bin/bash hooks/<guard>.sh` with the JSON payload on
+  stdin; every input a test reads is built beside it in a scratch directory.
 - The jq and TypeScript copies of the config contract run on one case list, so a change to either
   side fails there first.
-- The hook tests spawn `/bin/bash`, bash 3.2 on macOS, so a bash 4 construct fails in the suite.
+- The hook tests spawn `/bin/bash`, the hooks' shebang, never the first `bash` in PATH: bash 3.2 on
+  macOS, so a bash 4 construct fails the suite run on a Mac. CI's `ubuntu-latest` runs bash 5.2 and
+  passes it. A macOS runner costs ten times the Linux price per minute on this private repository, so
+  the bash 3.2 proof is the suite run on a Mac before a commit.
 - The env rules are proven on scratch repositories (a tracked `.env`, an ignored `.env.development`),
   not by running the plugin inside a real one; the env lists on the same shape with a committed config
   that allows the ignored file and denies the tracked one, plus a local layer that loosens and one
@@ -296,7 +299,8 @@ Open work on the plugin is tracked in GitHub Issues.
   tooling only.
 - `hooks/schema.jq` and `hooks/config.jq` are the jq twins of the TypeScript contract.
 - The hooks' shebang is `/bin/bash`, bash 3.2 on macOS; the guards stay free of bash 4 (`${var,,}`,
-  `declare -A`, `mapfile`) and the hook tests, which spawn that bash, prove it.
+  `declare -A`, `mapfile`) and the hook tests, which spawn that bash, prove it on a Mac; CI's bash
+  5.2 does not.
 - git and gh are parsed word by word (`guard_read_words`, `guard_unwrap_words` in `lib-words.sh`;
   `guard_git_verb`, `guard_opts`, `guard_parse_push` in `lib-git.sh`; `check_git`, `check_gh` in the
   guard), not regex-matched: a verb's options that take a value are listed with it, and a new
