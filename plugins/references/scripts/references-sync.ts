@@ -2,11 +2,13 @@
 // under references/<dir> — a missing one cloned, an existing one moved to a branch's head or to a tag.
 // Each clone is shallow and blobless, detached at what was fetched, and sparse when its entry skips
 // paths. Only the committed config is read. A key the parser refuses syncs nothing; an entry that
-// fails to resolve fails alone. A repository that declares no References gets no output at all.
+// fails to resolve fails alone. One Sync runs in a checkout at a time: a second one waits on the lock
+// under references/. A repository that declares no References gets no output at all.
 
 import { spawnSync } from "node:child_process"
-import { existsSync, readdirSync, readFileSync } from "node:fs"
+import { existsSync, linkSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
+import { setTimeout as sleep } from "node:timers/promises"
 import { parseArgs } from "node:util"
 
 import { readPins, resolveRef, type Pins } from "./pins.ts"
@@ -14,6 +16,10 @@ import { parseReferences, type Reference } from "./references-key.ts"
 
 const CONFIG = ".ai/agentic.config.json"
 const CLONES = "references"
+const LOCK = ".sync.lock"
+/** Seconds a Sync waits for another one in the same checkout: inside the session hook's 60 s. */
+const WAIT_SECONDS = 30
+const POLL_MS = 100
 
 const USAGE = `Usage: node <plugin root>/scripts/references-sync.ts [dir...]
   or:  pnpm references:sync [dir...], in a checkout of dw-sdlc
@@ -21,15 +27,117 @@ const USAGE = `Usage: node <plugin root>/scripts/references-sync.ts [dir...]
 Brings every Reference the references key of ${CONFIG} declares to its ref under ${CLONES}/<dir>, or
 only the given dirs: a missing one cloned shallow, an existing one moved to its branch's head or its
 tag, without the paths its skip names. Prints one line per Reference. Exit 1 when any Reference
-fails, 2 on a bad key, config or argument, in which case nothing is synced.`
+fails, 2 on a bad key, config or argument, in which case nothing is synced. One Sync runs in a
+checkout at a time; a second one waits for it up to ${WAIT_SECONDS} s, or REFERENCES_SYNC_WAIT seconds.`
 
 function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
+/** The code a failed system call throws with, as "ENOENT", or undefined. */
+function codeOf(error: unknown): string | undefined {
+  return error instanceof Error && "code" in error && typeof error.code === "string" ? error.code : undefined
+}
+
 function fail(message: string): never {
   console.error(`references:sync: ${message}`)
   process.exit(2)
+}
+
+/** REFERENCES_SYNC_WAIT when it names a number of seconds, else WAIT_SECONDS. */
+function waitSeconds(): number {
+  const given = process.env.REFERENCES_SYNC_WAIT?.trim()
+  const seconds = given === undefined || given === "" ? Number.NaN : Number(given)
+  return Number.isFinite(seconds) && seconds >= 0 ? seconds : WAIT_SECONDS
+}
+
+/** Whether `pid` is a running process of this user; a Sync's lock names one, so any other pid is left over. */
+function alive(pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** The pid of the running Sync that holds the lock at `path`; undefined for no lock, or a left-over one. */
+function holderOf(path: string): number | undefined {
+  let content: string
+  try {
+    content = readFileSync(path, "utf8")
+  } catch (error) {
+    if (codeOf(error) === "ENOENT") {
+      return undefined
+    }
+    throw error
+  }
+  const pid = Number(content.trim())
+  return Number.isInteger(pid) && pid > 0 && alive(pid) ? pid : undefined
+}
+
+/** Removes the left-over lock at `path`; one a running Sync took since the last look goes back in place. */
+function clear(path: string): void {
+  const aside = `${path}.${process.pid}.left`
+  try {
+    renameSync(path, aside)
+  } catch (error) {
+    if (codeOf(error) === "ENOENT") {
+      return
+    }
+    throw error
+  }
+  if (holderOf(aside) === undefined) {
+    rmSync(aside, { force: true })
+  } else {
+    renameSync(aside, path)
+  }
+}
+
+/** Removes the lock at `path` when this process holds it, and only then. */
+function release(path: string): void {
+  if (holderOf(path) === process.pid) {
+    rmSync(path, { force: true })
+  }
+}
+
+type Lock = { release: () => void } | { heldBy: number }
+
+/**
+ * Takes the lock under references/ for this process, waiting up to `seconds` on a running Sync that
+ * holds it, and clearing one left over. Past the wait, the pid still holding it.
+ */
+async function lock(root: string, seconds: number): Promise<Lock> {
+  const dir = join(root, CLONES)
+  mkdirSync(dir, { recursive: true })
+  const path = join(dir, LOCK)
+  // Written whole under this process's own name, then linked into place: no one reads it half-written.
+  const own = `${path}.${process.pid}`
+  writeFileSync(own, `${process.pid}\n`)
+  const deadline = Date.now() + seconds * 1000
+  try {
+    for (;;) {
+      try {
+        linkSync(own, path)
+        return { release: () => release(path) }
+      } catch (error) {
+        if (codeOf(error) !== "EEXIST") {
+          throw error
+        }
+      }
+      const holder = holderOf(path)
+      if (holder === undefined) {
+        clear(path)
+        continue
+      }
+      if (Date.now() >= deadline) {
+        return { heldBy: holder }
+      }
+      await sleep(POLL_MS)
+    }
+  } finally {
+    rmSync(own, { force: true })
+  }
 }
 
 /** The variables that tie git to one repository, as git itself lists them. */
@@ -140,7 +248,31 @@ function once<T>(compute: () => T): () => T {
   }
 }
 
-function main(argv: string[]): void {
+/** Syncs each of `selected` at its resolved ref and prints its line; whether any failed. */
+function syncAll(root: string, selected: Reference[]): boolean {
+  const pins = once((): Pins => readPins(root))
+  let failed = false
+  for (const reference of selected) {
+    let ref = reference.ref
+    let problem: string | undefined
+    try {
+      ref = resolveRef(reference.ref, pins)
+      problem = sync(root, reference, ref)
+    } catch (error) {
+      problem = messageOf(error)
+    }
+    if (problem === undefined) {
+      const head = git(["rev-parse", "--short", "HEAD"], join(root, CLONES, reference.dir)).out
+      console.log(`${CLONES}/${reference.dir}  ${head}  ${reference.repository} ${ref}`)
+    } else {
+      failed = true
+      console.error(`${CLONES}/${reference.dir}  FAILED  ${problem}`)
+    }
+  }
+  return failed
+}
+
+async function main(argv: string[]): Promise<void> {
   const cli = parseCli(argv)
   if (cli.help) {
     console.log(USAGE)
@@ -169,23 +301,20 @@ function main(argv: string[]): void {
   const selected =
     cli.dirs.length === 0 ? references : references.filter((reference) => cli.dirs.includes(reference.dir))
 
-  const pins = once((): Pins => readPins(root))
+  const seconds = waitSeconds()
+  const attempt = await lock(root, seconds).catch((error: unknown) =>
+    fail(`${CLONES}/${LOCK}: ${messageOf(error)}; nothing synced`)
+  )
   let failed = false
-  for (const reference of selected) {
-    let ref = reference.ref
-    let problem: string | undefined
+  if ("heldBy" in attempt) {
+    console.error(
+      `references:sync: another Sync (pid ${attempt.heldBy}) still holds ${CLONES}/${LOCK} after ${seconds} s; the clones are what it leaves`
+    )
+  } else {
     try {
-      ref = resolveRef(reference.ref, pins)
-      problem = sync(root, reference, ref)
-    } catch (error) {
-      problem = messageOf(error)
-    }
-    if (problem === undefined) {
-      const head = git(["rev-parse", "--short", "HEAD"], join(root, CLONES, reference.dir)).out
-      console.log(`${CLONES}/${reference.dir}  ${head}  ${reference.repository} ${ref}`)
-    } else {
-      failed = true
-      console.error(`${CLONES}/${reference.dir}  FAILED  ${problem}`)
+      failed = syncAll(root, selected)
+    } finally {
+      attempt.release()
     }
   }
 
@@ -204,5 +333,5 @@ function main(argv: string[]): void {
 }
 
 if (import.meta.main) {
-  main(process.argv.slice(2))
+  await main(process.argv.slice(2))
 }

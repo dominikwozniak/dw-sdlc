@@ -1,14 +1,17 @@
 // What references-sync.ts does through its CLI, against throwaway upstreams served over file://, so
 // `--depth` and the partial clone behave as they do against GitHub: clones and updates at a branch or
-// a tag, a ref naming a package, the sparse skip, what the Sync leaves alone, and how it fails.
+// a tag, a ref naming a package, the sparse skip, what the Sync leaves alone, how it fails, and two
+// Syncs in one checkout.
 
 import assert from "node:assert/strict"
-import { existsSync, readFileSync } from "node:fs"
+import { spawnSync } from "node:child_process"
+import { existsSync, readFileSync, rmSync } from "node:fs"
 import { join } from "node:path"
 import { describe, it } from "node:test"
+import { setTimeout as sleep } from "node:timers/promises"
 import { pathToFileURL } from "node:url"
 
-import { commit, git, initRepo, runScript, scratch, tag, write, writeJson, type Run } from "../harness.ts"
+import { commit, git, initRepo, runScript, scratch, startScript, tag, write, writeJson, type Run } from "../harness.ts"
 
 const CONFIG = ".ai/agentic.config.json"
 
@@ -72,6 +75,11 @@ function consumer(references: unknown, files: Record<string, string> = {}): stri
 
 function sync(root: string, ...dirs: string[]): Run {
   return runScript("references-sync", dirs, root)
+}
+
+/** A Sync started without waiting for it. */
+function startSync(root: string, env: NodeJS.ProcessEnv = {}): Promise<Run> {
+  return startScript("references-sync", [], root, env)
 }
 
 function expectStatus(run: Run, want: number): void {
@@ -322,6 +330,98 @@ describe("how the Sync fails", () => {
     const run = sync(root)
     expectStatus(run, 2)
     assert.match(run.stderr, /^references:sync: \.ai\/agentic\.config\.json: not JSON: .*; nothing synced$/m)
+  })
+})
+
+describe("two Syncs in one checkout", () => {
+  const LOCK = "references/.sync.lock"
+
+  /** The lock as a Sync run by process `pid` writes it. */
+  function hold(root: string, pid: number): void {
+    write(join(root, LOCK), `${pid}\n`)
+  }
+
+  it("started at once, both sync every entry and fail none", async () => {
+    const source = upstream()
+    const root = consumer([entry("a", source.url), entry("b", source.url), entry("c", source.url)])
+    const [first, second] = await Promise.all([startSync(root), startSync(root)])
+    const short = git(clone(root, "a"), "rev-parse", "--short", "HEAD").trim()
+    for (const run of [first, second]) {
+      expectStatus(run, 0)
+      assert.equal(run.stderr, "")
+      assert.deepEqual(lines(run.stdout), [
+        `references/a  ${short}  ${source.url} main`,
+        `references/b  ${short}  ${source.url} main`,
+        `references/c  ${short}  ${source.url} main`
+      ])
+    }
+    assert.ok(!existsSync(join(root, LOCK)), "the lock is released")
+  })
+
+  it("waits for the one that holds the lock, then syncs", async () => {
+    const source = upstream()
+    const root = consumer([entry("full", source.url)])
+    hold(root, process.pid)
+    const started = startSync(root)
+    await sleep(500)
+    assert.ok(!existsSync(clone(root, "full")), "nothing synced while the lock is held")
+    rmSync(join(root, LOCK))
+
+    const run = await started
+    expectStatus(run, 0)
+    assert.equal(run.stderr, "")
+    assert.match(run.stdout, /^references\/full {2}\w+ {2}\S+ main$/m)
+    assert.ok(has(root, "full", "README.md"))
+    assert.ok(!existsSync(join(root, LOCK)))
+  })
+
+  it("gives up after REFERENCES_SYNC_WAIT seconds: one line, exit 0, no Reference failed", () => {
+    const source = upstream()
+    const root = consumer([entry("full", source.url)])
+    hold(root, process.pid)
+    const run = runScript("references-sync", [], root, { REFERENCES_SYNC_WAIT: "1" })
+    expectStatus(run, 0)
+    assert.equal(run.stdout, "")
+    assert.deepEqual(lines(run.stderr), [
+      `references:sync: another Sync (pid ${process.pid}) still holds references/.sync.lock after 1 s; the clones are what it leaves`
+    ])
+    assert.ok(!existsSync(clone(root, "full")))
+    assert.equal(readFileSync(join(root, LOCK), "utf8"), `${process.pid}\n`, "the other Sync's lock stays")
+  })
+
+  /** A Sync against a left-over lock: synced at once, the lock gone. */
+  function expectCleared(root: string): void {
+    const run = runScript("references-sync", [], root, { REFERENCES_SYNC_WAIT: "2" })
+    expectStatus(run, 0)
+    assert.equal(run.stderr, "")
+    assert.ok(has(root, "full", "README.md"))
+    assert.ok(!existsSync(join(root, LOCK)))
+  }
+
+  it("removes the lock a killed Sync left and syncs at once", () => {
+    const root = consumer([entry("full", upstream().url)])
+    hold(root, spawnSync("true").pid)
+    expectCleared(root)
+  })
+
+  it("removes a lock that names no pid", () => {
+    const root = consumer([entry("full", upstream().url)])
+    write(join(root, LOCK), "")
+    expectCleared(root)
+  })
+
+  // pid 1 is init's, which this user cannot signal; root could, so the case is skipped for root.
+  it("removes a lock naming a pid this user cannot signal", { skip: process.getuid?.() === 0 }, () => {
+    const root = consumer([entry("full", upstream().url)])
+    hold(root, 1)
+    expectCleared(root)
+  })
+
+  it("releases the lock when a Reference fails", () => {
+    const gone = pathToFileURL(join(scratch("gone"), "nothing")).href
+    const root = consumer([entry("gone", gone)])
+    expectStatus(sync(root), 1)
+    assert.ok(!existsSync(join(root, LOCK)))
   })
 })
 
