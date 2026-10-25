@@ -52,14 +52,16 @@ A folder link names a ref and a path after `tree/`. `<rest>` stands for that par
 
 ```bash
 git -C <scout> ls-remote --heads --tags --refs origin |
-  awk -v rest='<rest>' '{ sub(/^refs\/(heads|tags)\//, "", $2) }
-    (rest == $2 || index(rest, $2 "/") == 1) && length($2) > length(ref) { ref = $2 }
-    END { print ref }'
+  awk -v rest='<rest>' '{ name = $2; sub(/^refs\/(heads|tags)\//, "", name) }
+    (rest == name || index(rest, name "/") == 1) && length(name) > length(ref) { ref = name; full = $2 }
+    END { print full }'
 ```
 
-What follows the ref is the part, the first `only` path, a directory ending in `/`: `pstack/`. An
-empty line means no branch or tag leads the link, as for a link to a commit: say so and stop. A
-link that ends at the ref, `https://github.com/cursor/plugins/tree/main`, names the ref and no part.
+The line is the ref in full, `refs/heads/main`: a branch under `refs/heads/`, a tag under
+`refs/tags/`, and the ref is the name after either. What follows the ref in `<rest>` is the part, the
+first `only` path, a directory ending in `/`: `pstack/`. An empty line means no branch or tag leads
+the link, as for a link to a commit: say so and stop. A link that ends at the ref,
+`https://github.com/cursor/plugins/tree/main`, names the ref and no part.
 
 ## 3. The ref
 
@@ -77,7 +79,7 @@ instead. It is one when the root `package.json` depends on a package it publishe
 - a range: the tag of the version installed, `node_modules/<name>/package.json`.
 
 No tag for the version: the default, and say so. Outside Node, the tag of the version the lockfile
-pins.
+pins. A tag in place of the ref a link names is said too.
 
 The steps below read the ref's tree as `<at>`. It is `HEAD` for the head of the default branch. Any
 other ref is fetched first: a branch with `git -C <scout> fetch --quiet --depth 1 origin <branch>`,
@@ -101,7 +103,7 @@ would fail the Reference: say so and stop. Count the files of the part and of ea
 outside it:
 
 ```bash
-git -C <scout> ls-tree -r --name-only <at> -- <path> | wc -l
+git -C <scout> ls-tree -r --name-only <at>:<path> | wc -l
 ```
 
 Propose each other directory for `only` with its count, `harness/pstack/`: 187 files, and add it
@@ -147,12 +149,12 @@ Read the entries the key holds and write in their style. Read the repository's R
 (`git -C <scout> show <at>:README.md`) for what it is, and with `only`, the README of each of its
 paths.
 
-- `dir`: the repository's name, or the part's for a folder link (`pstack` for
+- `dir`: the repository's name, or the part's when the link names one (`pstack` for
   `cursor/plugins/tree/main/pstack`), its owner's in front when the name alone says little
   (`mattpocock-skills` for `mattpocock/skills`); unique in the key, and not a directory under
   `references/` that is a clone of another repository.
 - `repository`: the URL, as the argument gives it, or `https://github.com/owner/repo` for
-  `owner/repo` and for a folder link.
+  `owner/repo` and for any link with `tree/` in it.
 - `ref`, `only` and `skip`: from steps 3, 4 and 6; leave `only` and `skip` out when they are empty.
 - `what`: what the repository is, or with `only`, the part the clone holds, in plain words: what it
   does, what it is built with, what in it is worth reading. With `skip`, one sentence says what the
