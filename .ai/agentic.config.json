@@ -64,6 +64,13 @@
       "skip": ["packages/worker/"],
       "what": "Kent C. Dodds's Kody, a cloud for an agent's memory, credentials, code and automations, on Cloudflare Workers and MCP; an Nx monorepo whose `AGENTS.md` routes to contributor docs, task skills in `.agents/skills/` and CI tools. The clone leaves out `packages/worker/`, its app Worker: 4809 of its 6038 files",
       "when": "agent instructions and docs for a large repo, harness engineering, or the skills `kcd-skills` comes from"
+    },
+    {
+      "dir": "byarcadia-foundation",
+      "repository": "git@github.com:byarcadia-app/foundation.git",
+      "ref": "main",
+      "what": "byArcadia's pnpm monorepo of `@byarcadia-app/*` packages shared by its Expo apps, built on Vite+ and released to npm through changesets: `payments` wraps RevenueCat in a React provider and paywall hooks, `anti-slop` is an oxlint JS plugin; ADRs and a strict pnpm supply-chain config",
+      "when": "a pnpm library monorepo on Vite+ with changesets and npm publishing, a React Native hook package and its tests, or an oxlint JS plugin"
     }
   ]
 }
