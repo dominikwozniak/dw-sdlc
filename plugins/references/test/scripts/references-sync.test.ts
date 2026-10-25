@@ -1,6 +1,7 @@
 // What references-sync.ts does through its CLI, against throwaway upstreams served over file://, so
 // `--depth` and the partial clone behave as they do against GitHub: clones and updates at a branch or
-// a tag, a ref naming a package, the sparse skip, what the Sync leaves alone, and how it fails.
+// a tag, a ref naming a package, the sparse skip, what the Sync leaves alone, how it fails, and two
+// Syncs in one checkout.
 
 import assert from "node:assert/strict"
 import { spawnSync } from "node:child_process"
@@ -388,15 +389,32 @@ describe("two Syncs in one checkout", () => {
     assert.equal(readFileSync(join(root, LOCK), "utf8"), `${process.pid}\n`, "the other Sync's lock stays")
   })
 
-  it("removes the lock a killed Sync left and syncs at once", () => {
-    const source = upstream()
-    const root = consumer([entry("full", source.url)])
-    hold(root, spawnSync("true").pid)
+  /** A Sync against a left-over lock: synced at once, the lock gone. */
+  function expectCleared(root: string): void {
     const run = runScript("references-sync", [], root, { REFERENCES_SYNC_WAIT: "2" })
     expectStatus(run, 0)
     assert.equal(run.stderr, "")
     assert.ok(has(root, "full", "README.md"))
     assert.ok(!existsSync(join(root, LOCK)))
+  }
+
+  it("removes the lock a killed Sync left and syncs at once", () => {
+    const root = consumer([entry("full", upstream().url)])
+    hold(root, spawnSync("true").pid)
+    expectCleared(root)
+  })
+
+  it("removes a lock that names no pid", () => {
+    const root = consumer([entry("full", upstream().url)])
+    write(join(root, LOCK), "")
+    expectCleared(root)
+  })
+
+  // pid 1 is init's, which this user cannot signal; root could, so the case is skipped for root.
+  it("removes a lock naming a pid this user cannot signal", { skip: process.getuid?.() === 0 }, () => {
+    const root = consumer([entry("full", upstream().url)])
+    hold(root, 1)
+    expectCleared(root)
   })
 
   it("releases the lock when a Reference fails", () => {

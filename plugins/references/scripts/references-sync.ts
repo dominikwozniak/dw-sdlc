@@ -6,7 +6,7 @@
 // under references/. A repository that declares no References gets no output at all.
 
 import { spawnSync } from "node:child_process"
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, linkSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 import { parseArgs } from "node:util"
@@ -44,18 +44,20 @@ function fail(message: string): never {
   process.exit(2)
 }
 
+/** REFERENCES_SYNC_WAIT when it names a number of seconds, else WAIT_SECONDS. */
 function waitSeconds(): number {
-  const seconds = Number(process.env.REFERENCES_SYNC_WAIT)
+  const given = process.env.REFERENCES_SYNC_WAIT?.trim()
+  const seconds = given === undefined || given === "" ? Number.NaN : Number(given)
   return Number.isFinite(seconds) && seconds >= 0 ? seconds : WAIT_SECONDS
 }
 
-/** Whether a process with `pid` runs; one this user may not signal runs too. */
+/** Whether `pid` is a running process of this user; a Sync's lock names one, so any other pid is left over. */
 function alive(pid: number): boolean {
   try {
     process.kill(pid, 0)
     return true
-  } catch (error) {
-    return codeOf(error) === "EPERM"
+  } catch {
+    return false
   }
 }
 
@@ -74,40 +76,67 @@ function holderOf(path: string): number | undefined {
   return Number.isInteger(pid) && pid > 0 && alive(pid) ? pid : undefined
 }
 
+/** Removes the left-over lock at `path`; one a running Sync took since the last look goes back in place. */
+function clear(path: string): void {
+  const aside = `${path}.${process.pid}.left`
+  try {
+    renameSync(path, aside)
+  } catch (error) {
+    if (codeOf(error) === "ENOENT") {
+      return
+    }
+    throw error
+  }
+  if (holderOf(aside) === undefined) {
+    rmSync(aside, { force: true })
+  } else {
+    renameSync(aside, path)
+  }
+}
+
+/** Removes the lock at `path` when this process holds it, and only then. */
+function release(path: string): void {
+  if (holderOf(path) === process.pid) {
+    rmSync(path, { force: true })
+  }
+}
+
 type Lock = { release: () => void } | { heldBy: number }
 
 /**
  * Takes the lock under references/ for this process, waiting up to `seconds` on a running Sync that
- * holds it, and removing one its process left behind. Past the wait, the pid still holding it.
+ * holds it, and clearing one left over. Past the wait, the pid still holding it.
  */
 async function lock(root: string, seconds: number): Promise<Lock> {
-  mkdirSync(join(root, CLONES), { recursive: true })
-  const path = join(root, CLONES, LOCK)
+  const dir = join(root, CLONES)
+  mkdirSync(dir, { recursive: true })
+  const path = join(dir, LOCK)
+  // Written whole under this process's own name, then linked into place: no one reads it half-written.
+  const own = `${path}.${process.pid}`
+  writeFileSync(own, `${process.pid}\n`)
   const deadline = Date.now() + seconds * 1000
-  for (;;) {
-    try {
-      writeFileSync(path, `${process.pid}\n`, { flag: "wx" })
-      return {
-        release: () => {
-          rmSync(path, { force: true })
+  try {
+    for (;;) {
+      try {
+        linkSync(own, path)
+        return { release: () => release(path) }
+      } catch (error) {
+        if (codeOf(error) !== "EEXIST") {
+          throw error
         }
       }
-    } catch (error) {
-      if (codeOf(error) !== "EEXIST") {
-        throw error
+      const holder = holderOf(path)
+      if (holder === undefined) {
+        clear(path)
+        continue
       }
+      if (Date.now() >= deadline) {
+        return { heldBy: holder }
+      }
+      await sleep(POLL_MS)
     }
-    const holder = holderOf(path)
-    if (holder === undefined) {
-      // Two waiters clearing one left-over lock may both pass; that takes a killed Sync and two
-      // starting together after it.
-      rmSync(path, { force: true })
-      continue
-    }
-    if (Date.now() >= deadline) {
-      return { heldBy: holder }
-    }
-    await sleep(POLL_MS)
+  } finally {
+    rmSync(own, { force: true })
   }
 }
 
@@ -219,6 +248,30 @@ function once<T>(compute: () => T): () => T {
   }
 }
 
+/** Syncs each of `selected` at its resolved ref and prints its line; whether any failed. */
+function syncAll(root: string, selected: Reference[]): boolean {
+  const pins = once((): Pins => readPins(root))
+  let failed = false
+  for (const reference of selected) {
+    let ref = reference.ref
+    let problem: string | undefined
+    try {
+      ref = resolveRef(reference.ref, pins)
+      problem = sync(root, reference, ref)
+    } catch (error) {
+      problem = messageOf(error)
+    }
+    if (problem === undefined) {
+      const head = git(["rev-parse", "--short", "HEAD"], join(root, CLONES, reference.dir)).out
+      console.log(`${CLONES}/${reference.dir}  ${head}  ${reference.repository} ${ref}`)
+    } else {
+      failed = true
+      console.error(`${CLONES}/${reference.dir}  FAILED  ${problem}`)
+    }
+  }
+  return failed
+}
+
 async function main(argv: string[]): Promise<void> {
   const cli = parseCli(argv)
   if (cli.help) {
@@ -249,37 +302,20 @@ async function main(argv: string[]): Promise<void> {
     cli.dirs.length === 0 ? references : references.filter((reference) => cli.dirs.includes(reference.dir))
 
   const seconds = waitSeconds()
-  const held = await lock(root, seconds).catch((error: unknown) =>
+  const attempt = await lock(root, seconds).catch((error: unknown) =>
     fail(`${CLONES}/${LOCK}: ${messageOf(error)}; nothing synced`)
   )
-  if ("heldBy" in held) {
-    console.error(
-      `references:sync: another Sync (pid ${held.heldBy}) still holds ${CLONES}/${LOCK} after ${seconds} s; the clones are what it leaves`
-    )
-    return
-  }
-  const pins = once((): Pins => readPins(root))
   let failed = false
-  try {
-    for (const reference of selected) {
-      let ref = reference.ref
-      let problem: string | undefined
-      try {
-        ref = resolveRef(reference.ref, pins)
-        problem = sync(root, reference, ref)
-      } catch (error) {
-        problem = messageOf(error)
-      }
-      if (problem === undefined) {
-        const head = git(["rev-parse", "--short", "HEAD"], join(root, CLONES, reference.dir)).out
-        console.log(`${CLONES}/${reference.dir}  ${head}  ${reference.repository} ${ref}`)
-      } else {
-        failed = true
-        console.error(`${CLONES}/${reference.dir}  FAILED  ${problem}`)
-      }
+  if ("heldBy" in attempt) {
+    console.error(
+      `references:sync: another Sync (pid ${attempt.heldBy}) still holds ${CLONES}/${LOCK} after ${seconds} s; the clones are what it leaves`
+    )
+  } else {
+    try {
+      failed = syncAll(root, selected)
+    } finally {
+      attempt.release()
     }
-  } finally {
-    held.release()
   }
 
   const listed = new Set(references.map((reference) => reference.dir))

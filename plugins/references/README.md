@@ -61,8 +61,9 @@ One Sync runs in a checkout at a time: it holds `references/.sync.lock`, with it
 it syncs. A second one started meanwhile, a session starting beside another or `pnpm references:sync`
 during a session start, waits for it, up to 30 s, then syncs. Past that it prints one line naming the
 pid, exits 0 and leaves the clones to the Sync still running. `REFERENCES_SYNC_WAIT` sets the seconds
-to wait. A lock whose process is gone, left by a killed Sync, is removed and never waited on. A
-worktree has a `references/` of its own, so only Syncs in one checkout wait on each other.
+to wait. A lock whose pid is not a running process of this user, left by a killed Sync, is removed
+and never waited on. A worktree has a `references/` of its own, so only Syncs in one checkout wait
+on each other.
 
 ## Failures
 
