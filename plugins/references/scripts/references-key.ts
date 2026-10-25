@@ -9,11 +9,19 @@ import { join } from "node:path"
 /** The committed config, the only file the key is read from. */
 export const CONFIG = ".ai/agentic.config.json"
 
-export type Reference = { dir: string; repository: string; ref: string; skip: string[]; what: string; when: string }
+export type Reference = {
+  dir: string
+  repository: string
+  ref: string
+  only: string[]
+  skip: string[]
+  what: string
+  when: string
+}
 
 export type KeyProblem = { path: string; message: string }
 
-const FIELDS = ["dir", "repository", "ref", "skip", "what", "when"]
+const FIELDS = ["dir", "repository", "ref", "only", "skip", "what", "when"]
 const REQUIRED = ["dir", "repository", "ref", "what", "when"]
 
 const DIR_NAME = /^[A-Za-z0-9_][A-Za-z0-9_.-]*$/
@@ -61,7 +69,8 @@ function matching(value: unknown, path: string, pattern: RegExp, rule: string): 
   return string
 }
 
-function skipPaths(value: unknown, path: string): string[] {
+/** A list of paths inside the clone, empty when absent. */
+function paths(value: unknown, path: string): string[] {
   if (value === undefined) {
     return []
   }
@@ -71,6 +80,19 @@ function skipPaths(value: unknown, path: string): string[] {
   return value.map((item, index) =>
     matching(item, `${path}[${index}]`, INSIDE_CLONE, "relative to the clone and stay inside it")
   )
+}
+
+/** `only`: absent, or at least one path, so a typo never checks out nothing. */
+function onlyPaths(value: unknown, path: string): string[] {
+  if (Array.isArray(value) && value.length === 0) {
+    throw new KeyError(path, "must name at least one path")
+  }
+  return paths(value, path)
+}
+
+/** Whether `path` lies below the directory `dir`, a trailing `/` on either aside. */
+function below(path: string, dir: string): boolean {
+  return path.replace(/\/+$/, "").startsWith(`${dir.replace(/\/+$/, "")}/`)
 }
 
 function parseEntry(value: unknown, path: string): Reference {
@@ -85,7 +107,7 @@ function parseEntry(value: unknown, path: string): Reference {
   if (missing !== undefined) {
     throw new KeyError(path, `missing field ${JSON.stringify(missing)}`)
   }
-  return {
+  const reference = {
     dir: matching(
       value.dir,
       `${path}.dir`,
@@ -99,10 +121,20 @@ function parseEntry(value: unknown, path: string): Reference {
       "a URL git can fetch, with no whitespace and no leading -"
     ),
     ref: matching(value.ref, `${path}.ref`, GIT_ARGUMENT, "a branch or a tag, with no whitespace and no leading -"),
-    skip: skipPaths(value.skip, `${path}.skip`),
+    only: onlyPaths(value.only, `${path}.only`),
+    skip: paths(value.skip, `${path}.skip`),
     what: nonEmpty(value.what, `${path}.what`),
     when: nonEmpty(value.when, `${path}.when`)
   }
+  const { only, skip } = reference
+  const outside = only.length === 0 ? -1 : skip.findIndex((skipped) => !only.some((kept) => below(skipped, kept)))
+  if (outside !== -1) {
+    throw new KeyError(
+      `${path}.skip[${outside}]`,
+      `${JSON.stringify(skip[outside])} must lie inside one of the only paths`
+    )
+  }
+  return reference
 }
 
 /** The References `value` declares, or the first problem in it, named by its path under the key. */

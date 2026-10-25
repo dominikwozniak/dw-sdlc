@@ -34,8 +34,27 @@ An array of entries, each with:
 - `ref` — a branch or a tag; `{name}` in it stands for the exact version the root `package.json`
   pins for package `name`, read through the default catalog of `pnpm-workspace.yaml` when the pin
   says `catalog:` or `catalog:default`;
-- `skip` — optional, paths the sparse checkout leaves out, relative and inside the clone;
+- `only` — optional, at least one path the clone holds beside the repository's top-level files,
+  relative and inside the clone, a directory ending in `/`; absent, the clone holds the whole tree;
+- `skip` — optional, paths the sparse checkout leaves out, relative and inside the clone; with
+  `only`, each lies inside one of its paths;
 - `what` and `when` — what the Reference is, and when an agent reaches for it.
+
+With `only`, the clone holds the repository's top-level files too, since a README or a manifest
+there tells an agent where the part sits. Nothing else is checked out: not the files beside a
+nested path, nor a directory the repository adds later. `cursor/plugins`, read for its pstack part
+alone:
+
+```json
+{
+  "dir": "pstack",
+  "repository": "https://github.com/cursor/plugins",
+  "ref": "main",
+  "only": ["pstack/", "harness/pstack/"],
+  "what": "Cursor's pstack plugin. The clone holds only `pstack/` and `harness/pstack/`.",
+  "when": "designing a plugin that ships skills and a harness"
+}
+```
 
 An unknown field is refused. `config/references.schema.json` documents the contract; at runtime
 `scripts/references-key.ts` is the authority, and one case list holds the two in agreement. The
@@ -51,9 +70,11 @@ pnpm references:sync [dir...]   # in a checkout of dw-sdlc
 
 Every Reference, or only the named ones. A missing one is cloned shallow, blobless and without a
 checkout; an existing one is fetched at depth 1. Either is then checked out detached at what was
-fetched, sparse when `skip` names paths. Each prints one line: directory, short commit, repository
-and ref. The variables `git rev-parse --local-env-vars` lists are dropped, so a run from a git hook
-never touches the repository that hook points at, and the terminal prompt is off.
+fetched, sparse when `only` or `skip` names paths. The sparse checkout is set from both on every
+run, so adding, changing or removing either moves the clone at the next Sync, and a move between a
+branch and a tag keeps it. Each prints one line: directory, short commit, repository and ref. The
+variables `git rev-parse --local-env-vars` lists are dropped, so a run from a git hook never
+touches the repository that hook points at, and the terminal prompt is off.
 
 A directory under `references/` the list does not name is reported and never deleted. When the
 Router or its table is missing or behind the key, one line more names the setup to run, and when
@@ -73,8 +94,10 @@ on each other.
 - **Exit 2**: a key the parser refuses, a config that is not JSON, or a named dir the list lacks.
   Nothing is synced, and one line names the entry, the field and the reason.
 - **Exit 1**: an entry that fails to resolve fails alone, and the rest proceed. That covers an
-  unreachable repository, a missing or inexact pin, a clone with local edits the update would
-  overwrite, and a directory that is not a clone of its repository; each is left as it is.
+  unreachable repository, a missing or inexact pin, an `only` path the fetched tree lacks, a clone
+  with local edits the update would overwrite, and a directory that is not a clone of its
+  repository; each is left as it is. The line for a missing `only` path names it, so a renamed
+  upstream folder shows at session start instead of leaving an empty clone.
 
 ## Adding a Reference
 

@@ -1,12 +1,12 @@
 // What references-sync.ts does through its CLI, against throwaway upstreams served over file://, so
 // `--depth` and the partial clone behave as they do against GitHub: clones and updates at a branch or
-// a tag, a ref naming a package, the sparse skip, what the Sync leaves alone, how it fails, and two
-// Syncs in one checkout.
+// a tag, a ref naming a package, the sparse skip and only, what the Sync leaves alone, how it fails,
+// and two Syncs in one checkout.
 
 import assert from "node:assert/strict"
 import { spawnSync } from "node:child_process"
-import { existsSync, readFileSync, rmSync } from "node:fs"
-import { join } from "node:path"
+import { existsSync, readdirSync, readFileSync, rmSync } from "node:fs"
+import { join, relative } from "node:path"
 import { describe, it } from "node:test"
 import { setTimeout as sleep } from "node:timers/promises"
 import { pathToFileURL } from "node:url"
@@ -36,6 +36,30 @@ function upstream(): Upstream {
   const source = newUpstream("upstream")
   advance(source, "README.md")
   advance(source, "repos/vendored.txt")
+  return source
+}
+
+/** Files at the repository's top, the part a Reference reads in two directories, and the rest. */
+const PLUGINS = [
+  "README.md",
+  "package.json",
+  "pstack/SKILL.md",
+  "pstack/vendor/lib.md",
+  "harness/README.md",
+  "harness/pstack/run.md",
+  "harness/other/run.md",
+  "other/SKILL.md",
+  "pstackish/SKILL.md"
+]
+
+/** A repository laid out like cursor/plugins, in one commit. */
+function plugins(): Upstream {
+  const source = newUpstream("plugins")
+  for (const file of PLUGINS) {
+    write(join(source.dir, file), `${file}\n`)
+  }
+  git(source.dir, "add", ...PLUGINS)
+  commit(source.dir, "-m", "plugins")
   return source
 }
 
@@ -107,6 +131,16 @@ function lines(text: string): string[] {
   return text.split("\n").filter((line) => line !== "")
 }
 
+/** Every file checked out in the clone at `dir`, its .git aside, sorted. */
+function checkedOut(root: string, dir: string): string[] {
+  const top = clone(root, dir)
+  return readdirSync(top, { recursive: true, withFileTypes: true })
+    .filter((found) => found.isFile())
+    .map((found) => relative(top, join(found.parentPath, found.name)))
+    .filter((path) => path.split("/")[0] !== ".git")
+    .toSorted()
+}
+
 describe("a fresh clone and an update", () => {
   const source = upstream()
   const root = consumer([entry("full", source.url), entry("slim", source.url, { skip: ["repos/"] })])
@@ -147,6 +181,129 @@ describe("a fresh clone and an update", () => {
     declare(root, [entry("full", source.url), entry("slim", source.url, { skip: ["repos/"] })])
     expectStatus(sync(root, "slim"), 0)
     assert.ok(!has(root, "slim", "repos"))
+  })
+})
+
+describe("only", () => {
+  const source = plugins()
+  const root = consumer([
+    entry("pstack", source.url, { only: ["pstack/", "harness/pstack/"] }),
+    entry("vendorless", source.url, { only: ["pstack/", "harness/pstack"], skip: ["pstack/vendor/"] }),
+    entry("one-file", source.url, { only: ["harness/other/run.md"] })
+  ])
+
+  it("holds the top-level files and the paths only names, and nothing else; each line as without it", () => {
+    const run = sync(root)
+    expectStatus(run, 0)
+    const short = git(clone(root, "pstack"), "rev-parse", "--short", "HEAD").trim()
+    assert.deepEqual(lines(run.stdout), [
+      `references/pstack  ${short}  ${source.url} main`,
+      `references/vendorless  ${short}  ${source.url} main`,
+      `references/one-file  ${short}  ${source.url} main`
+    ])
+    assert.equal(run.stderr, "")
+    assert.deepEqual(checkedOut(root, "pstack"), [
+      "README.md",
+      "harness/pstack/run.md",
+      "package.json",
+      "pstack/SKILL.md",
+      "pstack/vendor/lib.md"
+    ])
+  })
+
+  it("leaves out a skip path inside them", () => {
+    assert.deepEqual(checkedOut(root, "vendorless"), [
+      "README.md",
+      "harness/pstack/run.md",
+      "package.json",
+      "pstack/SKILL.md"
+    ])
+  })
+
+  it("holds a file only names, deep under directories it otherwise leaves out", () => {
+    assert.deepEqual(checkedOut(root, "one-file"), ["README.md", "harness/other/run.md", "package.json"])
+  })
+
+  it("shrinks a whole clone once only is added, and brings the whole tree back once it is removed", () => {
+    const whole = consumer([entry("pstack", source.url)])
+    expectStatus(sync(whole), 0)
+    assert.deepEqual(checkedOut(whole, "pstack"), PLUGINS.toSorted())
+
+    declare(whole, [entry("pstack", source.url, { only: ["pstack/"] })])
+    expectStatus(sync(whole), 0)
+    assert.deepEqual(checkedOut(whole, "pstack"), [
+      "README.md",
+      "package.json",
+      "pstack/SKILL.md",
+      "pstack/vendor/lib.md"
+    ])
+
+    declare(whole, [entry("pstack", source.url)])
+    expectStatus(sync(whole), 0)
+    assert.deepEqual(checkedOut(whole, "pstack"), PLUGINS.toSorted())
+  })
+
+  it("fails an entry once the ref's tree lacks a path only names, the clone as it was, and syncs the rest", () => {
+    const renaming = plugins()
+    const named = consumer([entry("pstack", renaming.url, { only: ["pstack/"] }), entry("fine", renaming.url)])
+    expectStatus(sync(named), 0)
+    const before = head(clone(named, "pstack"))
+    const kept = checkedOut(named, "pstack")
+    git(renaming.dir, "mv", "pstack", "plugin-pstack")
+    commit(renaming.dir, "-m", "rename")
+
+    const run = sync(named)
+    expectStatus(run, 1)
+    assert.deepEqual(lines(run.stderr), ["references/pstack  FAILED  only names pstack/, which the tree at main lacks"])
+    assert.equal(head(clone(named, "pstack")), before)
+    assert.deepEqual(checkedOut(named, "pstack"), kept)
+    assert.equal(head(clone(named, "fine")), head(renaming.dir))
+  })
+
+  it("keeps only across a move between a branch and a tag, and fails a tag whose tree lacks a path it names", () => {
+    const released = plugins()
+    tag(released.dir, "v1.0.0")
+    advance(released, "CHANGELOG.md")
+    advance(released, "later/SKILL.md")
+    const moving = consumer([entry("pstack", released.url, { only: ["pstack/"] })])
+    expectStatus(sync(moving), 0)
+    assert.deepEqual(checkedOut(moving, "pstack"), [
+      "CHANGELOG.md",
+      "README.md",
+      "package.json",
+      "pstack/SKILL.md",
+      "pstack/vendor/lib.md"
+    ])
+
+    declare(moving, [entry("pstack", released.url, { ref: "v1.0.0", only: ["pstack/"] })])
+    expectStatus(sync(moving), 0)
+    assert.deepEqual(checkedOut(moving, "pstack"), [
+      "README.md",
+      "package.json",
+      "pstack/SKILL.md",
+      "pstack/vendor/lib.md"
+    ])
+
+    declare(moving, [entry("pstack", released.url, { only: ["pstack/", "later/"] })])
+    expectStatus(sync(moving), 0)
+    const before = head(clone(moving, "pstack"))
+    assert.deepEqual(checkedOut(moving, "pstack"), [
+      "CHANGELOG.md",
+      "README.md",
+      "later/SKILL.md",
+      "package.json",
+      "pstack/SKILL.md",
+      "pstack/vendor/lib.md"
+    ])
+
+    declare(moving, [entry("pstack", released.url, { ref: "v1.0.0", only: ["pstack/", "later/"] })])
+    const run = sync(moving)
+    expectStatus(run, 1)
+    assert.deepEqual(lines(run.stderr), [
+      "references/pstack  FAILED  only names later/, which the tree at v1.0.0 lacks"
+    ])
+    assert.equal(head(clone(moving, "pstack")), before)
+    assert.ok(has(moving, "pstack", "later/SKILL.md"))
   })
 })
 
@@ -355,6 +512,28 @@ describe("how the Sync fails", () => {
     ])
     assert.equal(head(clone(root, "full")), before)
     assert.ok(!existsSync(clone(root, "new")))
+  })
+
+  it("syncs nothing on an only that is empty or leaves the clone, or a skip path outside every only path", () => {
+    const source = upstream()
+    const cases: [Record<string, unknown>, string][] = [
+      [{ only: [] }, "references[1].only: must name at least one path"],
+      [{ only: ["/docs/"] }, 'references[1].only[0]: "/docs/" must be relative to the clone and stay inside it'],
+      [
+        { only: ["docs/../../x"] },
+        'references[1].only[0]: "docs/../../x" must be relative to the clone and stay inside it'
+      ],
+      [{ only: ["docs/"], skip: ["repos/"] }, 'references[1].skip[0]: "repos/" must lie inside one of the only paths']
+    ]
+    for (const [fields, problem] of cases) {
+      const root = consumer([entry("full", source.url)])
+      declare(root, [entry("full", source.url), entry("narrow", source.url, fields)])
+      const run = sync(root)
+      expectStatus(run, 2)
+      assert.equal(run.stdout, "")
+      assert.deepEqual(lines(run.stderr), [`references:sync: .ai/agentic.config.json: ${problem}; nothing synced`])
+      assert.ok(!existsSync(clone(root, "full")))
+    }
   })
 
   it("fails an unreachable repository alone", () => {

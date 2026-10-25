@@ -19,9 +19,9 @@
     },
     {
       "name": "references",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "source": "./plugins/references",
-      "description": "Brings the repositories a project reads for prior art, declared as the references key of its .ai/agentic.config.json, to their ref under references/: shallow, at a branch or a tag, sparse where paths are skipped. /sdlc-references-add sets a repository up and adds one.",
+      "description": "Brings the repositories a project reads for prior art, declared as the references key of its .ai/agentic.config.json, to their ref under references/: shallow, at a branch or a tag, sparse where paths are named or skipped. /sdlc-references-add sets a repository up and adds one.",
       "keywords": ["references", "hooks", "skills", "git", "clone"],
       "category": "utilities",
       "tags": ["references", "hooks", "research"]

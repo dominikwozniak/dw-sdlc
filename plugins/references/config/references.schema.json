@@ -22,8 +22,17 @@
         "type": "string",
         "pattern": "^[^\\s-]\\S*$"
       },
+      "only": {
+        "description": "Paths the sparse checkout holds beside the repository's top-level files, relative to the clone and inside it; a directory ends in `/`. Absent, the whole tree is checked out. Present, it names at least one path, and a path the ref's tree lacks fails the Reference.",
+        "type": "array",
+        "minItems": 1,
+        "items": {
+          "type": "string",
+          "pattern": "^(?!/)(?!(?:.*/)?\\.\\.(?:/|$)).+$"
+        }
+      },
       "skip": {
-        "description": "Paths the sparse checkout leaves out, relative to the clone and inside it. Empty or absent, the whole tree is checked out.",
+        "description": "Paths the sparse checkout leaves out, relative to the clone and inside it. Empty or absent, nothing is left out. With `only`, each lies inside one of its paths, which this schema cannot say and the Sync refuses.",
         "type": "array",
         "items": {
           "type": "string",
