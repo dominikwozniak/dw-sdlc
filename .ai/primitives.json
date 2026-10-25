@@ -130,7 +130,7 @@
       "name": "Agentic config",
       "group": "config",
       "summary": "How a repository works for an agent: a committed file, a local layer over it, both against the schema.",
-      "code": [".ai/agentic.config.json", "plugins/guardrails/config/agentic.config.schema.json"],
+      "code": [".ai/agentic.config.json", "packages/dw-sdlc/config/agentic.config.schema.json"],
       "docs": [
         "docs/overview.md#where-the-rules-come-from",
         "docs/adr/0002-agent-rules-are-a-validated-config-file.md",
@@ -143,8 +143,9 @@
       "group": "config",
       "summary": "Reads, validates and merges the layers, in TypeScript for the scripts and in jq for the guards, one behaviour.",
       "code": [
+        "packages/dw-sdlc/src/agentic-config.ts",
+        "packages/dw-sdlc/src/json-schema.ts",
         "plugins/guardrails/scripts/agentic-config.ts",
-        "plugins/guardrails/scripts/json-schema.ts",
         "plugins/guardrails/hooks/config.jq",
         "plugins/guardrails/hooks/schema.jq"
       ],
@@ -155,7 +156,7 @@
       "name": "guardrails key",
       "group": "config",
       "summary": "forcePush, commitOnProtected, protectedBranches and envFiles; a local layer may only tighten them.",
-      "code": ["plugins/guardrails/config/agentic.config.schema.json"],
+      "code": ["packages/dw-sdlc/config/agentic.config.schema.json"],
       "docs": [
         "docs/specs/agentic-guardrails.md#decisions",
         "docs/adr/0004-lease-push-passes-bare-force-refused.md",
@@ -167,7 +168,7 @@
       "name": "commit key",
       "group": "config",
       "summary": "The convention or pattern a commit subject follows and the trailer every commit carries.",
-      "code": ["plugins/guardrails/config/agentic.config.schema.json"],
+      "code": ["packages/dw-sdlc/config/agentic.config.schema.json"],
       "docs": ["plugins/guardrails/README.md#guards", "AGENTS.md#git"]
     },
     {
@@ -175,7 +176,7 @@
       "name": "packageManagers key",
       "group": "config",
       "summary": "The Node package manager a repository works with, inferred from the lockfile when nothing sets it.",
-      "code": ["plugins/guardrails/config/agentic.config.schema.json"],
+      "code": ["packages/dw-sdlc/config/agentic.config.schema.json"],
       "docs": ["plugins/guardrails/README.md#guards"]
     },
     {
@@ -183,7 +184,7 @@
       "name": "validation key",
       "group": "config",
       "summary": "The commands that verify a change, a list skills read and no script runs; the gate key of ADR 0009 takes its place.",
-      "code": ["plugins/guardrails/config/agentic.config.schema.json"],
+      "code": ["packages/dw-sdlc/config/agentic.config.schema.json"],
       "docs": ["docs/adr/0009-checks-are-named-units-turned-on-in-the-config.md"]
     },
     {
@@ -191,7 +192,7 @@
       "name": "worktree key",
       "group": "config",
       "summary": "The commands a fresh worktree still needs; the session hook names them in a linked worktree.",
-      "code": ["plugins/guardrails/config/agentic.config.schema.json"],
+      "code": ["packages/dw-sdlc/config/agentic.config.schema.json"],
       "docs": ["plugins/guardrails/README.md#session-start"]
     },
     {
@@ -280,6 +281,18 @@
       "summary": "The manifest wiring the session hook; its version and the marketplace's bump together.",
       "code": ["plugins/references/.claude-plugin/plugin.json"],
       "docs": ["plugins/references/README.md#install", "docs/overview.md#releasing-a-plugin"]
+    },
+    {
+      "id": "distribution.package",
+      "name": "dw-sdlc package",
+      "group": "distribution",
+      "summary": "The workspace package the guardrails plugin links to; an install copies the link as a real directory.",
+      "code": ["packages/dw-sdlc/package.json", "plugins/guardrails/dw-sdlc"],
+      "docs": [
+        "plugins/guardrails/README.md#layout",
+        "docs/overview.md#from-github-or-from-a-clone",
+        "docs/adr/0008-gate-runs-from-a-pinned-package-plugin-adapts.md"
+      ]
     },
     {
       "id": "gate.check",

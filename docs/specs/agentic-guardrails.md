@@ -288,14 +288,14 @@ Open work on the plugin is tracked in GitHub Issues.
 - The guards judge the commands that edit them: a test string such as `npm install`, a file named
   `.env*` or a `cp` of one is refused at Write or Bash time. Build such strings at runtime
   (`N=".en""v"`).
-- Schema validation is a dependency-free subset interpreter, `plugins/guardrails/scripts/json-schema.ts`;
+- Schema validation is a dependency-free subset interpreter, `packages/dw-sdlc/src/json-schema.ts`;
   a keyword outside its subset throws. `ajv` would replace it at the cost of a pinned dependency.
 - The bash guards re-implement the merge in jq (`lib.sh`, `config.jq`): two enums ordered strict-first
   (`STRICTNESS`), one superset list, any invalid layer → `STRICTEST_GUARDRAILS`. The TypeScript reader
-  and `test/scripts/agentic-config.test.ts` are the reference behaviour.
-- The plugin is self-contained: its TypeScript lives in `plugins/guardrails/scripts/`, because a
-  marketplace install copies `plugins/guardrails/` alone. The repository's `scripts/` keeps repo
-  tooling only.
+  in `packages/dw-sdlc/src/agentic-config.ts` and its tests are the reference behaviour.
+- The plugin is self-contained once installed: a marketplace install copies `plugins/guardrails/`
+  alone, and its `dw-sdlc` link to `packages/dw-sdlc` arrives as a real directory. The repository's
+  `scripts/` keeps repo tooling only.
 - `hooks/schema.jq` and `hooks/config.jq` are the jq twins of the TypeScript contract.
 - The hooks' shebang is `/bin/bash`, bash 3.2 on macOS, and the dispatcher starts each guard on its
   own `$BASH`; the guards stay free of bash 4 (`${var,,}`, `declare -A`, `mapfile`) and the hook

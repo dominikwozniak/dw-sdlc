@@ -96,7 +96,7 @@ Add `.ai/agentic.config.json` and validate it with
 
 A repository with nothing declared still gets the inferred defaults, so the file is optional. Each
 key and its inferred value is described in the
-[schema](../plugins/guardrails/config/agentic.config.schema.json). The `$schema` URL is an annotation
+[schema](../packages/dw-sdlc/config/agentic.config.schema.json). The `$schema` URL is an annotation
 for editors; the guards always validate against the schema the plugin ships.
 
 The `/sdlc-guardrails-setup` skill then writes this machine's local config layer from what it infers,
@@ -108,9 +108,12 @@ per machine check. The doctor needs only Node 24 and runs from the installed plu
 
 ## From GitHub or from a clone
 
-Added from GitHub with `--sparse .claude-plugin plugins`, the plugin is a snapshot of `main` that
-`claude plugin update` refreshes, and the clone holds only the catalogue and the plugins. Added from a
-clone with `claude plugin marketplace add ./`, it runs live from that checkout, a broken edit included.
+Added from GitHub with `--sparse .claude-plugin plugins packages`, the plugin is a snapshot of `main`
+that `claude plugin update` refreshes, and the clone holds only the catalogue, the plugins and the
+`dw-sdlc` package. The guardrails plugin reaches the package through its `dw-sdlc` link, which
+`claude plugin install` copies as a real directory; a clone without `packages` installs the plugin
+without it, and the guards then validate no config layer. Added from a clone with
+`claude plugin marketplace add ./`, it runs live from that checkout, a broken edit included.
 The daily install is the GitHub one; a guard is developed through `pnpm test`, which runs every hook on
 a real payload.
 

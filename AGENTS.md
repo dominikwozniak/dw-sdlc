@@ -8,19 +8,22 @@ is its long form: how a guard works, why the design, adopting and releasing.
 
 ## Project map
 
+- `packages/dw-sdlc/` — the `dw-sdlc` package, a workspace member: `src/` the resolver of the
+  config's layers and the JSON Schema validator, `config/` the JSON Schema for
+  `.ai/agentic.config.json`, which declares how this repo works for an agent, and `test/` their tests
 - `plugins/guardrails/` — the guardrails plugin, published through `.claude-plugin/marketplace.json`:
-  `hooks/` holds the bash guards on a shared `lib.sh` plus the jq config contract, `scripts/` the
-  TypeScript that reads the config, `config/` the JSON Schema for `.ai/agentic.config.json`, which
-  declares how this repo works for an agent, and `test/` the tests, mirroring `hooks/` and `scripts/`:
-  `harness.ts` spawns a guard on the real stdin payload; every input a test reads is built beside it;
-  `skills/sdlc-guardrails-setup/` the user-invoked skill that runs the setup script
+  `hooks/` holds the bash guards on a shared `lib.sh` plus the jq config contract, `dw-sdlc` a link
+  to the package, `scripts/` the TypeScript that runs the config check, the setup and the doctor on
+  it, and `test/` the tests, mirroring `hooks/` and `scripts/`: `harness.ts` spawns a guard on the
+  real stdin payload; every input a test reads is built beside it; `skills/sdlc-guardrails-setup/`
+  the user-invoked skill that runs the setup script
 - `plugins/references/` — the references plugin, published beside guardrails and enabled at user
   scope: `hooks/` the session-start hook that runs the Sync, `scripts/` the Sync, the strict parser
   of the `references` key, the Router's table and the setup, `config/` that key's JSON Schema, which
   the guardrails schema leaves unnamed, `templates/` the Router the setup writes, `skills/sdlc-references-add/` the
   user-invoked skill that adds a Reference, and `test/` the hook, CLI and contract tests on a
   harness of their own
-- `.ai/` — `agentic.config.json`, this repo's own agent rules against the plugin's schema, its
+- `.ai/` — `agentic.config.json`, this repo's own agent rules against the package's schema, its
   References under the `references` key; `primitives.json`, the catalogue of what this repo exposes
   to an agent, per Primitive where its code lives and which document explains it
   (`agentic.config.local.json` is one machine's layer, kept out of git through `.git/info/exclude`)
@@ -84,7 +87,7 @@ pnpm check                      # lint + format + typecheck + references:setup -
 pnpm lint | lint:fix            # oxlint — check / --fix
 pnpm format | format:fix        # oxfmt — check / write
 pnpm typecheck                  # tsc, no emit
-pnpm test                       # node --test over every *.test.ts under plugins/*/test/, hooks and TypeScript alike
+pnpm test                       # node --test over every *.test.ts under packages/*/test/ and plugins/*/test/, in one run
 pnpm agentic:check [file]       # resolve .ai/agentic.config.json (+ .local) or validate one file
 pnpm guardrails:setup [--dry-run] # write this machine's local config, excludes, deny rules, lease exception
 pnpm guardrails:doctor          # one PASS / WARN / FAIL line per machine check; exit 1 on a FAIL
