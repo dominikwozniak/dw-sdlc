@@ -51,7 +51,7 @@ alone:
   "repository": "https://github.com/cursor/plugins",
   "ref": "main",
   "only": ["pstack/", "harness/pstack/"],
-  "what": "Cursor's pstack plugin. The clone holds only `pstack/` and `harness/pstack/`.",
+  "what": "Cursor's pstack plugin. The clone holds only `pstack/` and `harness/pstack/`: 387 of its 1267 files",
   "when": "designing a plugin that ships skills and a harness"
 }
 ```
@@ -108,6 +108,14 @@ proposes `skip` for the vendored directories, writes `what` and `when`, appends 
 setup again so the Router's table gains its row, and runs the Sync for its `dir`. When no row of the
 root agent instructions points at the Router, it proposes one, phrased from the entries' `when`, and
 writes it only after a yes. It commits nothing.
+
+It takes a link to a folder on GitHub too, `https://github.com/cursor/plugins/tree/main/pstack`.
+The ref is the longest branch or tag that leads the path after `tree/`, since a branch name may
+hold a `/`, and the rest is the first `only` path. The skill proposes for `only` each other
+directory named like it, `harness/pstack/` beside `pstack/`, with its file count, and writes one
+only after a yes. The licence it names is the root's, or with none there, the one inside `only`.
+It counts the files and proposes `skip` within `only`, and `what` says what the clone holds out of
+the whole tree. A link that ends at the ref names the ref and no `only`.
 
 The setup makes a repository ready to declare References:
 
