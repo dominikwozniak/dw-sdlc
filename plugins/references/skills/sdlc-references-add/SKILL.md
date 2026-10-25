@@ -3,8 +3,9 @@ name: sdlc-references-add
 description: >-
   Add a Reference to this repository: name its licence, pick its ref and the paths its clone skips,
   write what it is and when to reach for it, append the entry to the `references` key of
-  `.ai/agentic.config.json` and sync it. The first run sets the repository up: the Router, the
-  exclusion of the clones' agent files, the ignore lines and the key. Safe to repeat.
+  `.ai/agentic.config.json`, rewrite the Router's table from the key and sync it; then propose a row
+  for the root agent instructions when none points at the Router. The first run sets the repository
+  up: the Router, the exclusion of the clones' agent files, the ignore lines and the key. Safe to repeat.
 argument-hint: <repository>
 disable-model-invocation: true
 ---
@@ -100,15 +101,33 @@ Read the entries the key holds and write in their style. Read the repository's R
 
 Append the entry as the last item of the key in `.ai/agentic.config.json`, in the file's own layout.
 
-## 7. The Sync
+## 7. The table
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/scripts/references-setup.ts"
+```
+
+The setup again: it rewrites the Router's table from the key, the new entry's row included, and
+touches nothing else in the Router. Show its line for `references/AGENTS.md`. A `refused` line
+there names the field of the entry the parser refuses: fix the entry and run again.
+
+## 8. The Sync
 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/scripts/references-sync.ts" <dir>
 ```
 
-Show its line. Exit 2 names the field of the entry the parser refuses: fix it and run again. Exit 1
-names why the Reference failed, an unreachable repository or a missing pin; show it, leave the
-entry and stop.
+Show its line. Exit 1 names why the Reference failed, an unreachable repository or a missing pin;
+show it, leave the entry and stop.
+
+## 9. The row in the root agent instructions
+
+Read the repository's root agent instructions: `AGENTS.md`, or `CLAUDE.md` when there is no
+`AGENTS.md`. When no line in them points at `references/AGENTS.md`, propose one: a row for their task
+table, or one line when they have no table, with the tasks on the left phrased from the `when` of
+every entry the key holds and the Router on the right, as
+`| how others built a skill, hook or plugin, before designing one | references/AGENTS.md |`. Write
+it only after a yes, and never rewrite a row or a line that is already there.
 
 End with the `dir`, the licence, the ref, the `skip` with its counts, the Sync's line, and the files
 the run changed, for the user to commit.

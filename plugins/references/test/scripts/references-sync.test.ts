@@ -63,10 +63,15 @@ function declare(root: string, references: unknown, file = CONFIG): void {
   writeJson(join(root, file), { version: 1, references })
 }
 
-/** A repository whose committed config declares `references`, beside `files` when given. */
+/**
+ * A repository whose committed config declares `references`, set up by the setup so its Router's table
+ * is in step with the key, beside `files` when given.
+ */
 function consumer(references: unknown, files: Record<string, string> = {}): string {
   const root = initRepo(scratch("consumer"))
   declare(root, references)
+  const setup = runScript("references-setup", [], root)
+  assert.equal(setup.status, 0, `${setup.stdout}\n${setup.stderr}`)
   for (const [path, content] of Object.entries(files)) {
     write(join(root, path), content)
   }
@@ -282,6 +287,54 @@ describe("what the Sync leaves alone", () => {
     assert.equal(head(pushed), before)
     assert.equal(git(pushed, "remote"), "")
     assert.equal(git(pushed, "config", "core.bare").trim(), "false")
+  })
+})
+
+describe("the Router", () => {
+  const SETUP = join(import.meta.dirname, "..", "..", "scripts", "references-setup.ts")
+
+  it("says in one line that the Router is missing, naming the setup to run; the line changes no exit code", () => {
+    const source = upstream()
+    const root = initRepo(scratch("unset"))
+    declare(root, [entry("full", source.url)])
+    const run = sync(root)
+    expectStatus(run, 0)
+    const short = git(clone(root, "full"), "rev-parse", "--short", "HEAD").trim()
+    assert.deepEqual(lines(run.stdout), [
+      `references/full  ${short}  ${source.url} main`,
+      `references/AGENTS.md  missing  run node "${SETUP}" from the project to write the Router`
+    ])
+    assert.equal(run.stderr, "")
+  })
+
+  it("says in one line that the table is behind the key, and nothing once the setup rewrote it", () => {
+    const source = upstream()
+    const root = consumer([entry("full", source.url)])
+    declare(root, [entry("full", source.url), entry("more", source.url)])
+    const run = sync(root, "full")
+    expectStatus(run, 0)
+    assert.equal(
+      lines(run.stdout)[1],
+      `references/AGENTS.md  behind the key  run node "${SETUP}" from the project to rewrite its table`
+    )
+    assert.equal(lines(run.stdout).length, 2, run.stdout)
+
+    expectStatus(runScript("references-setup", [], root), 0)
+    const again = sync(root, "full")
+    expectStatus(again, 0)
+    assert.equal(lines(again.stdout).length, 1, again.stdout)
+  })
+
+  it("says in one line that the Router's markers are not a pair, which the setup refuses to touch", () => {
+    const source = upstream()
+    const root = consumer([entry("full", source.url)])
+    write(join(root, "references/AGENTS.md"), "# mine\n\n<!-- references:end -->\n")
+    const run = sync(root, "full")
+    expectStatus(run, 0)
+    assert.equal(
+      lines(run.stdout)[1],
+      "references/AGENTS.md  broken  has a references:end marker without a references:start; fix the pair by hand first"
+    )
   })
 })
 

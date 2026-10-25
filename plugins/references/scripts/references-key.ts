@@ -1,6 +1,13 @@
-// The strict parser of the `references` key, the authority at runtime. `config/references.schema.json`
-// documents the same contract, and `test/scripts/references-key.test.ts` runs one case list through
-// both. The first problem stops the parse: a key that fails it syncs nothing.
+// The strict parser of the `references` key, the authority at runtime, and the reader of the committed
+// config that holds it. `config/references.schema.json` documents the same contract, and
+// `test/scripts/references-key.test.ts` runs one case list through both. The first problem stops the
+// parse: a key that fails it syncs nothing.
+
+import { existsSync, readFileSync } from "node:fs"
+import { join } from "node:path"
+
+/** The committed config, the only file the key is read from. */
+export const CONFIG = ".ai/agentic.config.json"
 
 export type Reference = { dir: string; repository: string; ref: string; skip: string[]; what: string; when: string }
 
@@ -32,7 +39,7 @@ function kind(value: unknown): string {
   return typeof value === "object" ? "an object" : `a ${typeof value}`
 }
 
-function isObject(value: unknown): value is Record<string, unknown> {
+export function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
@@ -123,4 +130,32 @@ export function parseReferences(value: unknown): { references: Reference[] } | {
     }
     throw error
   }
+}
+
+/**
+ * The References the committed config at `root` declares, `undefined` without the file or the key,
+ * or the problem that stops the read: the file is not a JSON object, or the key fails the parser.
+ */
+export function readReferences(root: string): { references: Reference[] | undefined } | { problem: string } {
+  const path = join(root, CONFIG)
+  if (!existsSync(path)) {
+    return { references: undefined }
+  }
+  let config: unknown
+  try {
+    config = JSON.parse(readFileSync(path, "utf8"))
+  } catch (error) {
+    return { problem: `${CONFIG}: not JSON: ${error instanceof Error ? error.message : String(error)}` }
+  }
+  if (!isObject(config)) {
+    return { problem: `${CONFIG}: not a JSON object` }
+  }
+  if (!Object.hasOwn(config, "references")) {
+    return { references: undefined }
+  }
+  const parsed = parseReferences(config.references)
+  if ("problem" in parsed) {
+    return { problem: `${CONFIG}: ${parsed.problem.path}: ${parsed.problem.message}` }
+  }
+  return { references: parsed.references }
 }

@@ -55,7 +55,10 @@ fetched, sparse when `skip` names paths. Each prints one line: directory, short 
 and ref. The variables `git rev-parse --local-env-vars` lists are dropped, so a run from a git hook
 never touches the repository that hook points at, and the terminal prompt is off.
 
-A directory under `references/` the list does not name is reported and never deleted.
+A directory under `references/` the list does not name is reported and never deleted. When the
+Router or its table is missing or behind the key, one line more names the setup to run, and when
+the Router has one marker without the other, the line says so instead; neither changes the exit
+code.
 
 One Sync runs in a checkout at a time: it holds `references/.sync.lock`, with its pid inside, while
 it syncs. A second one started meanwhile, a session starting beside another or `pnpm references:sync`
@@ -78,34 +81,44 @@ on each other.
 `/sdlc-references-add <repository>` adds one. Only the user invokes it. It runs the setup and shows
 its lines, then does the parts that need judgment: it names the licence, picks the ref (a branch
 head, or a tag or `{name}` when the repository is a dependency of this one), counts the files and
-proposes `skip` for the vendored directories, writes `what` and `when`, appends the entry and runs
-the Sync for its `dir`. It commits nothing.
+proposes `skip` for the vendored directories, writes `what` and `when`, appends the entry, runs the
+setup again so the Router's table gains its row, and runs the Sync for its `dir`. When no row of the
+root agent instructions points at the Router, it proposes one, phrased from the entries' `when`, and
+writes it only after a yes. It commits nothing.
 
 The setup makes a repository ready to declare References:
 
 ```bash
-node <plugin root>/scripts/references-setup.ts [--root <dir>] [--dry-run]
+node <plugin root>/scripts/references-setup.ts [--root <dir>] [--dry-run | --check]
 ```
 
-- `references/AGENTS.md`, the Router, from `templates/router.md`, with its `CLAUDE.md` symlink: each
-  written only when nothing sits at its path, so an edited Router is never overwritten;
+- `references/AGENTS.md`, the Router, from `templates/router.md` when nothing sits at its path, with
+  its `CLAUDE.md` symlink, written once too. On every run, the block between the Router's two
+  markers: a table of each Reference's `dir` and `when`, one row per entry in the key's order with
+  `|` escaped, or one line saying `/sdlc-references-add <repository>` adds one when the key is empty.
+  The text around the block stays as it is, and a Router without the markers gets the block at its
+  end. A formatter may pad the table and space the block, so the block is in step when its rows say
+  what the key says, not when its bytes match;
 - `claudeMdExcludes` in `.claude/settings.json`: the clones' own `CLAUDE.md` and `AGENTS.md`;
 - `.gitignore`: `references/*`, then the two exceptions that keep the Router tracked;
 - `.ai/agentic.config.json`: an empty `references` key when the config has none, inserted so the
   file keeps its layout.
 
 A list gains only the entries it lacks, and nothing is removed, so a repeat writes nothing. Each
-file prints one line: `wrote`, `unchanged` or `refused`, and `would write` on a dry run. A settings
-file or a config that is not a JSON object is refused and left as it is, and so is a `.gitignore`
-that ignores `references/` itself, since git then tracks nothing under it; the run then exits 1.
+file prints one line: `wrote`, `unchanged` or `refused`, and `would write` on a dry run. `--check`
+writes nothing and exits 1 when any file would change, so a repository's check can run it. A
+settings file or a config that is not a JSON object is refused and left as it is, and so is a
+`.gitignore` that ignores `references/` itself, since git then tracks nothing under it, and a Router
+with one marker and not the other, or whose key fails the parser; the run then exits 1.
 
 ## Layout
 
 - `.claude-plugin/plugin.json` — the manifest; its `hooks` key wires the session hook.
 - `hooks/session-start.sh` — the session hook.
 - `config/references.schema.json` — the JSON Schema of the key.
-- `scripts/` — `references-sync.ts` the Sync, `references-key.ts` the parser of the key, `pins.ts`
-  the version a ref's `{name}` resolves to, `references-setup.ts` the setup. No dependencies, and no
+- `scripts/` — `references-sync.ts` the Sync, `references-key.ts` the parser of the key and the
+  reader of the config that holds it, `pins.ts` the version a ref's `{name}` resolves to,
+  `router-block.ts` the Router's block, `references-setup.ts` the setup. No dependencies, and no
   import from another plugin.
 - `skills/sdlc-references-add/` — the skill that adds a Reference.
 - `templates/router.md` — the Router the setup writes.

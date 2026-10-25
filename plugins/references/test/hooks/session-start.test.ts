@@ -9,7 +9,7 @@ import { join } from "node:path"
 import { describe, it } from "node:test"
 import { pathToFileURL } from "node:url"
 
-import { commit, git, initRepo, runHook, scratch, write, writeJson, type Run } from "../harness.ts"
+import { commit, git, initRepo, runHook, runScript, scratch, write, writeJson, type Run } from "../harness.ts"
 
 const CONFIG = ".ai/agentic.config.json"
 
@@ -44,6 +44,8 @@ describe("session-start.sh", () => {
     const gone = pathToFileURL(join(scratch("gone"), "nothing")).href
     const project = initRepo(scratch("project"))
     writeJson(join(project, CONFIG), { version: 1, references: [entry("fine", fine), entry("gone", gone)] })
+    // The Router in step with the key, so the Sync has nothing to say about it.
+    assert.equal(runScript("references-setup", [], project).status, 0)
 
     const run = start(project)
     assert.equal(run.status, 0, `stdout: ${run.stdout}\nstderr: ${run.stderr}`)

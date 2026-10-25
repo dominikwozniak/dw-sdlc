@@ -16,8 +16,8 @@ is its long form: how a guard works, why the design, adopting and releasing.
   `skills/sdlc-guardrails-setup/` the user-invoked skill that runs the setup script
 - `plugins/references/` — the references plugin, published beside guardrails and enabled at user
   scope: `hooks/` the session-start hook that runs the Sync, `scripts/` the Sync, the strict parser
-  of the `references` key and the setup, `config/` that key's JSON Schema, which the guardrails
-  schema leaves unnamed, `templates/` the Router the setup writes, `skills/sdlc-references-add/` the
+  of the `references` key, the Router's table and the setup, `config/` that key's JSON Schema, which
+  the guardrails schema leaves unnamed, `templates/` the Router the setup writes, `skills/sdlc-references-add/` the
   user-invoked skill that adds a Reference, and `test/` the hook, CLI and contract tests on a
   harness of their own
 - `.ai/` — `agentic.config.json`, this repo's own agent rules against the plugin's schema, its
@@ -38,8 +38,9 @@ is its long form: how a guard works, why the design, adopting and releasing.
   notes; `docs/research/<feature>/` — the facts that spec rests on, read from outside sources and
   dated by when they were read. New work is specified in GitHub Issues, not here
 - `GLOSSARY.md` — what a word means in this repo
-- `references/` — repositories cloned on each machine for reading, never tracked; the router is
-  `references/AGENTS.md`, the list the `references` key of `.ai/agentic.config.json`; the
+- `references/` — repositories cloned on each machine for reading, never tracked; the Router is
+  `references/AGENTS.md`, the list the `references` key of `.ai/agentic.config.json`, and the
+  Router's table of each Reference's `when` is written from the list by `pnpm references:setup`; the
   references plugin's session-start hook or `pnpm references:sync` fetches them
 - `ideas/` — local-only notes; everything but `.gitkeep` is gitignored, so nothing in it reaches a clone
 - `.github/` — CI: `workflows/quality-gate.yaml` runs `pnpm check` on every pull request and on `main`.
@@ -78,7 +79,7 @@ is its long form: how a guard works, why the design, adopting and releasing.
 ## Commands
 
 ```bash
-pnpm check                      # lint + format + typecheck + test; = CI (quality-gate.yaml)
+pnpm check                      # lint + format + typecheck + references:setup --check + test; = CI
 pnpm lint | lint:fix            # oxlint — check / --fix
 pnpm format | format:fix        # oxfmt — check / write
 pnpm typecheck                  # tsc, no emit
@@ -87,19 +88,21 @@ pnpm agentic:check [file]       # resolve .ai/agentic.config.json (+ .local) or 
 pnpm guardrails:setup [--dry-run] # write this machine's local config, excludes, deny rules, lease exception
 pnpm guardrails:doctor          # one PASS / WARN / FAIL line per machine check; exit 1 on a FAIL
 pnpm references:sync [dir...]   # clone or update each reference repository on this machine
+pnpm references:setup [--check] # the Router's table from the references key; --check exits 1 when it is behind
 ```
 
 ## Task Router
 
 Match this table **before** researching or coding — read every row that matches, explore only the rest.
 
-| task                                                               | read                                                                      |
-| ------------------------------------------------------------------ | ------------------------------------------------------------------------- |
-| reading, adding or updating a reference repository                 | `references/AGENTS.md`, then `plugins/references/README.md`               |
-| editing a guard, `lib.sh`, the schema or the config resolver       | `docs/adr/*.md`, then the Decisions of `docs/specs/agentic-guardrails.md` |
-| explaining the repo, editing `README.md` or anything under `docs/` | `README.md`, `docs/overview.md`, `GLOSSARY.md`                            |
-| releasing the plugin, bumping its version                          | `docs/overview.md`, the Releasing a plugin section                        |
-| planning new work, filing or reading an issue                      | `docs/agents/issue-tracker.md`                                            |
+| task                                                                     | read                                                                      |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------- |
+| how others built a skill, hook, plugin or workflow, before designing one | `references/AGENTS.md`, then the clones whose `when` matches the task     |
+| reading, adding or updating a reference repository                       | `references/AGENTS.md`, then `plugins/references/README.md`               |
+| editing a guard, `lib.sh`, the schema or the config resolver             | `docs/adr/*.md`, then the Decisions of `docs/specs/agentic-guardrails.md` |
+| explaining the repo, editing `README.md` or anything under `docs/`       | `README.md`, `docs/overview.md`, `GLOSSARY.md`                            |
+| releasing the plugin, bumping its version                                | `docs/overview.md`, the Releasing a plugin section                        |
+| planning new work, filing or reading an issue                            | `docs/agents/issue-tracker.md`                                            |
 
 ## Agent skills
 

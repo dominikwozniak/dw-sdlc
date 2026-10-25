@@ -8,12 +8,13 @@
     "format": "oxfmt --check --disable-nested-config .",
     "format:fix": "oxfmt --disable-nested-config .",
     "typecheck": "tsc -p tsconfig.json",
-    "check": "pnpm lint && pnpm format && pnpm typecheck && pnpm test",
+    "check": "pnpm lint && pnpm format && pnpm typecheck && pnpm references:setup --check && pnpm test",
     "test": "node --test \"plugins/**/*.test.ts\"",
     "agentic:check": "node plugins/guardrails/scripts/agentic-config.ts",
     "guardrails:setup": "node plugins/guardrails/scripts/guardrails-setup.ts",
     "guardrails:doctor": "node plugins/guardrails/scripts/guardrails-doctor.ts",
     "references:sync": "node plugins/references/scripts/references-sync.ts",
+    "references:setup": "node plugins/references/scripts/references-setup.ts",
     "prepare": "husky"
   },
   "devDependencies": {
