@@ -82,6 +82,20 @@ const CASES: Case[] = [
   { name: "a skip path ending in ..", value: [entry({ skip: ["a/.."] })], path: "references[0].skip[0]" },
   { name: "an empty skip path", value: [entry({ skip: [""] })], path: "references[0].skip[0]" },
   { name: "a skip path that is not a string", value: [entry({ skip: [1] })], path: "references[0].skip[0]" },
+  { name: "only paths", value: [entry({ only: ["pstack/", "harness/pstack/", "docs/guide.md"] })] },
+  {
+    name: "only paths with a skip inside one",
+    value: [entry({ only: ["pstack/", "harness/pstack/"], skip: ["pstack/vendor/"] })]
+  },
+  { name: "an only that is not a list", value: [entry({ only: "pstack/" })], path: "references[0].only" },
+  { name: "an empty only", value: [entry({ only: [] })], path: "references[0].only" },
+  { name: "an absolute only path", value: [entry({ only: ["/pstack/"] })], path: "references[0].only[0]" },
+  {
+    name: "an only path through ..",
+    value: [entry({ only: ["pstack/", "harness/../../x"] })],
+    path: "references[0].only[1]"
+  },
+  { name: "an empty only path", value: [entry({ only: [""] })], path: "references[0].only[0]" },
   { name: "an empty what", value: [entry({ what: "" })], path: "references[0].what" },
   { name: "a when that is not a string", value: [entry({ when: ["x"] })], path: "references[0].when" },
   {
@@ -103,14 +117,19 @@ describe("the parser and the schema agree on one case list", () => {
 })
 
 describe("parseReferences", () => {
-  it("reads each entry, an absent skip as none", () => {
-    const parsed = parseReferences([entry(), entry({ dir: "dw-mc", skip: ["repos/"] })])
+  it("reads each entry, an absent only or skip as none", () => {
+    const parsed = parseReferences([
+      entry(),
+      entry({ dir: "dw-mc", skip: ["repos/"] }),
+      entry({ dir: "pstack", only: ["pstack/", "harness/pstack"], skip: ["pstack/vendor/"] })
+    ])
     assert.deepEqual(parsed, {
       references: [
         {
           dir: "kody",
           repository: "https://github.com/kody-hq/kody",
           ref: "main",
+          only: [],
           skip: [],
           what: "an agent cloud",
           when: "harness engineering"
@@ -119,7 +138,17 @@ describe("parseReferences", () => {
           dir: "dw-mc",
           repository: "https://github.com/kody-hq/kody",
           ref: "main",
+          only: [],
           skip: ["repos/"],
+          what: "an agent cloud",
+          when: "harness engineering"
+        },
+        {
+          dir: "pstack",
+          repository: "https://github.com/kody-hq/kody",
+          ref: "main",
+          only: ["pstack/", "harness/pstack"],
+          skip: ["pstack/vendor/"],
           what: "an agent cloud",
           when: "harness engineering"
         }
@@ -133,6 +162,21 @@ describe("parseReferences", () => {
     assert.deepEqual(parseReferences(value), {
       problem: { path: "references[1].dir", message: '"kody" is the dir of references[0] too' }
     })
+  })
+
+  it("refuses a skip path outside every only path, which the schema cannot say", () => {
+    for (const outside of ["docs/", "pstack", "pstack/", "pstackish/x", "harness/x"]) {
+      const value = [entry({ only: ["pstack/", "harness/pstack"], skip: ["pstack/vendor/", outside] })]
+      assert.deepEqual(validate(SCHEMA, value), [], outside)
+      assert.deepEqual(parseReferences(value), {
+        problem: {
+          path: "references[0].skip[1]",
+          message: `${JSON.stringify(outside)} must lie inside one of the only paths`
+        }
+      })
+    }
+    const inside = parseReferences([entry({ only: ["pstack/", "harness/pstack"], skip: ["harness/pstack/x"] })])
+    assert.ok("references" in inside, JSON.stringify(inside))
   })
 
   it("names the field and the reason", () => {
