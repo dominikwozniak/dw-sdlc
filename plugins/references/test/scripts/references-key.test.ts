@@ -7,7 +7,7 @@ import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { describe, it } from "node:test"
 
-import { validate } from "../../../guardrails/scripts/json-schema.ts"
+import { validate } from "../../../../packages/dw-sdlc/src/json-schema.ts"
 import { parseReferences } from "../../scripts/references-key.ts"
 
 const SCHEMA: unknown = JSON.parse(

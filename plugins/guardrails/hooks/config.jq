@@ -1,5 +1,5 @@
-# The merge scripts/agentic-config.ts performs, for the guards: the same defaults, the same tighten
-# rule, the same messages. That file and its tests are the reference; the tests run this too.
+# The merge dw-sdlc/src/agentic-config.ts performs, for the guards: the same defaults, the same
+# tighten rule, the same messages. That file is the reference; the tests run both.
 #
 # `resolve($inferred; $committed; $local)` takes the inferred layer (commit.convention, packageManagers),
 # the committed and local documents (null when absent or invalid) and returns {config, problems},

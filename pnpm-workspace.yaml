@@ -1,5 +1,9 @@
 # pnpm 11 reads its configuration from this file, not from .npmrc (only auth and registry settings stay
-# there). No `packages:` key: the root package is the whole workspace.
+# there).
+
+# The root holds the tooling and the plugins; `packages/dw-sdlc` is the package the plugins link to.
+packages:
+  - packages/*
 
 # Supply-chain baseline: a version must be public for 7 days before it resolves, strict — no fallback
 # to a younger one.

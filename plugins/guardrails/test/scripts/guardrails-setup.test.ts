@@ -4,7 +4,7 @@ import { join } from "node:path"
 import { describe, it } from "node:test"
 import { pathToFileURL } from "node:url"
 
-import { COMMITTED_FILE, LOCAL_FILE, resolveConfig, schemaId } from "../../scripts/agentic-config.ts"
+import { COMMITTED_FILE, LOCAL_FILE, resolveConfig, schemaId } from "../../dw-sdlc/src/agentic-config.ts"
 import { type SetupOptions, type Step, schemaReference, setup } from "../../scripts/guardrails-setup.ts"
 import { GLOBAL_DENY, LEASE_RULE } from "../../scripts/setup-rules.ts"
 import { commit, git, initRepo, runScript, scratch, write as writeFile, writeJson } from "../harness.ts"
@@ -27,7 +27,7 @@ function nodeRepo(): string {
   return root
 }
 
-const SCHEMA_FILE = "plugins/guardrails/config/agentic.config.schema.json"
+const SCHEMA_FILE = "plugins/guardrails/dw-sdlc/config/agentic.config.schema.json"
 
 /** A home where Claude Code registers the dw-sdlc marketplace at `clone`, holding the schema. */
 function homeWithClone(clone: string, options: { schema?: boolean } = {}): string {

@@ -39,13 +39,13 @@ import {
   DEFAULT_GUARDRAILS,
   type ForcePush,
   LOCAL_FILE,
-  SCHEMA_PATH,
+  SCHEMA_FILE,
   STRICTNESS,
   inferConfig,
   repositoryRoot,
   schemaId,
   validateDocument
-} from "./agentic-config.ts"
+} from "../dw-sdlc/src/agentic-config.ts"
 import { GLOBAL_DENY, LEASE_RULE, RETIRED_DENY, repositoryDeny } from "./setup-rules.ts"
 
 export type Outcome = "wrote" | "unchanged" | "refused"
@@ -95,7 +95,8 @@ function isCommitOnProtected(value: string): value is CommitOnProtected {
 /** Where Claude Code registers the plugin: the marketplace name and the plugin's name inside it. */
 const MARKETPLACE = "dw-sdlc"
 const PLUGIN = "guardrails"
-const PLUGIN_ROOT = join(import.meta.dirname, "..")
+/** The plugin's link to the dw-sdlc package, which carries the schema. */
+const PACKAGE_LINK = "dw-sdlc"
 
 type JsonObject = Record<string, unknown>
 
@@ -137,7 +138,7 @@ export function schemaReference(claudeDir: string): string {
   if (plugin === undefined || typeof plugin.source !== "string") {
     return schemaId()
   }
-  const schema = join(clone, plugin.source, relative(PLUGIN_ROOT, SCHEMA_PATH))
+  const schema = join(clone, plugin.source, PACKAGE_LINK, SCHEMA_FILE)
   return existsSync(schema) ? pathToFileURL(schema).href : schemaId()
 }
 

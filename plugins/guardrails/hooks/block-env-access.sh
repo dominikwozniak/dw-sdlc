@@ -105,7 +105,7 @@ relative_to_root() {
 
 # env_glob_matches <glob> <relative-path> — 0 when a config entry selects the file: a shell pattern
 # against the whole relative path, `*` crossing `/`; with a leading `**/`, at any depth. `[` and `\`
-# are literal, so the rule is the one scripts/agentic-config.ts applies for the settings backstop,
+# are literal, so the rule is the one dw-sdlc/src/agentic-config.ts applies for the settings backstop,
 # where a bracket expression does not exist.
 env_glob_matches() {
   local glob="$1" rel="$2"

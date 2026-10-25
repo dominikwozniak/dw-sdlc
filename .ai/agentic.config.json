@@ -1,5 +1,5 @@
 {
-  "$schema": "../plugins/guardrails/config/agentic.config.schema.json",
+  "$schema": "../packages/dw-sdlc/config/agentic.config.schema.json",
   "version": 1,
   "packageManagers": { "node": "pnpm" },
   "guardrails": {

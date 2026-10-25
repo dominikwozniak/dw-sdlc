@@ -12,7 +12,7 @@ import { homedir } from "node:os"
 import { join } from "node:path"
 import { parseArgs } from "node:util"
 
-import { findRepository, resolveConfig } from "./agentic-config.ts"
+import { findRepository, resolveConfig } from "../dw-sdlc/src/agentic-config.ts"
 
 export type Level = "PASS" | "WARN" | "FAIL" | "INFO"
 export type Check = { name: string; level: Level; detail: string }
