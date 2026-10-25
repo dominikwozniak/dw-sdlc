@@ -71,6 +71,13 @@
       "ref": "main",
       "what": "byArcadia's pnpm monorepo of `@byarcadia-app/*` packages shared by its Expo apps, built on Vite+ and released to npm through changesets: `payments` wraps RevenueCat in a React provider and paywall hooks, `anti-slop` is an oxlint JS plugin; ADRs and a strict pnpm supply-chain config",
       "when": "a pnpm library monorepo on Vite+ with changesets and npm publishing, a React Native hook package and its tests, or an oxlint JS plugin"
+    },
+    {
+      "dir": "dmmulroy-anti-slop",
+      "repository": "git@github.com:dmmulroy/anti-slop.git",
+      "ref": "main",
+      "what": "Dillon Mulroy's opinionated oxlint JS plugin: 18 generic rules and 5 Effect rules that reject low-evidence TypeScript — `unknown` on inputs and returns, chained `as`, `typeof` narrowing, module mocking, filter-then-map — each with a RuleTester suite on Oxlint's ESTree and scope APIs, no type checker; meant to be vendored, so `install-anti-slop` is the skill that copies `src/` into a repo, merges the lint config and updates a copy without losing local changes",
+      "when": "writing an oxlint JS plugin rule with RuleTester, a lint policy against `unknown`, `as` and `typeof` in TypeScript, or a skill that vendors code into a repo and updates it in place"
     }
   ]
 }
