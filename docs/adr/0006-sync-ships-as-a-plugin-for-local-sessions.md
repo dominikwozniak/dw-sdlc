@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded by ADR 0008 and ADR 0010
 ---
 
 # The Sync ships as one plugin and runs in local Claude Code sessions only

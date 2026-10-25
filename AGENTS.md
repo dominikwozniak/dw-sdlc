@@ -21,7 +21,8 @@ is its long form: how a guard works, why the design, adopting and releasing.
   user-invoked skill that adds a Reference, and `test/` the hook, CLI and contract tests on a
   harness of their own
 - `.ai/` — `agentic.config.json`, this repo's own agent rules against the plugin's schema, its
-  References under the `references` key
+  References under the `references` key; `primitives.json`, the catalogue of what this repo exposes
+  to an agent, per Primitive where its code lives and which document explains it
   (`agentic.config.local.json` is one machine's layer, kept out of git through `.git/info/exclude`)
 - `.claude/settings.json` — tracked; turns the dw-solo plugins off in this repo and keeps the clones'
   `CLAUDE.md` and `AGENTS.md` out of context. `.claude/settings.local.json` is one machine's
@@ -103,6 +104,7 @@ Match this table **before** researching or coding — read every row that matche
 | explaining the repo, editing `README.md` or anything under `docs/`       | `README.md`, `docs/overview.md`, `GLOSSARY.md`                            |
 | releasing the plugin, bumping its version                                | `docs/overview.md`, the Releasing a plugin section                        |
 | planning new work, filing or reading an issue                            | `docs/agents/issue-tracker.md`                                            |
+| what a guard, hook, script, key or skill is and where it lives           | `.ai/primitives.json`                                                     |
 
 ## Agent skills
 
