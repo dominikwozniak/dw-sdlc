@@ -1,7 +1,8 @@
 # pnpm 11 reads its configuration from this file, not from .npmrc (only auth and registry settings stay
 # there).
 
-# The root holds the tooling and the plugins; `packages/dw-sdlc` is the package the plugins link to.
+# The root holds the tooling and the plugins; `packages/dw-sdlc` is the package the guardrails
+# plugin links to.
 packages:
   - packages/*
 

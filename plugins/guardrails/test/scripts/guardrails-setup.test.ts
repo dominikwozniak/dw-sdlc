@@ -27,6 +27,7 @@ function nodeRepo(): string {
   return root
 }
 
+/** Where the marketplace clone holds the schema: behind the plugin's link to the package. */
 const SCHEMA_FILE = "plugins/guardrails/dw-sdlc/config/agentic.config.schema.json"
 
 /** A home where Claude Code registers the dw-sdlc marketplace at `clone`, holding the schema. */
