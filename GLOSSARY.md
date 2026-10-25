@@ -8,8 +8,9 @@ this repository before it goes wider.
 ### Guards
 
 **Guard**:
-One hook that judges a tool call before it runs and answers with a verdict.
-_Avoid_: rule, check
+One hook that judges a tool call before it runs and answers with a verdict. A Guard judges a call, a
+Check judges the tree.
+_Avoid_: rule
 
 **Dispatcher**:
 The guard that reads a shell command once and runs the other guards in order; the first refusal or ask
@@ -70,6 +71,28 @@ A local branch whose work is on origin's base branch: its tip is there, or it ch
 and a base commit since it forked holds its tree or the patch-id of its whole diff, as a squash
 merge leaves them. The one branch a forced delete may remove.
 _Avoid_: merged branch, which git's `--merged` keeps for a tip the base contains
+
+### Gate
+
+**Check**:
+One script that judges the state of the working tree and answers with an exit code, a line naming the
+remedy and, on request, machine-readable output. It runs the same in CI, in a commit hook, in an agent
+hook and in a terminal.
+_Avoid_: step, rule, validator, test (which proves behaviour, not the tree)
+
+**Gate**:
+The ordered set of Checks a change must pass, run by one command that is the same locally and in CI.
+_Avoid_: quality gate, CI (which runs it), lint (one part of it)
+
+**Ratchet**:
+A Check with a recorded baseline whose limit may only tighten: a number that must not grow, or a list
+of exceptions that may only shrink.
+_Avoid_: threshold, budget (a fixed limit with no baseline)
+
+**Primitive**:
+The smallest unit of meaning a repository exposes to an agent: a module, a hook, a script, a config key,
+a skill. The catalogue names where its code lives and which document explains it.
+_Avoid_: component, feature, building block
 
 ### Distribution
 
