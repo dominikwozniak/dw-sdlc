@@ -3,7 +3,7 @@
 // the way their callers spawn them: plain `node` for a script, `/bin/bash` with the JSON payload on
 // stdin for a hook, the exit code and both streams.
 
-import { spawnSync } from "node:child_process"
+import { spawn, spawnSync } from "node:child_process"
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
@@ -41,6 +41,28 @@ function run(command: string, args: string[], cwd: string, env: NodeJS.ProcessEn
 /** Runs `scripts/<name>.ts` from `cwd` under `scratchEnv()`, `env` over it. */
 export function runScript(name: string, args: string[], cwd: string, env: NodeJS.ProcessEnv = {}): Run {
   return run(process.execPath, [join(SCRIPTS_DIR, `${name}.ts`), ...args], cwd, env)
+}
+
+/** `runScript` started without waiting for it, so that two scripts run at once. */
+export function startScript(name: string, args: string[], cwd: string, env: NodeJS.ProcessEnv = {}): Promise<Run> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [join(SCRIPTS_DIR, `${name}.ts`), ...args], {
+      cwd,
+      env: { ...scratchEnv(), ...env }
+    })
+    let stdout = ""
+    let stderr = ""
+    child.stdout.setEncoding("utf8").on("data", (chunk: string) => {
+      stdout += chunk
+    })
+    child.stderr.setEncoding("utf8").on("data", (chunk: string) => {
+      stderr += chunk
+    })
+    child.on("error", reject)
+    child.on("close", (status) => {
+      resolve({ status: status ?? -1, stdout, stderr })
+    })
+  })
 }
 
 /** Runs `hooks/<name>.sh` from `cwd` under `scratchEnv()`, `env` over it, with `payload` on stdin. */
