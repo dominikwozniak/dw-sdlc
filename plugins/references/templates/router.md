@@ -9,9 +9,14 @@ file routes reference material only.
 
 ## The list
 
-The `references` key of `.ai/agentic.config.json` declares every Reference: its directory here, the
-repository, the ref it sits at, the paths its clone skips, `what` it is and `when` to reach for it.
-Read the entries before you research, and open the clones whose `when` matches the task.
+The table below is written from the `references` key of `.ai/agentic.config.json` by the setup, so
+edit the key, never the table; the key also holds `what` each Reference is, its repository, its ref
+and the paths its clone skips. Before you research, open the clones whose `when` matches the task.
+
+<!-- references:start — written from .ai/agentic.config.json by the setup; edit the key -->
+
+No Reference is declared yet: `/sdlc-references-add <repository>` adds one.
+<!-- references:end -->
 
 ## Rules
 
@@ -29,4 +34,5 @@ Read the entries before you research, and open the clones whose `when` matches t
   the last sync. Research into a feature or an approach reads the matching entries first, then looks
   further: other repositories, upstream docs and web search.
 - **Add one with `/sdlc-references-add <repository>`.** It reads the licence, picks the ref and the
-  paths to skip, writes the entry and syncs it. A Reference is read, never copied in.
+  paths to skip, writes the entry, rewrites the table and syncs it. A Reference is read, never
+  copied in.

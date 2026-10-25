@@ -9,9 +9,26 @@ reference material only.
 
 ## The list
 
-The `references` key of `.ai/agentic.config.json` declares every Reference: its directory here, the
-repository, the ref it sits at, the paths its clone skips, `what` it is and `when` to reach for it.
-Read the entries before you research, and open the clones whose `when` matches the task.
+The table below is written from the `references` key of `.ai/agentic.config.json` by
+`pnpm references:setup`, so edit the key, never the table; the key also holds `what` each Reference
+is, its repository, its ref and the paths its clone skips. Before you research, open the clones whose
+`when` matches the task.
+
+<!-- references:start — written from .ai/agentic.config.json by the setup; edit the key -->
+
+| dir                       | reach for it when                                                                                                                                                                    |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `dw-solo-skills`          | a skill, hook or plugin for a repo one person reads, or keeping a change alive across `/clear`                                                                                       |
+| `mattpocock-skills`       | writing a small single-purpose skill, or a prompt that interrogates an idea, drives TDD or hunts a bug                                                                               |
+| `addyosmani-agent-skills` | a phase-by-phase workflow with quality gates, or one skill shipped to Claude, Codex, Gemini and Cursor at once                                                                       |
+| `open-mercato-skills`     | automating a team PR flow: labels, autopilot loops, review and QA gates, many contributors                                                                                           |
+| `dw-mc`                   | a CLI over `gh` and Claude Code, or Effect in a real tool                                                                                                                            |
+| `kcd-skills`              | a skill that carries its own CLI and tests, auditing how ready a repo is for agents, or a loop that drives a PR to merged                                                            |
+| `kody`                    | agent instructions and docs for a large repo, harness engineering, or the skills `kcd-skills` comes from                                                                             |
+| `byarcadia-foundation`    | a pnpm library monorepo on Vite+ with changesets and npm publishing, a React Native hook package and its tests, or an oxlint JS plugin                                               |
+| `dmmulroy-anti-slop`      | writing an oxlint JS plugin rule with RuleTester, a lint policy against `unknown`, `as` and `typeof` in TypeScript, or a skill that vendors code into a repo and updates it in place |
+
+<!-- references:end -->
 
 ## Rules
 
@@ -28,5 +45,6 @@ Read the entries before you research, and open the clones whose `when` matches t
 - **A starting point, not the whole field.** The list is hand-picked, and each clone is its ref at
   the last sync. Research into a feature or an approach reads the matching entries first, then looks
   further: other repositories, upstream docs and web search.
-- **Read the licence before you add one.** A Reference is read, never copied in. Add its entry to the
-  key, then run `pnpm references:sync <dir>`.
+- **Add one with `/sdlc-references-add <repository>`.** It reads the licence, picks the ref and the
+  paths to skip, writes the entry, rewrites the table and syncs it. A Reference is read, never
+  copied in.

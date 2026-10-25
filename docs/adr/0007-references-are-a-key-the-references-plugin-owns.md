@@ -16,5 +16,7 @@ files.
 ## Consequences
 
 An editor completes nothing under `references`, since the file's `$schema` is the guardrails schema.
-The Router keeps the rules for reading References and points at the key, so an agent reads the
-descriptions when it needs them, not in every session.
+The Router keeps the rules for reading References and carries a table of each one's `dir` and `when`,
+which the setup writes from the key between two markers, so an agent learns from that one file which
+clone to open and reads `what` and the other fields in the key when it needs them. The key stays the
+only source: a table behind it is one line at session start and a failed check, never a second list.

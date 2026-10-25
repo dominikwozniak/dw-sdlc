@@ -3,7 +3,8 @@
 // Each clone is shallow and blobless, detached at what was fetched, and sparse when its entry skips
 // paths. Only the committed config is read. A key the parser refuses syncs nothing; an entry that
 // fails to resolve fails alone. One Sync runs in a checkout at a time: a second one waits on the lock
-// under references/. A repository that declares no References gets no output at all.
+// under references/. When the Router or its table is missing or behind the key, one line names the
+// setup to run. A repository that declares no References gets no output at all.
 
 import { spawnSync } from "node:child_process"
 import { existsSync, linkSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs"
@@ -12,10 +13,12 @@ import { setTimeout as sleep } from "node:timers/promises"
 import { parseArgs } from "node:util"
 
 import { readPins, resolveRef, type Pins } from "./pins.ts"
-import { parseReferences, type Reference } from "./references-key.ts"
+import { CONFIG, readReferences, type Reference } from "./references-key.ts"
+import { renderBlock, withBlock } from "./router-block.ts"
 
-const CONFIG = ".ai/agentic.config.json"
 const CLONES = "references"
+const ROUTER = "references/AGENTS.md"
+const SETUP = join(import.meta.dirname, "references-setup.ts")
 const LOCK = ".sync.lock"
 /** Seconds a Sync waits for another one in the same checkout: inside the session hook's 60 s. */
 const WAIT_SECONDS = 30
@@ -221,22 +224,24 @@ function parseCli(argv: string[]): { help: boolean; dirs: string[] } {
   }
 }
 
-/** The key the committed config declares, or undefined when the file or the key is absent. */
-function readKey(root: string): unknown {
-  const path = join(root, CONFIG)
+/**
+ * One line when the Router or its table is missing or behind `references`, naming the setup to run,
+ * or when its markers are not a pair, which the setup would refuse.
+ */
+function routerLine(root: string, references: Reference[]): string | undefined {
+  const path = join(root, ROUTER)
   if (!existsSync(path)) {
-    return undefined
+    return `${ROUTER}  missing  run node "${SETUP}" from the project to write the Router`
   }
-  let config: unknown
-  try {
-    config = JSON.parse(readFileSync(path, "utf8"))
-  } catch (error) {
-    fail(`${CONFIG}: not JSON: ${messageOf(error)}; nothing synced`)
+  const current = readFileSync(path, "utf8")
+  const next = withBlock(current, renderBlock(references))
+  if ("problem" in next) {
+    return `${ROUTER}  broken  ${next.problem}`
   }
-  if (typeof config !== "object" || config === null || Array.isArray(config)) {
-    fail(`${CONFIG}: not a JSON object; nothing synced`)
+  if (next.text !== current) {
+    return `${ROUTER}  behind the key  run node "${SETUP}" from the project to rewrite its table`
   }
-  return Reflect.get(config, "references")
+  return undefined
 }
 
 /** `compute`'s value on the first call, from then on the same value. */
@@ -281,21 +286,17 @@ async function main(argv: string[]): Promise<void> {
 
   const toplevel = git(["rev-parse", "--show-toplevel"])
   const root = toplevel.ok ? toplevel.out : process.cwd()
-  const key = readKey(root)
-  let references: Reference[] = []
-  if (key !== undefined) {
-    const parsed = parseReferences(key)
-    if ("problem" in parsed) {
-      fail(`${CONFIG}: ${parsed.problem.path}: ${parsed.problem.message}; nothing synced`)
-    }
-    references = parsed.references
+  const reading = readReferences(root)
+  if ("problem" in reading) {
+    fail(`${reading.problem}; nothing synced`)
   }
+  const references = reading.references ?? []
 
   const unknown = cli.dirs.filter((dir) => !references.some((reference) => reference.dir === dir))
   if (unknown.length > 0) {
     fail(`not in the references of ${CONFIG}: ${unknown.join(", ")}`)
   }
-  if (key === undefined) {
+  if (reading.references === undefined) {
     return
   }
   const selected =
@@ -316,6 +317,11 @@ async function main(argv: string[]): Promise<void> {
     } finally {
       attempt.release()
     }
+  }
+
+  const router = routerLine(root, references)
+  if (router !== undefined) {
+    console.log(router)
   }
 
   const listed = new Set(references.map((reference) => reference.dir))

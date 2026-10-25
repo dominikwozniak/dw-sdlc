@@ -87,8 +87,8 @@ part of this repository's history.
 _Avoid_: vendored repo, subtree
 
 **Router**:
-The file an agent reads first under a repository's References: the rules for reading them and where
-their list is declared.
+The file an agent reads first under a repository's References: the rules for reading them, where
+their list is declared, and a table of each one's `dir` and `when` that the setup writes from that list.
 _Avoid_: manifest, index
 
 **Sync**:
