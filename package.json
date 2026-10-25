@@ -1,5 +1,5 @@
 {
-  "name": "dw-sdlc",
+  "name": "dw-sdlc-workspace",
   "private": true,
   "type": "module",
   "scripts": {
@@ -9,7 +9,7 @@
     "format:fix": "oxfmt --disable-nested-config .",
     "typecheck": "tsc -p tsconfig.json",
     "check": "pnpm lint && pnpm format && pnpm typecheck && pnpm references:setup --check && pnpm test",
-    "test": "node --test \"plugins/**/*.test.ts\"",
+    "test": "node --test \"packages/*/test/**/*.test.ts\" \"plugins/*/test/**/*.test.ts\"",
     "agentic:check": "node plugins/guardrails/scripts/agentic-config.ts",
     "guardrails:setup": "node plugins/guardrails/scripts/guardrails-setup.ts",
     "guardrails:doctor": "node plugins/guardrails/scripts/guardrails-doctor.ts",

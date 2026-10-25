@@ -12,7 +12,7 @@ import { homedir } from "node:os"
 import { join } from "node:path"
 import { parseArgs } from "node:util"
 
-import { findRepository, resolveConfig } from "./agentic-config.ts"
+import { findRepository, resolveConfig } from "../dw-sdlc/src/agentic-config.ts"
 
 export type Level = "PASS" | "WARN" | "FAIL" | "INFO"
 export type Check = { name: string; level: Level; detail: string }
@@ -138,7 +138,7 @@ function checkPlugin(probe: Probe, claude: string): Check {
     return {
       name: "plugin",
       level: "FAIL",
-      detail: `${PLUGIN_ID} is not installed. claude plugin marketplace add dominikwozniak/dw-sdlc --sparse .claude-plugin plugins && claude plugin install ${PLUGIN_ID} --scope user`
+      detail: `${PLUGIN_ID} is not installed. claude plugin marketplace add dominikwozniak/dw-sdlc --sparse .claude-plugin plugins packages && claude plugin install ${PLUGIN_ID} --scope user`
     }
   }
   const version = typeof entry.version === "string" ? entry.version : "?"

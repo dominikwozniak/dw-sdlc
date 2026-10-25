@@ -11,14 +11,15 @@ carries no other stack-specific guard.
 ## Install
 
 ```bash
-claude plugin marketplace add dominikwozniak/dw-sdlc --sparse .claude-plugin plugins
+claude plugin marketplace add dominikwozniak/dw-sdlc --sparse .claude-plugin plugins packages
 claude plugin install guardrails@dw-sdlc --scope user
 ```
 
 The hooks need `jq`. Without it every guard exits 0 and guards nothing; the doctor says so.
 
 Added from GitHub, the plugin is a snapshot of `main` that `claude plugin update` refreshes, and
-`--sparse` keeps the clone to the catalogue and the plugins. Added from a clone
+`--sparse` keeps the clone to the catalogue, the plugins and the package the `dw-sdlc` link points
+at; without `packages` the plugin installs without the package. Added from a clone
 (`claude plugin marketplace add ./` in the checkout), it runs live from that checkout: a change on
 disk is in the next session, a broken edit included.
 
@@ -35,15 +36,18 @@ disk is in the next session, a broken edit included.
   `hooks/lib-git.sh`, the git readers — a verb and its options, a push and its targets, the
   current branch.
 - `hooks/schema.jq`, `hooks/config.jq` — the config contract in jq: schema validation and the
-  local-over-committed-over-inferred merge, the same behaviour as `scripts/agentic-config.ts`.
+  local-over-committed-over-inferred merge, the same behaviour as `dw-sdlc/src/agentic-config.ts`.
 - `hooks/bash-guard.sh` — the dispatcher: one stdin read, heredoc bodies dropped once but for the
   substitutions an unquoted one runs, each guard spawned only when the command could trip it.
 - `hooks/commit-msg.sh` — a git hook, not a Claude Code one: the Commit hook below.
-- `config/agentic.config.schema.json` — the JSON Schema for `.ai/agentic.config.json`.
-- `scripts/` — the TypeScript side: `agentic-config.ts` reads, validates and resolves the config
+- `dw-sdlc` — a link to `packages/dw-sdlc`, the package that owns the config: `src/agentic-config.ts`
+  resolves the layers, `src/json-schema.ts` is the dependency-free schema validator, and
+  `config/agentic.config.schema.json` is the JSON Schema for `.ai/agentic.config.json`.
+  `claude plugin install` copies the link as a real directory, so the installed plugin carries the
+  package's code.
+- `scripts/` — the TypeScript side: `agentic-config.ts` checks the config through the package
   (`node <plugin root>/scripts/agentic-config.ts` from a repository runs it), `guardrails-setup.ts`
-  and `guardrails-doctor.ts` are the Setup and Doctor below, `json-schema.ts` is the dependency-free
-  schema validator they share.
+  and `guardrails-doctor.ts` are the Setup and Doctor below.
 - `skills/sdlc-guardrails-setup/` — the skill a user invokes to run the setup script; the model cannot
   start it on its own.
 - `test/` — the tests, mirroring `hooks/` and `scripts/`: `harness.ts` spawns a guard on the real

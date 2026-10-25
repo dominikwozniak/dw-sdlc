@@ -8,7 +8,7 @@ repository without the key gets no output at all.
 ## Install
 
 ```bash
-claude plugin marketplace add dominikwozniak/dw-sdlc --sparse .claude-plugin plugins
+claude plugin marketplace add dominikwozniak/dw-sdlc --sparse .claude-plugin plugins packages
 claude plugin install references@dw-sdlc --scope user
 ```
 

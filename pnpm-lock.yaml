@@ -27,6 +27,8 @@ importers:
         specifier: 7.0.2
         version: 7.0.2
 
+  packages/dw-sdlc: {}
+
 packages:
 
   '@oxfmt/binding-android-arm-eabi@0.72.0':

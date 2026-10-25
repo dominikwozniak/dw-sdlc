@@ -1,5 +1,5 @@
 {
-  "include": ["plugins"],
+  "include": ["packages", "plugins"],
   "compilerOptions": {
     "target": "ES2024",
     "module": "NodeNext",

@@ -15,7 +15,7 @@ export LC_ALL=C
 
 GUARD_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GUARD_PLUGIN_ROOT="$(dirname "$GUARD_LIB_DIR")"
-GUARD_SCHEMA="$GUARD_PLUGIN_ROOT/config/agentic.config.schema.json"
+GUARD_SCHEMA="$GUARD_PLUGIN_ROOT/dw-sdlc/config/agentic.config.schema.json"
 GUARD_COMMITTED_FILE=".ai/agentic.config.json"
 GUARD_LOCAL_FILE=".ai/agentic.config.local.json"
 
@@ -243,8 +243,8 @@ guard_ask() {
 # --- the config ---------------------------------------------------------------------------------
 
 # guard_config_load <cwd> — resolves the config of the repository holding <cwd>: local over
-# committed over inferred, as scripts/agentic-config.ts does (its tests are the reference and run
-# this too). A linked worktree reads a layer it lacks from its main checkout, where a repository that
+# committed over inferred, as dw-sdlc/src/agentic-config.ts does (the reference; the tests run
+# both). A linked worktree reads a layer it lacks from its main checkout, where a repository that
 # keeps `.ai/` out of git has the only copy. Sets GUARD_CONFIG (the effective object as one line of
 # JSON), GUARD_CONFIG_ROOT (the worktree's own top level) and GUARD_CONFIG_PROBLEMS, one
 # `file: path: message` per line. Any problem drops that layer whole and puts `guardrails` on the

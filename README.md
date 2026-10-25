@@ -9,13 +9,13 @@ repositories an agent reads for prior art.
 ## Install
 
 ```bash
-claude plugin marketplace add dominikwozniak/dw-sdlc --sparse .claude-plugin plugins
+claude plugin marketplace add dominikwozniak/dw-sdlc --sparse .claude-plugin plugins packages
 claude plugin install guardrails@dw-sdlc --scope user
 claude plugin install references@dw-sdlc --scope user
 ```
 
-`--sparse` checks out only the catalogue and the plugins, not the docs and tooling around them. The
-repository is private, so the clone uses your git credentials.
+`--sparse` checks out only the catalogue, the plugins and the `dw-sdlc` package they link to, not the
+docs and tooling around them. The repository is private, so the clone uses your git credentials.
 
 > [!NOTE]
 > The guardrails hooks need `jq`. Without it every guard is silent, and the doctor says so.
@@ -86,7 +86,7 @@ A repository where every change starts on a branch sets `"guardrails": { "commit
 Plugin 0.8.2 and older read that key as an invalid layer and run the strictest set, so it belongs in
 the local layer until every machine runs 0.9.0: `/sdlc-guardrails-setup` with `--commit-on-protected deny`,
 and `--force-push ask` for a prompt before each lease push.
-Every key: [schema](plugins/guardrails/config/agentic.config.schema.json).
+Every key: [schema](packages/dw-sdlc/config/agentic.config.schema.json).
 
 ## References
 

@@ -1,5 +1,5 @@
 # The subset of JSON Schema draft 2020-12 the shipped schemas use, for the guards. The same keywords,
-# messages and paths as scripts/json-schema.ts, whose tests run both copies against one case list.
+# messages and paths as dw-sdlc/src/json-schema.ts; the tests run both copies against one case list.
 # A keyword outside the subset is an error, never a silent pass. `format` is enforced: `regex` is
 # the one format, tried as an Oniguruma expression and refused when it holds a construct POSIX ERE
 # lacks, because `grep -E` runs the pattern and BSD and GNU grep read those differently.

@@ -1,13 +1,13 @@
 // The contract of the `references` key: one case list through the parser the Sync runs and through
-// the schema the plugin ships, so the two never drift apart. The schema side borrows the guardrails
-// validator here only; the plugin itself imports nothing from another plugin.
+// the schema the plugin ships, so the two never drift apart. The schema side borrows the dw-sdlc
+// package's validator here only; the plugin itself imports nothing from outside its directory.
 
 import assert from "node:assert/strict"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { describe, it } from "node:test"
 
-import { validate } from "../../../guardrails/scripts/json-schema.ts"
+import { validate } from "../../../../packages/dw-sdlc/src/json-schema.ts"
 import { parseReferences } from "../../scripts/references-key.ts"
 
 const SCHEMA: unknown = JSON.parse(
