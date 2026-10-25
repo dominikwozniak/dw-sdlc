@@ -27,6 +27,7 @@ is, its repository, its ref and the paths its clone skips. Before you research, 
 | `kody`                    | agent instructions and docs for a large repo, harness engineering, or the skills `kcd-skills` comes from                                                                             |
 | `byarcadia-foundation`    | a pnpm library monorepo on Vite+ with changesets and npm publishing, a React Native hook package and its tests, or an oxlint JS plugin                                               |
 | `dmmulroy-anti-slop`      | writing an oxlint JS plugin rule with RuleTester, a lint policy against `unknown`, `as` and `typeof` in TypeScript, or a skill that vendors code into a repo and updates it in place |
+| `pstack`                  | a mode skill that routes a task to playbooks, a skill that runs several models or parallel agents on one task, or engineering principles written as skills                           |
 
 <!-- references:end -->
 

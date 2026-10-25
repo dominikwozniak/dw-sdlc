@@ -78,6 +78,14 @@
       "ref": "main",
       "what": "Dillon Mulroy's opinionated oxlint JS plugin: 18 generic rules and 5 Effect rules that reject low-evidence TypeScript — `unknown` on inputs and returns, chained `as`, `typeof` narrowing, module mocking, filter-then-map — each with a RuleTester suite on Oxlint's ESTree and scope APIs, no type checker; meant to be vendored, so `install-anti-slop` is the skill that copies `src/` into a repo, merges the lint config and updates a copy without losing local changes",
       "when": "writing an oxlint JS plugin rule with RuleTester, a lint policy against `unknown`, `as` and `typeof` in TypeScript, or a skill that vendors code into a repo and updates it in place"
+    },
+    {
+      "dir": "pstack",
+      "repository": "https://github.com/cursor/plugins",
+      "ref": "main",
+      "only": ["pstack/"],
+      "what": "Lauren Tan's pstack, a Cursor plugin that also installs in Claude Code: `poteto-mode` matches a task to one of 23 playbooks — bug fix, perf, feature, babysit, shipping, autonomous run — and runs the other skills as the steps need them; `interrogate` hands a diff to several models to break it, `arena` and `swarm` run parallel agents, and 24 short skills hold one engineering principle each, with a `poteto-agent` subagent and a model per role. The clone holds only `pstack/`: 200 of its 1267 files",
+      "when": "a mode skill that routes a task to playbooks, a skill that runs several models or parallel agents on one task, or engineering principles written as skills"
     }
   ]
 }
