@@ -1,10 +1,11 @@
 // The Sync: brings every Reference the `references` key of .ai/agentic.config.json declares to its ref
 // under references/<dir> — a missing one cloned, an existing one moved to a branch's head or to a tag.
 // Each clone is shallow and blobless, detached at what was fetched, and sparse when its entry names
-// only some paths or skips some. Only the committed config is read. A key the parser refuses syncs nothing; an entry that
-// fails to resolve fails alone. One Sync runs in a checkout at a time: a second one waits on the lock
-// under references/. When the Router or its table is missing or behind the key, one line names the
-// setup to run. A repository that declares no References gets no output at all.
+// only some paths or skips some. Only the committed config is read. A key the parser refuses syncs
+// nothing; an entry that fails to resolve fails alone. One Sync runs in a checkout at a time: a
+// second one waits on the lock under references/. When the Router or its table is missing or behind
+// the key, one line names the setup to run. A repository that declares no References gets no output
+// at all.
 
 import { spawnSync } from "node:child_process"
 import { existsSync, linkSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs"
@@ -30,9 +31,9 @@ const USAGE = `Usage: node <plugin root>/scripts/references-sync.ts [dir...]
 Brings every Reference the references key of ${CONFIG} declares to its ref under ${CLONES}/<dir>, or
 only the given dirs: a missing one cloned shallow, an existing one moved to its branch's head or its
 tag, holding the top-level files and the paths its only names when it has one, without the paths
-its skip names. Prints one line per Reference. Exit 1 when any Reference
-fails, 2 on a bad key, config or argument, in which case nothing is synced. One Sync runs in a
-checkout at a time; a second one waits for it up to ${WAIT_SECONDS} s, or REFERENCES_SYNC_WAIT seconds.`
+its skip names. Prints one line per Reference. Exit 1 when any Reference fails, 2 on a bad key,
+config or argument, in which case nothing is synced. One Sync runs in a checkout at a time; a
+second one waits for it up to ${WAIT_SECONDS} s, or REFERENCES_SYNC_WAIT seconds.`
 
 function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
@@ -179,8 +180,8 @@ function credentials(repository: string): string[] {
 }
 
 /**
- * The sparse-checkout patterns of a Reference, none for the whole tree. With `only`, the top-level
- * files and its paths, the way cone mode keeps them; `skip` is left out of either.
+ * The sparse-checkout patterns of a Reference, none for the whole tree. Without `only`, every path;
+ * with it, the top-level files and its paths alone. The paths `skip` names are left out of both.
  */
 function sparsePatterns({ only, skip }: Reference): string[] {
   if (only.length === 0 && skip.length === 0) {
@@ -191,7 +192,7 @@ function sparsePatterns({ only, skip }: Reference): string[] {
 }
 
 /** Whether the tree fetched into `cwd` holds `path`, a directory when it ends in `/`. Reads trees only. */
-function fetched(path: string, cwd: string): boolean {
+function fetchedTreeHas(path: string, cwd: string): boolean {
   const listed = git(["ls-tree", "FETCH_HEAD", "--", path.replace(/\/+$/, "")], cwd)
   if (!listed.ok) {
     throw new Error(`git ls-tree FETCH_HEAD: ${listed.err}`)
@@ -224,7 +225,7 @@ function sync(root: string, reference: Reference, ref: string): string | undefin
     }
     fetching(["fetch", "--quiet", "--depth", "1", "--filter=blob:none", "origin", ref])
     // Before the sparse checkout moves anything, so a renamed folder leaves the clone as it was.
-    const lacking = reference.only.filter((path) => !fetched(path, target))
+    const lacking = reference.only.filter((path) => !fetchedTreeHas(path, target))
     if (lacking.length > 0) {
       return `only names ${lacking.join(", ")}, which the tree at ${ref} lacks`
     }

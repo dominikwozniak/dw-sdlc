@@ -40,9 +40,10 @@ An array of entries, each with:
   `only`, each lies inside one of its paths;
 - `what` and `when` — what the Reference is, and when an agent reaches for it.
 
-With `only`, the top-level files are kept the way git's cone mode keeps them, since a README or a
-manifest there tells an agent where the part sits. A directory the repository adds later stays
-out of the clone. `cursor/plugins`, read for its pstack part alone:
+With `only`, the clone holds the repository's top-level files too, since a README or a manifest
+there tells an agent where the part sits. Nothing else is checked out: not the files beside a
+nested path, nor a directory the repository adds later. `cursor/plugins`, read for its pstack part
+alone:
 
 ```json
 {
@@ -71,8 +72,9 @@ Every Reference, or only the named ones. A missing one is cloned shallow, bloble
 checkout; an existing one is fetched at depth 1. Either is then checked out detached at what was
 fetched, sparse when `only` or `skip` names paths. The sparse checkout is set from both on every
 run, so adding, changing or removing either moves the clone at the next Sync, and a move between a
-branch and a tag keeps it. Each prints one line: directory, short commit, repository and ref. The variables `git rev-parse --local-env-vars` lists are dropped, so a run from a git hook
-never touches the repository that hook points at, and the terminal prompt is off.
+branch and a tag keeps it. Each prints one line: directory, short commit, repository and ref. The
+variables `git rev-parse --local-env-vars` lists are dropped, so a run from a git hook never
+touches the repository that hook points at, and the terminal prompt is off.
 
 A directory under `references/` the list does not name is reported and never deleted. When the
 Router or its table is missing or behind the key, one line more names the setup to run, and when

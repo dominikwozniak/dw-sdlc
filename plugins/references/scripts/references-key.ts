@@ -127,7 +127,7 @@ function parseEntry(value: unknown, path: string): Reference {
     when: nonEmpty(value.when, `${path}.when`)
   }
   const { only, skip } = reference
-  const outside = only.length === 0 ? -1 : skip.findIndex((left) => !only.some((kept) => below(left, kept)))
+  const outside = only.length === 0 ? -1 : skip.findIndex((skipped) => !only.some((kept) => below(skipped, kept)))
   if (outside !== -1) {
     throw new KeyError(
       `${path}.skip[${outside}]`,

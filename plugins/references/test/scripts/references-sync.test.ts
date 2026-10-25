@@ -188,7 +188,8 @@ describe("only", () => {
   const source = plugins()
   const root = consumer([
     entry("pstack", source.url, { only: ["pstack/", "harness/pstack/"] }),
-    entry("vendorless", source.url, { only: ["pstack/", "harness/pstack"], skip: ["pstack/vendor/"] })
+    entry("vendorless", source.url, { only: ["pstack/", "harness/pstack"], skip: ["pstack/vendor/"] }),
+    entry("one-file", source.url, { only: ["harness/other/run.md"] })
   ])
 
   it("holds the top-level files and the paths only names, and nothing else; each line as without it", () => {
@@ -197,7 +198,8 @@ describe("only", () => {
     const short = git(clone(root, "pstack"), "rev-parse", "--short", "HEAD").trim()
     assert.deepEqual(lines(run.stdout), [
       `references/pstack  ${short}  ${source.url} main`,
-      `references/vendorless  ${short}  ${source.url} main`
+      `references/vendorless  ${short}  ${source.url} main`,
+      `references/one-file  ${short}  ${source.url} main`
     ])
     assert.equal(run.stderr, "")
     assert.deepEqual(checkedOut(root, "pstack"), [
@@ -216,6 +218,10 @@ describe("only", () => {
       "package.json",
       "pstack/SKILL.md"
     ])
+  })
+
+  it("holds a file only names, deep under directories it otherwise leaves out", () => {
+    assert.deepEqual(checkedOut(root, "one-file"), ["README.md", "harness/other/run.md", "package.json"])
   })
 
   it("shrinks a whole clone once only is added, and brings the whole tree back once it is removed", () => {
@@ -508,10 +514,15 @@ describe("how the Sync fails", () => {
     assert.ok(!existsSync(clone(root, "new")))
   })
 
-  it("syncs nothing on an empty only, or a skip path outside every only path", () => {
+  it("syncs nothing on an only that is empty or leaves the clone, or a skip path outside every only path", () => {
     const source = upstream()
     const cases: [Record<string, unknown>, string][] = [
       [{ only: [] }, "references[1].only: must name at least one path"],
+      [{ only: ["/docs/"] }, 'references[1].only[0]: "/docs/" must be relative to the clone and stay inside it'],
+      [
+        { only: ["docs/../../x"] },
+        'references[1].only[0]: "docs/../../x" must be relative to the clone and stay inside it'
+      ],
       [{ only: ["docs/"], skip: ["repos/"] }, 'references[1].skip[0]: "repos/" must lie inside one of the only paths']
     ]
     for (const [fields, problem] of cases) {
