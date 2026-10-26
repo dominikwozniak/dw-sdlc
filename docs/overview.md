@@ -4,8 +4,8 @@ The repository holds the software delivery process Dominik works by and the Clau
 carries it: a plugin marketplace and the code behind it. Its first plugin, `guardrails`, is a set of
 deterministic hooks that stop an agent session from doing the damage a human would not: rewriting
 history, reading a secret, installing through the wrong package manager, committing sloppily. This
-page is the long version of the README: how a guard judges a call, where its rules come from, why the
-design is shaped this way, and how a plugin is adopted and released. Every guard in full is in the
+page is the long version of the README: how a guard judges a call, where its rules come from, how
+the Gate runs, why the design is shaped this way, and how a plugin is adopted and released. Every guard in full is in the
 [plugin README](../plugins/guardrails/README.md).
 
 ## How a guard judges a call
@@ -47,6 +47,31 @@ rule, since a commit a person writes has no co-author to name.
 The plugin guards Node repositories, and App Store Connect from every repository: `asc` reaches the
 whole store account from any directory. It carries no other stack-specific guard;
 `packageManagers.ruby` is accepted by the schema and read by nothing.
+
+## How the Gate runs
+
+`pnpm check` is the Gate, the one command a change must pass, the same in a terminal and in CI. Its
+script is `dw-sdlc gate`, the bin of the `dw-sdlc` package, which reads the `gate` key of the
+resolved config. The Steps under `gate.steps` run in order from the repository root through `sh -c`,
+each one's output passed through, and the first that fails ends the Gate. Then every Check under
+`gate.checks` runs, and a failed Check does not stop the next. A repository's own script joins as a
+Check through `gate.checks.run`, a `name` and a `command`, and the schema refuses a Check name the
+package does not ship. `gate.command` is the command an agent or a person runs, inferred as
+`pnpm check` from the `check` script of `package.json` when no layer sets it.
+
+Every failure is one line naming the file where there is one, the rule and the remedy:
+
+```text
+.ai/agentic.config.json: config: gate.checks: unknown key "nope" — fix the file; the Gate runs once every layer is valid
+step: "pnpm lint" exited 1 — fix what it printed above
+```
+
+Under GitHub Actions each line is also a workflow annotation on its file. `--json` prints the same as
+one document on stdout, with the status, the resolved command, each Step and Check with its exit
+code, and the failures; the commands' own output then goes to stderr. The exit code is 0 when
+everything passes, 1 when a Step or a Check fails, and 2 when the Gate cannot run: an invalid config
+layer, or a Step or Check whose command the shell cannot find or execute. Why a Check is a named unit
+turned on in the config is [ADR 0009](adr/0009-checks-are-named-units-turned-on-in-the-config.md).
 
 ## Why this way
 
@@ -90,7 +115,9 @@ Add `.ai/agentic.config.json` and validate it with
     "convention": "conventional",
     "trailer": "Co-Authored-By"
   },
-  "validation": { "commands": ["pnpm check"] }
+  "gate": {
+    "steps": ["pnpm lint", "pnpm format", "pnpm typecheck", "pnpm references:setup --check", "pnpm test"]
+  }
 }
 ```
 

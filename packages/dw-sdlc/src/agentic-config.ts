@@ -34,6 +34,13 @@ export type Guardrails = {
 /** `guardrails` as one layer writes it: every key optional, `envFiles` key by key. */
 export type GuardrailsLayer = Partial<Omit<Guardrails, "envFiles">> & { envFiles?: Partial<EnvFiles> }
 
+/** A repository's own script under `gate.checks.run`, reported as a Check under `name`. */
+export type RunCheck = { name: string; command: string }
+/** The Gate: its command, the steps run in order, the Checks run after them. */
+export type Gate = { command?: string; steps: string[]; checks: { run: RunCheck[] } }
+/** `gate` as one layer writes it: every key optional, `checks` Check by Check. */
+export type GateLayer = { command?: string; steps?: string[]; checks?: { run?: RunCheck[] } }
+
 /** One layer as written in a file: every key optional, unknown top-level keys tolerated. */
 export type AgenticConfig = {
   $schema?: string
@@ -42,7 +49,7 @@ export type AgenticConfig = {
   packageManagers?: { node?: NodePackageManager; ruby?: "bundler" }
   guardrails?: GuardrailsLayer
   commit?: { convention?: CommitConvention; pattern?: string; trailer?: string }
-  validation?: { commands?: string[] }
+  gate?: GateLayer
   worktree?: { setup?: string[] }
 }
 
@@ -53,7 +60,7 @@ export type ResolvedConfig = {
   packageManagers: { node?: NodePackageManager; ruby?: "bundler" }
   guardrails: Guardrails
   commit: { convention: CommitConvention; pattern: string; trailer?: string }
-  validation: { commands: string[] }
+  gate: Gate
   worktree: { setup: string[] }
 }
 
@@ -238,9 +245,34 @@ function inferPackageManagers(root: string): ResolvedConfig["packageManagers"] {
   return managers
 }
 
+/** Whether `package.json` at `root` declares a `check` script; a missing or unreadable manifest has none. */
+function hasCheckScript(root: string): boolean {
+  let manifest: unknown
+  try {
+    manifest = JSON.parse(readFileSync(join(root, "package.json"), "utf8"))
+  } catch {
+    return false
+  }
+  if (typeof manifest !== "object" || manifest === null || !("scripts" in manifest)) {
+    return false
+  }
+  const { scripts } = manifest
+  return typeof scripts === "object" && scripts !== null && "check" in scripts && typeof scripts.check === "string"
+}
+
+/** The Gate with nothing declared: `pnpm check` where the manifest has a `check` script, else no command. */
+function inferGate(root: string): Gate {
+  const gate: Gate = { steps: [], checks: { run: [] } }
+  if (hasCheckScript(root)) {
+    gate.command = "pnpm check"
+  }
+  return gate
+}
+
 /**
- * The bottom layer: the package manager the lockfile implies, plus the defaults every key falls back to.
- * `commit.pattern` is left to `resolveConfig`, which fills it from the convention when no layer sets one.
+ * The bottom layer: the package manager the lockfile implies, the Gate command the manifest's `check`
+ * script implies, plus the defaults every key falls back to. `commit.pattern` is left to
+ * `resolveConfig`, which fills it from the convention when no layer sets one.
  */
 export function inferConfig(root: string): Merged {
   return {
@@ -249,7 +281,7 @@ export function inferConfig(root: string): Merged {
     packageManagers: inferPackageManagers(root),
     guardrails: cloneGuardrails(DEFAULT_GUARDRAILS),
     commit: { convention: "conventional" },
-    validation: { commands: [] },
+    gate: inferGate(root),
     worktree: { setup: [] }
   }
 }
@@ -265,7 +297,7 @@ function applyLayer(base: Merged, layer: AgenticConfig): Merged {
       envFiles: { ...base.guardrails.envFiles, ...layer.guardrails?.envFiles }
     },
     commit: { ...base.commit, ...layer.commit },
-    validation: { commands: layer.validation?.commands ?? base.validation.commands },
+    gate: { ...base.gate, ...layer.gate, checks: { ...base.gate.checks, ...layer.gate?.checks } },
     worktree: { setup: layer.worktree?.setup ?? base.worktree.setup }
   }
 }

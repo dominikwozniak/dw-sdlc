@@ -283,10 +283,10 @@ guard_config_get() {
   jq -r "$1 // empty" <<<"$GUARD_CONFIG"
 }
 
-# guard_config_infer <root> — the bottom layer on stdout: the conventional commit preset, and the Node
-# package manager from the lockfile.
+# guard_config_infer <root> — the bottom layer on stdout: the conventional commit preset, the Node
+# package manager from the lockfile, and the Gate command from the manifest's `check` script.
 guard_config_infer() {
-  local root="$1" node=""
+  local root="$1" node="" manifest=(--arg manifest "")
   if [[ -f "$root/pnpm-lock.yaml" ]]; then
     node=pnpm
   elif [[ -f "$root/package-lock.json" ]]; then
@@ -296,10 +296,14 @@ guard_config_infer() {
   elif [[ -f "$root/bun.lock" || -f "$root/bun.lockb" ]]; then
     node=bun
   fi
-  jq -cn --arg node "$node" '{
-    commit: {convention: "conventional"},
-    packageManagers: (if $node != "" then {node: $node} else {} end)
-  }'
+  [[ -f "$root/package.json" ]] && manifest=(--rawfile manifest "$root/package.json")
+  jq -cn --arg node "$node" "${manifest[@]}" '
+    (try ($manifest | fromjson | .scripts.check) catch null) as $check
+    | {
+        commit: {convention: "conventional"},
+        packageManagers: (if $node != "" then {node: $node} else {} end)
+      }
+    + if ($check | type) == "string" then {gate: {command: "pnpm check"}} else {} end'
 }
 
 # guard_config_layer <root> <main> <file> — GUARD_LAYER_JSON becomes the document at <root>, else at

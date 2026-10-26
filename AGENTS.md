@@ -9,8 +9,9 @@ is its long form: how a guard works, why the design, adopting and releasing.
 ## Project map
 
 - `packages/dw-sdlc/` — the `dw-sdlc` package, a workspace member: `src/` the resolver of the
-  config's layers and the JSON Schema validator, `config/` the JSON Schema for
-  `.ai/agentic.config.json`, which declares how this repo works for an agent, and `test/` their tests
+  config's layers, the JSON Schema validator and the `dw-sdlc` bin, `cli.ts`, with one module per
+  subcommand under `commands/`; `config/` the JSON Schema for `.ai/agentic.config.json`, which
+  declares how this repo works for an agent; `test/` their tests, the bin spawned on a throwaway repo
 - `plugins/guardrails/` — the guardrails plugin, published through `.claude-plugin/marketplace.json`:
   `hooks/` holds the bash guards on a shared `lib.sh` plus the jq config contract, `dw-sdlc` a link
   to the package, `scripts/` the TypeScript that runs the config check, the setup and the doctor on
@@ -83,7 +84,8 @@ is its long form: how a guard works, why the design, adopting and releasing.
 ## Commands
 
 ```bash
-pnpm check                      # lint + format + typecheck + references:setup --check + test; = CI
+pnpm check                      # dw-sdlc gate: the gate.steps of .ai/agentic.config.json in order; = CI
+pnpm exec dw-sdlc gate [--json] # the Gate itself; exit 0 green, 1 a Step or Check failed, 2 cannot run
 pnpm lint | lint:fix            # oxlint — check / --fix
 pnpm format | format:fix        # oxfmt — check / write
 pnpm typecheck                  # tsc, no emit

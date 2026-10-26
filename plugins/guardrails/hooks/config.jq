@@ -1,10 +1,10 @@
 # The merge dw-sdlc/src/agentic-config.ts performs, for the guards: the same defaults, the same
 # tighten rule, the same messages. That file is the reference; the tests run both.
 #
-# `resolve($inferred; $committed; $local)` takes the inferred layer (commit.convention, packageManagers),
-# the committed and local documents (null when absent or invalid) and returns {config, problems},
-# where problems are the local loosenings. The caller puts guardrails on `strictest` when any layer
-# had a problem.
+# `resolve($inferred; $committed; $local)` takes the inferred layer (commit.convention, packageManagers,
+# gate.command where the manifest has a check script), the committed and local documents (null when
+# absent or invalid) and returns {config, problems}, where problems are the local loosenings. The
+# caller puts guardrails on `strictest` when any layer had a problem.
 
 def local_file: ".ai/agentic.config.local.json";
 
@@ -40,11 +40,12 @@ def defaults($inferred): {
     protectedBranches: ["master", "main", "production"]
   },
   commit: {convention: $inferred.commit.convention},
-  validation: {commands: []},
+  gate: ({steps: [], checks: {run: []}} + ($inferred.gate // {})),
   worktree: {setup: []}
 };
 
 # guardrails.envFiles merges key by key, each list wholesale; the other guardrails as one value.
+# gate.checks merges Check by Check, `run` wholesale; gate.steps wholesale.
 def apply($layer):
   . as $base
   | {
@@ -54,7 +55,7 @@ def apply($layer):
       guardrails: (($base.guardrails + ($layer.guardrails // {}))
         | .envFiles = ($base.guardrails.envFiles + ($layer.guardrails.envFiles // {}))),
       commit: ($base.commit + ($layer.commit // {})),
-      validation: {commands: ($layer.validation.commands // $base.validation.commands)},
+      gate: (($base.gate + ($layer.gate // {})) | .checks = ($base.gate.checks + ($layer.gate.checks // {}))),
       worktree: {setup: ($layer.worktree.setup // $base.worktree.setup)}
     };
 

@@ -11,7 +11,9 @@
     "convention": "conventional",
     "trailer": "Co-Authored-By"
   },
-  "validation": { "commands": ["pnpm check"] },
+  "gate": {
+    "steps": ["pnpm lint", "pnpm format", "pnpm typecheck", "pnpm references:setup --check", "pnpm test"]
+  },
   "worktree": { "setup": ["pnpm install"] },
   "references": [
     {

@@ -71,6 +71,36 @@ describe("hooks/lib.sh agrees with resolveConfig", () => {
         })
     ],
     [
+      "on a Gate command inferred from the check script beside another package manager's lockfile",
+      () =>
+        repo({
+          files: { "package.json": JSON.stringify({ scripts: { check: "dw-sdlc gate" } }), "yarn.lock": "" }
+        })
+    ],
+    [
+      "on a check script without a lockfile",
+      () => repo({ files: { "package.json": JSON.stringify({ scripts: { check: "dw-sdlc gate" } }) } })
+    ],
+    ["on a manifest that is not JSON", () => repo({ files: { "package.json": "{ not json", "pnpm-lock.yaml": "" } })],
+    [
+      "on the Gate set key by key over the committed one and the inferred command",
+      () =>
+        repo({
+          files: {
+            "package.json": JSON.stringify({ scripts: { check: "dw-sdlc gate" } }),
+            "pnpm-lock.yaml": "",
+            [COMMITTED_FILE]: {
+              gate: { steps: ["pnpm lint", "pnpm test"], checks: { run: [{ name: "docs", command: "node docs.ts" }] } }
+            },
+            [LOCAL_FILE]: { gate: { command: "pnpm verify", steps: ["pnpm test"] } }
+          }
+        })
+    ],
+    [
+      "on a validation key, tolerated as an unknown top-level key",
+      () => repo({ files: { [COMMITTED_FILE]: { validation: { commands: ["pnpm check"] } } } })
+    ],
+    [
       "on a committed convention",
       () => repo({ remote: ORG_REMOTE, files: { [COMMITTED_FILE]: { commit: { convention: "ticket-key" } } } })
     ],

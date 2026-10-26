@@ -11,6 +11,9 @@ importers:
       '@types/node':
         specifier: 24.19.2
         version: 24.19.2
+      dw-sdlc:
+        specifier: workspace:*
+        version: link:packages/dw-sdlc
       husky:
         specifier: 9.1.7
         version: 9.1.7

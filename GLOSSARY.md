@@ -44,7 +44,7 @@ committed over inferred.
 
 **Inferred layer**:
 The values read from the repository itself when no file sets them: the package manager from the lockfile,
-and the conventional commit convention.
+the conventional commit convention, and the Gate command from the manifest's `check` script.
 
 **Strictest set**:
 The fixed guardrails in force while any layer is invalid: every force push, every env file and every
@@ -78,11 +78,18 @@ _Avoid_: merged branch, which git's `--merged` keeps for a tip the base contains
 One script that judges the state of the working tree and answers with an exit code, a line naming the
 remedy and, on request, machine-readable output. It runs the same in CI, in a commit hook, in an agent
 hook and in a terminal.
-_Avoid_: step, rule, validator, test (which proves behaviour, not the tree)
+_Avoid_: Step (a toolchain command the Gate runs first), rule, validator, test (which proves behaviour,
+not the tree)
+
+**Step**:
+One toolchain command the Gate runs before its Checks, such as lint, format, typecheck or the tests.
+Steps run in order and the first that fails ends the Gate, its output passed through.
+_Avoid_: Check (which judges the tree and runs on after another fails), stage, job
 
 **Gate**:
-The ordered set of Checks a change must pass, run by one command that is the same locally and in CI.
-_Avoid_: quality gate, CI (which runs it), lint (one part of it)
+The Steps and then the Checks a change must pass, run by one command that is the same locally and in
+CI.
+_Avoid_: quality gate, CI (which runs it), lint (one Step of it)
 
 **Ratchet**:
 A Check with a recorded baseline whose limit may only tighten: a number that must not grow, or a list
