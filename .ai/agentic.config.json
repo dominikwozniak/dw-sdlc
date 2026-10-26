@@ -13,7 +13,14 @@
   },
   "gate": {
     "steps": ["pnpm lint", "pnpm format", "pnpm typecheck", "pnpm references:setup --check", "pnpm test"],
-    "checks": { "primitives": true, "agents-map": true }
+    "checks": {
+      "primitives": true,
+      "agents-map": true,
+      "markdown-budget": true,
+      "markdown-refs": true,
+      "temporal-language": true,
+      "decision-records": true
+    }
   },
   "worktree": { "setup": ["pnpm install"] },
   "references": [

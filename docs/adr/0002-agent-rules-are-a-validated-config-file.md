@@ -1,3 +1,7 @@
+---
+status: accepted
+---
+
 # How a repository works for an agent is a validated config file, not prose
 
 Every guard needs policy per repository: the commit pattern, the package manager, the protected

@@ -3,7 +3,11 @@
 
 import { agentsMap } from "./agents-map.ts"
 import { type Check, type Finding, optionsOf } from "./check.ts"
+import { decisionRecords } from "./decision-records.ts"
+import { markdownBudget } from "./markdown-budget.ts"
+import { markdownRefs } from "./markdown-refs.ts"
 import { primitives } from "./primitives.ts"
+import { temporalLanguage } from "./temporal-language.ts"
 
 /** A Check turned on by its setting, ready to judge a tree. */
 export type EnabledCheck = { name: string; run: (root: string) => Finding[] }
@@ -20,7 +24,14 @@ function ship<Options extends object>(check: Check<Options>): Shipped {
   }
 }
 
-const SHIPPED: Shipped[] = [ship(primitives), ship(agentsMap)]
+const SHIPPED: Shipped[] = [
+  ship(primitives),
+  ship(agentsMap),
+  ship(markdownBudget),
+  ship(markdownRefs),
+  ship(temporalLanguage),
+  ship(decisionRecords)
+]
 
 /** Every shipped Check a resolved `gate.checks` turns on with `true` or its options. */
 export function enabledChecks(checks: Record<string, unknown>): EnabledCheck[] {

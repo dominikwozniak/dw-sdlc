@@ -187,6 +187,111 @@
                 }
               },
               "additionalProperties": false
+            },
+            "markdown-budget": {
+              "description": "Each file a glob of `budgets` matches within that glob's `maxLines` and `maxBytes`, and every glob matching a file. A glob matches the files git tracks or would track, a symbolic link left out when the file it points at is matched too; `*` and `**` skip a name that starts with a dot.",
+              "type": ["boolean", "object"],
+              "properties": {
+                "budgets": {
+                  "description": "Default `docs/agents/*.md` within 100 lines and 6144 bytes; a list replaces the default.",
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "glob": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "maxLines": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "maxBytes": {
+                        "type": "integer",
+                        "minimum": 1
+                      }
+                    },
+                    "required": ["glob", "maxLines", "maxBytes"],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "additionalProperties": false
+            },
+            "markdown-refs": {
+              "description": "Every relative link and image in the markdown files resolves: its path to a file or directory git tracks or would track, its heading anchor to a heading of the markdown file it names, and `#anchor` alone to a heading of its own file. A link with a scheme, such as `https:`, and a link inside code are not judged.",
+              "type": ["boolean", "object"],
+              "properties": {
+                "files": {
+                  "description": "Globs of the markdown files whose links are judged, against the files git tracks or would track; `*` and `**` skip a name that starts with a dot. Default `**/*.md`.",
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "uniqueItems": true
+                },
+                "exempt": {
+                  "description": "Globs of the files left out. Default none.",
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "uniqueItems": true
+                }
+              },
+              "additionalProperties": false
+            },
+            "temporal-language": {
+              "description": "No changelog phrase in a durable document, matched across a line break and never inside code: `now we`,`we now`, `we no longer`, `previously we`, `as before`, `were removed`, `was` or `were retired`, `no longer` before `support`, `accept`, `require`, `use`, `fan`, `carry`, `replay`, `incur`, `authoritative`, `insert` or `needed`,`is now a` or `the`, `are now`, `previously a` or `the`, `recently` before `changed`, `added`, `updated`, `removed` or `introduced`, and `used to support` or `require`.",
+              "type": ["boolean", "object"],
+              "properties": {
+                "files": {
+                  "description": "Globs of the durable documents, against the files git tracks or would track; `*` and `**` skip a name that starts with a dot. Default `**/*.md`.",
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "uniqueItems": true
+                },
+                "exempt": {
+                  "description": "Globs of the files that record a point in time. Default `docs/adr/**`, `docs/decisions/**`, `docs/research/**` and `**/CHANGELOG.md`; a list replaces the default.",
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "uniqueItems": true
+                }
+              },
+              "additionalProperties": false
+            },
+            "decision-records": {
+              "description": "The records of each directory of `dirs` that exists, the files in it git tracks or would track named `<number>-<slug>.md`: numbered from 1 with no gap and no number taken twice, each with a level-1 heading for its title and a frontmatter `status` whose first word is one of `statuses`, so `superseded by ADR 0008` reads as `superseded`. The Gate cannot run when none of `dirs` exists.",
+              "type": ["boolean", "object"],
+              "properties": {
+                "dirs": {
+                  "description": "The directories of the records, relative to the repository root; one that does not exist holds none. Default `docs/adr` and `docs/decisions`.",
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "uniqueItems": true
+                },
+                "statuses": {
+                  "description": "Default `proposed`, `accepted`, `active`, `deprecated` and `superseded`.",
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "uniqueItems": true
+                }
+              },
+              "additionalProperties": false
             }
           },
           "additionalProperties": false

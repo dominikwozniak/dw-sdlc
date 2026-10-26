@@ -2,13 +2,13 @@
 // summary, every code and docs path on disk with its anchor resolving, and every file under the roots
 // named by a Primitive.
 
-import { spawnSync } from "node:child_process"
-import { existsSync, readFileSync, statSync } from "node:fs"
+import { existsSync } from "node:fs"
 import { join } from "node:path"
 
 import { type Catalogue, CATALOGUE_FILE, type Primitive, primitivesNaming, readCatalogue } from "../catalogue.ts"
-import { headings } from "../markdown.ts"
+import { type Anchors, anchorsOf } from "../markdown.ts"
 import { CannotRun, type Check, type Finding, optionsOf } from "./check.ts"
+import { treeFiles } from "./tree.ts"
 
 export type PrimitivesOptions = { file: string; roots: string[] }
 /** Where in the catalogue a Primitive is declared. */
@@ -26,8 +26,7 @@ const REMEDIES = {
   group: "add the group to groups, or move the Primitive into one listed there",
   summary: `keep the summary to one line of ${MAX_SUMMARY} characters or fewer`,
   path: "fix the path or drop it",
-  anchor: "point the entry at a heading the file has",
-  notGit: "run the Gate inside a git repository"
+  anchor: "point the entry at a heading the file has"
 }
 
 function show(value: string): string {
@@ -40,20 +39,6 @@ function lineOf(text: string, id: string, nth: number): number | undefined {
   const pattern = new RegExp(`"id"\\s*:\\s*${JSON.stringify(id).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "g")
   const match = Array.from(text.slice(start).matchAll(pattern))[nth]
   return match?.index === undefined ? undefined : text.slice(0, start + match.index).split("\n").length
-}
-
-/** The anchors of each markdown file read so far, by path. */
-type Anchors = Map<string, Set<string>>
-
-/** The anchors of the headings of `path`; none when it is not a file. */
-function anchorsOf(root: string, path: string, cache: Anchors): Set<string> {
-  let anchors = cache.get(path)
-  if (anchors === undefined) {
-    const full = join(root, path)
-    anchors = new Set(statSync(full).isFile() ? headings(readFileSync(full, "utf8")).map(({ anchor }) => anchor) : [])
-    cache.set(path, anchors)
-  }
-  return anchors
 }
 
 /** What is wrong with one Primitive, declared at `at`: its group, its summary, each code and docs entry. */
@@ -84,21 +69,6 @@ function judge(root: string, catalogue: Catalogue, primitive: Primitive, at: Loc
   return findings
 }
 
-/** Every file under `roots` that git tracks or would track, and that is on disk. */
-function filesUnder(root: string, roots: string[]): string[] {
-  const args = ["-C", root, "ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", ...roots]
-  const listed = spawnSync("git", args, { encoding: "utf8" })
-  if (listed.status !== 0) {
-    throw new CannotRun({
-      message: `cannot list the files under ${roots.join(", ")}: not a git repository`,
-      remedy: REMEDIES.notGit
-    })
-  }
-  return [...new Set(listed.stdout.split("\0").filter((path) => path !== ""))]
-    .filter((path) => existsSync(join(root, path)))
-    .toSorted()
-}
-
 function run(root: string, { file, roots }: PrimitivesOptions): Finding[] {
   const read = readCatalogue(root, file)
   if (read.state === "missing") {
@@ -125,7 +95,7 @@ function run(root: string, { file, roots }: PrimitivesOptions): Finding[] {
     }
     findings.push(...judge(root, catalogue, primitive, at, cache))
   }
-  for (const path of filesUnder(root, roots)) {
+  for (const path of treeFiles(root, roots)) {
     if (!TEST_FILE.test(path) && primitivesNaming(catalogue, path).length === 0) {
       const remedy = `name it, or a directory above it, in the code of a Primitive in ${file}`
       findings.push({ file: path, message: "no Primitive names this file", remedy })

@@ -91,6 +91,25 @@ schema.
   `gate.command`, to a Task Router row that points at the catalogue where there is one, and to every
   path the Task Router points at existing. Where the repository has them, it keeps the skills
   directory, `skills-lock.json` and the `.claude/skills` links in step.
+- `markdown-budget` holds each file a glob matches to that glob's line and byte budget, by default
+  the agent docs, `docs/agents/*.md`, to 100 lines and 6144 bytes. A glob that matches no file fails.
+- `markdown-refs` fails a relative link or image whose path is not a file or directory of the
+  repository, or whose heading anchor names no heading of the markdown file it points at. A link
+  with a scheme, such as `https:`, and a link inside code are not judged.
+- `temporal-language` fails a changelog phrase in a durable document: the list kody's docs check
+  holds, as [the research notes](research/gate/kody.md#two-checks-read-whole) record it, such as
+  `we now`, `is now the` or `no longer supports`, matched across a line break and never inside code.
+  Decision records, research notes and changelogs record a point in time, so `docs/adr/`,
+  `docs/decisions/`, `docs/research/` and every `CHANGELOG.md` are exempt by default.
+- `decision-records` holds the records under `docs/adr`, or the template's `docs/decisions`, to
+  files named `<number>-<slug>.md`, numbered from 1 with no gap and no number taken twice, each with
+  a level-1 heading for its title and a frontmatter `status` whose first word is `proposed`,
+  `accepted`, `active`, `deprecated` or `superseded`.
+
+The Checks that read many files judge the ones git tracks or would track, never one it ignores, so a
+link to an ignored file, or to another case of a file's name, fails on a Mac as it fails in CI. A
+glob's `*` and `**` skip a name that starts with a dot, as a shell does: `**/*.md` leaves the
+vendored skills under `.agents/` out.
 
 `dw-sdlc primitives --paths <files>` answers from the same catalogue: for each path, the Primitives
 whose `code` names it nearest, with their summaries and the documents to read, or that none does.
