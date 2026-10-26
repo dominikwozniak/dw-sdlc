@@ -1,7 +1,7 @@
 name: Release
 
 # A changeset on `main` opens or updates the version pull request. Once that pull request merges, the
-# package version npm does not have yet is checked, packed and published with provenance.
+# package version npm does not have yet is checked, packed and published.
 on:
   push:
     branches: [main]
@@ -117,7 +117,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     # `contents: write` pushes the git tag and the GitHub release; `id-token: write` is what trusted
-    # publishing and the provenance attestation sign with.
+    # publishing signs in with, and from a public repository the provenance attestation too.
     permissions:
       contents: write
       id-token: write
@@ -138,10 +138,9 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       # Publishes the tarball the pack job built. pnpm tries trusted publishing first and falls back to
-      # NPM_TOKEN; provenance is required, so a run that cannot attest fails instead of publishing.
+      # NPM_TOKEN; with pnpm's provenance setting unset, trusted publishing decides on provenance.
       - uses: changesets/action/publish@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
         with:
           pack-dir-artifact-id: ${{ needs.pack.outputs.pack-dir-artifact-id }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          PNPM_CONFIG_PROVENANCE: "true"

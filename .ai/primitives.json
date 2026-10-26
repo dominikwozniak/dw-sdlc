@@ -313,7 +313,7 @@
       "id": "distribution.release",
       "name": "Release workflow",
       "group": "distribution",
-      "summary": "Turns pending changesets into the version pull request; once it merges, publishes the package with provenance.",
+      "summary": "Turns pending changesets into the version pull request; once it merges, publishes the package to npm.",
       "code": [".github/workflows/release.yaml", ".changeset/config.json"],
       "docs": ["docs/overview.md#releasing-the-package"]
     },

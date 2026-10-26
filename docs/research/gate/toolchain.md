@@ -95,7 +95,8 @@ tokens; pnpm's v10.21.0 and v11.11.0 release notes; and this repository's Action
   publishing public packages." It needs `id-token: write`, a GitHub-hosted runner and a public
   `repository` in `package.json` that matches where the package is published from.
 - Trusted publishing is set under "your package settings on npmjs.com", so on a package that exists.
-  Under it, npm attaches provenance by default from a public repository. pnpm's `provenance`
+  Under it, npm attaches provenance by default from a public repository; from a private one,
+  "provenance will not be generated even though you're using trusted publishing." pnpm's `provenance`
   setting: "When unset, trusted publishing decides"; `PNPM_CONFIG_PROVENANCE` overrides the config
   files. The v11.11.0 notes name "the OIDC (trusted publishing) failure messages" of `pnpm publish`.
 - Tokens: a granular access token with write access can bypass 2FA, chosen at creation; the
@@ -115,6 +116,7 @@ tokens; pnpm's v10.21.0 and v11.11.0 release notes; and this repository's Action
   settings.
 - This repository on that day: private, `can_approve_pull_request_reviews` false, no Actions
   secrets, and `dw-sdlc` free on npm (`GET https://registry.npmjs.org/dw-sdlc` answers 404).
-- What follows: the first version of `dw-sdlc` needs the `NPM_TOKEN` secret, its provenance needs
-  this repository public, and once trusted publishing works the secret goes, because a version a
-  later run published on it would be refused by consumers on `no-downgrade`.
+- What follows: the first version of `dw-sdlc` needs the `NPM_TOKEN` secret; a version carries
+  provenance only once this repository is public, when trusted publishing attaches it unasked; and
+  once trusted publishing works the secret goes, because a version a later run published on it
+  would be refused by consumers on `no-downgrade`.

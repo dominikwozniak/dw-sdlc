@@ -212,9 +212,10 @@ access to packages, the bypass-2FA option on, and the shortest expiry that cover
 npm lets such a token do, and until when, is in the
 [research notes](research/gate/toolchain.md#npm-publishing).
 
-Every publish carries a provenance attestation (`PNPM_CONFIG_PROVENANCE=true`), and npm attests only
-a build from a public repository, so a publish from a private one fails rather than ship without
-it. A consumer on `trustPolicy: no-downgrade` refuses a version that carries less trust evidence
+npm attests provenance only for a build from a public repository, and this one is private, so the
+workflow leaves pnpm's `provenance` setting unset and trusted publishing decides: a version published
+from here carries no provenance, and once the repository is public npm attaches it. Trust evidence
+then only grows from one version to the next. A consumer on `trustPolicy: no-downgrade` refuses a version that carries less trust evidence
 than an earlier one, so the secret is deleted once trusted publishing works: a run that fell back to
 it would publish a version those consumers refuse. A consumer takes a release through Dependabot
 after the seven days of `minimumReleaseAge`; one that cannot wait names `dw-sdlc` in
