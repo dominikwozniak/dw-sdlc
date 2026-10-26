@@ -18,6 +18,7 @@
     "prepare": "husky"
   },
   "devDependencies": {
+    "@changesets/cli": "3.0.3",
     "@types/node": "24.19.2",
     "dw-sdlc": "workspace:*",
     "husky": "9.1.7",
