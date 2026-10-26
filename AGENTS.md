@@ -15,7 +15,8 @@ is its long form: how a guard works, why the design, adopting and releasing.
   the modules they share; `config/` the JSON Schema for `.ai/agentic.config.json`, which declares
   how this repo works for an agent, and the `references` key's own, which that schema leaves
   unnamed; `templates/` the Router the setup writes; `test/` their tests, the bin spawned on a
-  throwaway repo
+  throwaway repo, from the source and from the packed tarball; `dist/` the JavaScript `pnpm pack`
+  emits for npm, ignored
 - `plugins/guardrails/` — the guardrails plugin, published through `.claude-plugin/marketplace.json`:
   `hooks/` holds the bash guards on a shared `lib.sh` plus the jq config contract, `dw-sdlc` a link
   to the package, whose bin the skill runs, and `test/` the guard tests, mirroring `hooks/`:
@@ -50,9 +51,10 @@ is its long form: how a guard works, why the design, adopting and releasing.
   Router's table of each Reference's `when` is written from the list by `pnpm references:setup`; the
   references plugin's session-start hook or `pnpm references:sync` fetches them
 - `ideas/` — local-only notes; everything but `.gitkeep` is gitignored, so nothing in it reaches a clone
-- `.github/` — CI: `workflows/quality-gate.yaml` runs `pnpm check` on every pull request and on `main`.
-  Dependabot (`dependabot.yml`) opens grouped npm and GitHub Actions updates weekly, 7 days after a
-  release. Review runs locally, through `/code-review`
+- `.github/` — CI: `workflows/quality-gate.yaml` runs `pnpm check` on every pull request and on `main`;
+  `workflows/release.yaml` turns the changesets under `.changeset/` into a version pull request and,
+  once it merges, publishes the package to npm. Dependabot (`dependabot.yml`) opens grouped npm and
+  GitHub Actions updates weekly, 7 days after a release. Review runs locally, through `/code-review`
 
 ## Never
 
@@ -63,7 +65,8 @@ is its long form: how a guard works, why the design, adopting and releasing.
 
 - **pnpm only**, pinned in `package.json` — never `npm`, `npx`, `yarn` or `bun`; one-off tools via
   `pnpm dlx`. Dependencies are pinned exactly; `pnpm-workspace.yaml` refuses versions younger than 7 days.
-- **TypeScript runs natively on Node 24** — `node packages/dw-sdlc/src/cli.ts <command>`, no build step.
+- **TypeScript runs natively on Node 24** — `node packages/dw-sdlc/src/cli.ts <command>`, no build
+  step; only `pnpm pack` runs tsc, for the JavaScript the package ships to npm.
   Erasable syntax only (no `enum`, `namespace` or parameter properties), and relative imports keep
   the `.ts` extension.
 - **Formatting and import order belong to oxfmt.** The pre-commit hook runs oxlint `--fix` and oxfmt on
@@ -98,6 +101,7 @@ pnpm guardrails:setup [--dry-run] # write this machine's local config, excludes,
 pnpm guardrails:doctor          # one PASS / WARN / FAIL line per machine check; exit 1 on a FAIL
 pnpm references:sync [dir...]   # clone or update each reference repository on this machine
 pnpm references:setup [--check] # the Router's table from the references key; --check exits 1 when it is behind
+pnpm changeset                  # record a change to the dw-sdlc package for its next release
 ```
 
 ## Task Router
@@ -110,7 +114,7 @@ Match this table **before** researching or coding — read every row that matche
 | reading, adding or updating a reference repository                       | `references/AGENTS.md`, then `plugins/references/README.md`               |
 | editing a guard, `lib.sh`, the schema or the config resolver             | `docs/adr/*.md`, then the Decisions of `docs/specs/agentic-guardrails.md` |
 | explaining the repo, editing `README.md` or anything under `docs/`       | `README.md`, `docs/overview.md`, `GLOSSARY.md`                            |
-| releasing the plugin, bumping its version                                | `docs/overview.md`, the Releasing a plugin section                        |
+| releasing a plugin or the package, bumping a version                     | `docs/overview.md`, its two Releasing sections                            |
 | planning new work, filing or reading an issue                            | `docs/agents/issue-tracker.md`                                            |
 | what a guard, hook, script, key or skill is and where it lives           | `.ai/primitives.json`, or `dw-sdlc primitives --paths` on the files       |
 

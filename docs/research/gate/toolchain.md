@@ -75,3 +75,46 @@ at its `main` ref of that day, `https://pnpm.io/settings/dependency-resolution`,
   and a consumer that installs it from the registry gets a real copy under `node_modules`, so the
   published artifact is JavaScript. Foundation's anti-slop package states the same rule for itself
   (`own-repositories.md`).
+
+## npm publishing
+
+Read on 2026-10-26: pnpm's docs (`package_json.md`, `cli/pack.md`, `cli/publish.md`) and npm's
+(`trusted-publishers`, `generating-provenance-statements`, `about-access-tokens`) through Context7;
+the changesets guide `site/guide/automating.md`; `changesets/action` at `v2.1.2` and
+`@changesets/cli@3.0.3` through the GitHub API; the GitHub changelog of 2026-07-08 on bypass-2FA
+tokens; pnpm's v10.21.0 and v11.11.0 release notes; and this repository's Actions settings.
+
+- `publishConfig` "can be used to override several other fields in the manifest before the package
+  is packed": `bin`, `main`, `exports`, `types` or `typings`, `module`, `browser`, `esnext`,
+  `es2015`, `unpkg`, `umd:main`, `typesVersions`, `cpu`, `os`, `engines` (v10.22.0) and `name`
+  (v11.18.0). `files` is not one of them.
+- `pnpm pack` runs `prepack`, `prepare` and `postpack`, and strips the publish lifecycle scripts from
+  the packed manifest unless `--skip-manifest-obfuscation` (v11.3.0). Observed with pnpm 11.21.0:
+  it packs a `README.md` beside `files` unasked, and not a `CHANGELOG.md`.
+- Provenance: "Provenance generation is not supported for private repositories, even when
+  publishing public packages." It needs `id-token: write`, a GitHub-hosted runner and a public
+  `repository` in `package.json` that matches where the package is published from.
+- Trusted publishing is set under "your package settings on npmjs.com", so on a package that exists.
+  Under it, npm attaches provenance by default from a public repository. pnpm's `provenance`
+  setting: "When unset, trusted publishing decides"; `PNPM_CONFIG_PROVENANCE` overrides the config
+  files. The v11.11.0 notes name "the OIDC (trusted publishing) failure messages" of `pnpm publish`.
+- Tokens: a granular access token with write access can bypass 2FA, chosen at creation; the
+  changesets guide: "They expire after a maximum of 90 days". The GitHub changelog: bypass-2FA
+  tokens "will also lose the ability to publish directly", expected around January 2027, with
+  trusted publishing and staged publishing named as the replacements. The changesets guide: "At the
+  moment, Staged Publishing does not work with Changesets".
+- `trustPolicy: no-downgrade` (v10.21.0): pnpm "will fail installation if a package's trust level
+  has decreased compared to previous releases — for example, if it was previously published by a
+  trusted publisher but now only has provenance or no trust evidence."
+- changesets: `changeset publish` runs `pnpm publish` when pnpm is the package manager
+  (`getPublishTool.ts`). `changesets/action` v2.1.2 is `ae32849d5ba541f9ae29e40e22a623bc13562f51`;
+  its `select-mode` answers `version` while changesets are found and `publish` when none are and a
+  package's version is missing from npm; its `publish` creates the git tags and GitHub releases by
+  default. The guide sets `id-token: write` only on the job that publishes, and the `version`
+  sub-action needs "Allow GitHub Actions to create and approve pull requests" in the repository's
+  settings.
+- This repository on that day: private, `can_approve_pull_request_reviews` false, no Actions
+  secrets, and `dw-sdlc` free on npm (`GET https://registry.npmjs.org/dw-sdlc` answers 404).
+- What follows: the first version of `dw-sdlc` needs the `NPM_TOKEN` secret, its provenance needs
+  this repository public, and once trusted publishing works the secret goes, because a version a
+  later run published on it would be refused by consumers on `no-downgrade`.

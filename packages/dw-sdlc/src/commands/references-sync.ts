@@ -10,7 +10,7 @@
 
 import { spawnSync } from "node:child_process"
 import { existsSync, linkSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs"
-import { join } from "node:path"
+import { extname, join } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 import { parseArgs } from "node:util"
 
@@ -20,8 +20,9 @@ import { renderBlock, withBlock } from "../router-block.ts"
 
 const CLONES = "references"
 const ROUTER = "references/AGENTS.md"
-/** The setup, run through the package's bin, named in a line when the Router needs it. */
-const SETUP = `node "${join(import.meta.dirname, "..", "cli.ts")}" references setup`
+/** The setup, run through the package's bin, named in a line when the Router needs it: `cli.ts` in
+ * the source, `cli.js` in what tsc emits. */
+const SETUP = `node "${join(import.meta.dirname, "..", `cli${extname(import.meta.filename)}`)}" references setup`
 const LOCK = ".sync.lock"
 /** Seconds a Sync waits for another one in the same checkout: inside the session hook's 60 s. */
 const WAIT_SECONDS = 30

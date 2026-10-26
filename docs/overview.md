@@ -180,3 +180,43 @@ protection is not available on this private repository, so the guard is the only
 for a plugin, and `claude plugin update` refreshes an installed copy by that version only. A change
 ships when both files are bumped in one `chore: release <name> x.y.z` commit that lands on `main`.
 Installs from a clone see the change in the next session without a bump.
+
+## Releasing the package
+
+The `dw-sdlc` package goes to npm as JavaScript. Its source is TypeScript, and Node refuses to strip
+types from a file under `node_modules`, so `pnpm pack` runs the package's `prepack`: `tsc` emits
+`dist/` from `packages/dw-sdlc/tsconfig.build.json`. The manifest's `bin` and `exports` name the
+source, so this repository's workspace link runs it as written; their twins under `publishConfig`
+name `dist/`, and pnpm writes those into the packed manifest. `files` ships `dist/`, `config/` with the
+schemas, and `templates/` with the Router the setup writes; the package has no runtime dependency. `test/pack.test.ts` packs it, installs
+the tarball into a throwaway repository and runs `dw-sdlc gate` from that repository's `node_modules`.
+
+A change to the package carries a changeset: `pnpm changeset` writes one under `.changeset/`, with
+the bump and the line the changelog gets. On every push to `main`, `.github/workflows/release.yaml`
+picks one of two modes:
+
+- **version**, while a changeset is pending: it opens or updates the
+  `chore(release): version packages` pull request, which bumps the version, writes `CHANGELOG.md`
+  and deletes the changesets. GitHub opens it only when Settings → Actions → General allows GitHub
+  Actions to create pull requests.
+- **publish**, when npm lacks the version on `main`, which is what merging the version pull request
+  makes true: one job runs `pnpm check` and packs the tarball with no secret in reach; the next
+  publishes it, pushes the `dw-sdlc@x.y.z` tag and creates the GitHub release.
+
+Merging the version pull request is the decision to release. The publish job signs in to npm by
+trusted publishing, from its `id-token: write`, when the package's npm settings name
+`dominikwozniak/dw-sdlc` and `release.yaml` as its trusted publisher; otherwise it signs in with the
+`NPM_TOKEN` repository secret. npm sets a trusted publisher only on a package that exists, so a
+version published before one is set needs the secret: a granular access token with read and write
+access to packages, the bypass-2FA option on, and the shortest expiry that covers the release. What
+npm lets such a token do, and until when, is in the
+[research notes](research/gate/toolchain.md#npm-publishing).
+
+Every publish carries a provenance attestation (`PNPM_CONFIG_PROVENANCE=true`), and npm attests only
+a build from a public repository, so a publish from a private one fails rather than ship without
+it. A consumer on `trustPolicy: no-downgrade` refuses a version that carries less trust evidence
+than an earlier one, so the secret is deleted once trusted publishing works: a run that fell back to
+it would publish a version those consumers refuse. A consumer takes a release through Dependabot
+after the seven days of `minimumReleaseAge`; one that cannot wait names `dw-sdlc` in
+`minimumReleaseAgeExclude` under its own rule for exclusions, as
+[ADR 0008](adr/0008-gate-runs-from-a-pinned-package-plugin-adapts.md) records.
