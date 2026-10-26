@@ -194,6 +194,38 @@ export const CASES: Case[] = [
     ]
   },
   {
+    name: "the agentic schema takes a Check the package ships as true, false or its options",
+    schema: AGENTIC_SCHEMA,
+    value: {
+      gate: {
+        checks: {
+          primitives: { file: ".ai/primitives.json", roots: ["src", "scripts"] },
+          "agents-map": { file: "AGENTS.md", maxLines: 120, maxBytes: 8192 }
+        }
+      }
+    },
+    problems: []
+  },
+  {
+    name: "the agentic schema refuses a Check's unknown option, a value of the wrong type and a budget below 1",
+    schema: AGENTIC_SCHEMA,
+    value: {
+      gate: { checks: { primitives: { roots: "src", exempt: [] }, "agents-map": { maxLines: 0, maxBytes: 1.5 } } }
+    },
+    problems: [
+      { path: "gate.checks.primitives.roots", message: 'expected array, got "src"' },
+      { path: "gate.checks.primitives", message: 'unknown key "exempt"' },
+      { path: "gate.checks.agents-map.maxLines", message: "0 is below the minimum 1" },
+      { path: "gate.checks.agents-map.maxBytes", message: "expected integer, got 1.5" }
+    ]
+  },
+  {
+    name: "the agentic schema refuses a Check set to neither a boolean nor an object",
+    schema: AGENTIC_SCHEMA,
+    value: { gate: { checks: { primitives: false, "agents-map": "yes" } } },
+    problems: [{ path: "gate.checks.agents-map", message: 'expected boolean or object, got "yes"' }]
+  },
+  {
     name: "the agentic schema refuses an empty step and an empty Gate command",
     schema: AGENTIC_SCHEMA,
     value: { gate: { command: "", steps: ["pnpm lint", ""] } },

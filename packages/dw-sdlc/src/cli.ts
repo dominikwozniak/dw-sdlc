@@ -5,6 +5,7 @@
 import * as config from "./commands/config.ts"
 import * as doctor from "./commands/doctor.ts"
 import * as gate from "./commands/gate.ts"
+import * as primitives from "./commands/primitives.ts"
 import * as referencesSetup from "./commands/references-setup.ts"
 import * as referencesSync from "./commands/references-sync.ts"
 import * as setup from "./commands/setup.ts"
@@ -14,6 +15,7 @@ type Command = { summary: string; run: (argv: string[]) => number | Promise<numb
 
 const COMMANDS = new Map<string, Command>([
   ["gate", gate],
+  ["primitives", primitives],
   ["setup", setup],
   ["doctor", doctor],
   ["config", config],

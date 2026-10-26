@@ -36,10 +36,15 @@ export type GuardrailsLayer = Partial<Omit<Guardrails, "envFiles">> & { envFiles
 
 /** A repository's own script under `gate.checks.run`, reported as a Check under `name`. */
 export type RunCheck = { name: string; command: string }
+/**
+ * `run`, and under each other key a Check the package ships, as the schema takes it: `true`, `false` or
+ * its options. `src/checks/` reads the setting of each.
+ */
+export type GateChecks = { run: RunCheck[]; [check: string]: unknown }
 /** The Gate: its command, the steps run in order, the Checks run after them. */
-export type Gate = { command?: string; steps: string[]; checks: { run: RunCheck[] } }
+export type Gate = { command?: string; steps: string[]; checks: GateChecks }
 /** `gate` as one layer writes it: every key optional, `checks` Check by Check. */
-export type GateLayer = { command?: string; steps?: string[]; checks?: { run?: RunCheck[] } }
+export type GateLayer = { command?: string; steps?: string[]; checks?: Partial<GateChecks> }
 
 /** One layer as written in a file: every key optional, unknown top-level keys tolerated. */
 export type AgenticConfig = {

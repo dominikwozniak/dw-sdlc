@@ -54,9 +54,9 @@ whole store account from any directory. It carries no other stack-specific guard
 script is `dw-sdlc gate`, the bin of the `dw-sdlc` package, which reads the `gate` key of the
 resolved config. The Steps under `gate.steps` run in order from the repository root through `sh -c`,
 each one's output passed through, and the first that fails ends the Gate. Then every Check under
-`gate.checks` runs, and a failed Check does not stop the next. A repository's own script joins as a
-Check through `gate.checks.run`, a `name` and a `command`, and the schema refuses a Check name the
-package does not ship. `gate.command` is the command an agent or a person runs, inferred as
+`gate.checks` runs, and a failed Check does not stop the next: first a repository's own scripts,
+which join through `gate.checks.run` as a `name` and a `command`, then the Checks the package ships.
+The schema refuses a Check name the package does not ship. `gate.command` is the command an agent or a person runs, inferred as
 `pnpm check` from the `check` script of `package.json` when no layer sets it.
 
 Every failure is one line naming the file where there is one, the rule and the remedy:
@@ -68,10 +68,31 @@ step: "pnpm lint" exited 1 — fix what it printed above
 
 Under GitHub Actions each line is also a workflow annotation on its file. `--json` prints the same as
 one document on stdout, with the status, the resolved command, each Step and Check with its exit
-code, and the failures; the commands' own output then goes to stderr. The exit code is 0 when
-everything passes, 1 when a Step or a Check fails, and 2 when the Gate cannot run: an invalid config
-layer, or a Step or Check whose command the shell cannot find or execute. Why a Check is a named unit
+code, and the failures; the commands' own output then goes to stderr. A Check the package ships runs
+inside the bin, so its `command` is null. The exit code is 0 when everything passes, 1 when a Step or
+a Check fails, and 2 when the Gate cannot run: an invalid config layer, a Step or Check whose command
+the shell cannot find or execute, or a Check missing an input it reads. Why a Check is a named unit
 turned on in the config is [ADR 0009](adr/0009-checks-are-named-units-turned-on-in-the-config.md).
+
+### The Checks the package ships
+
+A Check the package ships is `true` under `gate.checks` for its defaults, an options object over
+them, or `false`; the schema's descriptions name each option and its default. Each is one module
+under `packages/dw-sdlc/src/checks/`, one row of the list the Gate runs them in, and one key of the
+schema.
+
+- `primitives` holds the Primitives catalogue, `.ai/primitives.json`, to the tree: unique ids, a
+  group that `groups` lists, a summary of one line within 120 characters, every `code` and `docs`
+  path on disk with its heading anchor resolving, and every file under the roots named by the `code`
+  of a Primitive, the file itself or a directory above it. The roots are `packages`, `plugins`,
+  `scripts` and `src` by default; a test file needs no Primitive.
+- `agents-map` holds `AGENTS.md` to 150 lines and 10240 bytes, to naming the resolved
+  `gate.command`, to a Task Router row that points at the catalogue where there is one, and to every
+  path the Task Router points at existing. Where the repository has them, it keeps the skills
+  directory, `skills-lock.json` and the `.claude/skills` links in step.
+
+`dw-sdlc primitives --paths <files>` answers from the same catalogue: for each path, the Primitives
+whose `code` names it nearest, with their summaries and the documents to read, or that none does.
 
 ## Why this way
 

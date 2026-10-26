@@ -122,7 +122,7 @@
           }
         },
         "checks": {
-          "description": "The Checks the Gate runs after its steps, every one even when another fails. A key names a Check the package ships, and a name it does not ship is refused.",
+          "description": "The Checks the Gate runs after its steps, every one even when another fails: the `run` scripts first, then the Checks the package ships, in the order listed here. A Check the package ships is `true` for its defaults, an options object over them, or `false` to stay off. A key names a Check the package ships, and a name it does not ship is refused.",
           "type": "object",
           "properties": {
             "run": {
@@ -144,6 +144,49 @@
                 "required": ["name", "command"],
                 "additionalProperties": false
               }
+            },
+            "primitives": {
+              "description": "The Primitives catalogue: unique ids, each in a group `groups` lists, a summary of one line within 120 characters, every `code` path on disk, every `docs` path on disk with its heading anchor resolving, and every file under `roots` named by the `code` of a Primitive, itself or a directory above it. A test file, under a `test`, `tests` or `__tests__` directory or named `*.test.*` or `*.spec.*`, needs no Primitive.",
+              "type": ["boolean", "object"],
+              "properties": {
+                "file": {
+                  "description": "The catalogue, relative to the repository root. Default `.ai/primitives.json`.",
+                  "type": "string",
+                  "minLength": 1
+                },
+                "roots": {
+                  "description": "The directories whose every file a Primitive names, relative to the repository root; one that does not exist names no file. Default `packages`, `plugins`, `scripts` and `src`.",
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "uniqueItems": true
+                }
+              },
+              "additionalProperties": false
+            },
+            "agents-map": {
+              "description": "The agent map: within its line and byte budget, naming the resolved `gate.command`, carrying a Task Router row to the Primitives catalogue where there is one, every path the Task Router points at existing, and the skills directory, `skills-lock.json` and the `.claude/skills` links in step where the repository has them.",
+              "type": ["boolean", "object"],
+              "properties": {
+                "file": {
+                  "description": "The map, relative to the repository root. Default `AGENTS.md`.",
+                  "type": "string",
+                  "minLength": 1
+                },
+                "maxLines": {
+                  "description": "Default 150.",
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "maxBytes": {
+                  "description": "Default 10240.",
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "additionalProperties": false
             }
           },
           "additionalProperties": false
