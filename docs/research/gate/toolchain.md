@@ -116,7 +116,16 @@ tokens; pnpm's v10.21.0 and v11.11.0 release notes; and this repository's Action
   settings.
 - This repository on that day: private, `can_approve_pull_request_reviews` false, no Actions
   secrets, and `dw-sdlc` free on npm (`GET https://registry.npmjs.org/dw-sdlc` answers 404).
-- What follows: the first version of `dw-sdlc` needs the `NPM_TOKEN` secret; a version carries
-  provenance only once this repository is public, when trusted publishing attaches it unasked; and
-  once trusted publishing works the secret goes, because a version a later run published on it
-  would be refused by consumers on `no-downgrade`.
+- The first publish, release run 40378772829 on `NPM_TOKEN`: `changeset publish` printed
+  "Successfully published: dw-sdlc@0.1.0" and the tag and GitHub release followed, while the
+  registry's only version was a `0.0.0-stage` placeholder whose README reads "awaiting a staged
+  release", and `GET https://registry.npmjs.org/dw-sdlc/0.1.0` answered 404. After approval under
+  Staged Packages on npmjs.com, 0.1.0 is `latest`, with `attestations` null. npm's
+  `staged-publishing`: "You will be prompted for 2FA verification regardless of whether you approve
+  the package in the CLI or on npmjs.com. Once approved, the package is published to the live
+  registry."
+- What follows: the first version of `dw-sdlc` needs the `NPM_TOKEN` secret, and a version published
+  on it goes live only once a maintainer approves it with 2FA; a version carries provenance only
+  once this repository is public, when trusted publishing attaches it unasked; and once trusted
+  publishing works the secret goes, because a version a later run published on it would be refused
+  by consumers on `no-downgrade`.
