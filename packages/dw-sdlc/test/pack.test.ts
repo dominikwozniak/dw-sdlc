@@ -2,11 +2,24 @@
 // and the `dw-sdlc` bin run from its `node_modules`, where Node refuses to strip types from a `.ts` file.
 
 import assert from "node:assert/strict"
-import { existsSync } from "node:fs"
+import { existsSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 import { before, describe, it } from "node:test"
+import { pathToFileURL } from "node:url"
 
-import { lines, PACKAGE_ROOT, repo, runCommand, type Run, scratch } from "./harness.ts"
+import {
+  commit,
+  git,
+  initRepo,
+  lines,
+  PACKAGE_ROOT,
+  repo,
+  runCommand,
+  type Run,
+  scratch,
+  write,
+  writeJson
+} from "./harness.ts"
 
 const CONFIG = ".ai/agentic.config.json"
 const INSTALLED_SCHEMA = "node_modules/dw-sdlc/config/agentic.config.schema.json"
@@ -54,7 +67,7 @@ describe("the packed package", () => {
     packed = pack()
   })
 
-  it("ships the built JavaScript and the schema, nothing from the source or the tests", () => {
+  it("ships the built JavaScript, the schemas and the Router template, nothing from the source or the tests", () => {
     const built = packed.files.filter((file) => file.startsWith("dist/"))
     assert.ok(built.includes("dist/cli.js"), `no dist/cli.js in ${packed.files.join(", ")}`)
     assert.deepEqual(
@@ -112,6 +125,33 @@ console.log(JSON.stringify(resolveConfig(process.cwd()).config.gate.steps))`
       const imported = runCommand(process.execPath, ["--input-type=module", "--eval", script], consumer)
       assert.equal(imported.status, 0, imported.stderr)
       assert.equal(imported.stdout, '["true"]\n')
+    })
+
+    it("runs the setup the Sync names, which writes the Router from the template the package ships", () => {
+      const source = initRepo(scratch("upstream"), { branch: "main" })
+      write(join(source, "README.md"), "upstream\n")
+      git(source, "add", "README.md")
+      commit(source, "-m", "README.md")
+      const reference = {
+        dir: "up",
+        repository: pathToFileURL(source).href,
+        ref: "main",
+        what: "a clone",
+        when: "a test"
+      }
+      writeJson(join(consumer, CONFIG), { version: 1, gate: { steps: ["true"] }, references: [reference] })
+
+      const sync = succeeded(
+        "references sync",
+        runCommand(join(consumer, INSTALLED_BIN), ["references", "sync"], consumer)
+      )
+      const named = /^references\/AGENTS\.md {2}missing {2}run node "(.+)" references setup /m.exec(sync.stdout)
+      assert.ok(named?.[1] !== undefined, `the Sync names no setup to run:\n${sync.stdout}`)
+      assert.match(named[1], /\/node_modules\/dw-sdlc\/dist\/cli\.js$/)
+
+      succeeded("references setup", runCommand(process.execPath, [named[1], "references", "setup"], consumer))
+      const router = readFileSync(join(consumer, "references/AGENTS.md"), "utf8")
+      assert.ok(router.startsWith("# references/ — router\n"), router)
     })
   })
 })
