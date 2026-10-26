@@ -1,7 +1,8 @@
 // `dw-sdlc primitives --paths <files>`: for each path, the Primitives of the catalogue that name it,
 // with their summaries and the documents to read, or that none does.
 
-import { relative, resolve } from "node:path"
+import { existsSync, realpathSync } from "node:fs"
+import { basename, dirname, join, relative, resolve } from "node:path"
 import { parseArgs } from "node:util"
 
 import { repositoryRoot, resolveConfig } from "../agentic-config.ts"
@@ -52,6 +53,18 @@ function parseCli(argv: string[]): Cli | { error: string } {
   }
 }
 
+/**
+ * `path` with every symbolic link in it resolved, as git reports the root: the nearest part on disk
+ * resolved and the rest kept, so a deleted file still maps into the repository.
+ */
+function realPath(path: string): string {
+  if (existsSync(path)) {
+    return realpathSync(path)
+  }
+  const parent = dirname(path)
+  return parent === path ? path : join(realPath(parent), basename(path))
+}
+
 function brief({ id, name, summary: what, docs }: Primitive): Record<string, unknown> {
   return { id, name, summary: what, docs }
 }
@@ -90,7 +103,7 @@ export function run(argv: string[]): number {
   }
 
   const answers = cli.files.map((path) => {
-    const fromRoot = relative(root, resolve(path))
+    const fromRoot = relative(root, realPath(resolve(path)))
     return { path, primitives: primitivesNaming(read.catalogue, fromRoot) }
   })
   if (cli.json) {

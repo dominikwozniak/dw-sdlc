@@ -3,7 +3,7 @@
 // named by a Primitive.
 
 import { spawnSync } from "node:child_process"
-import { existsSync, readFileSync } from "node:fs"
+import { existsSync, readFileSync, statSync } from "node:fs"
 import { join } from "node:path"
 
 import { type Catalogue, CATALOGUE_FILE, type Primitive, primitivesNaming, readCatalogue } from "../catalogue.ts"
@@ -11,6 +11,8 @@ import { headings } from "../markdown.ts"
 import { CannotRun, type Check, type Finding, optionsOf } from "./check.ts"
 
 export type PrimitivesOptions = { file: string; roots: string[] }
+/** Where in the catalogue a Primitive is declared. */
+type Location = Pick<Finding, "file" | "line">
 
 const MAX_SUMMARY = 120
 /** A file a test runs, never shipped: under a test directory, or named as a test. */
@@ -32,69 +34,54 @@ function show(value: string): string {
   return JSON.stringify(value)
 }
 
-/** The line of the `nth` (0-based) `"id": "<id>"` in `text`, where the catalogue declares a Primitive. */
+/** The line of the `nth` (0-based) `"id": "<id>"` under the `primitives` key, where a Primitive is declared. */
 function lineOf(text: string, id: string, nth: number): number | undefined {
+  const start = Math.max(0, text.indexOf('"primitives"'))
   const pattern = new RegExp(`"id"\\s*:\\s*${JSON.stringify(id).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "g")
-  const match = Array.from(text.matchAll(pattern))[nth]
-  return match?.index === undefined ? undefined : text.slice(0, match.index).split("\n").length
+  const match = Array.from(text.slice(start).matchAll(pattern))[nth]
+  return match?.index === undefined ? undefined : text.slice(0, start + match.index).split("\n").length
 }
 
 /** The anchors of each markdown file read so far, by path. */
 type Anchors = Map<string, Set<string>>
 
+/** The anchors of the headings of `path`; none when it is not a file. */
 function anchorsOf(root: string, path: string, cache: Anchors): Set<string> {
   let anchors = cache.get(path)
   if (anchors === undefined) {
-    anchors = new Set(headings(readFileSync(join(root, path), "utf8")).map(({ anchor }) => anchor))
+    const full = join(root, path)
+    anchors = new Set(statSync(full).isFile() ? headings(readFileSync(full, "utf8")).map(({ anchor }) => anchor) : [])
     cache.set(path, anchors)
   }
   return anchors
 }
 
-type Problem = { message: string; remedy: string }
-
-/** What is wrong with one Primitive: its group, its summary, each code and docs entry. */
-function judge(root: string, catalogue: Catalogue, primitive: Primitive, cache: Anchors): Problem[] {
+/** What is wrong with one Primitive, declared at `at`: its group, its summary, each code and docs entry. */
+function judge(root: string, catalogue: Catalogue, primitive: Primitive, at: Location, cache: Anchors): Finding[] {
   const { id, group, summary, code, docs } = primitive
-  const problems: Problem[] = []
+  const findings: Finding[] = []
+  const fail = (message: string, remedy: string) => findings.push({ ...at, message, remedy })
   if (!catalogue.groups.some((known) => known.id === group)) {
-    problems.push({
-      message: `${show(id)} is in group ${show(group)}, which groups does not list`,
-      remedy: REMEDIES.group
-    })
+    fail(`${show(id)} is in group ${show(group)}, which groups does not list`, REMEDIES.group)
   }
   const summaryLines = summary.split("\n").length
   if (summaryLines > 1) {
-    problems.push({ message: `the summary of ${show(id)} runs over ${summaryLines} lines`, remedy: REMEDIES.summary })
+    fail(`the summary of ${show(id)} runs over ${summaryLines} lines`, REMEDIES.summary)
   } else if ([...summary].length > MAX_SUMMARY) {
-    problems.push({
-      message: `the summary of ${show(id)} is ${[...summary].length} characters, over ${MAX_SUMMARY}`,
-      remedy: REMEDIES.summary
-    })
+    fail(`the summary of ${show(id)} is ${[...summary].length} characters, over ${MAX_SUMMARY}`, REMEDIES.summary)
   }
-  for (const entry of code) {
-    if (!existsSync(join(root, entry))) {
-      problems.push({
-        message: `${show(id)} names code at ${show(entry)}, which does not exist`,
-        remedy: REMEDIES.path
-      })
-    }
+  for (const entry of code.filter((path) => !existsSync(join(root, path)))) {
+    fail(`${show(id)} names code at ${show(entry)}, which does not exist`, REMEDIES.path)
   }
   for (const entry of docs) {
     const [path = "", anchor] = entry.split("#", 2)
     if (!existsSync(join(root, path))) {
-      problems.push({
-        message: `${show(id)} names the doc ${show(entry)}, which does not exist`,
-        remedy: REMEDIES.path
-      })
+      fail(`${show(id)} names the doc ${show(entry)}, which does not exist`, REMEDIES.path)
     } else if (anchor !== undefined && !anchorsOf(root, path, cache).has(anchor)) {
-      problems.push({
-        message: `${show(id)} names the doc ${show(entry)}, which has no heading with that anchor`,
-        remedy: REMEDIES.anchor
-      })
+      fail(`${show(id)} names the doc ${show(entry)}, which has no heading with that anchor`, REMEDIES.anchor)
     }
   }
-  return problems
+  return findings
 }
 
 /** Every file under `roots` that git tracks or would track, and that is on disk. */
@@ -128,7 +115,7 @@ function run(root: string, { file, roots }: PrimitivesOptions): Finding[] {
     const nth = seen.get(primitive.id) ?? 0
     seen.set(primitive.id, nth + 1)
     const line = lineOf(text, primitive.id, nth)
-    const at = line === undefined ? { file } : { file, line }
+    const at: Location = line === undefined ? { file } : { file, line }
     if (nth > 0) {
       findings.push({
         ...at,
@@ -136,7 +123,7 @@ function run(root: string, { file, roots }: PrimitivesOptions): Finding[] {
         remedy: REMEDIES.duplicate
       })
     }
-    findings.push(...judge(root, catalogue, primitive, cache).map((problem) => ({ ...at, ...problem })))
+    findings.push(...judge(root, catalogue, primitive, at, cache))
   }
   for (const path of filesUnder(root, roots)) {
     if (!TEST_FILE.test(path) && primitivesNaming(catalogue, path).length === 0) {

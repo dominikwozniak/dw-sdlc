@@ -56,8 +56,9 @@ resolved config. The Steps under `gate.steps` run in order from the repository r
 each one's output passed through, and the first that fails ends the Gate. Then every Check under
 `gate.checks` runs, and a failed Check does not stop the next: first a repository's own scripts,
 which join through `gate.checks.run` as a `name` and a `command`, then the Checks the package ships.
-The schema refuses a Check name the package does not ship. `gate.command` is the command an agent or a person runs, inferred as
-`pnpm check` from the `check` script of `package.json` when no layer sets it.
+The schema refuses a Check name the package does not ship. `gate.command` is the command an agent or
+a person runs, inferred as `pnpm check` from the `check` script of `package.json` when no layer sets
+it.
 
 Every failure is one line naming the file where there is one, the rule and the remedy:
 

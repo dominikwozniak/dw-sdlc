@@ -1,34 +1,13 @@
 {
   "version": 1,
   "groups": [
-    {
-      "id": "guards",
-      "name": "Guards"
-    },
-    {
-      "id": "hooks",
-      "name": "Hooks that are not guards"
-    },
-    {
-      "id": "config",
-      "name": "Agentic config"
-    },
-    {
-      "id": "tools",
-      "name": "Scripts"
-    },
-    {
-      "id": "skills",
-      "name": "Skills"
-    },
-    {
-      "id": "distribution",
-      "name": "Distribution"
-    },
-    {
-      "id": "gate",
-      "name": "Gate"
-    }
+    { "id": "guards", "name": "Guards" },
+    { "id": "hooks", "name": "Hooks that are not guards" },
+    { "id": "config", "name": "Agentic config" },
+    { "id": "tools", "name": "Scripts" },
+    { "id": "skills", "name": "Skills" },
+    { "id": "distribution", "name": "Distribution" },
+    { "id": "gate", "name": "Gate" }
   ],
   "primitives": [
     {
@@ -299,7 +278,7 @@
       "id": "distribution.guardrails-plugin",
       "name": "guardrails plugin",
       "group": "distribution",
-      "summary": "The manifest wiring each guard and hook to its event, and the README; its version and the marketplace bump together.",
+      "summary": "The manifest wiring each guard and hook to its event, and the README; its version and the marketplace's bump together.",
       "code": ["plugins/guardrails/.claude-plugin/plugin.json", "plugins/guardrails/README.md"],
       "docs": ["plugins/guardrails/README.md#install", "docs/overview.md#releasing-a-plugin"]
     },
@@ -307,7 +286,7 @@
       "id": "distribution.references-plugin",
       "name": "references plugin",
       "group": "distribution",
-      "summary": "The manifest wiring the session hook, and the README; its version and the marketplace bump together.",
+      "summary": "The manifest wiring the session hook, and the README; its version and the marketplace's bump together.",
       "code": ["plugins/references/.claude-plugin/plugin.json", "plugins/references/README.md"],
       "docs": ["plugins/references/README.md#install", "docs/overview.md#releasing-a-plugin"]
     },

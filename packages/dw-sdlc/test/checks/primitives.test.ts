@@ -2,6 +2,8 @@
 // rule at a time: the exit code and each failure line word for word.
 
 import assert from "node:assert/strict"
+import { chmodSync } from "node:fs"
+import { join } from "node:path"
 import { describe, it } from "node:test"
 
 import { repo, runBin } from "../harness.ts"
@@ -127,13 +129,28 @@ describe("the primitives Check", () => {
   })
 
   it("fails a doc that does not exist and an anchor no heading has, a heading inside a code fence included", () => {
-    const docs = ["docs/gone.md", "docs/demo.md#releasing", "docs/demo.md#not-a-heading", "docs/demo.md#the-hello-hook"]
+    const docs = [
+      "docs/gone.md",
+      "docs/demo.md#releasing",
+      "docs/demo.md#not-a-heading",
+      "docs#intro",
+      "docs/demo.md#the-hello-hook"
+    ]
     const run = runBin(["gate"], withCatalogue(catalogue([{ ...HOOK, docs }, MANIFEST])))
     assert.equal(run.status, 1)
     assert.deepEqual(failures(run.stdout), [
       `${CATALOGUE}:1: primitives: "hooks.hello" names the doc "docs/gone.md", which does not exist — fix the path or drop it`,
       `${CATALOGUE}:1: primitives: "hooks.hello" names the doc "docs/demo.md#releasing", which has no heading with that anchor — point the entry at a heading the file has`,
-      `${CATALOGUE}:1: primitives: "hooks.hello" names the doc "docs/demo.md#not-a-heading", which has no heading with that anchor — point the entry at a heading the file has`
+      `${CATALOGUE}:1: primitives: "hooks.hello" names the doc "docs/demo.md#not-a-heading", which has no heading with that anchor — point the entry at a heading the file has`,
+      `${CATALOGUE}:1: primitives: "hooks.hello" names the doc "docs#intro", which has no heading with that anchor — point the entry at a heading the file has`
+    ])
+  })
+
+  it("reports a Primitive on its own line when a group has the same id", () => {
+    const moved = { ...HOOK, id: "hooks", code: ["plugins/demo/hooks/hello.sh", "plugins/demo/hooks/gone.sh"] }
+    const run = runBin(["gate"], withCatalogue(JSON.stringify(catalogue([moved, MANIFEST]), null, 2)))
+    assert.deepEqual(failures(run.stdout), [
+      `${CATALOGUE}:15: primitives: "hooks" names code at "plugins/demo/hooks/gone.sh", which does not exist — fix the path or drop it`
     ])
   })
 
@@ -162,6 +179,26 @@ describe("the primitives Check", () => {
       `${CATALOGUE}: primitives: the catalogue does not exist — create it, or point gate.checks.primitives.file at the catalogue`,
       "gate: cannot run — 1 failure"
     ])
+  })
+
+  it("exits 2 outside a git repository, where it cannot list the files under the roots", () => {
+    const config = { version: 1, gate: { checks: { primitives: true } } }
+    const root = repo({ git: false, files: { [CONFIG]: config, [CATALOGUE]: catalogue(), ...TREE } })
+    const run = runBin(["gate"], root)
+    assert.equal(run.status, 2)
+    assert.deepEqual(failures(run.stdout), [
+      "primitives: cannot list the files under packages, plugins, scripts, src: not a git repository — run the Gate inside a git repository"
+    ])
+  })
+
+  it("exits 2 when it cannot read the catalogue", { skip: process.getuid?.() === 0 }, () => {
+    const root = withCatalogue(catalogue())
+    chmodSync(join(root, CATALOGUE), 0o000)
+    const run = runBin(["gate"], root)
+    assert.equal(run.status, 2)
+    const [line = ""] = failures(run.stdout)
+    assert.ok(line.startsWith("primitives: stopped: EACCES: permission denied"), line)
+    assert.ok(line.endsWith(" — fix what stopped it, or report it to dw-sdlc"), line)
   })
 })
 

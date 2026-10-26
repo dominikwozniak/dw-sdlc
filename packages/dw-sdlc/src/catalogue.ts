@@ -43,13 +43,13 @@ const SCHEMA = {
   additionalProperties: false
 }
 
-export type Read =
+export type CatalogueRead =
   | { state: "missing" }
   | { state: "invalid"; problems: string[] }
   | { state: "valid"; catalogue: Catalogue; text: string }
 
 /** The catalogue at `file` under `root`, or why there is none to read. */
-export function readCatalogue(root: string, file: string): Read {
+export function readCatalogue(root: string, file: string): CatalogueRead {
   const path = join(root, file)
   if (!existsSync(path)) {
     return { state: "missing" }

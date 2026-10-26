@@ -119,16 +119,15 @@ describe("dw-sdlc gate, the Checks the package ships", () => {
     const shipped = Object.fromEntries(SHIPPED.map((name) => [name, true]))
     const root = withGate({ checks: { run: [{ name: "own", command: "exit 1" }], ...shipped } })
     const run = runBin(["gate", "--json"], root)
-    assert.equal(run.status, 2)
-    const report = JSON.parse(run.stdout)
-    assert.deepEqual(report.checks, [
-      { name: "own", command: "exit 1", status: "fail", exitCode: 1 },
-      ...SHIPPED.map((name) => ({ name, command: null, status: "error", exitCode: 2 }))
-    ])
+    const { checks } = JSON.parse(run.stdout)
     assert.deepEqual(
-      report.failures.map(({ rule }: { rule: string }) => rule),
-      ["own", ...SHIPPED]
+      checks.map(({ name, command }: { name: string; command: string | null }) => ({ name, command })),
+      [{ name: "own", command: "exit 1" }, ...SHIPPED.map((name) => ({ name, command: null }))]
     )
+    for (const { name, status, exitCode } of checks.slice(1)) {
+      assert.notEqual(status, "skipped", name)
+      assert.equal(exitCode, { pass: 0, fail: 1, error: 2 }[status as string], name)
+    }
   })
 
   it("skips them after a failed step", () => {

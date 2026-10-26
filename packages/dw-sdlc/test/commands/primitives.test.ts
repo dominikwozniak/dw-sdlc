@@ -2,6 +2,7 @@
 // Primitives that name it, plain and as JSON, and a path none names.
 
 import assert from "node:assert/strict"
+import { symlinkSync } from "node:fs"
 import { join } from "node:path"
 import { describe, it } from "node:test"
 
@@ -85,6 +86,22 @@ describe("dw-sdlc primitives --paths", () => {
       "hooks/hello.sh: hooks.hello (Hello hook) — Says hello at session start.",
       "  read: docs/demo.md#the-hello-hook, docs/demo.md",
       "../../../outside.txt: no Primitive names this path"
+    ])
+  })
+
+  it("names a path given through a symbolic link to the repository, a deleted file included", () => {
+    const root = withCatalogue({ "plugins/demo/hooks/hello.sh": "echo hello\n" })
+    const link = join(scratch("link"), "repo")
+    symlinkSync(root, link)
+    const hello = join(link, "plugins/demo/hooks/hello.sh")
+    const gone = join(link, "plugins/demo/hooks/gone.sh")
+    const run = runBin(["primitives", "--paths", hello, gone], link)
+    assert.equal(run.status, 0, run.stderr)
+    assert.deepEqual(lines(run.stdout), [
+      `${hello}: hooks.hello (Hello hook) — Says hello at session start.`,
+      "  read: docs/demo.md#the-hello-hook, docs/demo.md",
+      `${gone}: distribution.demo (demo plugin) — The demo plugin, whatever no other Primitive names in it.`,
+      "  read: docs/demo.md#releasing-it"
     ])
   })
 

@@ -175,11 +175,16 @@ describe("the agents-map Check on the skills", () => {
     ])
   })
 
-  it("fails a lock it cannot read", () => {
+  it("fails a lock it cannot read: one with no skills object, or not JSON", () => {
     const run = runBin(["gate"], withMap({ "skills-lock.json": { version: 1 } }))
     assert.equal(run.status, 1)
     assert.deepEqual(failures(run.stdout), [
       "skills-lock.json: agents-map: not a skills lock: it has no skills object — fix it, or write it again through the skills CLI"
+    ])
+    const notJson = runBin(["gate"], withMap({ "skills-lock.json": "{ skills" }))
+    assert.equal(notJson.status, 1)
+    assert.deepEqual(failures(notJson.stdout), [
+      "skills-lock.json: agents-map: not a skills lock: not JSON: Expected property name or '}' in JSON at position 2 (line 1 column 3) — fix it, or write it again through the skills CLI"
     ])
   })
 

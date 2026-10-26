@@ -15,9 +15,9 @@ const USAGE = `Usage: dw-sdlc gate [--json] [--root <dir>]
 Runs the Gate of the repository holding --root (default: the current directory): each Step of
 gate.steps in order from the repository root, its output passed through, stopping at the first that
 fails; then every Check under gate.checks, the run scripts and then the Checks the package ships,
-none stopping the next. Prints one line per failure: the
-file where there is one, the rule, the remedy; under GitHub Actions each line is also a workflow
-annotation. --json prints one document instead and sends the commands' own output to stderr.
+none stopping the next. Prints one line per failure: the file where there is one, the rule, the
+remedy; under GitHub Actions each line is also a workflow annotation. --json prints one document
+instead and sends the commands' own output to stderr.
 
 Exit 0 when everything passes, 1 when a Step or a Check fails, 2 when the Gate cannot run: an
 invalid config layer, a Step or Check whose command the shell cannot find or execute, or a Check
