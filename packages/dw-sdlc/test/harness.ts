@@ -10,9 +10,10 @@ import { after } from "node:test"
 
 /** The checkout of dw-sdlc holding this package. */
 export const REPO_ROOT = join(import.meta.dirname, "..", "..", "..")
+/** This package's directory, the one `pnpm pack` packs. */
 export const PACKAGE_ROOT = join(import.meta.dirname, "..")
 
-/** The file the manifest's `bin` names for `dw-sdlc`, so a test runs what an install links. */
+/** The file the manifest's `bin` names for `dw-sdlc`, so a test runs what the workspace link runs. */
 function binPath(): string {
   const manifest: unknown = JSON.parse(readFileSync(join(PACKAGE_ROOT, "package.json"), "utf8"))
   if (typeof manifest === "object" && manifest !== null && "bin" in manifest) {
@@ -44,7 +45,7 @@ function scratchEnv(over: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
 }
 
 /** Runs `command <args>` from `cwd` under `scratchEnv()`, `env` over it. */
-export function run(command: string, args: string[], cwd: string, env: NodeJS.ProcessEnv = {}): Run {
+export function runCommand(command: string, args: string[], cwd: string, env: NodeJS.ProcessEnv = {}): Run {
   const result = spawnSync(command, args, { cwd, env: scratchEnv(env), encoding: "utf8" })
   if (result.error !== undefined) {
     throw result.error
@@ -54,7 +55,12 @@ export function run(command: string, args: string[], cwd: string, env: NodeJS.Pr
 
 /** Runs `dw-sdlc <args>` from `cwd` under `scratchEnv()`, `env` over it. */
 export function runBin(args: string[], cwd: string, env: NodeJS.ProcessEnv = {}): Run {
-  return run(process.execPath, [BIN, ...args], cwd, env)
+  return runCommand(process.execPath, [BIN, ...args], cwd, env)
+}
+
+/** The non-empty lines of a command's output. */
+export function lines(text: string): string[] {
+  return text.split("\n").filter((line) => line !== "")
 }
 
 const made: string[] = []
@@ -72,7 +78,7 @@ export function scratch(prefix: string): string {
 }
 
 export function git(cwd: string, ...args: string[]): string {
-  const result = spawnSync("git", ["-C", cwd, ...args], { encoding: "utf8", env: scratchEnv({}) })
+  const result = runCommand("git", ["-C", cwd, ...args], cwd)
   if (result.status !== 0) {
     throw new Error(`git ${args.join(" ")} in ${cwd}: ${result.stderr}`)
   }

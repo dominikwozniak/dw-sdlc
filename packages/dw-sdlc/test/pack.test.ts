@@ -6,10 +6,12 @@ import { existsSync } from "node:fs"
 import { join } from "node:path"
 import { before, describe, it } from "node:test"
 
-import { PACKAGE_ROOT, repo, run, type Run, scratch } from "./harness.ts"
+import { lines, PACKAGE_ROOT, repo, runCommand, type Run, scratch } from "./harness.ts"
 
 const CONFIG = ".ai/agentic.config.json"
 const INSTALLED_SCHEMA = "node_modules/dw-sdlc/config/agentic.config.schema.json"
+/** The bin link pnpm writes in the consumer, run by path: the PATH a test inherits holds this repository's. */
+const INSTALLED_BIN = "node_modules/.bin/dw-sdlc"
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
@@ -21,22 +23,18 @@ function succeeded(what: string, result: Run): Run {
   return result
 }
 
-function lines(text: string): string[] {
-  return text.split("\n").filter((line) => line !== "")
-}
-
 type Packed = { tarball: string; files: string[]; manifest: Record<string, unknown> }
 
 /** Packs this package the way a release does and reads back what the tarball holds. */
 function pack(): Packed {
   const tarball = join(scratch("pack"), "dw-sdlc.tgz")
-  succeeded("pnpm pack", run("pnpm", ["pack", "--out", tarball], PACKAGE_ROOT))
-  const listing = succeeded("tar -t", run("tar", ["-tzf", tarball], PACKAGE_ROOT))
+  succeeded("pnpm pack", runCommand("pnpm", ["pack", "--out", tarball], PACKAGE_ROOT))
+  const listing = succeeded("tar -t", runCommand("tar", ["-tzf", tarball], PACKAGE_ROOT))
   const files = lines(listing.stdout)
     .map((entry) => entry.replace(/^package\//, ""))
     .toSorted()
   const manifest: unknown = JSON.parse(
-    succeeded("tar -x", run("tar", ["-xzOf", tarball, "package/package.json"], PACKAGE_ROOT)).stdout
+    succeeded("tar -x", runCommand("tar", ["-xzOf", tarball, "package/package.json"], PACKAGE_ROOT)).stdout
   )
   assert.ok(isRecord(manifest), "the packed package.json is not an object")
   return { tarball, files, manifest }
@@ -97,13 +95,13 @@ describe("the packed package", () => {
       })
       succeeded(
         "pnpm add",
-        run("pnpm", ["add", "--save-dev", packed.tarball, "--store-dir", scratch("store")], consumer)
+        runCommand("pnpm", ["add", "--save-dev", packed.tarball, "--store-dir", scratch("store")], consumer)
       )
     })
 
     it("runs dw-sdlc gate from node_modules on the consumer's config", () => {
       assert.ok(existsSync(join(consumer, INSTALLED_SCHEMA)), "the schema is not where $schema points")
-      const gate = run("pnpm", ["exec", "dw-sdlc", "gate"], consumer)
+      const gate = runCommand(join(consumer, INSTALLED_BIN), ["gate"], consumer)
       assert.equal(gate.status, 0, gate.stderr)
       assert.deepEqual(lines(gate.stdout), ["gate: step true", "gate: green — 1 step, 0 checks"])
     })
@@ -111,7 +109,7 @@ describe("the packed package", () => {
     it("exports the config resolver as JavaScript", () => {
       const script = `const { resolveConfig } = await import("dw-sdlc")
 console.log(JSON.stringify(resolveConfig(process.cwd()).config.gate.steps))`
-      const imported = run(process.execPath, ["--input-type=module", "--eval", script], consumer)
+      const imported = runCommand(process.execPath, ["--input-type=module", "--eval", script], consumer)
       assert.equal(imported.status, 0, imported.stderr)
       assert.equal(imported.stdout, '["true"]\n')
     })

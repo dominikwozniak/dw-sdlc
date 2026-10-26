@@ -6,7 +6,7 @@ import { existsSync, mkdirSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 import { describe, it } from "node:test"
 
-import { repo, runBin, scratch } from "./harness.ts"
+import { lines, repo, runBin, scratch } from "./harness.ts"
 
 const CONFIG = ".ai/agentic.config.json"
 const GOLDEN = join(import.meta.dirname, "gate.golden.json")
@@ -19,10 +19,6 @@ const UNKNOWN_CHECK_LINE = `${CONFIG}: config: gate.checks: unknown key "no-such
 /** A repository whose committed config declares `gate`, beside `files`. */
 function withGate(gate: unknown, files: Record<string, string | object> = {}): string {
   return repo({ files: { [CONFIG]: { version: 1, gate }, ...files } })
-}
-
-function lines(text: string): string[] {
-  return text.split("\n").filter((line) => line !== "")
 }
 
 describe("dw-sdlc gate, the steps", () => {
