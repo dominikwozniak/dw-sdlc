@@ -187,8 +187,8 @@ The `dw-sdlc` package goes to npm as JavaScript. Its source is TypeScript, and N
 types from a file under `node_modules`, so `pnpm pack` runs the package's `prepack`: `tsc` emits
 `dist/` from `packages/dw-sdlc/tsconfig.build.json`. The manifest's `bin` and `exports` name the
 source, so this repository's workspace link runs it as written; their twins under `publishConfig`
-name `dist/`, and pnpm writes those into the packed manifest. `files` ships `dist/` and `config/`, where
-the schema lives, and the package has no runtime dependency. `test/pack.test.ts` packs it, installs
+name `dist/`, and pnpm writes those into the packed manifest. `files` ships `dist/`, `config/` with the
+schemas, and `templates/` with the Router the setup writes; the package has no runtime dependency. `test/pack.test.ts` packs it, installs
 the tarball into a throwaway repository and runs `dw-sdlc gate` from that repository's `node_modules`.
 
 A change to the package carries a changeset: `pnpm changeset` writes one under `.changeset/`, with

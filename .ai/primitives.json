@@ -294,7 +294,7 @@
       "id": "distribution.package",
       "name": "dw-sdlc package",
       "group": "distribution",
-      "summary": "The workspace package both plugins link to, which an install copies as a real directory and npm ships as the JavaScript tsc emits on pack.",
+      "summary": "The workspace package both plugins link to, an install copying each link; npm ships it as JavaScript tsc emits.",
       "code": [
         "packages/dw-sdlc/package.json",
         "packages/dw-sdlc/tsconfig.build.json",
