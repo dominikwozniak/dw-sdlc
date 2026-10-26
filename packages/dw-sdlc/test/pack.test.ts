@@ -77,7 +77,14 @@ describe("the packed package", () => {
     )
     assert.deepEqual(
       packed.files.filter((file) => !file.startsWith("dist/")),
-      ["config/agentic.config.schema.json", "config/references.schema.json", "package.json", "templates/router.md"]
+      [
+        "LICENSE",
+        "README.md",
+        "config/agentic.config.schema.json",
+        "config/references.schema.json",
+        "package.json",
+        "templates/router.md"
+      ]
     )
   })
 

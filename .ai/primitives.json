@@ -298,6 +298,8 @@
       "code": [
         "packages/dw-sdlc/package.json",
         "packages/dw-sdlc/tsconfig.build.json",
+        "packages/dw-sdlc/README.md",
+        "packages/dw-sdlc/LICENSE",
         "plugins/guardrails/dw-sdlc",
         "plugins/references/dw-sdlc"
       ],
