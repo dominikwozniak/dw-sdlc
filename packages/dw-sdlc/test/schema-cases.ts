@@ -200,11 +200,45 @@ export const CASES: Case[] = [
       gate: {
         checks: {
           primitives: { file: ".ai/primitives.json", roots: ["src", "scripts"] },
-          "agents-map": { file: "AGENTS.md", maxLines: 120, maxBytes: 8192 }
+          "agents-map": { file: "AGENTS.md", maxLines: 120, maxBytes: 8192 },
+          "markdown-budget": { budgets: [{ glob: "docs/agents/*.md", maxLines: 80, maxBytes: 4096 }] },
+          "markdown-refs": { files: ["**/*.md"], exempt: ["vendor/**"] },
+          "temporal-language": { files: ["docs/**/*.md"], exempt: ["docs/adr/**"] },
+          "decision-records": { dirs: ["docs/decisions"], statuses: ["active", "superseded"] }
         }
       }
     },
     problems: []
+  },
+  {
+    name: "the agentic schema needs every key of a markdown budget and refuses one it does not take",
+    schema: AGENTIC_SCHEMA,
+    value: {
+      gate: {
+        checks: {
+          "markdown-budget": {
+            budgets: [
+              { glob: "docs/*.md", maxLines: 0 },
+              { glob: "", maxLines: 1, maxBytes: 1, words: 9 }
+            ]
+          },
+          "markdown-refs": { files: "**/*.md" },
+          "temporal-language": { exempt: ["docs/adr/**", "docs/adr/**"], phrases: [] },
+          "decision-records": { dirs: [""], statuses: "accepted" }
+        }
+      }
+    },
+    problems: [
+      { path: "gate.checks.markdown-budget.budgets[0].maxLines", message: "0 is below the minimum 1" },
+      { path: "gate.checks.markdown-budget.budgets[0]", message: 'missing required key "maxBytes"' },
+      { path: "gate.checks.markdown-budget.budgets[1].glob", message: "must not be empty" },
+      { path: "gate.checks.markdown-budget.budgets[1]", message: 'unknown key "words"' },
+      { path: "gate.checks.markdown-refs.files", message: 'expected array, got "**/*.md"' },
+      { path: "gate.checks.temporal-language.exempt", message: 'duplicate item "docs/adr/**"' },
+      { path: "gate.checks.temporal-language", message: 'unknown key "phrases"' },
+      { path: "gate.checks.decision-records.dirs[0]", message: "must not be empty" },
+      { path: "gate.checks.decision-records.statuses", message: 'expected array, got "accepted"' }
+    ]
   },
   {
     name: "the agentic schema refuses a Check's unknown option, a value of the wrong type and a budget below 1",

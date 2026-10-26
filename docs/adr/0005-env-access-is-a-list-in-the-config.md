@@ -1,3 +1,7 @@
+---
+status: accepted
+---
+
 # Which env files an agent may read is a list in the config, with git as the fallback
 
 Every repository has its own idea of which env files are safe to read — one commits a secret-free

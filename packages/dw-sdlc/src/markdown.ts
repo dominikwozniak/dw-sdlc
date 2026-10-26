@@ -1,8 +1,13 @@
 // The parts of a markdown file the Checks read: its ATX headings with the anchors GitHub gives them,
-// and the rows of a table under a heading. A line inside a fenced code block is never either.
+// the rows of a table under a heading, its links, and its prose with the code masked. A line inside a
+// fenced code block is never any of them.
+
+import { readFileSync, statSync } from "node:fs"
+import { join } from "node:path"
 
 export type Heading = { level: number; text: string; anchor: string; line: number }
 export type Row = { cells: string[]; line: number }
+export type Link = { target: string; line: number }
 
 const FENCE = /^ {0,3}(`{3,}|~{3,})/
 const ATX = /^ {0,3}(#{1,6})[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$/
@@ -84,4 +89,54 @@ export function tableRows(text: string, title: string): Row[] {
 /** Every backticked span in `text`, without its backticks. */
 export function codeSpans(text: string): string[] {
   return Array.from(text.matchAll(/`([^`]+)`/g), ([, span = ""]) => span)
+}
+
+/** The lines of `text`, a last line without its newline counted, the empty line after a final newline not. */
+export function lineCount(text: string): number {
+  const lines = text.split("\n").length
+  return text.endsWith("\n") ? lines - 1 : lines
+}
+
+/** A code span: a run of backticks, then the text up to the next run of as many. */
+const CODE_SPAN = /(?<!`)(`+)(?!`).*?(?<!`)\1(?!`)/g
+
+/** `text` with each fenced line and each code span blanked to spaces, so every offset and line is kept. */
+export function prose(text: string): string {
+  return scan(text)
+    .map(({ text: line, fenced }) =>
+      fenced ? " ".repeat(line.length) : line.replace(CODE_SPAN, (span) => " ".repeat(span.length))
+    )
+    .join("\n")
+}
+
+/** The target of an inline link or image, `<…>` or up to a space or `)`, and of a reference definition. */
+const INLINE_TARGET = /\]\(\s*(<[^>]*>|[^\s)]+)/g
+const DEFINITION = /^ {0,3}\[(?!\^)[^\]]+\]:[ \t]*(<[^>]*>|\S+)/
+
+/** Every link target in the prose of `text`, its angle brackets dropped, with its 1-based line. */
+export function links(text: string): Link[] {
+  return prose(text)
+    .split("\n")
+    .flatMap((line, index) => {
+      const definition = DEFINITION.exec(line)?.[1]
+      const targets = [
+        ...Array.from(line.matchAll(INLINE_TARGET), ([, target = ""]) => target),
+        ...(definition === undefined ? [] : [definition])
+      ]
+      return targets.map((target) => ({ target: target.replace(/^<(.*)>$/, "$1"), line: index + 1 }))
+    })
+}
+
+/** The anchors of each markdown file read so far, by path. */
+export type Anchors = Map<string, Set<string>>
+
+/** The anchors of the headings of `path` under `root`; none when it is not a file. */
+export function anchorsOf(root: string, path: string, cache: Anchors): Set<string> {
+  let anchors = cache.get(path)
+  if (anchors === undefined) {
+    const full = join(root, path)
+    anchors = new Set(statSync(full).isFile() ? headings(readFileSync(full, "utf8")).map(({ anchor }) => anchor) : [])
+    cache.set(path, anchors)
+  }
+  return anchors
 }

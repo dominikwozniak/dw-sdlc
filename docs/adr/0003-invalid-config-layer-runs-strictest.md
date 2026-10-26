@@ -1,3 +1,7 @@
+---
+status: accepted
+---
+
 # An invalid config layer is dropped whole and the guards run on the strictest set
 
 A layer can be malformed, fail the schema, or, the local one, loosen a guardrail the committed file

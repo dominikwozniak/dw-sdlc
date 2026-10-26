@@ -1,3 +1,7 @@
+---
+status: accepted
+---
+
 # The guards ship as one plugin from this repository's marketplace
 
 Claude Code merges hooks from every scope and runs them all, so a guard needs to live in one place

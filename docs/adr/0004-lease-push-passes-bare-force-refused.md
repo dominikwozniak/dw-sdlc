@@ -1,3 +1,7 @@
+---
+status: accepted
+---
+
 # A lease push to an unprotected branch passes; every other force push is refused
 
 The workflow rebases feature branches, so their remote copies must be rewritten, and a guard that
