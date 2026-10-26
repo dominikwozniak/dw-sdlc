@@ -199,7 +199,7 @@
       "id": "config.references",
       "name": "references key",
       "group": "config",
-      "summary": "The References a repository reads: dir, repository, ref, skipped paths, what and when; a schema apart from the guardrails one.",
+      "summary": "The References a repository reads: dir, repository, ref, skipped paths, what and when; its schema stands apart.",
       "code": ["packages/dw-sdlc/config/references.schema.json", "packages/dw-sdlc/src/references-key.ts"],
       "docs": [
         "plugins/references/README.md#the-key",
