@@ -26,11 +26,11 @@ is its long form: how a guard works, why the design, adopting and releasing.
   scope: `hooks/` the session-start hook that runs `dw-sdlc references sync`, `dw-sdlc` a link to
   the package, `skills/sdlc-references-add/` the user-invoked skill that adds a Reference, and
   `test/` the hook test, on the package's References harness through the link
-- `.ai/` — `agentic.config.json`, this repo's own agent rules against the package's schema, its
-  References under the `references` key; `primitives.json`, the catalogue of what this repo exposes
-  to an agent, per Primitive where its code lives and which document explains it, held to the tree
-  by the `primitives` Check (`agentic.config.local.json` is one machine's layer, kept out of git
-  through `.git/info/exclude`)
+- `.ai/` — `agentic.config.json`, this repo's agent rules against the package's schema, its References
+  under the `references` key; `primitives.json`, the catalogue of what this repo exposes to an agent,
+  per Primitive its code and the doc that explains it, held to the tree by the `primitives` Check;
+  `file-size-ratchet.baseline.json`, the files the Ratchet lets stay over their limit
+  (`agentic.config.local.json` is one machine's layer, kept out of git through `.git/info/exclude`)
 - `.claude/settings.json` — tracked; turns the dw-solo plugins off in this repo and keeps the clones'
   `CLAUDE.md` and `AGENTS.md` out of context. `.claude/settings.local.json` is one machine's
   permission backstop, written by the setup and excluded from git. A worktree reads it and the local
@@ -91,6 +91,7 @@ is its long form: how a guard works, why the design, adopting and releasing.
 ```bash
 pnpm check                      # dw-sdlc gate: the gate.steps of .ai/agentic.config.json in order, then its Checks; = CI
 pnpm exec dw-sdlc gate [--json] # the Gate itself; exit 0 green, 1 a Step or Check failed, 2 cannot run
+pnpm exec dw-sdlc gate --update-baseline # the Gate, then each Ratchet's baseline rewritten tighter
 pnpm exec dw-sdlc primitives --paths <files> [--json] # the Primitives that own each path: summary, docs to read
 pnpm lint | lint:fix            # oxlint — check / --fix
 pnpm format | format:fix        # oxfmt — check / write

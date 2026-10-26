@@ -10,7 +10,7 @@ import { annotation, type Failure, failureJson, failureLine } from "../report.ts
 
 export const summary = "run the Gate: the Steps of gate.steps in order, then every Check under gate.checks"
 
-const USAGE = `Usage: dw-sdlc gate [--json] [--root <dir>]
+const USAGE = `Usage: dw-sdlc gate [--json] [--root <dir>] [--update-baseline]
 
 Runs the Gate of the repository holding --root (default: the current directory): each Step of
 gate.steps in order from the repository root, its output passed through, stopping at the first that
@@ -18,6 +18,10 @@ fails; then every Check under gate.checks, the run scripts and then the Checks t
 none stopping the next. Prints one line per failure: the file where there is one, the rule, the
 remedy; under GitHub Actions each line is also a workflow annotation. --json prints one document
 instead and sends the commands' own output to stderr.
+
+--update-baseline then rewrites the baseline of each Ratchet, only when every Step and every other
+Check passed, and only tighter: a file now within its limit leaves it and no file joins. Where there
+is no baseline, it records one. The Ratchet is judged again on what it wrote.
 
 Exit 0 when everything passes, 1 when a Step or a Check fails, 2 when the Gate cannot run: an
 invalid config layer, a Step or Check whose command the shell cannot find or execute, or a Check
@@ -35,6 +39,10 @@ type GateReport = {
   checks: CheckReport[]
   failures: Failure[]
 }
+/** A Check the package ships and what it found. */
+type Judged = { check: EnabledCheck; outcome: Outcome; failures: Failure[] }
+/** Where the Gate says what it runs: stdout, or stderr under `--json`. */
+type Log = { write: (text: string) => unknown }
 
 const EXIT_CODES: Record<Status, number> = { pass: 0, fail: 1, error: 2 }
 /** What the shell answers for a command it cannot find, and for one it cannot execute. */
@@ -53,15 +61,25 @@ function plural(count: number, noun: string): string {
   return `${count} ${noun}${count === 1 ? "" : "s"}`
 }
 
-type Cli = { help: boolean; json: boolean; root: string | undefined }
+type Cli = { help: boolean; json: boolean; root: string | undefined; updateBaseline: boolean }
 
 function parseCli(argv: string[]): Cli | { error: string } {
   try {
     const { values } = parseArgs({
       args: argv,
-      options: { help: { type: "boolean", short: "h" }, json: { type: "boolean" }, root: { type: "string" } }
+      options: {
+        help: { type: "boolean", short: "h" },
+        json: { type: "boolean" },
+        root: { type: "string" },
+        "update-baseline": { type: "boolean" }
+      }
     })
-    return { help: values.help === true, json: values.json === true, root: values.root }
+    return {
+      help: values.help === true,
+      json: values.json === true,
+      root: values.root,
+      updateBaseline: values["update-baseline"] === true
+    }
   } catch (error) {
     return { error: error instanceof Error ? error.message : String(error) }
   }
@@ -94,21 +112,59 @@ function runCommand(command: string, root: string, json: boolean): Outcome & { d
   return { status: "fail", exitCode: result.status, detail: `exited ${result.status}` }
 }
 
+/** What a Check that threw reports: the input it lacks, or what stopped it. */
+function erred(check: EnabledCheck, error: unknown): Judged {
+  const finding =
+    error instanceof CannotRun
+      ? error.finding
+      : { message: `stopped: ${error instanceof Error ? error.message : String(error)}`, remedy: REMEDIES.checkStopped }
+  return {
+    check,
+    outcome: { status: "error", exitCode: EXIT_CODES.error },
+    failures: [{ rule: check.name, ...finding }]
+  }
+}
+
 /** Runs one Check the package ships, its failures named by the Check; one it cannot judge is an error. */
-function runShipped(check: EnabledCheck, root: string): Outcome & { failures: Failure[] } {
+function runShipped(check: EnabledCheck, root: string): Judged {
   try {
     const failures = check.run(root).map((finding) => ({ rule: check.name, ...finding }))
     const status = failures.length === 0 ? "pass" : "fail"
-    return { status, exitCode: EXIT_CODES[status], failures }
+    return { check, outcome: { status, exitCode: EXIT_CODES[status] }, failures }
   } catch (error) {
-    const finding =
-      error instanceof CannotRun
-        ? error.finding
-        : {
-            message: `stopped: ${error instanceof Error ? error.message : String(error)}`,
-            remedy: REMEDIES.checkStopped
-          }
-    return { status: "error", exitCode: EXIT_CODES.error, failures: [{ rule: check.name, ...finding }] }
+    return erred(check, error)
+  }
+}
+
+/**
+ * Rewrites the baseline of each Ratchet while every Step, every run Check in `others` and every other
+ * shipped Check passed, and judges the Ratchet again on what it wrote.
+ */
+function refreshBaselines(judged: Judged[], others: Outcome[], root: string, log: Log): void {
+  if (!judged.some(({ check }) => check.baseline !== undefined)) {
+    log.write("gate: no Ratchet is turned on, so no baseline to refresh\n")
+    return
+  }
+  for (const [index, { check }] of judged.entries()) {
+    if (check.baseline === undefined) {
+      continue
+    }
+    const { file, refresh } = check.baseline
+    const rest = [...others, ...judged.filter((_, at) => at !== index).map(({ outcome }) => outcome)]
+    if (rest.some(({ status }) => status !== "pass")) {
+      log.write(`gate: baseline ${file} not refreshed — a Step or another Check did not pass\n`)
+      continue
+    }
+    try {
+      log.write(`gate: baseline ${file} ${refresh(root)}\n`)
+      judged[index] = runShipped(check, root)
+    } catch (error) {
+      if (error instanceof CannotRun) {
+        log.write(`gate: baseline ${file} not refreshed — ${error.finding.message}; ${error.finding.remedy}\n`)
+      } else {
+        judged[index] = erred(check, error)
+      }
+    }
   }
 }
 
@@ -117,8 +173,8 @@ function worst(outcomes: Outcome[]): Status {
   return statuses.has("error") ? "error" : statuses.has("fail") ? "fail" : "pass"
 }
 
-function runGate(root: string, json: boolean): GateReport {
-  const log = json ? process.stderr : process.stdout
+function runGate(root: string, json: boolean, updateBaseline: boolean): GateReport {
+  const log: Log = json ? process.stderr : process.stdout
   const { config, problems } = resolveConfig(root)
   const gateCommand = config.gate.command ?? null
   if (problems.length > 0) {
@@ -158,13 +214,17 @@ function runGate(root: string, json: boolean): GateReport {
     log.write(`gate: check ${check.name}\n`)
     checks.push({ ...check, ...runOne(check.command, check.name, REMEDIES.checkNotRunnable) })
   }
-  for (const check of enabledChecks(config.gate.checks)) {
+  const judged = enabledChecks(config.gate.checks).map((check): Judged => {
     if (stopped) {
-      checks.push({ name: check.name, command: null, ...SKIPPED })
-      continue
+      return { check, outcome: SKIPPED, failures: [] }
     }
     log.write(`gate: check ${check.name}\n`)
-    const { failures: found, ...outcome } = runShipped(check, root)
+    return runShipped(check, root)
+  })
+  if (updateBaseline) {
+    refreshBaselines(judged, [...steps, ...checks], root, log)
+  }
+  for (const { check, outcome, failures: found } of judged) {
     failures.push(...found)
     checks.push({ name: check.name, command: null, ...outcome })
   }
@@ -191,7 +251,7 @@ export function run(argv: string[]): number {
     return 0
   }
 
-  const report = runGate(repositoryRoot(cli.root ?? process.cwd()), cli.json)
+  const report = runGate(repositoryRoot(cli.root ?? process.cwd()), cli.json, cli.updateBaseline)
   const actions = process.env.GITHUB_ACTIONS === "true"
   if (cli.json) {
     const document = { ...report, failures: report.failures.map(failureJson) }

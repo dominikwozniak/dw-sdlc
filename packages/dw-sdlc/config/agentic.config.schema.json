@@ -292,6 +292,64 @@
                 }
               },
               "additionalProperties": false
+            },
+            "file-size-ratchet": {
+              "description": "The file-size Ratchet: each file git tracks or would track within the line limit of its group, or, where `.ai/file-size-ratchet.baseline.json` lists it, within the count recorded there. A file belongs to the first group with a glob that matches it; a file no group matches has no limit, and a symbolic link is not read. The baseline is committed and lists the files over their limit; one that lists a file twice, at a count within its group's limit or in no group fails the Check. `dw-sdlc gate --update-baseline` records it where there is none and otherwise only tightens it, and only when every Step and every other Check passes: a file within its limit leaves it, a count that shrank is lowered, and no file joins.",
+              "type": ["boolean", "object"],
+              "properties": {
+                "groups": {
+                  "description": "Default, in this order: `tests`, 2000 lines, a file under a `test`, `tests` or `__tests__` directory or named `*.test.*` or `*.spec.*`; `agent-docs`, 120 lines, `AGENTS.md`, `CLAUDE.md` and `GLOSSARY.md` anywhere and the markdown under `docs/agents`; `source`, 500 lines, JavaScript, TypeScript and shell.",
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "description": "The group's name, which its failure lines carry: lowercase words joined by hyphens.",
+                        "type": "string",
+                        "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$"
+                      },
+                      "maxLines": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "files": {
+                        "description": "Globs against the path from the repository root, as Node's `path.matchesGlob` reads them: `**` crosses directories, but no `*` matches a name that starts with a dot.",
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "minItems": 1,
+                        "uniqueItems": true
+                      }
+                    },
+                    "required": ["name", "maxLines", "files"],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "additionalProperties": false
+            },
+            "comment-budget": {
+              "description": "The comment budget: each comment block in the JavaScript and TypeScript files under `roots` carries at most `maxProseLines` lines of prose, a line with a letter or a digit once the comment markers are off. A block is one `/* … */` comment or a run of `//` comments each alone on consecutive lines; a comment after code on its line is none.",
+              "type": ["boolean", "object"],
+              "properties": {
+                "maxProseLines": {
+                  "description": "Default 3.",
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "roots": {
+                  "description": "The directories whose files it reads, relative to the repository root; one that does not exist holds no file. Default `packages`, `plugins`, `scripts` and `src`.",
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "uniqueItems": true
+                }
+              },
+              "additionalProperties": false
             }
           },
           "additionalProperties": false

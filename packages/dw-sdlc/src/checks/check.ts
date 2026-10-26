@@ -16,12 +16,20 @@ export class CannotRun extends Error {
   }
 }
 
+/**
+ * A Ratchet's committed baseline: its file, and its refresh from the tree, which writes it tighter or
+ * records it where there is none, says what it did, and throws `CannotRun` when it cannot.
+ */
+export type Baseline<Options extends object> = { file: string; refresh: (root: string, options: Options) => string }
+
 export type Check<Options extends object> = {
   /** The Check's key under `gate.checks`. */
   name: string
   defaults: Options
   /** Every failure of the tree at `root`, none when it passes; throws `CannotRun` when it cannot judge. */
   run: (root: string, options: Options) => Finding[]
+  /** Present on a Ratchet. */
+  baseline?: Baseline<Options>
 }
 
 /** The options `setting` turns the Check on with: the defaults under `true`, an object over them, else off. */

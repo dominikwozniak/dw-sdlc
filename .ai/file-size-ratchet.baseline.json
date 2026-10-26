@@ -1,0 +1,6 @@
+{
+  "AGENTS.md": 130,
+  "GLOSSARY.md": 132,
+  "plugins/guardrails/hooks/enforce-commit-hygiene.sh": 567,
+  "plugins/guardrails/hooks/lib-words.sh": 507
+}

@@ -19,7 +19,9 @@
       "markdown-budget": true,
       "markdown-refs": true,
       "temporal-language": true,
-      "decision-records": true
+      "decision-records": true,
+      "file-size-ratchet": true,
+      "comment-budget": true
     }
   },
   "worktree": { "setup": ["pnpm install"] },
