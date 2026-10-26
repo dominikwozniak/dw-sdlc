@@ -6,11 +6,14 @@
 import { readFileSync } from "node:fs"
 import { join, posix } from "node:path"
 
-import { type Anchors, anchorsOf, links } from "../markdown.ts"
-import { matching, treeFiles } from "../tree.ts"
+import { type Anchors, anchorsOf, type Link, links } from "../markdown.ts"
 import type { Check, Finding } from "./check.ts"
+import { matching, treeFiles } from "./tree.ts"
 
 export type MarkdownRefsOptions = { files: string[]; exempt: string[] }
+
+/** The repository a link resolves in: its files, the directories above them, the anchors read so far. */
+type Repository = { root: string; files: Set<string>; directories: Set<string>; anchors: Anchors }
 
 const REMEDIES = {
   path: "fix the path or drop the link",
@@ -40,40 +43,44 @@ function directoriesOf(files: Set<string>): Set<string> {
   return directories
 }
 
-/** The repository path a link in `file` names, the root `.`; a path out of the repository starts with `..`. */
+/** The repository path `path` names from `file`, the root `.`; a path out of the repository starts with `..`. */
 function resolve(file: string, path: string): string {
+  if (path === "") {
+    return file
+  }
   const joined = path.startsWith("/") ? path.slice(1) : posix.join(posix.dirname(file), path)
   const normal = posix.normalize(joined === "" ? "." : joined)
   return normal.length > 1 ? normal.replace(/\/$/, "") : normal
 }
 
+/** What is wrong with one link of `file`: a path out of the repository or not in it, or an anchor with no heading. */
+function judge(repository: Repository, file: string, { target, line }: Link): Finding[] {
+  if (EXTERNAL.test(target)) {
+    return []
+  }
+  const [beforeAnchor = "", anchor = ""] = target.split("#", 2)
+  const resolved = resolve(file, decode(beforeAnchor.split("?", 1)[0] ?? ""))
+  const quoted = JSON.stringify(target)
+  if (resolved === ".." || resolved.startsWith("../")) {
+    return [{ file, line, message: `links to ${quoted}, which is outside the repository`, remedy: REMEDIES.outside }]
+  }
+  if (resolved !== "." && !repository.files.has(resolved) && !repository.directories.has(resolved)) {
+    return [{ file, line, message: `links to ${quoted}, which does not exist`, remedy: REMEDIES.path }]
+  }
+  const namesHeading = anchor !== "" && repository.files.has(resolved) && /\.md$/i.test(resolved)
+  if (namesHeading && !anchorsOf(repository.root, resolved, repository.anchors).has(decode(anchor))) {
+    const message = `links to ${quoted}, but ${resolved} has no heading with that anchor`
+    return [{ file, line, message, remedy: REMEDIES.anchor }]
+  }
+  return []
+}
+
 function run(root: string, { files, exempt }: MarkdownRefsOptions): Finding[] {
   const tree = treeFiles(root)
   const known = new Set(tree)
-  const directories = directoriesOf(known)
-  const cache: Anchors = new Map()
+  const repository: Repository = { root, files: known, directories: directoriesOf(known), anchors: new Map() }
   return matching(root, tree, files, exempt).flatMap((file) =>
-    links(readFileSync(join(root, file), "utf8")).flatMap(({ target, line }): Finding[] => {
-      if (EXTERNAL.test(target)) {
-        return []
-      }
-      const [reference = "", anchor] = target.split("#", 2)
-      const path = decode(reference.split("?", 1)[0] ?? "")
-      const resolved = path === "" ? file : resolve(file, path)
-      const show = JSON.stringify(target)
-      if (resolved === ".." || resolved.startsWith("../")) {
-        return [{ file, line, message: `links to ${show}, which is outside the repository`, remedy: REMEDIES.outside }]
-      }
-      if (resolved !== "." && !known.has(resolved) && !directories.has(resolved)) {
-        return [{ file, line, message: `links to ${show}, which does not exist`, remedy: REMEDIES.path }]
-      }
-      const judged = anchor !== undefined && anchor !== "" && known.has(resolved) && /\.md$/i.test(resolved)
-      if (judged && !anchorsOf(root, resolved, cache).has(decode(anchor))) {
-        const message = `links to ${show}, but ${resolved} has no heading with that anchor`
-        return [{ file, line, message, remedy: REMEDIES.anchor }]
-      }
-      return []
-    })
+    links(readFileSync(join(root, file), "utf8")).flatMap((link) => judge(repository, file, link))
   )
 }
 

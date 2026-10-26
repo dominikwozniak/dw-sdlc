@@ -2,10 +2,10 @@
 // Checks that judge many files read, so a file git ignores is never judged.
 
 import { spawnSync } from "node:child_process"
-import { existsSync, lstatSync } from "node:fs"
-import { join, matchesGlob } from "node:path"
+import { existsSync, lstatSync, realpathSync } from "node:fs"
+import { join, matchesGlob, relative } from "node:path"
 
-import { CannotRun } from "./checks/check.ts"
+import { CannotRun } from "./check.ts"
 
 /** Every file under `pathspecs`, the whole tree when there are none, that git tracks or would track and that is on disk; sorted. */
 export function treeFiles(root: string, pathspecs: string[] = []): string[] {
@@ -22,15 +22,18 @@ export function treeFiles(root: string, pathspecs: string[] = []): string[] {
 }
 
 /**
- * The files of `paths` that a glob of `globs` matches and none of `exempt` does, symbolic links left out,
- * since the file a link points at is judged under its own path. `*` and `**` skip a name that starts
- * with a dot, as a shell does.
+ * The files of `paths` that a glob of `globs` matches and none of `exempt` does. A symbolic link is left
+ * out when the file it points at is matched too, so one file is judged once. `*` and `**` skip a name
+ * that starts with a dot, as a shell does.
  */
 export function matching(root: string, paths: string[], globs: string[], exempt: string[] = []): string[] {
-  return paths.filter(
+  const matched = paths.filter(
+    (path) => globs.some((glob) => matchesGlob(path, glob)) && !exempt.some((glob) => matchesGlob(path, glob))
+  )
+  const judged = new Set(matched)
+  const realRoot = realpathSync(root)
+  return matched.filter(
     (path) =>
-      globs.some((glob) => matchesGlob(path, glob)) &&
-      !exempt.some((glob) => matchesGlob(path, glob)) &&
-      !lstatSync(join(root, path)).isSymbolicLink()
+      !lstatSync(join(root, path)).isSymbolicLink() || !judged.has(relative(realRoot, realpathSync(join(root, path))))
   )
 }

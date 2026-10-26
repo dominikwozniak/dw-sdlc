@@ -11,7 +11,8 @@ const CONFIG = ".ai/agentic.config.json"
 /** A durable doc in the present tense, a phrase only inside code, and the records that keep their history. */
 const TREE = {
   "README.md": "# Demo\n\nThe Gate runs every Check, now and on every pull request.\n",
-  "docs/guide.md": "# Guide\n\n`we now` in a span is code.\n\n```text\nwe now run it\n```\n\n~~~\nas before\n~~~\n",
+  "docs/guide.md":
+    "# Guide\n\n`we now` in a span is code.\n\n```text\nwe now run it\n```\n\n~~~\nas before\n~~~\n\n- A step:\n\n    ```sh\n    we now run it\n    ```\n",
   "docs/adr/0001-the-gate.md": "# The Gate\n\nWe now run one Gate.\n",
   "docs/decisions/0001-the-gate.md": "# 0001 — The Gate\n\nIt was retired.\n",
   "docs/research/gate/kody.md": "# kody\n\nPreviously we read it.\n",
@@ -82,6 +83,14 @@ describe("the temporal-language Check", () => {
         ([line, phrase]) => `docs/changes.md:${line}: temporal-language: "${phrase}" reads as a changelog — ${REMEDY}`
       )
     )
+  })
+
+  it("fails phrases that overlap once, as the first of them", () => {
+    const run = runBin(["gate"], withDocs({ "docs/changes.md": "# Changes\n\nWe no longer support Node 20.\n" }))
+    assert.equal(run.status, 1)
+    assert.deepEqual(failures(run.stdout), [
+      `docs/changes.md:3: temporal-language: "We no longer" reads as a changelog — ${REMEDY}`
+    ])
   })
 })
 

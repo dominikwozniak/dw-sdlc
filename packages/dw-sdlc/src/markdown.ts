@@ -1,6 +1,6 @@
 // The parts of a markdown file the Checks read: its ATX headings with the anchors GitHub gives them,
-// the rows of a table under a heading, its links, and its prose with the code masked. A line inside a
-// fenced code block is never any of them.
+// the rows of a table under a heading, its links, and its prose with the code masked; and the anchors
+// of a file on disk. A line inside a fenced code block is never any of them.
 
 import { readFileSync, statSync } from "node:fs"
 import { join } from "node:path"
@@ -9,7 +9,8 @@ export type Heading = { level: number; text: string; anchor: string; line: numbe
 export type Row = { cells: string[]; line: number }
 export type Link = { target: string; line: number }
 
-const FENCE = /^ {0,3}(`{3,}|~{3,})/
+/** A code fence at any indent, so one inside a list item counts. */
+const FENCE = /^[ \t]*(`{3,}|~{3,})/
 const ATX = /^ {0,3}(#{1,6})[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$/
 
 /** Each line with its 1-based number, `fenced` when a code fence opens, closes or encloses it. */
@@ -91,12 +92,6 @@ export function codeSpans(text: string): string[] {
   return Array.from(text.matchAll(/`([^`]+)`/g), ([, span = ""]) => span)
 }
 
-/** The lines of `text`, a last line without its newline counted, the empty line after a final newline not. */
-export function lineCount(text: string): number {
-  const lines = text.split("\n").length
-  return text.endsWith("\n") ? lines - 1 : lines
-}
-
 /** A code span: a run of backticks, then the text up to the next run of as many. */
 const CODE_SPAN = /(?<!`)(`+)(?!`).*?(?<!`)\1(?!`)/g
 
@@ -109,7 +104,7 @@ export function prose(text: string): string {
     .join("\n")
 }
 
-/** The target of an inline link or image, `<…>` or up to a space or `)`, and of a reference definition. */
+/** The target of an inline link or image, `<…>` or up to a space or `)`, and of a link definition, `[label]: target`. */
 const INLINE_TARGET = /\]\(\s*(<[^>]*>|[^\s)]+)/g
 const DEFINITION = /^ {0,3}\[(?!\^)[^\]]+\]:[ \t]*(<[^>]*>|\S+)/
 

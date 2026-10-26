@@ -357,7 +357,7 @@
         "packages/dw-sdlc/src/checks/check.ts",
         "packages/dw-sdlc/src/checks/index.ts",
         "packages/dw-sdlc/src/markdown.ts",
-        "packages/dw-sdlc/src/tree.ts"
+        "packages/dw-sdlc/src/checks/tree.ts"
       ],
       "docs": [
         "docs/overview.md#how-the-gate-runs",

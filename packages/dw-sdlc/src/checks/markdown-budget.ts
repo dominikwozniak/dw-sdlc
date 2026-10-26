@@ -4,40 +4,47 @@
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 
-import { lineCount } from "../markdown.ts"
-import { matching, treeFiles } from "../tree.ts"
 import type { Check, Finding } from "./check.ts"
+import { matching, treeFiles } from "./tree.ts"
 
-export type Budget = { glob: string; maxLines: number; maxBytes: number }
-export type MarkdownBudgetOptions = { budgets: Budget[] }
+export type Budget = { maxLines: number; maxBytes: number }
+export type MarkdownBudgetOptions = { budgets: (Budget & { glob: string })[] }
 
 const REMEDIES = {
   budget: "cut it, or split a topic into a file of its own",
   glob: "fix the glob, or drop its budget"
 }
 
+/** The lines of `text`, a last line without its newline counted, the empty line after a final newline not. */
+function lineCount(text: string): number {
+  const lines = text.split("\n").length
+  return text.endsWith("\n") ? lines - 1 : lines
+}
+
+/** What `text` spends past its budget: `156 lines, over the 150-line budget`, then the bytes the same way. */
+export function overBudget(text: string, { maxLines, maxBytes }: Budget): string[] {
+  const lines = lineCount(text)
+  const bytes = Buffer.byteLength(text)
+  return [
+    ...(lines > maxLines ? [`${lines} lines, over the ${maxLines}-line budget`] : []),
+    ...(bytes > maxBytes ? [`${bytes} bytes, over the ${maxBytes}-byte budget`] : [])
+  ]
+}
+
 function run(root: string, { budgets }: MarkdownBudgetOptions): Finding[] {
   const files = treeFiles(root)
-  return budgets.flatMap(({ glob, maxLines, maxBytes }) => {
+  return budgets.flatMap(({ glob, ...budget }) => {
     const matched = matching(root, files, [glob])
     if (matched.length === 0) {
       return [{ message: `${JSON.stringify(glob)} matches no file`, remedy: REMEDIES.glob }]
     }
-    return matched.flatMap((file) => {
-      const content = readFileSync(join(root, file))
-      const findings: Finding[] = []
-      const lines = lineCount(content.toString("utf8"))
-      if (lines > maxLines) {
-        const message = `${lines} lines, over the ${maxLines}-line budget of ${glob}`
-        findings.push({ file, message, remedy: REMEDIES.budget })
-      }
-      const bytes = content.byteLength
-      if (bytes > maxBytes) {
-        const message = `${bytes} bytes, over the ${maxBytes}-byte budget of ${glob}`
-        findings.push({ file, message, remedy: REMEDIES.budget })
-      }
-      return findings
-    })
+    return matched.flatMap((file) =>
+      overBudget(readFileSync(join(root, file), "utf8"), budget).map((over) => ({
+        file,
+        message: `${over} of ${glob}`,
+        remedy: REMEDIES.budget
+      }))
+    )
   })
 }
 

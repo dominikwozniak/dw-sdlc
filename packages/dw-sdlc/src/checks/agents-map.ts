@@ -6,8 +6,9 @@ import { existsSync, globSync, lstatSync, readdirSync, readFileSync, realpathSyn
 import { join } from "node:path"
 
 import { resolveConfig } from "../agentic-config.ts"
-import { codeSpans, lineCount, tableRows } from "../markdown.ts"
+import { codeSpans, tableRows } from "../markdown.ts"
 import { CannotRun, type Check, type Finding } from "./check.ts"
+import { overBudget } from "./markdown-budget.ts"
 import { catalogueFile } from "./primitives.ts"
 
 export type AgentsMapOptions = { file: string; maxLines: number; maxBytes: number }
@@ -44,16 +45,8 @@ function escape(text: string): string {
 }
 
 /** The budget, the Gate command, the row to the catalogue and every path the Task Router points at. */
-function judgeMap(root: string, { file, maxLines, maxBytes }: AgentsMapOptions, text: string): Finding[] {
-  const findings: Finding[] = []
-  const lines = lineCount(text)
-  if (lines > maxLines) {
-    findings.push({ file, message: `${lines} lines, over the ${maxLines}-line budget`, remedy: REMEDIES.budget })
-  }
-  const bytes = Buffer.byteLength(text)
-  if (bytes > maxBytes) {
-    findings.push({ file, message: `${bytes} bytes, over the ${maxBytes}-byte budget`, remedy: REMEDIES.budget })
-  }
+function judgeMap(root: string, { file, ...budget }: AgentsMapOptions, text: string): Finding[] {
+  const findings: Finding[] = overBudget(text, budget).map((message) => ({ file, message, remedy: REMEDIES.budget }))
 
   const { gate } = resolveConfig(root).config
   if (gate.command === undefined) {

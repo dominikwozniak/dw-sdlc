@@ -2,15 +2,17 @@
 // `<number>-<slug>.md`, are numbered from 1 with no gap and no number taken twice, and each has a title
 // and a frontmatter status from the allowed set.
 
-import { readdirSync, readFileSync, statSync } from "node:fs"
+import { readFileSync, statSync } from "node:fs"
 import { join } from "node:path"
 
 import { headings } from "../markdown.ts"
 import { CannotRun, type Check, type Finding } from "./check.ts"
+import { treeFiles } from "./tree.ts"
 
 export type DecisionRecordsOptions = { dirs: string[]; statuses: string[] }
 
-const RECORD = /^(\d+)-.+\.md$/
+/** A record's name in its directory: its number, a slug, `.md`, and no directory between. */
+const RECORD = /^(\d+)-[^/]+\.md$/
 
 const REMEDIES = {
   missing: "create the records directory, or point gate.checks.decision-records.dirs at it",
@@ -56,10 +58,11 @@ function gaps(taken: Set<number>, pad: (number: number) => string): string[] {
 
 /** What is wrong with the records of `dir`: the numbers they skip, then each record's number, title and status. */
 function judge(root: string, dir: string, statuses: string[]): Finding[] {
-  const records = readdirSync(join(root, dir))
-    .filter((name) => RECORD.test(name) && statSync(join(root, dir, name)).isFile())
-    .toSorted()
-    .map((name) => ({ file: `${dir}/${name}`, digits: RECORD.exec(name)?.[1] ?? "" }))
+  const prefix = `${dir.replace(/\/+$/, "")}/`
+  const records = treeFiles(root, [dir])
+    .map((file) => ({ file, name: file.slice(prefix.length) }))
+    .filter(({ name }) => RECORD.test(name))
+    .map(({ file, name }) => ({ file, digits: RECORD.exec(name)?.[1] ?? "" }))
   const width = records[0]?.digits.length ?? 4
   const pad = (number: number) => String(number).padStart(width, "0")
   const owners = new Map<number, string>()

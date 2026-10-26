@@ -58,11 +58,20 @@ describe("the markdown-budget Check", () => {
     ])
   })
 
-  it("judges a symbolic link only under the path it points at, and skips a file git ignores", () => {
-    const root = withDocs({ ".gitignore": "docs/agents/local.md\n", "docs/agents/local.md": "a line\n".repeat(200) })
+  it("judges a file once when a link to it matches too, a link to a file no glob matches, and no file git ignores", () => {
+    const root = withDocs({
+      ".gitignore": "docs/agents/local.md\n",
+      "docs/agents/local.md": "a line\n".repeat(200),
+      "docs/agents/domain.md": "a line\n".repeat(101)
+    })
+    symlinkSync("domain.md", join(root, "docs/agents/CLAUDE.md"))
     symlinkSync("../overview.md", join(root, "docs/agents/overview.md"))
     const run = runBin(["gate"], root)
-    assert.equal(run.status, 0, run.stdout)
+    assert.equal(run.status, 1)
+    assert.deepEqual(failures(run.stdout), [
+      "docs/agents/domain.md: markdown-budget: 101 lines, over the 100-line budget of docs/agents/*.md — cut it, or split a topic into a file of its own",
+      "docs/agents/overview.md: markdown-budget: 300 lines, over the 100-line budget of docs/agents/*.md — cut it, or split a topic into a file of its own"
+    ])
   })
 })
 

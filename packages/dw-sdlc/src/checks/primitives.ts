@@ -7,8 +7,8 @@ import { join } from "node:path"
 
 import { type Catalogue, CATALOGUE_FILE, type Primitive, primitivesNaming, readCatalogue } from "../catalogue.ts"
 import { type Anchors, anchorsOf } from "../markdown.ts"
-import { treeFiles } from "../tree.ts"
 import { CannotRun, type Check, type Finding, optionsOf } from "./check.ts"
+import { treeFiles } from "./tree.ts"
 
 export type PrimitivesOptions = { file: string; roots: string[] }
 /** Where in the catalogue a Primitive is declared. */

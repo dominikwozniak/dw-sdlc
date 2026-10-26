@@ -2,7 +2,7 @@
 // rule at a time: the exit code and each failure line word for word.
 
 import assert from "node:assert/strict"
-import { rmSync } from "node:fs"
+import { rmSync, symlinkSync } from "node:fs"
 import { join } from "node:path"
 import { describe, it } from "node:test"
 
@@ -92,6 +92,13 @@ describe("the decision-records Check", () => {
       `docs/adr/0002-the-sync-is-a-plugin.md: decision-records: has no status — give its frontmatter a status, one of ${STATUSES}`,
       `docs/adr/0003-one-plugin.md:2: decision-records: the status "approved" is not allowed — set it to one of ${STATUSES}`
     ])
+  })
+
+  it("leaves a record git ignores alone, and a link to no file", () => {
+    const root = withRecords({ ".gitignore": "docs/adr/0004-draft.md\n", "docs/adr/0004-draft.md": "a draft\n" })
+    symlinkSync("gone.md", join(root, "docs/adr/0005-dangling.md"))
+    const run = runBin(["gate"], root)
+    assert.equal(run.status, 0, run.stdout)
   })
 
   it("exits 2 when none of its directories exists", () => {

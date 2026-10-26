@@ -189,7 +189,7 @@
               "additionalProperties": false
             },
             "markdown-budget": {
-              "description": "Each file a glob of `budgets` matches within that glob's `maxLines` and `maxBytes`, and every glob matching a file. A glob matches the files git tracks or would track, a symbolic link left to the file it points at; `*` and `**` skip a name that starts with a dot.",
+              "description": "Each file a glob of `budgets` matches within that glob's `maxLines` and `maxBytes`, and every glob matching a file. A glob matches the files git tracks or would track, a symbolic link left out when the file it points at is matched too; `*` and `**` skip a name that starts with a dot.",
               "type": ["boolean", "object"],
               "properties": {
                 "budgets": {
@@ -244,7 +244,7 @@
               "additionalProperties": false
             },
             "temporal-language": {
-              "description": "No changelog phrase in a durable document, matched across a line break and never inside code: the phrases kody's docs check lists, as `docs/research/gate/kody.md` records them. `now we`, `we now`, `we no longer`, `previously we`, `as before`, `were removed`, `was` or `were retired`, `no longer` before `support`, `accept`, `require`, `use` or another of kody's verbs, `is now a` or `the`, `are now`, `previously a` or `the`, `recently` before `changed`, `added`, `updated`, `removed` or `introduced`, and `used to support` or `require`.",
+              "description": "No changelog phrase in a durable document, matched across a line break and never inside code: `now we`,`we now`, `we no longer`, `previously we`, `as before`, `were removed`, `was` or `were retired`, `no longer` before `support`, `accept`, `require`, `use`, `fan`, `carry`, `replay`, `incur`, `authoritative`, `insert` or `needed`,`is now a` or `the`, `are now`, `previously a` or `the`, `recently` before `changed`, `added`, `updated`, `removed` or `introduced`, and `used to support` or `require`.",
               "type": ["boolean", "object"],
               "properties": {
                 "files": {
@@ -269,7 +269,7 @@
               "additionalProperties": false
             },
             "decision-records": {
-              "description": "The records of each directory of `dirs` that exists, the files named `<number>-<slug>.md`: numbered from 1 with no gap and no number taken twice, each with a level-1 heading for its title and a frontmatter `status` whose first word is one of `statuses`, so `superseded by ADR 0008` reads as `superseded`. The Gate cannot run when none of `dirs` exists.",
+              "description": "The records of each directory of `dirs` that exists, the files in it git tracks or would track named `<number>-<slug>.md`: numbered from 1 with no gap and no number taken twice, each with a level-1 heading for its title and a frontmatter `status` whose first word is one of `statuses`, so `superseded by ADR 0008` reads as `superseded`. The Gate cannot run when none of `dirs` exists.",
               "type": ["boolean", "object"],
               "properties": {
                 "dirs": {
