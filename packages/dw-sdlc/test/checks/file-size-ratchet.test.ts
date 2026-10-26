@@ -306,7 +306,7 @@ describe("the file-size-ratchet Check's options", () => {
     ])
   })
 
-  it("counts a last line without a newline, and an empty file as none", () => {
+  it("counts a last line without its newline", () => {
     const groups = [{ name: "code", maxLines: 2, files: ["**/*.ts"] }]
     const root = withRatchet({ "a.ts": "1\n2\n3", "b.ts": "", "c.ts": "1\n2" }, {}, { groups })
     const run = runBin(["gate"], root)
@@ -320,7 +320,7 @@ describe("the file-size-ratchet Check's options", () => {
     const run = runBin(["gate"], repo({ git: false, files: { [CONFIG]: config, [BASELINE]: {} } }))
     assert.equal(run.status, 2)
     assert.deepEqual(failures(run.stdout), [
-      "file-size-ratchet: cannot list the files of the tree: not a git repository — run the Gate inside a git repository"
+      "file-size-ratchet: cannot list the files: not a git repository — run the Gate inside a git repository"
     ])
   })
 })

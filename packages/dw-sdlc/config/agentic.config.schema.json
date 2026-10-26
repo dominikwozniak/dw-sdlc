@@ -294,7 +294,7 @@
               "additionalProperties": false
             },
             "file-size-ratchet": {
-              "description": "The file-size Ratchet: each file git tracks or would track within the line limit of its group, or, where `.ai/file-size-ratchet.baseline.json` lists it, within the count recorded there. A file belongs to the first group with a glob that matches it; a file no group matches has no limit, and a symbolic link is not read. The baseline is committed and lists the files over their limit; one that lists a file twice, at a count within its group's limit or in no group fails the Check. `dw-sdlc gate --update-baseline` records it where there is none and otherwise only tightens it, and only when every Step and every other Check passes: a file within its limit leaves it, a count that shrank is lowered, and no file joins.",
+              "description": "The file-size Ratchet: each file git tracks or would track within the line limit of its group, or, where `.ai/file-size-ratchet.baseline.json` lists it, within the count recorded there. A file belongs to the first group with a glob that matches it; a file no group matches has no limit, and a symbolic link is left out when the file it points at is matched too. The baseline is committed and lists the files over their limit; one that lists a file twice, at a count within its group's limit or in no group fails the Check. `dw-sdlc gate --update-baseline` records it where there is none and otherwise only tightens it, and only when every Step and every other Check passes: a file within its limit leaves it, a count that shrank is lowered, and no file joins.",
               "type": ["boolean", "object"],
               "properties": {
                 "groups": {

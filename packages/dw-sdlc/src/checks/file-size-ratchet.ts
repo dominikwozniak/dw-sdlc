@@ -2,11 +2,12 @@
 // the count recorded there. A refresh only tightens the baseline: it lowers and drops, and adds no file.
 
 import { spawnSync } from "node:child_process"
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs"
 import { dirname, join, matchesGlob } from "node:path"
 
 import { CannotRun, type Check, type Finding } from "./check.ts"
-import { isPlainFile, lineCount, listFiles } from "./files.ts"
+import { lineCount } from "./markdown-budget.ts"
+import { matching, treeFiles } from "./tree.ts"
 
 export type Group = { name: string; maxLines: number; files: string[] }
 export type FileSizeRatchetOptions = { groups: Group[] }
@@ -58,9 +59,13 @@ function groupOf(path: string, groups: Group[]): Group | undefined {
 
 function measure(root: string, groups: Group[]): Measured {
   const measured: Measured = new Map()
-  for (const path of listFiles(root)) {
+  for (const path of matching(
+    root,
+    treeFiles(root),
+    groups.flatMap(({ files }) => files)
+  )) {
     const group = groupOf(path, groups)
-    if (group !== undefined && isPlainFile(root, path)) {
+    if (group !== undefined && statSync(join(root, path)).isFile()) {
       measured.set(path, { group, lines: lineCount(readFileSync(join(root, path), "utf8")) })
     }
   }

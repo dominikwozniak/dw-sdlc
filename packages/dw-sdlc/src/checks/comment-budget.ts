@@ -5,11 +5,11 @@ import { readFileSync } from "node:fs"
 import { join } from "node:path"
 
 import type { Check, Finding } from "./check.ts"
-import { isPlainFile, listFiles } from "./files.ts"
+import { matching, treeFiles } from "./tree.ts"
 
 export type CommentBudgetOptions = { maxProseLines: number; roots: string[] }
 
-const SOURCE = /\.(ts|tsx|mts|cts|js|jsx|mjs|cjs)$/
+const SOURCE = ["**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}"]
 const REMEDY = "cut it to what the code cannot say, or move the reasoning into a doc and point at it"
 /** The characters after which a `/` opens a regular expression, not a division. */
 const BEFORE_REGEX = new Set("(,=:[!&|?{};+-*%<>~^")
@@ -133,7 +133,7 @@ function proseLines(block: string): number {
 
 function run(root: string, { maxProseLines, roots }: CommentBudgetOptions): Finding[] {
   const findings: Finding[] = []
-  for (const file of listFiles(root, roots).filter((path) => SOURCE.test(path) && isPlainFile(root, path))) {
+  for (const file of matching(root, treeFiles(root, roots), SOURCE)) {
     for (const block of blocksOf(commentsOf(readFileSync(join(root, file), "utf8")))) {
       const prose = proseLines(block.text)
       if (prose > maxProseLines) {
