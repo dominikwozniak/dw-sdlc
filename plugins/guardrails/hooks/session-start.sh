@@ -5,7 +5,8 @@
 #
 #   - jq missing: every guard in this plugin is silent, and this is the one place that says so
 #   - an invalid .ai/agentic.config.json or local override: one loud line with every problem, and the
-#     reminder that the guards run on the strictest defaults until it is fixed
+#     reminder that the guards run on the strictest defaults until it is fixed. A layer the plugin's
+#     schema cannot validate is invalid too
 #   - in a linked worktree only: the .worktreeinclude files the checkout still lacks (the same rule
 #     Claude Code copies by — match a pattern AND be gitignored — computed by git, so it never drifts),
 #     but for the config layers and `.claude/settings.local.json`, read from the main checkout when a
