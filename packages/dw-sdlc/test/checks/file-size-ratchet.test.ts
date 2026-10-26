@@ -3,11 +3,11 @@
 // `--update-baseline` leaves behind.
 
 import assert from "node:assert/strict"
-import { readFileSync, symlinkSync } from "node:fs"
+import { existsSync, readFileSync, rmSync, symlinkSync } from "node:fs"
 import { join } from "node:path"
 import { describe, it } from "node:test"
 
-import { lines, repo, runBin } from "../harness.ts"
+import { commit, git, lines, repo, runBin } from "../harness.ts"
 
 const CONFIG = ".ai/agentic.config.json"
 const BASELINE = ".ai/file-size-ratchet.baseline.json"
@@ -222,6 +222,24 @@ describe("dw-sdlc gate --update-baseline", () => {
       run.stdout
     )
     assert.equal(readBaseline(root), recorded)
+  })
+
+  it("records no new baseline over a committed one gone from the tree, so no grown file gets back in", () => {
+    const root = withRatchet({ "src/legacy.ts": text(700) }, { "src/legacy.ts": 600 })
+    git(root, "add", "-A")
+    commit(root, "-m", "baseline")
+    rmSync(join(root, BASELINE))
+    const deleted = `${BASELINE}: file-size-ratchet: the baseline is committed but gone from the tree — restore it with git restore ${BASELINE}`
+    assert.deepEqual(failures(runBin(["gate"], root).stdout), [deleted])
+    const run = runBin(["gate", "--update-baseline"], root)
+    assert.equal(run.status, 2)
+    assert.ok(
+      lines(run.stdout).includes(
+        `gate: baseline ${BASELINE} not refreshed — the baseline is committed but gone from the tree; restore it with git restore ${BASELINE}`
+      ),
+      run.stdout
+    )
+    assert.ok(!existsSync(join(root, BASELINE)), "a baseline was recorded over the committed one")
   })
 
   it("refuses while a Step fails, and records no baseline where there is none", () => {

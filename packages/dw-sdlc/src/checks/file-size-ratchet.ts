@@ -1,6 +1,7 @@
 // `file-size-ratchet`: each file within the line limit of its group or, listed in the baseline, within
 // the count recorded there. A refresh only tightens the baseline: it lowers and drops, and adds no file.
 
+import { spawnSync } from "node:child_process"
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { dirname, join, matchesGlob } from "node:path"
 
@@ -21,14 +22,22 @@ const REMEDIES = {
   unreadable: "fix the failures it names"
 }
 
+/** A committed baseline gone from the tree: recording a new one would let every grown file back in. */
+const DELETED: Finding = {
+  file: BASELINE,
+  message: "the baseline is committed but gone from the tree",
+  remedy: `restore it with git restore ${BASELINE}`
+}
+
 /** Each file a group holds, by path: the group and the file's lines. */
 type Measured = Map<string, { group: Group; lines: number }>
+/** A file the baseline lets stay over its limit: the count it may not pass, and its line in the baseline. */
+type Entry = { count: number; line: number | undefined }
 
-/** The baseline as read: absent, a list of what is wrong with it, or each entry with its line in the file. */
-type Read =
-  | { state: "missing" }
+type BaselineRead =
+  | { state: "missing"; committed: boolean }
   | { state: "invalid"; findings: Finding[] }
-  | { state: "valid"; entries: Map<string, { count: number; line: number | undefined }> }
+  | { state: "valid"; entries: Map<string, Entry> }
 
 function show(value: unknown): string {
   return JSON.stringify(value)
@@ -38,7 +47,7 @@ function plural(count: number, noun: string): string {
   return `${count} ${noun}${count === 1 ? "" : "s"}`
 }
 
-function at(line: number | undefined): Pick<Finding, "file" | "line"> {
+function inBaseline(line: number | undefined): Pick<Finding, "file" | "line"> {
   return line === undefined ? { file: BASELINE } : { file: BASELINE, line }
 }
 
@@ -66,10 +75,11 @@ function keyLines(text: string, path: string): number[] {
   })
 }
 
-function readBaseline(root: string): Read {
+function readBaseline(root: string): BaselineRead {
   const path = join(root, BASELINE)
   if (!existsSync(path)) {
-    return { state: "missing" }
+    const committed = spawnSync("git", ["-C", root, "cat-file", "-e", `HEAD:${BASELINE}`]).status === 0
+    return { state: "missing", committed }
   }
   const text = readFileSync(path, "utf8")
   let parsed: unknown
@@ -83,32 +93,34 @@ function readBaseline(root: string): Read {
     return { state: "invalid", findings: [{ file: BASELINE, message: "not an object", remedy: REMEDIES.shape }] }
   }
   const findings: Finding[] = []
-  const entries = new Map<string, { count: number; line: number | undefined }>()
+  const entries = new Map<string, Entry>()
   for (const [file, count] of Object.entries(parsed)) {
     const lines = keyLines(text, file)
-    if (typeof count !== "number" || !Number.isInteger(count) || count < 1) {
-      const message = `${show(file)} is at ${show(count)}, not a line count`
-      findings.push({ ...at(lines.at(-1)), message, remedy: REMEDIES.shape })
-    }
     if (lines.length > 1) {
       const times = lines.length === 2 ? "twice" : `${lines.length} times`
-      findings.push({ ...at(lines[1]), message: `lists ${show(file)} ${times}`, remedy: REMEDIES.twice })
+      findings.push({ ...inBaseline(lines[1]), message: `lists ${show(file)} ${times}`, remedy: REMEDIES.twice })
     }
-    entries.set(file, { count: Number(count), line: lines[0] })
+    if (typeof count === "number" && Number.isInteger(count) && count >= 1) {
+      entries.set(file, { count, line: lines[0] })
+    } else {
+      const message = `${show(file)} is at ${show(count)}, not a line count`
+      findings.push({ ...inBaseline(lines.at(-1)), message, remedy: REMEDIES.shape })
+    }
   }
   return findings.length > 0 ? { state: "invalid", findings } : { state: "valid", entries }
 }
 
 /** The entries that excuse nothing: a file no group holds, or a count within its group's limit. */
-function contradictions(entries: Map<string, { count: number; line: number | undefined }>, groups: Group[]): Finding[] {
+function contradictions(entries: Map<string, Entry>, groups: Group[]): Finding[] {
   const findings: Finding[] = []
   for (const [file, { count, line }] of entries) {
     const group = groupOf(file, groups)
     if (group === undefined) {
-      findings.push({ ...at(line), message: `lists ${show(file)}, which no group holds`, remedy: REMEDIES.stale })
+      const message = `lists ${show(file)}, which no group holds`
+      findings.push({ ...inBaseline(line), message, remedy: REMEDIES.stale })
     } else if (count <= group.maxLines) {
       const message = `lists ${show(file)} at ${count} lines, within the ${group.maxLines}-line limit of the ${group.name} group`
-      findings.push({ ...at(line), message, remedy: REMEDIES.stale })
+      findings.push({ ...inBaseline(line), message, remedy: REMEDIES.stale })
     }
   }
   return findings
@@ -117,7 +129,8 @@ function contradictions(entries: Map<string, { count: number; line: number | und
 function run(root: string, { groups }: FileSizeRatchetOptions): Finding[] {
   const read = readBaseline(root)
   if (read.state === "missing") {
-    throw new CannotRun({ file: BASELINE, message: "the baseline does not exist", remedy: REMEDIES.record })
+    const missing = { file: BASELINE, message: "the baseline does not exist", remedy: REMEDIES.record }
+    throw new CannotRun(read.committed ? DELETED : missing)
   }
   if (read.state === "invalid") {
     return read.findings
@@ -154,6 +167,9 @@ function refresh(root: string, { groups }: FileSizeRatchetOptions): string {
       message: "it is not a baseline the Ratchet can read",
       remedy: REMEDIES.unreadable
     })
+  }
+  if (read.state === "missing" && read.committed) {
+    throw new CannotRun(DELETED)
   }
   const measured = measure(root, groups)
   if (read.state === "missing") {
