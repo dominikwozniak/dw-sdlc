@@ -304,7 +304,7 @@ guard_config_infer() {
 
 # guard_config_layer <root> <main> <file> — GUARD_LAYER_JSON becomes the document at <root>, else at
 # <main> when it is set, or null when the file is absent or invalid; an invalid one adds its problems
-# to GUARD_CONFIG_PROBLEMS.
+# to GUARD_CONFIG_PROBLEMS. A layer jq cannot validate is a problem too, never a pass.
 guard_config_layer() {
   local path="$1/$3" problems line
   GUARD_LAYER_JSON="null"
@@ -314,8 +314,16 @@ guard_config_layer() {
     guard_config_problem "$3" "" "not JSON: $(jq empty "$path" 2>&1 | head -n1)"
     return 0
   fi
-  problems=$(jq -r -L "$GUARD_LIB_DIR" --slurpfile schema "$GUARD_SCHEMA" \
-    'include "schema"; validate($schema[0])[] | "\(.path)\u0001\(.message)"' "$path")
+  if ! problems=$(guard_config_validate "$path" 2>/dev/null); then
+    if [[ -f "$GUARD_SCHEMA" ]]; then
+      guard_config_problem "$3" "" \
+        "not validated against $GUARD_SCHEMA: $(guard_config_validate "$path" 2>&1 >/dev/null | head -n1)"
+    else
+      guard_config_problem "$3" "" \
+        "not validated: the schema $GUARD_SCHEMA is missing; an install from GitHub needs packages in its --sparse set"
+    fi
+    return 0
+  fi
   if [[ -n "$problems" ]]; then
     while IFS= read -r line; do
       guard_config_problem "$3" "${line%%$'\001'*}" "${line#*$'\001'}"
@@ -323,6 +331,14 @@ guard_config_layer() {
     return 0
   fi
   GUARD_LAYER_JSON=$(jq -c . "$path")
+}
+
+# guard_config_validate <path> — the schema's problems with the document at <path>, one
+# `path\001message` per line. A schema jq cannot read is exit 2 with nothing on stdout, the same
+# output as a valid document, so the caller reads the exit code.
+guard_config_validate() {
+  jq -r -L "$GUARD_LIB_DIR" --slurpfile schema "$GUARD_SCHEMA" \
+    'include "schema"; validate($schema[0])[] | "\(.path)\u0001\(.message)"' "$1"
 }
 
 # guard_config_problem <file> <path> <message> — appends one line to GUARD_CONFIG_PROBLEMS.

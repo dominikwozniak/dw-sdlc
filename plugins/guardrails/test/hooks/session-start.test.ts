@@ -1,15 +1,27 @@
 // What session-start.sh tells a fresh session, fed the real SessionStart payload against a throwaway
 // repository with a linked worktree: the .worktreeinclude files the worktree still lacks, the
-// worktree.setup commands, an invalid config, a missing jq — and nothing at all
-// from a main checkout that is in order.
+// worktree.setup commands, an invalid config, a schema the plugin cannot read, a missing jq — and
+// nothing at all from a main checkout that is in order.
 
 import assert from "node:assert/strict"
 import { spawnSync } from "node:child_process"
-import { chmodSync, copyFileSync, mkdirSync } from "node:fs"
+import { chmodSync, copyFileSync, cpSync, mkdirSync } from "node:fs"
 import { join } from "node:path"
 import { after, before, describe, it } from "node:test"
 
-import { commit, expectExit, git, initRepo, REPO_ROOT, runHook, scratch, write, writeJson } from "../harness.ts"
+import {
+  commit,
+  expectExit,
+  git,
+  HOOKS_DIR,
+  initRepo,
+  REPO_ROOT,
+  runBash,
+  runHook,
+  scratch,
+  write,
+  writeJson
+} from "../harness.ts"
 
 const TMP = scratch("session")
 
@@ -38,9 +50,12 @@ function stdoutOf(cwd: string, path?: string): string {
   expectExit(verdict, 0)
   return verdict.stdout
 }
-/** The additionalContext the hook returns, trailing newlines dropped as `$(…)` drops them. */
+/** The report for a session starting at `cwd`, with PATH replaced when given. */
 function report(cwd: string, path?: string): string {
-  const out = stdoutOf(cwd, path)
+  return contextOf(stdoutOf(cwd, path))
+}
+/** The additionalContext in a hook's stdout, trailing newlines dropped as `$(…)` drops them. */
+function contextOf(out: string): string {
   if (out.trim() === "") {
     return ""
   }
@@ -160,6 +175,62 @@ describe("an invalid config is one loud line, in the main checkout too", () => {
     git(MAIN, "checkout", "-q", "--", ".ai/agentic.config.json")
     assert.equal(report(MAIN), "")
   })
+})
+
+describe("a schema the plugin cannot read is a config problem, never a pass", () => {
+  // Valid against the schema and looser than the strictest set: only the unread schema drops it.
+  const repo = initRepo(join(TMP, "unvalidated"), { branch: "main" })
+  writeJson(join(repo, ".ai", "agentic.config.json"), { guardrails: { forcePush: "lease" } })
+  const strictest = {
+    forcePush: "deny",
+    commitOnProtected: "deny",
+    envFiles: { policy: "deny", allow: [], deny: [] },
+    protectedBranches: ["master", "main", "production"]
+  }
+
+  // hooks/ beside no dw-sdlc link, as a marketplace added from GitHub without `packages` in its
+  // sparse set installs it; then beside a schema that is not JSON, named with jq's error.
+  const cases: [string, string | undefined, (schemaPath: string) => string][] = [
+    [
+      "missing",
+      undefined,
+      (schemaPath) =>
+        `.ai/agentic.config.json: not validated: the schema ${schemaPath} is missing; ` +
+        "an install from GitHub needs packages in its --sparse set"
+    ],
+    ["not JSON", "{ not json", (schemaPath) => `.ai/agentic.config.json: not validated against ${schemaPath}: jq: `]
+  ]
+  for (const [name, schema, problem] of cases) {
+    describe(`a schema ${name}`, () => {
+      const plugin = scratch("plugin")
+      cpSync(HOOKS_DIR, join(plugin, "hooks"), { recursive: true })
+      const schemaPath = join(plugin, "dw-sdlc", "config", "agentic.config.schema.json")
+      if (schema !== undefined) {
+        write(schemaPath, schema)
+      }
+      let R = ""
+      before(() => {
+        const verdict = runBash([join(plugin, "hooks", "session-start.sh")], payload(repo))
+        expectExit(verdict, 0)
+        R = contextOf(verdict.stdout)
+      })
+      it("invalid, strictest", () => {
+        has(R, "agentic config: INVALID, the guards run on the strictest defaults until it is fixed")
+      })
+      it("the schema named", () => {
+        has(R, problem(schemaPath))
+      })
+      it("one problem, on one line", () => {
+        assert.equal(lineCount(R), 2)
+      })
+      it("the guards on the strictest set", () => {
+        const script = 'source "$1"; guard_config_load "$2"; jq -c .guardrails <<<"$GUARD_CONFIG"'
+        const verdict = runBash(["-c", script, "lib", join(plugin, "hooks", "lib.sh"), repo], "")
+        expectExit(verdict, 0)
+        assert.deepEqual(JSON.parse(verdict.stdout), strictest)
+      })
+    })
+  }
 })
 
 describe("a references key is its plugin's, never a config problem", () => {

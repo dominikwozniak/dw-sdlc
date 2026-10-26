@@ -188,6 +188,13 @@ worktree the `.worktreeinclude` files not yet copied in and the `worktree.setup`
 reports and never installs. A main checkout in order
 gets nothing.
 
+A config layer is invalid, too, when the hooks cannot validate it against the schema beside them,
+`dw-sdlc/config/agentic.config.schema.json`. A marketplace added from GitHub without `packages` in
+its `--sparse` set installs the plugin without that file. The report then names the schema and says
+an install from GitHub needs `packages` in its `--sparse` set. A schema that is there but fails in
+jq, one that is not JSON for example, is named with jq's first error line. Either way the layer is
+dropped and the guards run strictest.
+
 ## Tests
 
 `test/` mirrors the source tree: `test/hooks/<guard>.test.ts` spawns the guard on the real stdin
