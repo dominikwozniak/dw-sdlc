@@ -4,6 +4,8 @@ import { spawnSync } from "node:child_process"
 import { parseArgs } from "node:util"
 
 import { type Problem, repositoryRoot, resolveConfig } from "../agentic-config.ts"
+import { CannotRun } from "../checks/check.ts"
+import { type EnabledCheck, enabledChecks } from "../checks/index.ts"
 import { annotation, type Failure, failureJson, failureLine } from "../report.ts"
 
 export const summary = "run the Gate: the Steps of gate.steps in order, then every Check under gate.checks"
@@ -12,17 +14,20 @@ const USAGE = `Usage: dw-sdlc gate [--json] [--root <dir>]
 
 Runs the Gate of the repository holding --root (default: the current directory): each Step of
 gate.steps in order from the repository root, its output passed through, stopping at the first that
-fails; then every Check under gate.checks, none stopping the next. Prints one line per failure: the
-file where there is one, the rule, the remedy; under GitHub Actions each line is also a workflow
-annotation. --json prints one document instead and sends the commands' own output to stderr.
+fails; then every Check under gate.checks, the run scripts and then the Checks the package ships,
+none stopping the next. Prints one line per failure: the file where there is one, the rule, the
+remedy; under GitHub Actions each line is also a workflow annotation. --json prints one document
+instead and sends the commands' own output to stderr.
 
 Exit 0 when everything passes, 1 when a Step or a Check fails, 2 when the Gate cannot run: an
-invalid config layer, or a Step or Check whose command the shell cannot find or execute.`
+invalid config layer, a Step or Check whose command the shell cannot find or execute, or a Check
+missing an input it reads.`
 
 type Status = "pass" | "fail" | "error"
 type Outcome = { status: Status | "skipped"; exitCode: number | null }
 type StepReport = Outcome & { command: string }
-type CheckReport = Outcome & { name: string; command: string }
+/** A Check the package ships runs in this process: it has no command. */
+type CheckReport = Outcome & { name: string; command: string | null }
 type GateReport = {
   status: Status
   command: string | null
@@ -40,7 +45,8 @@ const REMEDIES = {
   invalidLayer: "fix the file; the Gate runs once every layer is valid",
   failed: "fix what it printed above",
   stepNotRunnable: "install the command or fix gate.steps in the agentic config",
-  checkNotRunnable: "install the command or fix gate.checks.run in the agentic config"
+  checkNotRunnable: "install the command or fix gate.checks.run in the agentic config",
+  checkStopped: "fix what stopped it, or report it to dw-sdlc"
 }
 
 function plural(count: number, noun: string): string {
@@ -88,6 +94,24 @@ function runCommand(command: string, root: string, json: boolean): Outcome & { d
   return { status: "fail", exitCode: result.status, detail: `exited ${result.status}` }
 }
 
+/** Runs one Check the package ships, its failures named by the Check; one it cannot judge is an error. */
+function runShipped(check: EnabledCheck, root: string): Outcome & { failures: Failure[] } {
+  try {
+    const failures = check.run(root).map((finding) => ({ rule: check.name, ...finding }))
+    const status = failures.length === 0 ? "pass" : "fail"
+    return { status, exitCode: EXIT_CODES[status], failures }
+  } catch (error) {
+    const finding =
+      error instanceof CannotRun
+        ? error.finding
+        : {
+            message: `stopped: ${error instanceof Error ? error.message : String(error)}`,
+            remedy: REMEDIES.checkStopped
+          }
+    return { status: "error", exitCode: EXIT_CODES.error, failures: [{ rule: check.name, ...finding }] }
+  }
+}
+
 function worst(outcomes: Outcome[]): Status {
   const statuses = new Set(outcomes.map(({ status }) => status))
   return statuses.has("error") ? "error" : statuses.has("fail") ? "fail" : "pass"
@@ -133,6 +157,16 @@ function runGate(root: string, json: boolean): GateReport {
     }
     log.write(`gate: check ${check.name}\n`)
     checks.push({ ...check, ...runOne(check.command, check.name, REMEDIES.checkNotRunnable) })
+  }
+  for (const check of enabledChecks(config.gate.checks)) {
+    if (stopped) {
+      checks.push({ name: check.name, command: null, ...SKIPPED })
+      continue
+    }
+    log.write(`gate: check ${check.name}\n`)
+    const { failures: found, ...outcome } = runShipped(check, root)
+    failures.push(...found)
+    checks.push({ name: check.name, command: null, ...outcome })
   }
 
   return { status: worst([...steps, ...checks]), command: gateCommand, steps, checks, failures }

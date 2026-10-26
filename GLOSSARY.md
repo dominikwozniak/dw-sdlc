@@ -75,9 +75,10 @@ _Avoid_: merged branch, which git's `--merged` keeps for a tip the base contains
 ### Gate
 
 **Check**:
-One script that judges the state of the working tree and answers with an exit code, a line naming the
-remedy and, on request, machine-readable output. It runs the same in CI, in a commit hook, in an agent
-hook and in a terminal.
+One unit that judges the state of the working tree and answers with an exit code, a line naming the
+remedy and, on request, machine-readable output: a module the package ships, or a repository's own
+script under `gate.checks.run`. It runs the same in CI, in a commit hook, in an agent hook and in a
+terminal.
 _Avoid_: Step (a toolchain command the Gate runs first), rule, validator, test (which proves behaviour,
 not the tree)
 
@@ -100,6 +101,11 @@ _Avoid_: threshold, budget (a fixed limit with no baseline)
 The smallest unit of meaning a repository exposes to an agent: a module, a hook, a script, a config key,
 a skill. The catalogue names where its code lives and which document explains it.
 _Avoid_: component, feature, building block
+
+**Agent map**:
+The file an agent reads first in a repository, `AGENTS.md`: where things live, the commands, and the
+Task Router that sends a task to the one document it needs.
+_Avoid_: instructions file, rules
 
 ### Distribution
 

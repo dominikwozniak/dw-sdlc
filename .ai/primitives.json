@@ -199,7 +199,7 @@
       "id": "config.references",
       "name": "references key",
       "group": "config",
-      "summary": "The References a repository reads: dir, repository, ref, skipped paths, what and when; a schema apart from the guardrails one.",
+      "summary": "The References a repository reads: dir, repository, ref, skipped paths, what and when; its schema stands apart.",
       "code": ["packages/dw-sdlc/config/references.schema.json", "packages/dw-sdlc/src/references-key.ts"],
       "docs": [
         "plugins/references/README.md#the-key",
@@ -243,6 +243,14 @@
       "docs": ["plugins/references/README.md#adding-a-reference"]
     },
     {
+      "id": "tools.primitives",
+      "name": "dw-sdlc primitives",
+      "group": "tools",
+      "summary": "Names the Primitives that own each path it is given, with their summaries and documents; plain or --json.",
+      "code": ["packages/dw-sdlc/src/commands/primitives.ts"],
+      "docs": ["docs/overview.md#the-checks-the-package-ships", "AGENTS.md#commands"]
+    },
+    {
       "id": "skills.guardrails-setup",
       "name": "sdlc-guardrails-setup",
       "group": "skills",
@@ -270,16 +278,16 @@
       "id": "distribution.guardrails-plugin",
       "name": "guardrails plugin",
       "group": "distribution",
-      "summary": "The manifest wiring each guard and hook to its event; its version and the marketplace's bump together.",
-      "code": ["plugins/guardrails/.claude-plugin/plugin.json"],
+      "summary": "The manifest wiring each guard and hook to its event, and the README; its version and the marketplace's bump together.",
+      "code": ["plugins/guardrails/.claude-plugin/plugin.json", "plugins/guardrails/README.md"],
       "docs": ["plugins/guardrails/README.md#install", "docs/overview.md#releasing-a-plugin"]
     },
     {
       "id": "distribution.references-plugin",
       "name": "references plugin",
       "group": "distribution",
-      "summary": "The manifest wiring the session hook; its version and the marketplace's bump together.",
-      "code": ["plugins/references/.claude-plugin/plugin.json"],
+      "summary": "The manifest wiring the session hook, and the README; its version and the marketplace's bump together.",
+      "code": ["plugins/references/.claude-plugin/plugin.json", "plugins/references/README.md"],
       "docs": ["plugins/references/README.md#install", "docs/overview.md#releasing-a-plugin"]
     },
     {
@@ -323,6 +331,38 @@
       "summary": "Runs gate.steps to the first failure, then every Check; one line per failure, --json, exit 0, 1 or 2.",
       "code": ["packages/dw-sdlc/src/commands/gate.ts", "packages/dw-sdlc/src/report.ts"],
       "docs": ["docs/overview.md#how-the-gate-runs", "GLOSSARY.md"]
+    },
+    {
+      "id": "gate.checks",
+      "name": "Check registry",
+      "group": "gate",
+      "summary": "What a Check the package ships is, the list the Gate runs them in, and the markdown reading they share.",
+      "code": [
+        "packages/dw-sdlc/src/checks/check.ts",
+        "packages/dw-sdlc/src/checks/index.ts",
+        "packages/dw-sdlc/src/markdown.ts"
+      ],
+      "docs": [
+        "docs/overview.md#how-the-gate-runs",
+        "docs/adr/0009-checks-are-named-units-turned-on-in-the-config.md",
+        "GLOSSARY.md"
+      ]
+    },
+    {
+      "id": "gate.primitives",
+      "name": "primitives Check",
+      "group": "gate",
+      "summary": "Holds the catalogue to the tree: unique ids, known groups, short summaries, real paths, each root's files named.",
+      "code": ["packages/dw-sdlc/src/checks/primitives.ts", "packages/dw-sdlc/src/catalogue.ts", ".ai/primitives.json"],
+      "docs": ["docs/overview.md#the-checks-the-package-ships", "GLOSSARY.md"]
+    },
+    {
+      "id": "gate.agents-map",
+      "name": "agents-map Check",
+      "group": "gate",
+      "summary": "Holds AGENTS.md to its budget, the Gate command, a row to the catalogue, Task Router paths that exist, skills in step.",
+      "code": ["packages/dw-sdlc/src/checks/agents-map.ts"],
+      "docs": ["docs/overview.md#the-checks-the-package-ships", "AGENTS.md#task-router"]
     },
     {
       "id": "gate.pre-commit",

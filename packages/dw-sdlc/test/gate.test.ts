@@ -10,6 +10,7 @@ import { repo, runBin, scratch } from "./harness.ts"
 
 const CONFIG = ".ai/agentic.config.json"
 const GOLDEN = join(import.meta.dirname, "gate.golden.json")
+const SCHEMA = join(import.meta.dirname, "..", "config", "agentic.config.schema.json")
 const CHECK_SCRIPT = JSON.stringify({ scripts: { check: "dw-sdlc gate" } })
 /** A layer the schema refuses: `gate.checks` names only the Checks the package ships. */
 const UNKNOWN_CHECK = { version: 1, gate: { steps: ["touch step-ran"], checks: { "no-such-check": true } } }
@@ -104,6 +105,37 @@ describe("dw-sdlc gate, the Checks", () => {
       'missing: "dw-sdlc-no-such-command" was not found (exit 127) — install the command or fix gate.checks.run in the agentic config',
       'failing: "exit 1" exited 1 — fix what it printed above',
       "gate: cannot run — 2 failures"
+    ])
+  })
+})
+
+describe("dw-sdlc gate, the Checks the package ships", () => {
+  /** The Check names `gate.checks` takes beside `run`, in the schema's order. */
+  const SHIPPED = Object.keys(
+    JSON.parse(readFileSync(SCHEMA, "utf8")).properties.gate.properties.checks.properties
+  ).filter((name) => name !== "run")
+
+  it("runs every Check the schema names after the run Checks, in the schema's order, none stopping the next", () => {
+    const shipped = Object.fromEntries(SHIPPED.map((name) => [name, true]))
+    const root = withGate({ checks: { run: [{ name: "own", command: "exit 1" }], ...shipped } })
+    const run = runBin(["gate", "--json"], root)
+    const { checks } = JSON.parse(run.stdout)
+    assert.deepEqual(
+      checks.map(({ name, command }: { name: string; command: string | null }) => ({ name, command })),
+      [{ name: "own", command: "exit 1" }, ...SHIPPED.map((name) => ({ name, command: null }))]
+    )
+    for (const { name, status, exitCode } of checks.slice(1)) {
+      assert.notEqual(status, "skipped", name)
+      assert.equal(exitCode, { pass: 0, fail: 1, error: 2 }[status as string], name)
+    }
+  })
+
+  it("skips them after a failed step", () => {
+    const root = withGate({ steps: ["exit 1"], checks: { primitives: true } })
+    const run = runBin(["gate", "--json"], root)
+    assert.equal(run.status, 1)
+    assert.deepEqual(JSON.parse(run.stdout).checks, [
+      { name: "primitives", command: null, status: "skipped", exitCode: null }
     ])
   })
 })

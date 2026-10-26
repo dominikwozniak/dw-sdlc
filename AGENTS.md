@@ -10,11 +10,12 @@ is its long form: how a guard works, why the design, adopting and releasing.
 
 - `packages/dw-sdlc/` — the `dw-sdlc` package, a workspace member: `src/` the resolver of the
   config's layers, the JSON Schema validator and the `dw-sdlc` bin, `cli.ts`, one row per
-  subcommand, each a module under `commands/` (`gate`, `setup`, `doctor`, `config`,
-  `references sync`, `references setup`), beside the modules the commands share; `config/` the JSON
-  Schema for `.ai/agentic.config.json`, which declares how this repo works for an agent, and the
-  `references` key's own, which that schema leaves unnamed; `templates/` the Router the setup
-  writes; `test/` their tests, the bin spawned on a throwaway repo
+  subcommand, each a module under `commands/` (`gate`, `primitives`, `setup`, `doctor`, `config`,
+  `references sync`, `references setup`), and one module per Check it ships under `checks/`, beside
+  the modules they share; `config/` the JSON Schema for `.ai/agentic.config.json`, which declares
+  how this repo works for an agent, and the `references` key's own, which that schema leaves
+  unnamed; `templates/` the Router the setup writes; `test/` their tests, the bin spawned on a
+  throwaway repo
 - `plugins/guardrails/` — the guardrails plugin, published through `.claude-plugin/marketplace.json`:
   `hooks/` holds the bash guards on a shared `lib.sh` plus the jq config contract, `dw-sdlc` a link
   to the package, whose bin the skill runs, and `test/` the guard tests, mirroring `hooks/`:
@@ -26,8 +27,9 @@ is its long form: how a guard works, why the design, adopting and releasing.
   `test/` the hook test, on the package's References harness through the link
 - `.ai/` — `agentic.config.json`, this repo's own agent rules against the package's schema, its
   References under the `references` key; `primitives.json`, the catalogue of what this repo exposes
-  to an agent, per Primitive where its code lives and which document explains it
-  (`agentic.config.local.json` is one machine's layer, kept out of git through `.git/info/exclude`)
+  to an agent, per Primitive where its code lives and which document explains it, held to the tree
+  by the `primitives` Check (`agentic.config.local.json` is one machine's layer, kept out of git
+  through `.git/info/exclude`)
 - `.claude/settings.json` — tracked; turns the dw-solo plugins off in this repo and keeps the clones'
   `CLAUDE.md` and `AGENTS.md` out of context. `.claude/settings.local.json` is one machine's
   permission backstop, written by the setup and excluded from git. A worktree reads it and the local
@@ -84,8 +86,9 @@ is its long form: how a guard works, why the design, adopting and releasing.
 ## Commands
 
 ```bash
-pnpm check                      # dw-sdlc gate: the gate.steps of .ai/agentic.config.json in order; = CI
+pnpm check                      # dw-sdlc gate: the gate.steps of .ai/agentic.config.json in order, then its Checks; = CI
 pnpm exec dw-sdlc gate [--json] # the Gate itself; exit 0 green, 1 a Step or Check failed, 2 cannot run
+pnpm exec dw-sdlc primitives --paths <files> [--json] # the Primitives that own each path: summary, docs to read
 pnpm lint | lint:fix            # oxlint — check / --fix
 pnpm format | format:fix        # oxfmt — check / write
 pnpm typecheck                  # tsc, no emit
@@ -109,7 +112,7 @@ Match this table **before** researching or coding — read every row that matche
 | explaining the repo, editing `README.md` or anything under `docs/`       | `README.md`, `docs/overview.md`, `GLOSSARY.md`                            |
 | releasing the plugin, bumping its version                                | `docs/overview.md`, the Releasing a plugin section                        |
 | planning new work, filing or reading an issue                            | `docs/agents/issue-tracker.md`                                            |
-| what a guard, hook, script, key or skill is and where it lives           | `.ai/primitives.json`                                                     |
+| what a guard, hook, script, key or skill is and where it lives           | `.ai/primitives.json`, or `dw-sdlc primitives --paths` on the files       |
 
 ## Agent skills
 
