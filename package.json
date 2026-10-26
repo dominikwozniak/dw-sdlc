@@ -10,11 +10,11 @@
     "typecheck": "tsc -p tsconfig.json",
     "check": "dw-sdlc gate",
     "test": "node --test \"packages/*/test/**/*.test.ts\" \"plugins/*/test/**/*.test.ts\"",
-    "agentic:check": "node plugins/guardrails/scripts/agentic-config.ts",
-    "guardrails:setup": "node plugins/guardrails/scripts/guardrails-setup.ts",
-    "guardrails:doctor": "node plugins/guardrails/scripts/guardrails-doctor.ts",
-    "references:sync": "node plugins/references/scripts/references-sync.ts",
-    "references:setup": "node plugins/references/scripts/references-setup.ts",
+    "agentic:check": "dw-sdlc config",
+    "guardrails:setup": "dw-sdlc setup",
+    "guardrails:doctor": "dw-sdlc doctor",
+    "references:sync": "dw-sdlc references sync",
+    "references:setup": "dw-sdlc references setup",
     "prepare": "husky"
   },
   "devDependencies": {

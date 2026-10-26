@@ -9,21 +9,21 @@ is its long form: how a guard works, why the design, adopting and releasing.
 ## Project map
 
 - `packages/dw-sdlc/` — the `dw-sdlc` package, a workspace member: `src/` the resolver of the
-  config's layers, the JSON Schema validator and the `dw-sdlc` bin, `cli.ts`, with one module per
-  subcommand under `commands/`; `config/` the JSON Schema for `.ai/agentic.config.json`, which
-  declares how this repo works for an agent; `test/` their tests, the bin spawned on a throwaway repo
+  config's layers, the JSON Schema validator and the `dw-sdlc` bin, `cli.ts`, one row per
+  subcommand, each a module under `commands/` (`gate`, `setup`, `doctor`, `config`,
+  `references sync`, `references setup`), beside the modules the commands share; `config/` the JSON
+  Schema for `.ai/agentic.config.json`, which declares how this repo works for an agent, and the
+  `references` key's own, which that schema leaves unnamed; `templates/` the Router the setup
+  writes; `test/` their tests, the bin spawned on a throwaway repo
 - `plugins/guardrails/` — the guardrails plugin, published through `.claude-plugin/marketplace.json`:
   `hooks/` holds the bash guards on a shared `lib.sh` plus the jq config contract, `dw-sdlc` a link
-  to the package, `scripts/` the TypeScript that runs the config check, the setup and the doctor on
-  it, and `test/` the tests, mirroring `hooks/` and `scripts/`: `harness.ts` spawns a guard on the
-  real stdin payload; every input a test reads is built beside it; `skills/sdlc-guardrails-setup/`
-  the user-invoked skill that runs the setup script
+  to the package, whose bin the skill runs, and `test/` the guard tests, mirroring `hooks/`:
+  `harness.ts` spawns a guard on the real stdin payload; every input a test reads is built beside
+  it; `skills/sdlc-guardrails-setup/` the user-invoked skill that runs `dw-sdlc setup`
 - `plugins/references/` — the references plugin, published beside guardrails and enabled at user
-  scope: `hooks/` the session-start hook that runs the Sync, `scripts/` the Sync, the strict parser
-  of the `references` key, the Router's table and the setup, `config/` that key's JSON Schema, which
-  the guardrails schema leaves unnamed, `templates/` the Router the setup writes, `skills/sdlc-references-add/` the
-  user-invoked skill that adds a Reference, and `test/` the hook, CLI and contract tests on a
-  harness of their own
+  scope: `hooks/` the session-start hook that runs `dw-sdlc references sync`, `dw-sdlc` a link to
+  the package, `skills/sdlc-references-add/` the user-invoked skill that adds a Reference, and
+  `test/` the hook test, on the package's References harness through the link
 - `.ai/` — `agentic.config.json`, this repo's own agent rules against the package's schema, its
   References under the `references` key; `primitives.json`, the catalogue of what this repo exposes
   to an agent, per Primitive where its code lives and which document explains it
@@ -61,7 +61,7 @@ is its long form: how a guard works, why the design, adopting and releasing.
 
 - **pnpm only**, pinned in `package.json` — never `npm`, `npx`, `yarn` or `bun`; one-off tools via
   `pnpm dlx`. Dependencies are pinned exactly; `pnpm-workspace.yaml` refuses versions younger than 7 days.
-- **TypeScript runs natively on Node 24** — `node plugins/<plugin>/scripts/<name>.ts`, no build step.
+- **TypeScript runs natively on Node 24** — `node packages/dw-sdlc/src/cli.ts <command>`, no build step.
   Erasable syntax only (no `enum`, `namespace` or parameter properties), and relative imports keep
   the `.ts` extension.
 - **Formatting and import order belong to oxfmt.** The pre-commit hook runs oxlint `--fix` and oxfmt on

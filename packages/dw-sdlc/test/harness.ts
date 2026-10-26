@@ -24,7 +24,8 @@ function binPath(): string {
   throw new Error(`${PACKAGE_ROOT}/package.json names no dw-sdlc bin`)
 }
 
-const BIN = binPath()
+/** The bin's path; the References harness spawns it its own way. */
+export const BIN = binPath()
 
 export type Run = { status: number; stdout: string; stderr: string }
 
@@ -78,10 +79,10 @@ export function commit(cwd: string, ...args: string[]): void {
   git(cwd, "-c", "user.email=t@example.com", "-c", "user.name=t", "-c", "commit.gpgsign=false", "commit", "-q", ...args)
 }
 
-/** `git init -q` at `dir`, with an origin remote when given. */
-export function initRepo(dir: string, options: { remote?: string } = {}): string {
+/** `git init -q` at `dir`, on `branch` when given, with an origin remote when given. */
+export function initRepo(dir: string, options: { branch?: string; remote?: string } = {}): string {
   mkdirSync(dir, { recursive: true })
-  git(dir, "init", "-q")
+  git(dir, "init", "-q", ...(options.branch === undefined ? [] : ["-b", options.branch]))
   if (options.remote !== undefined) {
     git(dir, "remote", "add", "origin", options.remote)
   }
@@ -103,4 +104,8 @@ export function repo(options: { git?: false; remote?: string; files?: Record<str
     write(join(root, file), typeof content === "string" ? content : JSON.stringify(content))
   }
   return root
+}
+
+export function writeJson(path: string, value: unknown): void {
+  write(path, `${JSON.stringify(value)}\n`)
 }

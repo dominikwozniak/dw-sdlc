@@ -1,6 +1,5 @@
-// The config check: resolves a repository's agentic config, or validates one file against the schema,
-// and prints what the guards see. The resolver and the schema are the dw-sdlc package's, which the
-// plugin carries under its `dw-sdlc` link.
+// `dw-sdlc config`, the config check: resolves a repository's agentic config, or validates one file
+// against the schema, and prints what the guards see.
 
 import { readFileSync } from "node:fs"
 import { parseArgs } from "node:util"
@@ -13,9 +12,11 @@ import {
   repositoryRoot,
   resolveConfig,
   validateDocument
-} from "../dw-sdlc/src/agentic-config.ts"
+} from "../agentic-config.ts"
 
-const USAGE = `Usage: node <plugin root>/scripts/agentic-config.ts [--root <dir>] [file]
+export const summary = "resolve the repository's agentic config, or validate one file against the schema"
+
+const USAGE = `Usage: dw-sdlc config [--root <dir>] [file]
   or:  pnpm agentic:check [--root <dir>] [file], in a checkout of dw-sdlc
 
 Without a file: resolves the agentic config of the repository holding --root (default: the current
@@ -53,11 +54,11 @@ function report(problems: Problem[]): void {
   }
 }
 
-function main(argv: string[]): void {
+export function run(argv: string[]): number {
   const cli = parseCli(argv)
   if (cli.help) {
     console.log(USAGE)
-    return
+    return 0
   }
 
   if (cli.file !== undefined) {
@@ -70,10 +71,10 @@ function main(argv: string[]): void {
     const result = validateDocument(cli.file, text)
     if ("problems" in result) {
       report(result.problems)
-      process.exit(1)
+      return 1
     }
     console.log(`${cli.file}: valid`)
-    return
+    return 0
   }
 
   const root =
@@ -91,8 +92,5 @@ function main(argv: string[]): void {
     report(problems)
     fail(`${problems.length} problem(s) above; the guards run on the strictest defaults until the file is fixed`, 1)
   }
-}
-
-if (import.meta.main) {
-  main(process.argv.slice(2))
+  return 0
 }

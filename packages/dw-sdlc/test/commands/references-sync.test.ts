@@ -1,4 +1,4 @@
-// What references-sync.ts does through its CLI, against throwaway upstreams served over file://, so
+// What `dw-sdlc references sync` does, against throwaway upstreams served over file://, so
 // `--depth` and the partial clone behave as they do against GitHub: clones and updates at a branch or
 // a tag, a ref naming a package, the sparse skip and only, what the Sync leaves alone, how it fails,
 // and two Syncs in one checkout.
@@ -11,7 +11,18 @@ import { describe, it } from "node:test"
 import { setTimeout as sleep } from "node:timers/promises"
 import { pathToFileURL } from "node:url"
 
-import { commit, git, initRepo, runScript, scratch, startScript, tag, write, writeJson, type Run } from "../harness.ts"
+import {
+  commit,
+  git,
+  initRepo,
+  runReferences,
+  scratch,
+  startReferences,
+  tag,
+  write,
+  writeJson,
+  type Run
+} from "../references-harness.ts"
 
 const CONFIG = ".ai/agentic.config.json"
 
@@ -94,7 +105,7 @@ function declare(root: string, references: unknown, file = CONFIG): void {
 function consumer(references: unknown, files: Record<string, string> = {}): string {
   const root = initRepo(scratch("consumer"))
   declare(root, references)
-  const setup = runScript("references-setup", [], root)
+  const setup = runReferences("setup", [], root)
   assert.equal(setup.status, 0, `${setup.stdout}\n${setup.stderr}`)
   for (const [path, content] of Object.entries(files)) {
     write(join(root, path), content)
@@ -103,12 +114,12 @@ function consumer(references: unknown, files: Record<string, string> = {}): stri
 }
 
 function sync(root: string, ...dirs: string[]): Run {
-  return runScript("references-sync", dirs, root)
+  return runReferences("sync", dirs, root)
 }
 
 /** A Sync started without waiting for it. */
 function startSync(root: string, env: NodeJS.ProcessEnv = {}): Promise<Run> {
-  return startScript("references-sync", [], root, env)
+  return startReferences("sync", [], root, env)
 }
 
 function expectStatus(run: Run, want: number): void {
@@ -438,7 +449,7 @@ describe("what the Sync leaves alone", () => {
     const before = head(pushed)
     const root = consumer([entry("full", upstream().url)])
 
-    const run = runScript("references-sync", [], root, { GIT_DIR: join(pushed, ".git") })
+    const run = runReferences("sync", [], root, { GIT_DIR: join(pushed, ".git") })
     expectStatus(run, 0)
     assert.ok(has(root, "full", "README.md"))
     assert.equal(head(pushed), before)
@@ -448,7 +459,7 @@ describe("what the Sync leaves alone", () => {
 })
 
 describe("the Router", () => {
-  const SETUP = join(import.meta.dirname, "..", "..", "scripts", "references-setup.ts")
+  const SETUP = `node "${join(import.meta.dirname, "..", "..", "src", "cli.ts")}" references setup`
 
   it("says in one line that the Router is missing, naming the setup to run; the line changes no exit code", () => {
     const source = upstream()
@@ -459,7 +470,7 @@ describe("the Router", () => {
     const short = git(clone(root, "full"), "rev-parse", "--short", "HEAD").trim()
     assert.deepEqual(lines(run.stdout), [
       `references/full  ${short}  ${source.url} main`,
-      `references/AGENTS.md  missing  run node "${SETUP}" from the project to write the Router`
+      `references/AGENTS.md  missing  run ${SETUP} from the project to write the Router`
     ])
     assert.equal(run.stderr, "")
   })
@@ -472,11 +483,11 @@ describe("the Router", () => {
     expectStatus(run, 0)
     assert.equal(
       lines(run.stdout)[1],
-      `references/AGENTS.md  behind the key  run node "${SETUP}" from the project to rewrite its table`
+      `references/AGENTS.md  behind the key  run ${SETUP} from the project to rewrite its table`
     )
     assert.equal(lines(run.stdout).length, 2, run.stdout)
 
-    expectStatus(runScript("references-setup", [], root), 0)
+    expectStatus(runReferences("setup", [], root), 0)
     const again = sync(root, "full")
     expectStatus(again, 0)
     assert.equal(lines(again.stdout).length, 1, again.stdout)
@@ -611,7 +622,7 @@ describe("two Syncs in one checkout", () => {
     const source = upstream()
     const root = consumer([entry("full", source.url)])
     hold(root, process.pid)
-    const run = runScript("references-sync", [], root, { REFERENCES_SYNC_WAIT: "1" })
+    const run = runReferences("sync", [], root, { REFERENCES_SYNC_WAIT: "1" })
     expectStatus(run, 0)
     assert.equal(run.stdout, "")
     assert.deepEqual(lines(run.stderr), [
@@ -623,7 +634,7 @@ describe("two Syncs in one checkout", () => {
 
   /** A Sync against a left-over lock: synced at once, the lock gone. */
   function expectCleared(root: string): void {
-    const run = runScript("references-sync", [], root, { REFERENCES_SYNC_WAIT: "2" })
+    const run = runReferences("sync", [], root, { REFERENCES_SYNC_WAIT: "2" })
     expectStatus(run, 0)
     assert.equal(run.stderr, "")
     assert.ok(has(root, "full", "README.md"))

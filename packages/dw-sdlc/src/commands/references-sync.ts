@@ -1,5 +1,6 @@
-// The Sync: brings every Reference the `references` key of .ai/agentic.config.json declares to its ref
-// under references/<dir> — a missing one cloned, an existing one moved to a branch's head or to a tag.
+// `dw-sdlc references sync`, the Sync: brings every Reference the `references` key of
+// .ai/agentic.config.json declares to its ref under references/<dir> — a missing one cloned, an
+// existing one moved to a branch's head or to a tag.
 // Each clone is shallow and blobless, detached at what was fetched, and sparse when its entry names
 // only some paths or skips some. Only the committed config is read. A key the parser refuses syncs
 // nothing; an entry that fails to resolve fails alone. One Sync runs in a checkout at a time: a
@@ -13,19 +14,22 @@ import { join } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 import { parseArgs } from "node:util"
 
-import { readPins, resolveRef, type Pins } from "./pins.ts"
-import { CONFIG, readReferences, type Reference } from "./references-key.ts"
-import { renderBlock, withBlock } from "./router-block.ts"
+import { readPins, resolveRef, type Pins } from "../pins.ts"
+import { CONFIG, readReferences, type Reference } from "../references-key.ts"
+import { renderBlock, withBlock } from "../router-block.ts"
 
 const CLONES = "references"
 const ROUTER = "references/AGENTS.md"
-const SETUP = join(import.meta.dirname, "references-setup.ts")
+/** The setup, run through the package's bin, named in a line when the Router needs it. */
+const SETUP = `node "${join(import.meta.dirname, "..", "cli.ts")}" references setup`
 const LOCK = ".sync.lock"
 /** Seconds a Sync waits for another one in the same checkout: inside the session hook's 60 s. */
 const WAIT_SECONDS = 30
 const POLL_MS = 100
 
-const USAGE = `Usage: node <plugin root>/scripts/references-sync.ts [dir...]
+export const summary = "bring every declared Reference to its ref under references/"
+
+const USAGE = `Usage: dw-sdlc references sync [dir...]
   or:  pnpm references:sync [dir...], in a checkout of dw-sdlc
 
 Brings every Reference the references key of ${CONFIG} declares to its ref under ${CLONES}/<dir>, or
@@ -262,7 +266,7 @@ function parseCli(argv: string[]): { help: boolean; dirs: string[] } {
 function routerLine(root: string, references: Reference[]): string | undefined {
   const path = join(root, ROUTER)
   if (!existsSync(path)) {
-    return `${ROUTER}  missing  run node "${SETUP}" from the project to write the Router`
+    return `${ROUTER}  missing  run ${SETUP} from the project to write the Router`
   }
   const current = readFileSync(path, "utf8")
   const next = withBlock(current, renderBlock(references))
@@ -270,7 +274,7 @@ function routerLine(root: string, references: Reference[]): string | undefined {
     return `${ROUTER}  broken  ${next.problem}`
   }
   if (next.text !== current) {
-    return `${ROUTER}  behind the key  run node "${SETUP}" from the project to rewrite its table`
+    return `${ROUTER}  behind the key  run ${SETUP} from the project to rewrite its table`
   }
   return undefined
 }
@@ -308,11 +312,11 @@ function syncAll(root: string, selected: Reference[]): boolean {
   return failed
 }
 
-async function main(argv: string[]): Promise<void> {
+export async function run(argv: string[]): Promise<number> {
   const cli = parseCli(argv)
   if (cli.help) {
     console.log(USAGE)
-    return
+    return 0
   }
 
   const toplevel = git(["rev-parse", "--show-toplevel"])
@@ -328,7 +332,7 @@ async function main(argv: string[]): Promise<void> {
     fail(`not in the references of ${CONFIG}: ${unknown.join(", ")}`)
   }
   if (reading.references === undefined) {
-    return
+    return 0
   }
   const selected =
     cli.dirs.length === 0 ? references : references.filter((reference) => cli.dirs.includes(reference.dir))
@@ -364,11 +368,5 @@ async function main(argv: string[]): Promise<void> {
   if (stray.length > 0) {
     console.log(`Not listed in ${CONFIG}, left alone: ${stray.join(", ")}`)
   }
-  if (failed) {
-    process.exit(1)
-  }
-}
-
-if (import.meta.main) {
-  await main(process.argv.slice(2))
+  return failed ? 1 : 0
 }

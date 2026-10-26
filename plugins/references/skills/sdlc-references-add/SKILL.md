@@ -22,7 +22,7 @@ repository's root. The run commits nothing.
 ## 1. The setup
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/references-setup.ts"
+node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" references setup
 ```
 
 Show its lines. Each file is written only when it would change, so a repository set up before shows
@@ -170,7 +170,7 @@ Append the entry as the last item of the key in `.ai/agentic.config.json`, in th
 ## 8. The table
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/references-setup.ts"
+node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" references setup
 ```
 
 The setup again: it rewrites the Router's table from the key, the new entry's row included, and
@@ -180,7 +180,7 @@ there names the field of the entry the parser refuses: fix the entry and run aga
 ## 9. The Sync
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/references-sync.ts" <dir>
+node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" references sync <dir>
 ```
 
 Show its line. Exit 1 names why the Reference failed: an unreachable repository, a missing pin or

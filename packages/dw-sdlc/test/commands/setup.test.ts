@@ -4,10 +4,10 @@ import { join } from "node:path"
 import { describe, it } from "node:test"
 import { pathToFileURL } from "node:url"
 
-import { COMMITTED_FILE, LOCAL_FILE, resolveConfig, schemaId } from "../../dw-sdlc/src/agentic-config.ts"
-import { type SetupOptions, type Step, schemaReference, setup } from "../../scripts/guardrails-setup.ts"
-import { GLOBAL_DENY, LEASE_RULE } from "../../scripts/setup-rules.ts"
-import { commit, git, initRepo, runScript, scratch, write as writeFile, writeJson } from "../harness.ts"
+import { COMMITTED_FILE, LOCAL_FILE, resolveConfig, schemaId } from "../../src/agentic-config.ts"
+import { type SetupOptions, type Step, schemaReference, setup } from "../../src/commands/setup.ts"
+import { GLOBAL_DENY, LEASE_RULE } from "../../src/setup-rules.ts"
+import { commit, git, initRepo, REPO_ROOT, runBin, scratch, write as writeFile, writeJson } from "../harness.ts"
 
 function write(root: string, file: string, text: string): void {
   writeFile(join(root, file), text)
@@ -464,9 +464,7 @@ describe("Claude's config dir", () => {
     const root = nodeRepo()
     const home = scratch("home")
     const claudeDir = scratch("cfg")
-    const verdict = runScript("guardrails-setup", ["--root", root], {
-      env: { HOME: home, CLAUDE_CONFIG_DIR: claudeDir }
-    })
+    const verdict = runBin(["setup", "--root", root], REPO_ROOT, { HOME: home, CLAUDE_CONFIG_DIR: claudeDir })
     assert.equal(verdict.status, 0, verdict.stderr)
     assert.ok(existsSync(join(claudeDir, "settings.json")))
     assert.ok(!existsSync(join(home, ".claude/settings.json")))
@@ -477,13 +475,13 @@ describe("the guardrails:setup command", () => {
   it("a dry run says would write and leaves the files alone; a refusal exits 1", () => {
     const root = nodeRepo()
     const home = scratch("home")
-    const dry = runScript("guardrails-setup", ["--root", root, "--home", home, "--dry-run"])
+    const dry = runBin(["setup", "--root", root, "--home", home, "--dry-run"], REPO_ROOT)
     assert.equal(dry.status, 0, dry.stderr)
     assert.match(dry.stdout, /^would write \.ai\/agentic\.config\.local\.json$/m)
     assert.ok(!existsSync(join(root, LOCAL_FILE)))
 
     write(root, LOCAL_FILE, JSON.stringify({ baseBranch: "develop" }) + "\n")
-    const refused = runScript("guardrails-setup", ["--root", root, "--home", home])
+    const refused = runBin(["setup", "--root", root, "--home", home], REPO_ROOT)
     assert.equal(refused.status, 1)
     assert.match(refused.stdout, /^refused {5}\.ai\/agentic\.config\.local\.json — exists with other content/m)
   })
@@ -491,11 +489,11 @@ describe("the guardrails:setup command", () => {
   it("--convention pins the named preset; a value off the enum is a usage error", () => {
     const root = nodeRepo()
     const home = scratch("home")
-    const pinned = runScript("guardrails-setup", ["--root", root, "--home", home, "--convention", "ticket-key"])
+    const pinned = runBin(["setup", "--root", root, "--home", home, "--convention", "ticket-key"], REPO_ROOT)
     assert.equal(pinned.status, 0, pinned.stderr)
     assert.deepEqual(json(join(root, LOCAL_FILE)).commit, { convention: "ticket-key" })
 
-    const off = runScript("guardrails-setup", ["--root", root, "--home", home, "--convention", "jira"])
+    const off = runBin(["setup", "--root", root, "--home", home, "--convention", "jira"], REPO_ROOT)
     assert.equal(off.status, 2)
     assert.match(off.stderr, /--convention.*ticket-key.*conventional/)
     assert.match(off.stderr, /^Usage:/m)
@@ -505,7 +503,7 @@ describe("the guardrails:setup command", () => {
     const root = nodeRepo()
     const home = scratch("home")
     const args = ["--root", root, "--home", home]
-    const pinned = runScript("guardrails-setup", [...args, "--force-push", "ask", "--commit-on-protected", "deny"])
+    const pinned = runBin(["setup", ...args, "--force-push", "ask", "--commit-on-protected", "deny"], REPO_ROOT)
     assert.equal(pinned.status, 0, pinned.stderr)
     assert.deepEqual(json(join(root, LOCAL_FILE)).guardrails, { forcePush: "ask", commitOnProtected: "deny" })
 
@@ -513,7 +511,7 @@ describe("the guardrails:setup command", () => {
       ["--force-push", "always"],
       ["--commit-on-protected", "ask"]
     ]) {
-      const off = runScript("guardrails-setup", [...args, flag ?? "", value ?? ""])
+      const off = runBin(["setup", ...args, flag ?? "", value ?? ""], REPO_ROOT)
       assert.equal(off.status, 2)
       assert.match(off.stderr, new RegExp(`${flag} must be`))
     }

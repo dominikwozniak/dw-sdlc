@@ -145,7 +145,7 @@
       "code": [
         "packages/dw-sdlc/src/agentic-config.ts",
         "packages/dw-sdlc/src/json-schema.ts",
-        "plugins/guardrails/scripts/agentic-config.ts",
+        "packages/dw-sdlc/src/commands/config.ts",
         "plugins/guardrails/hooks/config.jq",
         "plugins/guardrails/hooks/schema.jq"
       ],
@@ -199,8 +199,8 @@
       "id": "config.references",
       "name": "references key",
       "group": "config",
-      "summary": "The References a repository reads: dir, repository, ref, skipped paths, what and when; the references plugin owns it.",
-      "code": ["plugins/references/config/references.schema.json", "plugins/references/scripts/references-key.ts"],
+      "summary": "The References a repository reads: dir, repository, ref, skipped paths, what and when; a schema apart from the guardrails one.",
+      "code": ["packages/dw-sdlc/config/references.schema.json", "packages/dw-sdlc/src/references-key.ts"],
       "docs": [
         "plugins/references/README.md#the-key",
         "docs/adr/0007-references-are-a-key-the-references-plugin-owns.md"
@@ -211,7 +211,7 @@
       "name": "Guardrails setup",
       "group": "tools",
       "summary": "Writes a machine's local config, excludes, settings deny rules and the lease-push exception; only what would change.",
-      "code": ["plugins/guardrails/scripts/guardrails-setup.ts", "plugins/guardrails/scripts/setup-rules.ts"],
+      "code": ["packages/dw-sdlc/src/commands/setup.ts", "packages/dw-sdlc/src/setup-rules.ts"],
       "docs": ["plugins/guardrails/README.md#setup"]
     },
     {
@@ -219,7 +219,7 @@
       "name": "Doctor",
       "group": "tools",
       "summary": "One PASS, WARN, FAIL or INFO line per machine check; installs nothing and exits 1 on a FAIL.",
-      "code": ["plugins/guardrails/scripts/guardrails-doctor.ts"],
+      "code": ["packages/dw-sdlc/src/commands/doctor.ts"],
       "docs": ["plugins/guardrails/README.md#doctor"]
     },
     {
@@ -227,7 +227,7 @@
       "name": "Sync",
       "group": "tools",
       "summary": "Brings every declared Reference to its ref, shallow and sparse; a clone with local edits is reported and left alone.",
-      "code": ["plugins/references/scripts/references-sync.ts", "plugins/references/scripts/pins.ts"],
+      "code": ["packages/dw-sdlc/src/commands/references-sync.ts", "packages/dw-sdlc/src/pins.ts"],
       "docs": ["plugins/references/README.md#the-sync", "plugins/references/README.md#failures", "GLOSSARY.md"]
     },
     {
@@ -236,9 +236,9 @@
       "group": "tools",
       "summary": "Makes a repository ready for References: the Router with its table from the key, the excludes, the ignore rules.",
       "code": [
-        "plugins/references/scripts/references-setup.ts",
-        "plugins/references/scripts/router-block.ts",
-        "plugins/references/templates/router.md"
+        "packages/dw-sdlc/src/commands/references-setup.ts",
+        "packages/dw-sdlc/src/router-block.ts",
+        "packages/dw-sdlc/templates/router.md"
       ],
       "docs": ["plugins/references/README.md#adding-a-reference"]
     },
@@ -286,10 +286,11 @@
       "id": "distribution.package",
       "name": "dw-sdlc package",
       "group": "distribution",
-      "summary": "The workspace package the guardrails plugin links to; an install copies the link as a real directory.",
-      "code": ["packages/dw-sdlc/package.json", "plugins/guardrails/dw-sdlc"],
+      "summary": "The workspace package both plugins link to; an install copies each link as a real directory.",
+      "code": ["packages/dw-sdlc/package.json", "plugins/guardrails/dw-sdlc", "plugins/references/dw-sdlc"],
       "docs": [
         "plugins/guardrails/README.md#layout",
+        "plugins/references/README.md#layout",
         "docs/overview.md#from-github-or-from-a-clone",
         "docs/adr/0008-gate-runs-from-a-pinned-package-plugin-adapts.md"
       ]
@@ -300,7 +301,12 @@
       "group": "distribution",
       "summary": "The package's command line: one table of subcommands, each a module under src/commands/.",
       "code": ["packages/dw-sdlc/src/cli.ts"],
-      "docs": ["AGENTS.md#commands", "docs/overview.md#how-the-gate-runs"]
+      "docs": [
+        "AGENTS.md#commands",
+        "docs/overview.md#how-the-gate-runs",
+        "plugins/guardrails/README.md#layout",
+        "plugins/references/README.md#layout"
+      ]
     },
     {
       "id": "gate.check",

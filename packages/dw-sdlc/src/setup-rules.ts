@@ -3,7 +3,7 @@
 
 import { spawnSync } from "node:child_process"
 
-import { DEFAULT_GUARDRAILS, type EnvFiles, matchesEnvGlob, resolveConfig } from "../dw-sdlc/src/agentic-config.ts"
+import { DEFAULT_GUARDRAILS, type EnvFiles, matchesEnvGlob, resolveConfig } from "./agentic-config.ts"
 
 /** The auto-mode exception that lets a lease push through the classifier's default force-push block. */
 export const LEASE_RULE =

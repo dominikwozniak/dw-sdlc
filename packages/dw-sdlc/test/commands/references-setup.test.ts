@@ -1,4 +1,4 @@
-// What references-setup.ts does through its CLI, run with --root from another directory on a throwaway
+// What `dw-sdlc references setup` does, run with --root from another directory on a throwaway
 // repository: the files a first run writes, a repeat that writes nothing, what it never overwrites or
 // removes, the dry run, and the files it refuses.
 
@@ -7,7 +7,7 @@ import { existsSync, readFileSync, readlinkSync } from "node:fs"
 import { join } from "node:path"
 import { describe, it } from "node:test"
 
-import { git, initRepo, runScript, scratch, write, writeJson, type Run } from "../harness.ts"
+import { git, initRepo, runReferences, scratch, write, writeJson, type Run } from "../references-harness.ts"
 
 const ROUTER = readFileSync(join(import.meta.dirname, "..", "..", "templates", "router.md"), "utf8")
 const EXCLUDES = [
@@ -20,7 +20,7 @@ const EXCLUDES = [
 const elsewhere = scratch("cwd")
 
 function setup(root: string, ...flags: string[]): Run {
-  return runScript("references-setup", ["--root", root, ...flags], elsewhere)
+  return runReferences("setup", ["--root", root, ...flags], elsewhere)
 }
 
 function expectStatus(run: Run, want: number): void {
@@ -76,7 +76,7 @@ describe("a first run", () => {
   })
 
   it("leaves a key the Sync reads as no References", () => {
-    const sync = runScript("references-sync", [], root)
+    const sync = runReferences("sync", [], root)
     expectStatus(sync, 0)
     assert.equal(sync.stdout, "")
     assert.equal(sync.stderr, "")
@@ -454,7 +454,7 @@ describe("what the setup refuses", () => {
   it("an unknown option, with exit 2 and the usage", () => {
     const run = setup(initRepo(scratch("repo")), "--force")
     expectStatus(run, 2)
-    assert.match(run.stderr, /Usage: node <plugin root>\/scripts\/references-setup\.ts/)
+    assert.match(run.stderr, /Usage: dw-sdlc references setup/)
     assert.equal(run.stdout, "")
   })
 })

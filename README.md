@@ -41,7 +41,7 @@ The doctor ships in the plugin and needs only Node 24. To run it again from a te
 repository:
 
 ```bash
-node <plugin root>/scripts/guardrails-doctor.ts
+node <plugin root>/dw-sdlc/src/cli.ts doctor
 ```
 
 `claude plugin list --json` names the plugin root as the `installPath` of `guardrails@dw-sdlc`.
