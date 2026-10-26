@@ -1,7 +1,6 @@
 // What session-start.sh tells a fresh session, fed the real SessionStart payload against a throwaway
-// repository with a linked worktree: the .worktreeinclude files the worktree still lacks, the
-// worktree.setup commands, an invalid config, a schema the plugin cannot read, a missing jq — and
-// nothing at all from a main checkout that is in order.
+// repository with a linked worktree: the .worktreeinclude files it lacks, the worktree.setup commands, an
+// invalid config, a schema it cannot read, a missing jq — and nothing from a main checkout in order.
 
 import assert from "node:assert/strict"
 import { spawnSync } from "node:child_process"

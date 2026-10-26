@@ -1,10 +1,6 @@
 // The subset of JSON Schema draft 2020-12 the shipped schemas use, validated without a dependency: Node
 // has no validator built in, and a config file does not justify pulling one in. A keyword outside the
 // subset throws instead of passing silently, so a schema never promises more than this file enforces.
-// `format` is enforced, not annotative: `regex` is the one format, compiled with `RegExp` and refused
-// when it holds a construct POSIX ERE lacks, because `grep -E` runs the pattern and BSD and GNU grep
-// read those differently. `enum` and `const` compare by JSON text, exact for the scalars and arrays
-// the schemas use.
 
 export type SchemaProblem = { path: string; message: string }
 
@@ -22,6 +18,7 @@ function show(value: unknown): string {
   return value === undefined ? "undefined" : JSON.stringify(value)
 }
 
+/** Equal by JSON text, as `enum` and `const` compare: exact for the scalars and arrays the schemas use. */
 function sameJson(a: unknown, b: unknown): boolean {
   return JSON.stringify(a) === JSON.stringify(b)
 }
@@ -217,6 +214,8 @@ function checkKeyword(
       }
       return
     }
+    // Enforced, not annotative: `regex` compiles with `RegExp` and refuses a construct POSIX ERE lacks,
+    // because `grep -E` runs the pattern and BSD and GNU grep read those differently.
     case "format": {
       operandMust(operand === "regex", path, keyword, '"regex", the one format enforced here')
       if (typeof value !== "string") {

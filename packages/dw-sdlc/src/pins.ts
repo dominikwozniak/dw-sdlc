@@ -1,7 +1,6 @@
 // The exact version a repository pins for a package, for a ref that names one: the root package.json's
-// dependencies and devDependencies, a `catalog:` or `catalog:default` pin read through the default
-// catalog in pnpm-workspace.yaml. A ref without `{name}` reads neither file, so a broken manifest
-// fails only the References that name a package.
+// dependencies and devDependencies, a catalog pin read through pnpm-workspace.yaml's default catalog. A
+// ref without `{name}` reads neither file, so a broken manifest fails only the References that name one.
 
 import { existsSync, readFileSync } from "node:fs"
 import { join } from "node:path"

@@ -1,8 +1,6 @@
-// What block-env-access.sh refuses (exit 2) and lets through (exit 0), for the file tools and for
-// Bash, fed the real hook payload. The verdict is the config's `guardrails.envFiles`: a path in
-// `deny` is refused, one in `allow` passes, and the rest go to `policy` — `git` lets a tracked file
-// through and refuses the others, `deny` refuses them all. Without a config the defaults hold:
-// policy `git`, the `.env.example`, `.env.sample` and `.env.template` names allowed anywhere.
+// What block-env-access.sh refuses (exit 2) and lets through (exit 0), for the file tools and for Bash,
+// fed the real hook payload. The verdict is the config's `guardrails.envFiles`, as the schema describes it;
+// without a config, policy `git` with `.env.example`, `.env.sample` and `.env.template` allowed anywhere.
 
 import assert from "node:assert/strict"
 import { symlinkSync } from "node:fs"

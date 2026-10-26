@@ -1,7 +1,6 @@
 // What the plugin's tests share: spawning a guard the way Claude Code does — the JSON payload on
 // stdin, the verdict in the exit code and stdout — and throwaway repositories to aim it at, kept
-// apart from the machine's git config and shell environment. jq is a hard requirement: the guards
-// no-op without it, so a machine without it fails these tests loudly instead of passing them empty.
+// apart from the machine's git config and shell environment.
 
 import assert from "node:assert/strict"
 import { spawn, spawnSync } from "node:child_process"
@@ -15,6 +14,7 @@ export const REPO_ROOT = join(import.meta.dirname, "..", "..", "..")
 /** The hooks' shebang, bash 3.2 on macOS — never the first bash in PATH, which may be a newer one. */
 const BASH = "/bin/bash"
 
+// A machine without jq fails these tests loudly instead of passing them empty.
 if (spawnSync("jq", ["--version"]).status !== 0) {
   throw new Error("jq is missing; the guards no-op without it and their tests cannot run")
 }

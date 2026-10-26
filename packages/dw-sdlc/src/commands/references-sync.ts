@@ -1,12 +1,6 @@
-// `dw-sdlc references sync`, the Sync: brings every Reference the `references` key of
-// .ai/agentic.config.json declares to its ref under references/<dir> — a missing one cloned, an
-// existing one moved to a branch's head or to a tag.
-// Each clone is shallow and blobless, detached at what was fetched, and sparse when its entry names
-// only some paths or skips some. Only the committed config is read. A key the parser refuses syncs
-// nothing; an entry that fails to resolve fails alone. One Sync runs in a checkout at a time: a
-// second one waits on the lock under references/. When the Router or its table is missing or behind
-// the key, one line names the setup to run. A repository that declares no References gets no output
-// at all.
+// `dw-sdlc references sync`, the Sync: every Reference the committed config declares brought to its ref
+// under references/<dir>, each clone shallow, blobless, detached and sparse where its entry says. An
+// entry that fails fails alone, and a repository that declares no References gets no output at all.
 
 import { spawnSync } from "node:child_process"
 import { existsSync, linkSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs"

@@ -1,8 +1,6 @@
 // What credential-leak-guard.sh refuses (exit 2) and lets through (exit 0) across its three checks:
-// credential stores that are not dotenv, hunting the environment for a secret, and curl or wget
-// carrying one off the machine. The allowed half is the load-bearing one: the guard's whole bet is
-// that ordinary work — network calls, a secret variable used by the command that needs it, a key
-// named in prose — never trips it.
+// credential stores that are not dotenv, hunting the environment for a secret, and curl or wget carrying
+// one off the machine. The allowed half bears the load: the guard bets that ordinary work never trips it.
 
 import assert from "node:assert/strict"
 import { mkdirSync } from "node:fs"

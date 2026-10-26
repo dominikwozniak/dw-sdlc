@@ -1,7 +1,6 @@
-// What block-non-pnpm.sh refuses (exit 2) and lets through (exit 0), fed the real hook payload
-// against throwaway repositories: one whose lockfile says pnpm, one with no Node lockfile at all,
-// one that declares npm, one that declares pnpm over a yarn lockfile. The guard fires only where the
-// resolved config says pnpm.
+// What block-non-pnpm.sh refuses (exit 2) and lets through (exit 0), fed the real hook payload against
+// throwaway repositories: a pnpm lockfile, no Node lockfile at all, npm declared, pnpm declared over a
+// yarn lockfile. The guard fires only where the resolved config says pnpm.
 
 import { join } from "node:path"
 import { describe, it } from "node:test"
