@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/dominikwozniak/dw-sdlc/main/plugins/guardrails/config/agentic.config.schema.json",
   "title": "agentic.config",
-  "description": "How a repository works for an agent. `.ai/agentic.config.json` is committed; `.ai/agentic.config.local.json` overrides it on one machine and may tighten `guardrails` but never loosen it. A key neither file sets is inferred: the Node package manager from the lockfile, and the `conventional` commit preset. Unknown top-level keys are tolerated so other tool families can share the file; the keys named here refuse unknown children.",
+  "description": "How a repository works for an agent. `.ai/agentic.config.json` is committed; `.ai/agentic.config.local.json` overrides it on one machine and may tighten `guardrails` but never loosen it. A key neither file sets is inferred: the Node package manager from the lockfile, the `conventional` commit preset, and `gate.command` from the manifest's `check` script. Unknown top-level keys are tolerated so other tool families can share the file; the keys named here refuse unknown children.",
   "type": "object",
   "properties": {
     "$schema": {
@@ -104,16 +104,49 @@
       },
       "additionalProperties": false
     },
-    "validation": {
+    "gate": {
+      "description": "The Gate `dw-sdlc gate` runs: the steps of `steps` in order, then every Check under `checks`. Exit 0 when everything passes, 1 when a step or a Check fails, 2 when the Gate cannot run.",
       "type": "object",
       "properties": {
-        "commands": {
-          "description": "Commands that must pass before a change is done.",
+        "command": {
+          "description": "The one command that runs the Gate in a terminal, a commit hook, CI and an agent hook. Inferred from the `check` script of `package.json`: `pnpm check`, or `<manager> run check` where the lockfile names another Node package manager.",
+          "type": "string",
+          "minLength": 1
+        },
+        "steps": {
+          "description": "Toolchain commands run in order from the repository root through `sh -c`, each one's output passed through; the first that fails ends the Gate and no Check runs. A command the shell cannot find (exit 127) or execute (126) means the Gate cannot run.",
           "type": "array",
           "items": {
             "type": "string",
             "minLength": 1
           }
+        },
+        "checks": {
+          "description": "The Checks the Gate runs after its steps, every one even when another fails. A key names a Check the package ships, and a name it does not ship is refused.",
+          "type": "object",
+          "properties": {
+            "run": {
+              "description": "The repository's own scripts, each run like a step and reported as a Check under its `name`: exit 0 passes, 127 or 126 means the Gate cannot run, any other code fails.",
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "description": "The rule a failure line names: lowercase words joined by hyphens.",
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$"
+                  },
+                  "command": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": ["name", "command"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false

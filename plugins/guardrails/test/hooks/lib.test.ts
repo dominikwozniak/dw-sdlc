@@ -799,7 +799,7 @@ describe("guard_config_load — the committed file", () => {
   cfg(r, COMMITTED, {
     baseBranch: "develop",
     guardrails: { forcePush: "deny", protectedBranches: ["master"] },
-    validation: { commands: ["pnpm check"] },
+    gate: { steps: ["pnpm lint", "pnpm test"] },
     commit: { trailer: "Co-Authored-By" }
   })
   it("overrides the defaults", () => {
@@ -808,8 +808,8 @@ describe("guard_config_load — the committed file", () => {
   it("guardrails merged over the defaults", () => {
     assert.equal(guardrails(r), "deny,git,master")
   })
-  it("validation commands", () => {
-    assert.equal(get(r, '.validation.commands | join(" ")'), "pnpm check")
+  it("gate steps", () => {
+    assert.equal(get(r, '.gate.steps | join(",")'), "pnpm lint,pnpm test")
   })
   it("commit merged", () => {
     assert.equal(get(r, ".commit.trailer"), "Co-Authored-By")

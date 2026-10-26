@@ -1,9 +1,15 @@
 // The one case list both validators answer: `validate` here and the guardrails plugin's
 // `hooks/schema.jq`, whose test reads this file through the plugin's link.
 
-import { COMMIT_PATTERNS } from "../src/agentic-config.ts"
+import { readFileSync } from "node:fs"
+
+import { COMMIT_PATTERNS, SCHEMA_PATH } from "../src/agentic-config.ts"
 
 export type Case = { name: string; schema: unknown; value: unknown; problems: { path: string; message: string }[] }
+
+/** The shipped agentic config schema, for the cases on the keys it names. */
+const AGENTIC_SCHEMA: unknown = JSON.parse(readFileSync(SCHEMA_PATH, "utf8"))
+const RUN_CHECK = { name: "docs-fresh", command: "node scripts/docs-fresh.ts" }
 
 export const CASES: Case[] = [
   { name: "type accepts a match", schema: { type: "string" }, value: "x", problems: [] },
@@ -150,6 +156,51 @@ export const CASES: Case[] = [
     schema: { $schema: "x", $id: "y", title: "t", description: "d", default: 1, examples: [1], $comment: "c" },
     value: "anything",
     problems: []
+  },
+  {
+    name: "the agentic schema takes gate.command, gate.steps and gate.checks.run",
+    schema: AGENTIC_SCHEMA,
+    value: { version: 1, gate: { command: "pnpm check", steps: ["pnpm lint"], checks: { run: [RUN_CHECK] } } },
+    problems: []
+  },
+  {
+    name: "the agentic schema tolerates the validation key the gate key replaced",
+    schema: AGENTIC_SCHEMA,
+    value: { version: 1, validation: { commands: ["pnpm check"] } },
+    problems: []
+  },
+  {
+    name: "the agentic schema refuses a Check name the package does not ship",
+    schema: AGENTIC_SCHEMA,
+    value: { gate: { checks: { "no-such-check": true } } },
+    problems: [{ path: "gate.checks", message: 'unknown key "no-such-check"' }]
+  },
+  {
+    name: "the agentic schema refuses an unknown key under gate and in a run entry",
+    schema: AGENTIC_SCHEMA,
+    value: { gate: { parallel: true, checks: { run: [{ ...RUN_CHECK, timeout: 60 }] } } },
+    problems: [
+      { path: "gate.checks.run[0]", message: 'unknown key "timeout"' },
+      { path: "gate", message: 'unknown key "parallel"' }
+    ]
+  },
+  {
+    name: "the agentic schema needs a run entry's name and command, the name in kebab case",
+    schema: AGENTIC_SCHEMA,
+    value: { gate: { checks: { run: [{ name: "Docs fresh" }] } } },
+    problems: [
+      { path: "gate.checks.run[0].name", message: '"Docs fresh" does not match /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/' },
+      { path: "gate.checks.run[0]", message: 'missing required key "command"' }
+    ]
+  },
+  {
+    name: "the agentic schema refuses an empty step and an empty Gate command",
+    schema: AGENTIC_SCHEMA,
+    value: { gate: { command: "", steps: ["pnpm lint", ""] } },
+    problems: [
+      { path: "gate.command", message: "must not be empty" },
+      { path: "gate.steps[1]", message: "must not be empty" }
+    ]
   },
   {
     name: "keywords that only apply to another type are skipped",

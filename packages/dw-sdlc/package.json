@@ -2,7 +2,10 @@
   "name": "dw-sdlc",
   "version": "0.0.0",
   "private": true,
-  "description": "The agentic config of a repository: the resolver of its layers, its JSON Schema and the validator that reads it.",
+  "description": "The Gate and the agentic config of a repository: the dw-sdlc bin, the resolver of the config's layers, its JSON Schema and the validator that reads it.",
+  "bin": {
+    "dw-sdlc": "src/cli.ts"
+  },
   "type": "module",
   "engines": {
     "node": ">=24"

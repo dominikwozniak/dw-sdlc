@@ -12,7 +12,7 @@ import {
   resolveConfig,
   validateDocument
 } from "../src/agentic-config.ts"
-import { commit, git, initRepo, REPO_ROOT, scratch, write } from "./harness.ts"
+import { commit, git, REPO_ROOT, repo, scratch, write } from "./harness.ts"
 
 const ORG_REMOTE = "git@github.com:acme/app.git"
 /** A document no layer may carry: `forcePush` knows `deny`, `ask` and `lease`, never `allow`. */
@@ -26,18 +26,6 @@ const DEFAULT_ENV_FILES = {
 const MALFORMED_REFERENCES = {
   guardrails: { protectedBranches: ["main"] },
   references: [{ dir: "../x", branch: "main" }, "kody"]
-}
-
-/** A throwaway repository; `files` maps a relative path to its text, an object is written as JSON. */
-function repo(options: { git?: false; remote?: string; files?: Record<string, string | object> } = {}): string {
-  const root = scratch("config")
-  if (options.git !== false) {
-    initRepo(root, options.remote === undefined ? {} : { remote: options.remote })
-  }
-  for (const [file, content] of Object.entries(options.files ?? {})) {
-    write(join(root, file), typeof content === "string" ? content : JSON.stringify(content))
-  }
-  return root
 }
 
 function subjectPattern(pattern: string | undefined): RegExp {
@@ -66,7 +54,7 @@ describe("inference, with no config file", () => {
       envFiles: DEFAULT_ENV_FILES,
       protectedBranches: ["master", "main", "production"]
     })
-    assert.deepEqual(config.validation, { commands: [] })
+    assert.deepEqual(config.gate, { steps: [], checks: { run: [] } })
     assert.deepEqual(config.worktree, { setup: [] })
     assert.equal(config.baseBranch, "auto")
   })
@@ -81,6 +69,24 @@ describe("inference, with no config file", () => {
   it("is conventional outside git", () => {
     const { config } = resolveConfig(repo({ git: false }))
     assert.equal(config.commit.convention, "conventional")
+  })
+
+  it("infers the Gate command from the manifest's check script, under the lockfile's package manager", () => {
+    const check = JSON.stringify({ scripts: { check: "dw-sdlc gate" } })
+    const table: [Record<string, string>, string][] = [
+      [{ "package.json": check }, "pnpm check"],
+      [{ "package.json": check, "pnpm-lock.yaml": "" }, "pnpm check"],
+      [{ "package.json": check, "package-lock.json": "" }, "npm run check"],
+      [{ "package.json": check, "yarn.lock": "" }, "yarn run check"],
+      [{ "package.json": check, "bun.lock": "" }, "bun run check"]
+    ]
+    for (const [files, command] of table) {
+      assert.deepEqual(resolveConfig(repo({ files })).config.gate, { command, steps: [], checks: { run: [] } })
+    }
+    for (const manifest of ["{}", JSON.stringify({ scripts: { lint: "x" } }), "[]", "{ not json"]) {
+      const { config } = resolveConfig(repo({ files: { "package.json": manifest } }))
+      assert.equal(config.gate.command, undefined, manifest)
+    }
   })
 
   it("maps each lockfile to its package manager", () => {
@@ -106,7 +112,7 @@ describe("the committed file", () => {
         [COMMITTED_FILE]: {
           baseBranch: "develop",
           guardrails: { forcePush: "deny", protectedBranches: ["master"] },
-          validation: { commands: ["pnpm check"] }
+          gate: { steps: ["pnpm lint"], checks: { run: [{ name: "docs", command: "node docs.ts" }] } }
         }
       }
     })
@@ -120,7 +126,10 @@ describe("the committed file", () => {
       envFiles: DEFAULT_ENV_FILES,
       protectedBranches: ["master"]
     })
-    assert.deepEqual(config.validation.commands, ["pnpm check"])
+    assert.deepEqual(config.gate, {
+      steps: ["pnpm lint"],
+      checks: { run: [{ name: "docs", command: "node docs.ts" }] }
+    })
     assert.equal(config.commit.convention, "conventional")
   })
 
@@ -202,6 +211,25 @@ describe("the local file", () => {
       protectedBranches: ["master", "staging"]
     })
     assert.deepEqual(config.worktree.setup, ["pnpm install"])
+  })
+
+  it("sets the Gate key by key over the committed one and the inferred command, gate.steps and gate.checks.run wholesale", () => {
+    const root = repo({
+      files: {
+        "package.json": JSON.stringify({ scripts: { check: "dw-sdlc gate" } }),
+        [COMMITTED_FILE]: {
+          gate: { steps: ["pnpm lint", "pnpm test"], checks: { run: [{ name: "docs", command: "node docs.ts" }] } }
+        },
+        [LOCAL_FILE]: { gate: { command: "pnpm verify", steps: ["pnpm test"] } }
+      }
+    })
+    const { config, problems } = resolveConfig(root)
+    assert.deepEqual(problems, [])
+    assert.deepEqual(config.gate, {
+      command: "pnpm verify",
+      steps: ["pnpm test"],
+      checks: { run: [{ name: "docs", command: "node docs.ts" }] }
+    })
   })
 
   it("ranks commitOnProtected deny before allow, the default", () => {
@@ -407,6 +435,32 @@ describe("validateDocument", () => {
     const layer = { stack: "rails", packageManagers: { ruby: "bundler" }, commit: { convention: "ticket-key" } }
     const result = validateDocument("x.json", JSON.stringify(layer))
     assert.ok("value" in result, JSON.stringify(result))
+  })
+
+  it("tolerates the validation key the gate key replaced, as a top-level key it does not know", () => {
+    const result = validateDocument(
+      COMMITTED_FILE,
+      JSON.stringify({ version: 1, validation: { commands: ["pnpm check"] } })
+    )
+    assert.ok("value" in result, JSON.stringify(result))
+    const { config, problems } = resolveConfig(
+      repo({ files: { [COMMITTED_FILE]: { validation: { commands: ["x"] } } } })
+    )
+    assert.deepEqual(problems, [])
+    assert.ok(!("validation" in config))
+  })
+
+  it("refuses a Check name it does not ship and an unknown key under gate", () => {
+    const document = {
+      gate: { checks: { nope: true, run: [{ name: "docs", command: "x", timeout: 1 }] }, parallel: true }
+    }
+    assert.deepEqual(validateDocument(COMMITTED_FILE, JSON.stringify(document)), {
+      problems: [
+        { file: COMMITTED_FILE, path: "gate.checks.run[0]", message: 'unknown key "timeout"' },
+        { file: COMMITTED_FILE, path: "gate.checks", message: 'unknown key "nope"' },
+        { file: COMMITTED_FILE, path: "gate", message: 'unknown key "parallel"' }
+      ]
+    })
   })
 
   it("rejects a commit.convention it does not know", () => {
