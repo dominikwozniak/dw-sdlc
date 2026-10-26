@@ -40,18 +40,18 @@ disk is in the next session, a broken edit included.
 - `hooks/bash-guard.sh` — the dispatcher: one stdin read, heredoc bodies dropped once but for the
   substitutions an unquoted one runs, each guard spawned only when the command could trip it.
 - `hooks/commit-msg.sh` — a git hook, not a Claude Code one: the Commit hook below.
-- `dw-sdlc` — a link to `packages/dw-sdlc`, the package that owns the config: `src/agentic-config.ts`
-  resolves the layers, `src/json-schema.ts` is the dependency-free schema validator, and
-  `config/agentic.config.schema.json` is the JSON Schema for `.ai/agentic.config.json`.
+- `dw-sdlc` — a link to `packages/dw-sdlc`, the package that owns the config and the TypeScript
+  side: `src/agentic-config.ts` resolves the layers, `src/json-schema.ts` is the dependency-free
+  schema validator, `config/agentic.config.schema.json` is the JSON Schema for
+  `.ai/agentic.config.json`, and `src/cli.ts` is the `dw-sdlc` bin. Its `config` checks the config
+  (`node <plugin root>/dw-sdlc/src/cli.ts config` from a repository runs it), and its `setup`
+  and `doctor` are the Setup and Doctor below, one module each under `src/commands/`.
   `claude plugin install` copies the link as a real directory, so the installed plugin carries the
   package's code.
-- `scripts/` — the TypeScript side: `agentic-config.ts` checks the config through the package
-  (`node <plugin root>/scripts/agentic-config.ts` from a repository runs it), `guardrails-setup.ts`
-  and `guardrails-doctor.ts` are the Setup and Doctor below.
-- `skills/sdlc-guardrails-setup/` — the skill a user invokes to run the setup script; the model cannot
+- `skills/sdlc-guardrails-setup/` — the skill a user invokes to run `dw-sdlc setup`; the model cannot
   start it on its own.
-- `test/` — the tests, mirroring `hooks/` and `scripts/`: `harness.ts` spawns a guard on the real
-  stdin payload; every input a test reads is built beside it.
+- `test/` — the guard tests, mirroring `hooks/`: `harness.ts` spawns a guard on the real stdin
+  payload; every input a test reads is built beside it.
 
 ## Guards
 
@@ -146,14 +146,14 @@ so and lets the commit through. A repository wires it from its own hook manager;
 
 ## Setup
 
-The `sdlc-guardrails-setup` skill runs `scripts/guardrails-setup.ts`: it writes this machine's
+The `sdlc-guardrails-setup` skill runs `dw-sdlc setup` through the link: it writes this machine's
 `.ai/agentic.config.local.json` with `$schema` and, when the committed config leaves it unset, the
 Node package manager from the lockfile. `commit.convention` is written only when
 `--convention ticket-key` or `--convention conventional` asks for it, because a local pin outranks a
 convention the repository commits later; a run without the flag keeps a pin as it is. Every run,
 `--force` included, keeps a `guardrails` block the local config holds, since that layer may only
 tighten it; `--force-push deny|ask|lease` and `--commit-on-protected deny|allow` pin those two keys
-in it, and a pin that loosens the committed value is refused. The script also excludes the local
+in it, and a pin that loosens the committed value is refused. The setup also excludes the local
 config and `.claude/settings.local.json` in `.git/info/exclude`, generates `permissions.deny`
 into `.claude/settings.local.json` as the backstop for a machine without `jq` (the destructive git
 set and `gh repo delete` in plain and `rtk` form, `Read`/`Edit` rules for every env file the resolved
@@ -168,16 +168,16 @@ repository is read-only `git`.
 
 ## Doctor
 
-`scripts/guardrails-doctor.ts` prints one PASS / WARN / FAIL line per machine check and installs
+`dw-sdlc doctor` prints one PASS / WARN / FAIL line per machine check and installs
 nothing: `jq`, the plugin enabled, rtk not wired by hand beside the plugin's hook and the filters
 that misbehave on the installed release excluded (`find` below rtk 0.46.0), Safe Chain visible to
 the agent's login shell with `npm` going through it (a WARN when absent), pnpm's global
 `minimumReleaseAge`, commit signing, and the resolved config of the repository holding `--root` or
 the current directory. A check that does not apply here is INFO, the config outside any repository
 among them. Exit 1 on a FAIL. The setup skill runs it last, as
-`node "${CLAUDE_PLUGIN_ROOT}/scripts/guardrails-doctor.ts"` from the repository; a terminal runs
-`node <plugin root>/scripts/guardrails-doctor.ts`, where `claude plugin list --json` names the plugin
-root as `installPath`. It needs only Node 24.
+`node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" doctor` from the repository; a terminal runs
+`node <plugin root>/dw-sdlc/src/cli.ts doctor`, where `claude plugin list --json` names the
+plugin root as `installPath`. It needs only Node 24.
 
 ## Session start
 
@@ -197,12 +197,13 @@ dropped and the guards run strictest.
 
 ## Tests
 
-`test/` mirrors the source tree: `test/hooks/<guard>.test.ts` spawns the guard on the real stdin
-payload and asserts its exit code and verdict, `test/scripts/` holds the TypeScript tests,
-`test/harness.ts` is the shared part, and every input a test reads is built beside it in a scratch
-directory. `pnpm test` runs them all on
-`node:test`, a file per process, as part of `pnpm check`. The jq and TypeScript copies of the config
-contract are tested against the same cases. `test/hooks/command-position.test.ts` runs every rule
-through the dispatcher bare and behind each launcher family, and `lib.test.ts` holds the word reader
-and the boundary to every launcher spelling. jq is a hard requirement: without it the harness fails
-loudly instead of passing empty.
+`test/` mirrors `hooks/`: `test/hooks/<guard>.test.ts` spawns the guard on the real stdin payload
+and asserts its exit code and verdict, `test/harness.ts` is the shared part, and every input a test
+reads is built beside it in a scratch directory. The tests of `dw-sdlc setup`, `doctor` and `config`
+sit beside the package's code, in its `test/commands/`. `pnpm test` runs them all on `node:test`, a
+file per process, as part of `pnpm check`. The jq and TypeScript copies of the config contract are
+tested against the same cases: `test/hooks/config.test.ts` runs `lib.sh` against the package's
+resolver. `test/hooks/command-position.test.ts` runs every rule through the dispatcher bare and
+behind each launcher family, and `lib.test.ts` holds the word reader and the boundary to every
+launcher spelling. jq is a hard requirement: without it the harness fails loudly instead of passing
+empty.

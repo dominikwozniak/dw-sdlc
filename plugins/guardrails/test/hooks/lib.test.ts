@@ -1,7 +1,7 @@
 // Behaviour of lib.sh: the payload reader, the text helpers every guard shares, and the config
 // lookup. Every case sources the library in a fresh bash and prints what the shell test compared. The
 // config cases mirror the dw-sdlc package's test/agentic-config.test.ts, which is the reference;
-// test/scripts/agentic-config.test.ts runs this library against the package's resolver and compares.
+// test/hooks/config.test.ts runs this library against the package's resolver and compares.
 
 import assert from "node:assert/strict"
 import { mkdirSync } from "node:fs"

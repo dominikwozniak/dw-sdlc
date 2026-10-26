@@ -21,8 +21,9 @@ that runs a Sync hook of its own drops it, or the Sync runs twice.
 
 `hooks/session-start.sh` runs on `SessionStart` with matcher `startup` and a 60 s timeout. It runs the
 Sync from the project directory and prints its lines, both streams, as the session's context. When the
-Sync fails, one line more says the clones stay where they were and names the script to rerun. It always
-exits 0, so being offline never blocks a session.
+Sync fails, one line more says the clones stay where they were and names the command to rerun. It
+always exits 0, so being offline never blocks a session. The Sync is the package's
+`dw-sdlc references sync`, which the hook runs through the plugin's `dw-sdlc` link.
 
 ## The key
 
@@ -56,15 +57,16 @@ alone:
 }
 ```
 
-An unknown field is refused. `config/references.schema.json` documents the contract; at runtime
-`scripts/references-key.ts` is the authority, and one case list holds the two in agreement. The
+An unknown field is refused. The package's `config/references.schema.json` documents the contract;
+at runtime its `src/references-key.ts` is the authority, and one case list holds the two in
+agreement. The
 guardrails schema never names the key, so a mistake in it never moves the guards to the strictest
 set (ADR 0007).
 
 ## The Sync
 
 ```bash
-node <plugin root>/scripts/references-sync.ts [dir...]
+node <plugin root>/dw-sdlc/src/cli.ts references sync [dir...]
 pnpm references:sync [dir...]   # in a checkout of dw-sdlc
 ```
 
@@ -120,13 +122,15 @@ the whole tree. A link that ends at the ref names the ref and no `only`.
 The setup makes a repository ready to declare References:
 
 ```bash
-node <plugin root>/scripts/references-setup.ts [--root <dir>] [--dry-run | --check]
+node <plugin root>/dw-sdlc/src/cli.ts references setup [--root <dir>] [--dry-run | --check]
+pnpm references:setup [--root <dir>] [--dry-run | --check]   # in a checkout of dw-sdlc
 ```
 
-- `references/AGENTS.md`, the Router, from `templates/router.md` when nothing sits at its path, with
-  its `CLAUDE.md` symlink, written once too. On every run, the block between the Router's two
-  markers: a table of each Reference's `dir` and `when`, one row per entry in the key's order with
-  `|` escaped, or one line saying `/sdlc-references-add <repository>` adds one when the key is empty.
+- `references/AGENTS.md`, the Router, from the package's `templates/router.md` when nothing sits at
+  its path, with its `CLAUDE.md` symlink, written once too. On every run, the block between the
+  Router's two markers: a table of each Reference's `dir` and `when`, one row per entry in the key's
+  order with `|` escaped, or one line saying `/sdlc-references-add <repository>` adds one when the
+  key is empty.
   The text around the block stays as it is, and a Router without the markers gets the block at its
   end. A formatter may pad the table and space the block, so the block is in step when its rows say
   what the key says, not when its bytes match;
@@ -146,16 +150,17 @@ with one marker and not the other, or whose key fails the parser; the run then e
 
 - `.claude-plugin/plugin.json` — the manifest; its `hooks` key wires the session hook.
 - `hooks/session-start.sh` — the session hook.
-- `config/references.schema.json` — the JSON Schema of the key.
-- `scripts/` — `references-sync.ts` the Sync, `references-key.ts` the parser of the key and the
-  reader of the config that holds it, `pins.ts` the version a ref's `{name}` resolves to,
-  `router-block.ts` the Router's block, `references-setup.ts` the setup. No dependencies, and no
-  import from another plugin.
+- `dw-sdlc` — a link to `packages/dw-sdlc`, the package that holds the Sync and the setup:
+  `src/cli.ts` the `dw-sdlc` bin, `src/commands/references-sync.ts` the Sync,
+  `src/commands/references-setup.ts` the setup, `src/references-key.ts` the parser of the key and
+  the reader of the config that holds it, `src/pins.ts` the version a ref's `{name}` resolves to,
+  `src/router-block.ts` the Router's block, `config/references.schema.json` the JSON Schema of the
+  key, and `templates/router.md` the Router the setup writes. `claude plugin install` copies the
+  link as a real directory, so the installed plugin carries the package's code.
 - `skills/sdlc-references-add/` — the skill that adds a Reference.
-- `templates/router.md` — the Router the setup writes.
-- `test/` — `harness.ts` builds throwaway repositories apart from the machine's git config and
-  spawns a script or a hook the way its caller does; `hooks/session-start.test.ts` feeds the hook a
-  `SessionStart` payload, `scripts/references-sync.test.ts` drives the Sync's CLI against upstreams
-  served over `file://`, `scripts/references-setup.test.ts` the setup's with `--root`,
-  `scripts/references-key.test.ts` runs one case list through the parser and the schema, the latter
-  on the guardrails validator in the test only.
+- `test/` — `hooks/session-start.test.ts` feeds the hook a `SessionStart` payload; `harness.ts`
+  spawns the hook the way Claude Code does, on the package's `test/references-harness.ts` through
+  the link, which builds throwaway repositories apart from the machine's git config. The commands'
+  tests live with them in the package: `test/commands/references-sync.test.ts` drives the Sync
+  against upstreams served over `file://`, `test/commands/references-setup.test.ts` the setup with
+  `--root`, and `test/references-key.test.ts` runs one case list through the parser and the schema.

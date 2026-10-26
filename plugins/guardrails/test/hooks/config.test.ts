@@ -1,6 +1,5 @@
 // The guards' copy of the config contract, `hooks/lib.sh` over `hooks/config.jq`, against the dw-sdlc
-// package's resolver, which is the reference; and the config check the plugin runs from
-// `scripts/agentic-config.ts`.
+// package's resolver, which is the reference.
 
 import assert from "node:assert/strict"
 import { readFileSync } from "node:fs"
@@ -8,12 +7,10 @@ import { join } from "node:path"
 import { describe, it } from "node:test"
 
 import { COMMITTED_FILE, LOCAL_FILE, type Problem, resolveConfig } from "../../dw-sdlc/src/agentic-config.ts"
-import { commit, git, initRepo, REPO_ROOT, runBash, runScript, scratch, write } from "../harness.ts"
+import { commit, git, initRepo, REPO_ROOT, runBash, scratch, write } from "../harness.ts"
 
 const LIB = join(import.meta.dirname, "..", "..", "hooks", "lib.sh")
 const ORG_REMOTE = "git@github.com:acme/app.git"
-/** A document no layer may carry: `forcePush` knows `deny`, `ask` and `lease`, never `allow`. */
-const FORCE_PUSH_ALLOWED = { version: 1, guardrails: { forcePush: "allow" } }
 /** This repository's committed config, its `references` key included. */
 const OWN_CONFIG = readFileSync(join(REPO_ROOT, COMMITTED_FILE), "utf8")
 /** A `references` key the references plugin refuses, which the guardrails schema never names (ADR 0007). */
@@ -241,10 +238,6 @@ function withWorktree(
   return { main, worktree }
 }
 
-function escaped(text: string): string {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-}
-
 describe("a linked worktree", () => {
   const MAIN_LAYERS = {
     [COMMITTED_FILE]: { guardrails: { envFiles: { allow: [".env.test.local"] } } },
@@ -259,54 +252,5 @@ describe("a linked worktree", () => {
       assert.deepEqual(actual.config, expected.config)
       assert.deepEqual(actual.problems, reportLines(expected.problems))
     }
-  })
-
-  it("gets the main checkout named as a layer's source by agentic:check", () => {
-    const { main, worktree } = withWorktree(MAIN_LAYERS)
-    const verdict = runScript("agentic-config", ["--root", worktree])
-    assert.equal(verdict.status, 0, verdict.stderr)
-    const line = `^local {6}\\.ai/agentic\\.config\\.local\\.json {2}valid, from ${escaped(main)}$`
-    assert.match(verdict.stdout, new RegExp(line, "m"))
-  })
-})
-
-describe("the agentic:check command", () => {
-  it("validates this repository's committed file and exits 0", () => {
-    const verdict = runScript("agentic-config", [COMMITTED_FILE], { cwd: REPO_ROOT })
-    assert.equal(verdict.status, 0, verdict.stderr)
-    assert.equal(verdict.stdout, `${COMMITTED_FILE}: valid\n`)
-  })
-
-  it("resolves a repository holding this one's config and its references key off the strictest set, exit 0", () => {
-    assert.ok(Array.isArray(JSON.parse(OWN_CONFIG).references), "the committed config declares References")
-    const root = repo({ files: { [COMMITTED_FILE]: OWN_CONFIG } })
-    const verdict = runScript("agentic-config", ["--root", root])
-    assert.equal(verdict.status, 0, verdict.stderr)
-    assert.match(verdict.stdout, /^committed {2}\.ai\/agentic\.config\.json {2}valid$/m)
-    assert.match(verdict.stdout, /"forcePush": "lease"/)
-    assert.equal(verdict.stderr, "")
-  })
-
-  it("names the problem in a file that allows a force push and exits 1", () => {
-    const root = repo({ git: false, files: { "agentic.config.json": FORCE_PUSH_ALLOWED } })
-    const verdict = runScript("agentic-config", [join(root, "agentic.config.json")], { cwd: REPO_ROOT })
-    assert.equal(verdict.status, 1)
-    assert.match(verdict.stderr, /guardrails\.forcePush: "allow" is not one of "deny", "ask", "lease"/)
-  })
-
-  it("exits 1 when the repository's config is invalid, after printing what the guards see", () => {
-    const root = repo({ files: { [COMMITTED_FILE]: "{ not json" } })
-    const verdict = runScript("agentic-config", ["--root", root])
-    assert.equal(verdict.status, 1)
-    assert.match(verdict.stdout, /"forcePush": "deny"/)
-    assert.match(verdict.stderr, /the guards run on the strictest defaults/)
-  })
-
-  it("--root inside a repository resolves the repository's top level", () => {
-    const root = repo({ files: { [COMMITTED_FILE]: { baseBranch: "develop" }, "sub/x.txt": "" } })
-    const verdict = runScript("agentic-config", ["--root", join(root, "sub")])
-    assert.equal(verdict.status, 0, verdict.stderr)
-    assert.match(verdict.stdout, /^committed {2}\.ai\/agentic\.config\.json {2}valid$/m)
-    assert.match(verdict.stdout, /"baseBranch": "develop"/)
   })
 })

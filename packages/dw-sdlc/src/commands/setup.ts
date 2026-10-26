@@ -1,5 +1,6 @@
-// Sets a repository and this machine up for the guardrails plugin. Four files, each written only when
-// its content would change, so a repeat with nothing changed is silent and a run is safe to repeat:
+// `dw-sdlc setup` sets a repository and this machine up for the guardrails plugin. Four files, each
+// written only when its content would change, so a repeat with nothing changed is silent and a run is
+// safe to repeat:
 //
 //   .ai/agentic.config.local.json   the machine's layer, from inference: the Node package manager when
 //                                   the committed config leaves it unset, $schema at the marketplace
@@ -45,8 +46,8 @@ import {
   repositoryRoot,
   schemaId,
   validateDocument
-} from "../dw-sdlc/src/agentic-config.ts"
-import { GLOBAL_DENY, LEASE_RULE, RETIRED_DENY, repositoryDeny } from "./setup-rules.ts"
+} from "../agentic-config.ts"
+import { GLOBAL_DENY, LEASE_RULE, RETIRED_DENY, repositoryDeny } from "../setup-rules.ts"
 
 export type Outcome = "wrote" | "unchanged" | "refused"
 export type Step = { file: string; outcome: Outcome; detail?: string }
@@ -65,7 +66,9 @@ export type SetupOptions = {
   commitOnProtected?: CommitOnProtected | undefined
 }
 
-const USAGE = `Usage: node <plugin root>/scripts/guardrails-setup.ts [--root <dir>] [--home <dir>]
+export const summary = "write this machine's local config layer, the git excludes and the permission rules"
+
+const USAGE = `Usage: dw-sdlc setup [--root <dir>] [--home <dir>]
        [--convention <preset>] [--force-push deny|ask|lease] [--commit-on-protected deny|allow]
        [--force] [--dry-run]
   or:  pnpm guardrails:setup with the same flags, in a checkout of dw-sdlc
@@ -387,7 +390,7 @@ function fail(message: string, code: 1 | 2): never {
   process.exit(code)
 }
 
-function main(argv: string[]): void {
+export function run(argv: string[]): number {
   let values: {
     help?: boolean
     root?: string
@@ -417,7 +420,7 @@ function main(argv: string[]): void {
   }
   if (values.help === true) {
     console.log(USAGE)
-    return
+    return 0
   }
   if (values.convention !== undefined && !isConvention(values.convention)) {
     fail(`--convention must be ${COMMIT_CONVENTIONS.join(" or ")}, not '${values.convention}'\n\n${USAGE}`, 2)
@@ -447,11 +450,5 @@ function main(argv: string[]): void {
     const verb = step.outcome === "wrote" && values["dry-run"] === true ? "would write" : step.outcome
     console.log(`${verb.padEnd(11)} ${step.file}${step.detail === undefined ? "" : ` — ${step.detail}`}`)
   }
-  if (steps.some((step) => step.outcome === "refused")) {
-    process.exit(1)
-  }
-}
-
-if (import.meta.main) {
-  main(process.argv.slice(2))
+  return steps.some((step) => step.outcome === "refused") ? 1 : 0
 }

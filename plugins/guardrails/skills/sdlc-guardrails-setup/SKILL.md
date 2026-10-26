@@ -16,8 +16,8 @@ add `--force` yourself, since it overwrites a file nothing brings back. Nothing 
 only thing the setup runs in the repository is read-only `git`.
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/guardrails-setup.ts" --dry-run
-node "${CLAUDE_PLUGIN_ROOT}/scripts/guardrails-setup.ts"
+node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" setup --dry-run
+node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" setup
 ```
 
 Pass a flag only for what the argument or the request names, to both commands; a pin the local
@@ -65,13 +65,14 @@ and jq.
 
 ## After the run
 
-Check what the guards now see with `node "${CLAUDE_PLUGIN_ROOT}/scripts/agentic-config.ts"` from the
-repository; from a worktree it names the main checkout as the layer's source. One run per repository
-covers its worktrees, wherever they sit, so `.worktreeinclude` needs no entry for the local config.
+Check what the guards now see with `node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" config`
+from the repository; from a worktree it names the main checkout as the layer's source. One run per
+repository covers its worktrees, wherever they sit, so `.worktreeinclude` needs no entry for the
+local config.
 
 Then run the doctor from the repository and show its lines, one PASS / WARN / FAIL per machine
 check. It installs nothing; run a fix a line names only when the user asks.
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/guardrails-doctor.ts"
+node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" doctor
 ```

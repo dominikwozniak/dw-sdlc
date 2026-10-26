@@ -1,5 +1,5 @@
-// Sets a repository up to declare References. Five files, each written only when it would change, so a
-// repeat with nothing changed writes nothing:
+// `dw-sdlc references setup` sets a repository up to declare References. Five files, each written only
+// when it would change, so a repeat with nothing changed writes nothing:
 //
 //   references/AGENTS.md       the Router, from templates/router.md when there is none; on every run the
 //                              block between its two markers, a table of each Reference's dir and when
@@ -19,14 +19,14 @@ import { existsSync, lstatSync, mkdirSync, readFileSync, symlinkSync, writeFileS
 import { dirname, join } from "node:path"
 import { parseArgs } from "node:util"
 
-import { CONFIG, isObject, readReferences } from "./references-key.ts"
-import { renderBlock, withBlock } from "./router-block.ts"
+import { CONFIG, isObject, readReferences } from "../references-key.ts"
+import { renderBlock, withBlock } from "../router-block.ts"
 
 const ROUTER = "references/AGENTS.md"
 const ROUTER_LINK = "references/CLAUDE.md"
 const SETTINGS = ".claude/settings.json"
 const IGNORE = ".gitignore"
-const TEMPLATE = join(import.meta.dirname, "..", "templates", "router.md")
+const TEMPLATE = join(import.meta.dirname, "..", "..", "templates", "router.md")
 
 /** A clone's own agent files at any depth; Claude Code matches the globs against absolute paths. */
 const EXCLUDES = [
@@ -43,7 +43,10 @@ const TRACKED = ["!references/AGENTS.md", "!references/CLAUDE.md"]
 const WHOLE = new Set(["references", "references/", "/references", "/references/"])
 const IGNORE_COMMENT = "# References are cloned on each machine by the references plugin; only the Router is tracked."
 
-const USAGE = `Usage: node <plugin root>/scripts/references-setup.ts [--root <dir>] [--dry-run | --check]
+export const summary = "set a repository up to declare References: the Router, its table and the ignore rules"
+
+const USAGE = `Usage: dw-sdlc references setup [--root <dir>] [--dry-run | --check]
+  or:  pnpm references:setup with the same flags, in a checkout of dw-sdlc
 
 Sets the repository at --root, or the one the current directory sits in, up to declare References:
 the Router in ${ROUTER} with its CLAUDE.md symlink and, between its two markers, the table of each
@@ -203,7 +206,7 @@ function setup(root: string, dryRun: boolean): Step[] {
   return writer.steps
 }
 
-function main(argv: string[]): void {
+export function run(argv: string[]): number {
   let values: { help?: boolean; root?: string; "dry-run"?: boolean; check?: boolean }
   try {
     values = parseArgs({
@@ -220,7 +223,7 @@ function main(argv: string[]): void {
   }
   if (values.help === true) {
     console.log(USAGE)
-    return
+    return 0
   }
 
   const check = values.check === true
@@ -231,11 +234,5 @@ function main(argv: string[]): void {
     console.log(`${verb.padEnd(11)} ${step.file}${step.detail === undefined ? "" : ` — ${step.detail}`}`)
   }
   const refused = steps.some((step) => step.outcome === "refused")
-  if (refused || (check && steps.some((step) => step.outcome === "wrote"))) {
-    process.exit(1)
-  }
-}
-
-if (import.meta.main) {
-  main(process.argv.slice(2))
+  return refused || (check && steps.some((step) => step.outcome === "wrote")) ? 1 : 0
 }

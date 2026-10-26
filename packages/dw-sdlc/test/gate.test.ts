@@ -216,7 +216,10 @@ describe("the dw-sdlc bin", () => {
   it("lists its commands under --help and exits 0", () => {
     const run = runBin(["--help"], scratch("bin"))
     assert.equal(run.status, 0)
-    assert.match(run.stdout, /^ {2}gate {4}run the Gate/m)
+    assert.match(run.stdout, /^ {2}gate +run the Gate/m)
+    for (const name of ["setup", "doctor", "config", "references sync", "references setup"]) {
+      assert.match(run.stdout, new RegExp(`^ {2}${name} {2,}\\S`, "m"), name)
+    }
   })
 
   it("exits 2 with its usage on no command, an unknown command or an unknown flag", () => {
@@ -224,6 +227,7 @@ describe("the dw-sdlc bin", () => {
     for (const [args, problem] of [
       [[], "dw-sdlc: no command given"],
       [["nope"], 'dw-sdlc: unknown command "nope"'],
+      [["references"], 'dw-sdlc: unknown command "references"'],
       [["gate", "--nope"], "dw-sdlc gate: Unknown option '--nope'"]
     ] as const) {
       const run = runBin([...args], cwd)

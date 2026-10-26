@@ -98,7 +98,7 @@ behind that and the plugin is in
 ## Adopting it in your repository
 
 Add `.ai/agentic.config.json` and validate it with
-`node <plugin root>/scripts/agentic-config.ts <file>`, where the plugin root is the `installPath` that
+`node <plugin root>/dw-sdlc/src/cli.ts config <file>`, where the plugin root is the `installPath` that
 `claude plugin list --json` names. This repository's own file is the smallest useful example:
 
 ```json
@@ -131,15 +131,16 @@ plus the commit convention when asked for one, excludes it from git, and adds a 
 to `.claude/settings.local.json` plus the lease-push exception to `~/.claude/settings.json`. It shows
 a dry run first, writes only what would change, and ends with the doctor: one PASS / WARN / FAIL line
 per machine check. The doctor needs only Node 24 and runs from the installed plugin: in a terminal,
-`node <plugin root>/scripts/guardrails-doctor.ts` from the repository.
+`node <plugin root>/dw-sdlc/src/cli.ts doctor` from the repository.
 
 ## From GitHub or from a clone
 
 Added from GitHub with `--sparse .claude-plugin plugins packages`, the plugin is a snapshot of `main`
 that `claude plugin update` refreshes, and the clone holds only the catalogue, the plugins and the
-`dw-sdlc` package. The guardrails plugin reaches the package through its `dw-sdlc` link, which
-`claude plugin install` copies as a real directory; a clone without `packages` installs the plugin
-without it, and the guards then validate no config layer. Added from a clone with
+`dw-sdlc` package. Each plugin reaches the package through its `dw-sdlc` link, which
+`claude plugin install` copies as a real directory, so a hook and a skill run the package's
+`dw-sdlc` bin. A clone without `packages` installs the plugins without it: the guards then drop
+every config layer and run strictest, and no command of the package starts. Added from a clone with
 `claude plugin marketplace add ./`, it runs live from that checkout, a broken edit included.
 The daily install is the GitHub one; a guard is developed through `pnpm test`, which runs every hook on
 a real payload.

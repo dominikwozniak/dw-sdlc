@@ -11,7 +11,6 @@ import { dirname, join } from "node:path"
 import { after } from "node:test"
 
 export const HOOKS_DIR = join(import.meta.dirname, "..", "hooks")
-export const SCRIPTS_DIR = join(import.meta.dirname, "..", "scripts")
 export const REPO_ROOT = join(import.meta.dirname, "..", "..", "..")
 /** The hooks' shebang, bash 3.2 on macOS — never the first bash in PATH, which may be a newer one. */
 const BASH = "/bin/bash"
@@ -71,19 +70,6 @@ export function runHookAsync(name: string, input: unknown): Promise<Verdict> {
     })
     child.stdin.end(typeof input === "string" ? input : JSON.stringify(input))
   })
-}
-
-/** Runs `scripts/<name>.ts` the way its package.json script does: plain `node`, the exit code and both streams. */
-export function runScript(name: string, args: string[], options: RunOptions = {}): Verdict {
-  const result = spawnSync(process.execPath, [join(SCRIPTS_DIR, `${name}.ts`), ...args], {
-    cwd: options.cwd,
-    env: { ...process.env, ...options.env },
-    encoding: "utf8"
-  })
-  if (result.error !== undefined) {
-    throw result.error
-  }
-  return { status: result.status ?? -1, stdout: result.stdout, stderr: result.stderr }
 }
 
 export function bashPayload(command: string, cwd?: string): object {

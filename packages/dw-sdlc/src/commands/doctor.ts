@@ -1,10 +1,10 @@
-// The doctor: one PASS / WARN / FAIL line per machine check the guardrails rely on, read-only. It
-// diagnoses the repository holding --root and the user's home; it installs nothing. FAIL is a guard that
-// does not guard (no jq, plugin absent or disabled, an invalid config), WARN a layer that is missing or
-// loose (Safe Chain, the pnpm cooldown, signing, rtk excludes), INFO a check that does not apply here.
-// Every probe goes through one interface, so the tests fake each answer. The machine-wide values are
-// asked from the home directory: from a checkout, its own pnpm-workspace.yaml would answer for the
-// machine.
+// `dw-sdlc doctor`: one PASS / WARN / FAIL line per machine check the guardrails rely on, read-only.
+// It diagnoses the repository holding --root and the user's home; it installs nothing. FAIL is a
+// guard that does not guard (no jq, plugin absent or disabled, an invalid config), WARN a layer that
+// is missing or loose (Safe Chain, the pnpm cooldown, signing, rtk excludes), INFO a check that does
+// not apply here. Every probe goes through one interface, so the tests fake each answer. The
+// machine-wide values are asked from the home directory: from a checkout, its own
+// pnpm-workspace.yaml would answer for the machine.
 
 import { spawnSync } from "node:child_process"
 import { existsSync, readFileSync } from "node:fs"
@@ -12,7 +12,7 @@ import { homedir } from "node:os"
 import { join } from "node:path"
 import { parseArgs } from "node:util"
 
-import { findRepository, resolveConfig } from "../dw-sdlc/src/agentic-config.ts"
+import { findRepository, resolveConfig } from "../agentic-config.ts"
 
 export type Level = "PASS" | "WARN" | "FAIL" | "INFO"
 export type Check = { name: string; level: Level; detail: string }
@@ -353,7 +353,9 @@ export function render(checks: Check[]): string {
   return checks.map((check) => `${check.level.padEnd(5)} ${check.name.padEnd(17)} ${check.detail}`).join("\n")
 }
 
-const USAGE = `Usage: node <plugin root>/scripts/guardrails-doctor.ts [--root <dir>] [--home <dir>]
+export const summary = "one PASS / WARN / FAIL line per machine check the guardrails rely on"
+
+const USAGE = `Usage: dw-sdlc doctor [--root <dir>] [--home <dir>]
   or:  pnpm guardrails:doctor [--root <dir>] [--home <dir>], in a checkout of dw-sdlc
 
 One PASS / WARN / FAIL line per machine check the guardrails rely on; read-only. Exit 1 when any
@@ -371,7 +373,7 @@ function repositoryConfig(root: string): RepositoryConfig {
   }
 }
 
-function main(argv: string[]): void {
+export function run(argv: string[]): number {
   let values: { help?: boolean; root?: string; home?: string }
   try {
     values = parseArgs({
@@ -380,11 +382,11 @@ function main(argv: string[]): void {
     }).values
   } catch (error) {
     console.error(`guardrails:doctor: ${error instanceof Error ? error.message : String(error)}\n\n${USAGE}`)
-    process.exit(2)
+    return 2
   }
   if (values.help === true) {
     console.log(USAGE)
-    return
+    return 0
   }
   const dir = values.root ?? process.cwd()
   const root = findRepository(dir)
@@ -396,11 +398,5 @@ function main(argv: string[]): void {
     config: root === undefined ? undefined : repositoryConfig(root)
   })
   console.log(render(checks))
-  if (checks.some((check) => check.level === "FAIL")) {
-    process.exit(1)
-  }
-}
-
-if (import.meta.main) {
-  main(process.argv.slice(2))
+  return checks.some((check) => check.level === "FAIL") ? 1 : 0
 }

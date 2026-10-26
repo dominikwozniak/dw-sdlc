@@ -10,8 +10,8 @@ import {
   render,
   rtkConfigPath,
   rtkExcludes
-} from "../../scripts/guardrails-doctor.ts"
-import { initRepo, runScript, scratch, write, writeJson } from "../harness.ts"
+} from "../../src/commands/doctor.ts"
+import { initRepo, REPO_ROOT, runBin, scratch, write, writeJson } from "../harness.ts"
 
 type Fake = {
   /** Keyed by the command line; `in <dir>: <command>` answers only a call made from that directory. */
@@ -389,16 +389,14 @@ describe("the doctor command", () => {
     const root = initRepo(scratch("doctor"))
     writeJson(join(root, ".ai", "agentic.config.json"), { guardrails: { forcePush: "allow" } })
     write(join(root, "sub", "x.txt"), "")
-    const verdict = runScript("guardrails-doctor", ["--root", join(root, "sub"), "--home", scratch("home")], {
-      env: BARE_MACHINE
-    })
+    const verdict = runBin(["doctor", "--root", join(root, "sub"), "--home", scratch("home")], REPO_ROOT, BARE_MACHINE)
     assert.match(verdict.stdout, /^FAIL {2}config {12}the guards run on the strictest defaults/m)
     assert.equal(verdict.status, 1)
   })
 
   it("--root outside any repository judges no config", () => {
     const dir = scratch("doctor-bare")
-    const verdict = runScript("guardrails-doctor", ["--root", dir, "--home", scratch("home")], { env: BARE_MACHINE })
+    const verdict = runBin(["doctor", "--root", dir, "--home", scratch("home")], REPO_ROOT, BARE_MACHINE)
     assert.match(verdict.stdout, /^INFO {2}config {12}no repository found at /m)
     assert.ok(verdict.stdout.includes(`no repository found at ${dir}`), verdict.stdout)
   })

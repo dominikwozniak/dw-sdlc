@@ -1,6 +1,6 @@
 // The strict parser of the `references` key, the authority at runtime, and the reader of the committed
 // config that holds it. `config/references.schema.json` documents the same contract, and
-// `test/scripts/references-key.test.ts` runs one case list through both. The first problem stops the
+// `test/references-key.test.ts` runs one case list through both. The first problem stops the
 // parse: a key that fails it syncs nothing.
 
 import { existsSync, readFileSync } from "node:fs"
