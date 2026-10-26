@@ -1,10 +1,6 @@
-// `dw-sdlc doctor`: one PASS / WARN / FAIL line per machine check the guardrails rely on, read-only.
-// It diagnoses the repository holding --root and the user's home; it installs nothing. FAIL is a
-// guard that does not guard (no jq, plugin absent or disabled, an invalid config), WARN a layer that
-// is missing or loose (Safe Chain, the pnpm cooldown, signing, rtk excludes), INFO a check that does
-// not apply here. Every probe goes through one interface, so the tests fake each answer. The
-// machine-wide values are asked from the home directory: from a checkout, its own
-// pnpm-workspace.yaml would answer for the machine.
+// `dw-sdlc doctor`: one PASS / WARN / FAIL line per machine check the guardrails rely on, for the
+// repository holding --root and the user's home; it installs nothing. FAIL is a guard that does not guard
+// (no jq, plugin absent or disabled, an invalid config), WARN a layer missing or loose, INFO one that does not apply.
 
 import { spawnSync } from "node:child_process"
 import { existsSync, readFileSync } from "node:fs"
@@ -284,6 +280,10 @@ function checkSafeChain(probe: Probe): Check {
   return { name: "safe chain", level: "PASS", detail: `${binary}, npm goes through it` }
 }
 
+/**
+ * pnpm's global `minimumReleaseAge`, asked from the home directory: from a checkout, its own
+ * pnpm-workspace.yaml would answer for the machine.
+ */
 function checkPnpmReleaseAge(probe: Probe, home: string): Check {
   if (probe.shell("command -v pnpm") === "") {
     return { name: "pnpm release age", level: "INFO", detail: "no pnpm in the shell" }

@@ -1,8 +1,6 @@
-// Reads what a repository declares for an agent: `.ai/agentic.config.json` (committed), then
-// `.ai/agentic.config.local.json` (one machine) over it, then what the repository itself implies. The
-// local file may tighten `guardrails` and never loosen it; any invalid layer is dropped whole and the
-// guards fall back to the strictest defaults until it is fixed. The guardrails plugin's `hooks/config.jq`
-// is the same merge for the guards; this file is the reference, and the plugin's tests run both.
+// Reads what a repository declares for an agent: the committed config, the machine's local layer over it,
+// and what the repository implies; an invalid layer is dropped whole. The guardrails plugin's
+// `hooks/config.jq` is the same merge for the guards; this file is the reference, and the tests run both.
 
 import { spawnSync } from "node:child_process"
 import { existsSync, readFileSync } from "node:fs"

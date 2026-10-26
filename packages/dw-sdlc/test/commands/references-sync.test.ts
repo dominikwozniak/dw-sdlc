@@ -1,7 +1,6 @@
-// What `dw-sdlc references sync` does, against throwaway upstreams served over file://, so
-// `--depth` and the partial clone behave as they do against GitHub: clones and updates at a branch or
-// a tag, a ref naming a package, the sparse skip and only, what the Sync leaves alone, how it fails,
-// and two Syncs in one checkout.
+// What `dw-sdlc references sync` does, against throwaway upstreams served over file://, so `--depth`
+// and the partial clone behave as they do against GitHub: clones and updates at a branch or a tag, a ref
+// naming a package, the sparse skip and only, what it leaves alone, how it fails, two Syncs in a checkout.
 
 import assert from "node:assert/strict"
 import { spawnSync } from "node:child_process"

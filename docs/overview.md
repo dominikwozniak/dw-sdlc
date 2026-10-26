@@ -72,8 +72,9 @@ one document on stdout, with the status, the resolved command, each Step and Che
 code, and the failures; the commands' own output then goes to stderr. A Check the package ships runs
 inside the bin, so its `command` is null. The exit code is 0 when everything passes, 1 when a Step or
 a Check fails, and 2 when the Gate cannot run: an invalid config layer, a Step or Check whose command
-the shell cannot find or execute, or a Check missing an input it reads. Why a Check is a named unit
-turned on in the config is [ADR 0009](adr/0009-checks-are-named-units-turned-on-in-the-config.md).
+the shell cannot find or execute, or a Check missing an input it reads, such as a Ratchet's
+baseline. Why a Check is a named unit turned on in the config is
+[ADR 0009](adr/0009-checks-are-named-units-turned-on-in-the-config.md).
 
 ### The Checks the package ships
 
@@ -105,11 +106,26 @@ schema.
   files named `<number>-<slug>.md`, numbered from 1 with no gap and no number taken twice, each with
   a level-1 heading for its title and a frontmatter `status` whose first word is `proposed`,
   `accepted`, `active`, `deprecated` or `superseded`.
+- `file-size-ratchet` is a Ratchet. It holds each file to the line limit of the first group whose
+  glob matches it: `tests` 2000, `agent-docs` 120 (`AGENTS.md`, `CLAUDE.md`, `GLOSSARY.md` and
+  `docs/agents/`), `source` 500. A file over its limit passes only when the committed baseline,
+  `.ai/file-size-ratchet.baseline.json`, lists it, and then only up to the count recorded there.
+  A baseline that lists a file twice, at a count within its group's limit or in no group fails the
+  Check.
+- `comment-budget` holds each comment block in the JavaScript and TypeScript under `packages`,
+  `plugins`, `scripts` and `src` to 3 lines of prose. A block is one `/* … */` comment or a run of
+  `//` lines, each alone on its line; a comment after code is none.
 
 The Checks that read many files judge the ones git tracks or would track, never one it ignores, so a
 link to an ignored file, or to another case of a file's name, fails on a Mac as it fails in CI. A
 glob's `*` and `**` skip a name that starts with a dot, as a shell does: `**/*.md` leaves the
 vendored skills under `.agents/` out.
+
+`dw-sdlc gate --update-baseline` runs the Gate, then rewrites the baseline of each Ratchet, only when
+every Step and every other Check passed. It only tightens: a file within its limit leaves the list, a
+count that shrank is lowered, and no file joins. Where there is no baseline it records one, every
+file over its limit at its count, unless HEAD holds one the tree lost: that one is restored with git,
+never recorded again. A refused refresh leaves the file byte for byte as it was.
 
 `dw-sdlc primitives --paths <files>` answers from the same catalogue: for each path, the Primitives
 whose `code` names it nearest, with their summaries and the documents to read, or that none does.

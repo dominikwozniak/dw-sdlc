@@ -1,7 +1,6 @@
-// `temporal-language`: a durable document says what is true, not what changed. A changelog phrase fails
-// it: the phrases kody's docs check lists, as `docs/research/gate/kody.md` records them, each matched
-// across a line break and never inside code. Decision records, research notes and changelogs record a
-// point in time, so they are exempt by default.
+// `temporal-language`: a durable document says what is true, not what changed. A phrase of kody's list,
+// as `docs/research/gate/kody.md` records it, fails it across a line break and never inside code;
+// decision records, research notes and changelogs record a point in time and are exempt by default.
 
 import { readFileSync } from "node:fs"
 import { join } from "node:path"

@@ -1,7 +1,6 @@
 // What the References tests share: throwaway repositories kept apart from the machine's git config and
 // from the git variables of the process running the tests, and `dw-sdlc references <command>` spawned
-// the way its callers spawn it: plain `node` on the bin, the exit code and both streams. The references
-// plugin's hook test spawns its hook through `spawnIsolated`.
+// the way its callers spawn it: plain `node` on the bin, the exit code and both streams.
 
 import { spawn, spawnSync } from "node:child_process"
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs"
@@ -27,7 +26,10 @@ function scratchEnv(over: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
   return { ...env, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1", ...over }
 }
 
-/** `command` from `cwd` under `scratchEnv()`, `env` over it, with `input` on stdin. */
+/**
+ * `command` from `cwd` under `scratchEnv()`, `env` over it, with `input` on stdin. The references
+ * plugin's hook test spawns its hook through it.
+ */
 export function spawnIsolated(
   command: string,
   args: string[],

@@ -1,7 +1,6 @@
-// What enforce-commit-hygiene.sh refuses (exit 2) and lets through (exit 0) across its four checks:
-// the subject pattern and the trailer the resolved config carries, a live backtick inside -m, and
-// `git add -A` / `git add .`. The policies come from the config, so the cases run against throwaway
-// repositories with known files and remotes.
+// What enforce-commit-hygiene.sh refuses (exit 2) and lets through (exit 0) across its four checks: the
+// subject pattern and the trailer the resolved config carries, a live backtick inside -m, and `git add -A`
+// or `git add .`. The policies come from the config, so the cases run on repositories with known files and remotes.
 
 import { mkdirSync } from "node:fs"
 import { join } from "node:path"

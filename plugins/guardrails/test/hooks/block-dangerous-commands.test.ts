@@ -1,7 +1,6 @@
-// What block-dangerous-commands.sh refuses (exit 2) and lets through (exit 0), fed the real hook
-// payload. The regex arms are easy to regress silently — an over-eager one blocks legitimate work, a
-// loose one lets a destructive command through — and the push policy reads the config, so the cases
-// run against throwaway repositories with known files.
+// What block-dangerous-commands.sh refuses (exit 2) and lets through (exit 0), fed the real hook payload.
+// A regex arm regresses silently, blocking legitimate work or letting a destructive command through, and
+// the push policy reads the config, so the cases run against throwaway repositories with known files.
 
 import assert from "node:assert/strict"
 import { readdirSync } from "node:fs"
@@ -84,13 +83,6 @@ function commitDeny(name: string, branch: string, config: object): string {
 const DENY_ON_MAIN = commitDeny("deny-on-main", "main", { guardrails: { commitOnProtected: "deny" } })
 const DENY_ON_FEAT = commitDeny("deny-on-feat", "feat", { guardrails: { commitOnProtected: "deny" } })
 const BROKEN_ON_MAIN = commitDeny("broken-on-main", "main", { guardrails: { forcePush: "nope" } })
-// A clone of a bare origin whose main took squash merges as GitHub makes them: `fresh` up to date
-// with main, `moved` with main editing its lines after, `behind` once main had moved on, `extra` with
-// one more commit after its squash, `ff` by a fast-forward. `never` was never merged, `spaced` holds a
-// line main took with other whitespace, `netzero` adds a file and drops it while main adds and drops
-// another, so their trees meet, `late` was squashed in another clone after this one last fetched, and
-// `>never`, a name git allows, points where `never` does.
-// A blobless clone of the origin has `never` without its blobs.
 function change(dir: string, file: string, text: string): void {
   write(join(dir, file), text)
   git(dir, "add", file)
@@ -101,11 +93,15 @@ function squash(dir: string, branch: string): void {
   git(dir, "-c", "user.email=t@example.com", "-c", "user.name=t", "merge", "-q", "--squash", branch)
   commit(dir, "-m", `squash ${branch}`)
 }
+// A clone of a bare origin whose main took squash merges as GitHub makes them: `fresh` up to date with
+// main, `moved` with main editing its lines after, `behind` once main had moved on, `extra` with one
+// more commit after its squash, `ff` by a fast-forward. `never` was never merged.
 const ORIGIN = join(TMP, "origin.git")
 git(TMP, "init", "-q", "--bare", "-b", "main", ORIGIN)
 git(ORIGIN, "config", "uploadpack.allowFilter", "true")
 const SQUASHED = initRepo(join(TMP, "squashed"), { branch: "main", remote: ORIGIN })
 change(SQUASHED, "a.txt", "a\n")
+// `netzero` adds a file and drops it while main adds and drops another, so their trees meet.
 git(SQUASHED, "switch", "-q", "-c", "netzero")
 change(SQUASHED, "v.txt", "v\n")
 git(SQUASHED, "rm", "-q", "v.txt")
@@ -137,6 +133,7 @@ git(SQUASHED, "switch", "-q", "extra")
 change(SQUASHED, "extra.txt", "1\n2\n")
 git(SQUASHED, "switch", "-q", "-c", "never", "main")
 change(SQUASHED, "never.txt", "1\n")
+// `>never`, a name git allows, points where `never` does.
 git(SQUASHED, "branch", ">never", "never")
 git(SQUASHED, "switch", "-q", "-c", "ff", "main")
 change(SQUASHED, "ff.txt", "1\n")
@@ -144,16 +141,19 @@ git(SQUASHED, "switch", "-q", "-c", "late", "main")
 change(SQUASHED, "late.txt", "1\n")
 git(SQUASHED, "switch", "-q", "main")
 git(SQUASHED, "merge", "-q", "--ff-only", "ff")
+// `spaced` holds a line main took with other whitespace.
 git(SQUASHED, "switch", "-q", "-c", "spaced")
 change(SQUASHED, "spaced.txt", "a  b\n")
 git(SQUASHED, "switch", "-q", "main")
 change(SQUASHED, "spaced.txt", "a b\n")
 git(SQUASHED, "push", "-q", "origin", "main", "late", "never")
 git(SQUASHED, "remote", "set-head", "origin", "main")
+// `late` was squashed in another clone after this one last fetched.
 const ELSEWHERE = join(TMP, "elsewhere")
 git(TMP, "clone", "-q", ORIGIN, ELSEWHERE)
 squash(ELSEWHERE, "origin/late")
 git(ELSEWHERE, "push", "-q", "origin", "main")
+// A blobless clone of the origin has `never` without its blobs.
 const BLOBLESS = join(TMP, "blobless")
 git(TMP, "clone", "-q", "--filter=blob:none", "--no-checkout", `file://${ORIGIN}`, BLOBLESS)
 git(BLOBLESS, "branch", "never", "origin/never")

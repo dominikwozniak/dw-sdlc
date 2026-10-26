@@ -1,28 +1,6 @@
-// `dw-sdlc setup` sets a repository and this machine up for the guardrails plugin. Four files, each
-// written only when its content would change, so a repeat with nothing changed is silent and a run is
-// safe to repeat:
-//
-//   .ai/agentic.config.local.json   the machine's layer, from inference: the Node package manager when
-//                                   the committed config leaves it unset, $schema at the marketplace
-//                                   clone's schema, commit.convention when --convention names one
-//                                   or the file already pins one, and the guardrails block the file
-//                                   holds, as it is. Refused when one exists with other content than
-//                                   those, unless --force.
-//   .git/info/exclude               keeps that file and .claude/settings.local.json out of git without
-//                                   touching the repository's tracked .gitignore
-//   .claude/settings.local.json     permissions.deny as the jq-less backstop for the hooks: the
-//                                   destructive git and gh sets in plain and rtk form, and Read/Edit
-//                                   rules for every env file the resolved guardrails.envFiles refuses:
-//                                   listed in deny, or ignored by git and not listed in allow
-//   ~/.claude/settings.json         autoMode.allow plus the lease-push exception ("$defaults" opens a
-//                                   list this run creates), and permissions.deny with the irreversible set;
-//                                   under $CLAUDE_CONFIG_DIR when it is set, as Claude Code reads it
-//
-// Existing content is merged, never replaced: lists grow by the entries they lack, the repository's
-// deny list loses the rules RETIRED_DENY names, other keys stay. A settings file that is not JSON is
-// refused, not rewritten. From a linked worktree all three repository files go to the main checkout:
-// every worktree reads the local config from there when it has none of its own, and Claude Code reads
-// the local settings there. The only thing run in the repository is read-only git.
+// `dw-sdlc setup` sets a repository and this machine up for the guardrails plugin: the four files its USAGE
+// names, each written only when its content would change, so a run is safe to repeat. Existing content is
+// merged, never replaced: other keys stay, and a settings file that is not JSON is refused.
 
 import { spawnSync } from "node:child_process"
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
@@ -107,6 +85,7 @@ function isObject(value: unknown): value is JsonObject {
   return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
+/** A read-only git command, the one thing the setup runs in the repository. */
 function git(root: string, args: string[]): string | undefined {
   const result = spawnSync("git", ["-C", root, ...args], { encoding: "utf8" })
   return result.status === 0 ? result.stdout.trim() : undefined
@@ -123,10 +102,9 @@ function committedConfig(root: string): AgenticConfig {
 }
 
 /**
- * What the machine's layer points `$schema` at: the schema in the marketplace's clone as a `file://`
- * URL, since the `$id` sits in a private repository an editor cannot fetch. The clone keeps its path
- * across plugin updates, where the install cache moves with every version. No registered clone
- * holding the schema falls back to the `$id`.
+ * What the machine's layer points `$schema` at: the marketplace clone's schema as a `file://` URL, as an
+ * editor cannot fetch the `$id` from a private repository and the clone, unlike the install cache, keeps
+ * its path across plugin updates. Without a registered clone holding the schema, the `$id`.
  */
 export function schemaReference(claudeDir: string): string {
   const registry = readJson(join(claudeDir, "plugins", "known_marketplaces.json"))
@@ -216,12 +194,8 @@ function sameContent(existing: unknown, config: LocalLayer): boolean {
 }
 
 /**
- * The machine's layer: what inference finds, minus every key the committed config already sets, plus
- * the `guardrails` block the file already holds. The local layer outranks the committed one, so an
- * inferred key written here would override it. The commit convention is written only when one is
- * asked for, by `--convention` or by the pin the file already holds: inference always gives the
- * `conventional` default, and pinning it here overrides a convention the repository commits later,
- * so that is a choice, never a guess.
+ * The machine's layer: what inference finds, minus every key the committed config already sets, which an
+ * inferred key here would override, plus the `guardrails` block the file holds and the convention asked for.
  */
 function localConfig(
   root: string,
@@ -242,12 +216,15 @@ function localConfig(
   if (guardrails !== undefined) {
     config.guardrails = guardrails
   }
+  // Only one asked for, by `--convention` or the file's pin: inference always gives `conventional`, and
+  // pinning it here would override a convention the repository commits later.
   if (convention !== undefined) {
     config.commit = { convention }
   }
   return config
 }
 
+/** `existing` with the entries of `additions` it lacks appended: a list grows and never loses one. */
 function union(existing: unknown, additions: string[]): string[] {
   const list = Array.isArray(existing) ? existing.filter((item): item is string => typeof item === "string") : []
   for (const rule of additions) {
@@ -305,7 +282,10 @@ class Writer {
   }
 }
 
-/** Where the repository's files live: the main checkout for a linked worktree. */
+/**
+ * Where the repository's files live: the main checkout for a linked worktree, since every worktree reads
+ * the local config from there when it has none of its own, and Claude Code reads the local settings there.
+ */
 function mainCheckout(root: string): { checkout: string; gitDir: string } {
   const common = git(root, ["rev-parse", "--path-format=absolute", "--git-common-dir"])
   if (common === undefined) {
@@ -338,7 +318,8 @@ export function setup(options: SetupOptions): Step[] {
     }
   }
 
-  // 2. The exclude entries, appended to whatever the file holds.
+  // 2. The exclude entries, appended to whatever the file holds: they keep both local files out of git
+  // without touching the repository's tracked .gitignore.
   const excludePath = join(gitDir, "info", "exclude")
   const excludeText = existsSync(excludePath) ? readFileSync(excludePath, "utf8") : ""
   const lines = excludeText.split("\n")
@@ -351,7 +332,8 @@ export function setup(options: SetupOptions): Step[] {
     writer.put(excludeLabel, excludePath, excludeText + separator + missing.join("\n") + "\n")
   }
 
-  // 3. The repository's deny rules, merged into the main checkout's local settings.
+  // 3. The repository's deny rules, the backstop for the hooks where jq is missing, merged into the main
+  // checkout's local settings.
   const localSettingsPath = join(checkout, ".claude", "settings.local.json")
   const localSettings = readJson(localSettingsPath)
   if (localSettings === "invalid") {
@@ -364,7 +346,8 @@ export function setup(options: SetupOptions): Step[] {
     writer.put(".claude/settings.local.json", localSettingsPath, render(settings))
   }
 
-  // 4. The user file: the lease exception, "$defaults" kept, and the irreversible non-git set.
+  // 4. The user file, under $CLAUDE_CONFIG_DIR when it is set: the lease exception, "$defaults" kept, and
+  // the irreversible non-git set.
   const userPath = join(claudeDir, "settings.json")
   const userLabel = options.claudeDir === undefined ? "~/.claude/settings.json" : userPath
   const userSettings = readJson(userPath)

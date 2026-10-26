@@ -1,7 +1,6 @@
 // What session-start.sh tells a session as it starts, fed the real SessionStart payload the way Claude
 // Code spawns it: from a directory other than the project's, CLAUDE_PROJECT_DIR naming the project.
-// A repository without the key gets nothing; a Sync that fails prints its lines and one line more.
-// Either way the session starts: exit 0.
+// A repository without the key gets nothing, a failed Sync its lines and one more; either way, exit 0.
 
 import assert from "node:assert/strict"
 import { existsSync } from "node:fs"

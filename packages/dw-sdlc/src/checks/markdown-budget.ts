@@ -16,7 +16,7 @@ const REMEDIES = {
 }
 
 /** The lines of `text`, a last line without its newline counted, the empty line after a final newline not. */
-function lineCount(text: string): number {
+export function lineCount(text: string): number {
   const lines = text.split("\n").length
   return text.endsWith("\n") ? lines - 1 : lines
 }

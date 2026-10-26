@@ -3,14 +3,20 @@
 
 import { agentsMap } from "./agents-map.ts"
 import { type Check, type Finding, optionsOf } from "./check.ts"
+import { commentBudget } from "./comment-budget.ts"
 import { decisionRecords } from "./decision-records.ts"
+import { fileSizeRatchet } from "./file-size-ratchet.ts"
 import { markdownBudget } from "./markdown-budget.ts"
 import { markdownRefs } from "./markdown-refs.ts"
 import { primitives } from "./primitives.ts"
 import { temporalLanguage } from "./temporal-language.ts"
 
-/** A Check turned on by its setting, ready to judge a tree. */
-export type EnabledCheck = { name: string; run: (root: string) => Finding[] }
+/** A Check turned on by its setting, ready to judge a tree, and to refresh its baseline if it is a Ratchet. */
+export type EnabledCheck = {
+  name: string
+  run: (root: string) => Finding[]
+  baseline?: { file: string; refresh: (root: string) => string }
+}
 
 type Shipped = { name: string; enable: (setting: unknown) => EnabledCheck | undefined }
 
@@ -19,7 +25,15 @@ function ship<Options extends object>(check: Check<Options>): Shipped {
     name: check.name,
     enable: (setting) => {
       const options = optionsOf(check, setting)
-      return options === undefined ? undefined : { name: check.name, run: (root) => check.run(root, options) }
+      if (options === undefined) {
+        return undefined
+      }
+      const enabled: EnabledCheck = { name: check.name, run: (root) => check.run(root, options) }
+      const { baseline } = check
+      if (baseline !== undefined) {
+        enabled.baseline = { file: baseline.file, refresh: (root) => baseline.refresh(root, options) }
+      }
+      return enabled
     }
   }
 }
@@ -30,7 +44,9 @@ const SHIPPED: Shipped[] = [
   ship(markdownBudget),
   ship(markdownRefs),
   ship(temporalLanguage),
-  ship(decisionRecords)
+  ship(decisionRecords),
+  ship(fileSizeRatchet),
+  ship(commentBudget)
 ]
 
 /** Every shipped Check a resolved `gate.checks` turns on with `true` or its options. */

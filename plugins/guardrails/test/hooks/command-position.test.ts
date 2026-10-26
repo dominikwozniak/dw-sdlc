@@ -1,7 +1,6 @@
-// Every rule, at every command position: each probe goes through the dispatcher once bare and once
-// behind each launcher family, and the verdict must not change. A rule added to a guard is held to
-// every launcher, and a launcher added to lib-words.sh to every rule, without a case written for the
-// pair. The option spellings of each launcher are lib.test.ts's; here one spelling per family.
+// Every rule, at every command position: each probe goes through the dispatcher bare and behind each
+// launcher family, and the verdict must not change, so a new rule or a launcher added to lib-words.sh is
+// held to every pair without a case of its own. lib.test.ts has the option spellings; here, one per family.
 
 import assert from "node:assert/strict"
 import { availableParallelism } from "node:os"

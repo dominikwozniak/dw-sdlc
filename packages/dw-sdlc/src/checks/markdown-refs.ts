@@ -1,7 +1,6 @@
 // `markdown-refs`: every relative link and image in the markdown resolves, its path to a file or a
-// directory of the repository and its heading anchor to a heading of the file it names. The repository
-// is the files git tracks or would track, so a link to a file git ignores or to another case of a
-// file's name fails here as it fails in CI.
+// directory git tracks or would track and its heading anchor to a heading of the file it names, so a
+// link to an ignored file or to another case of a file's name fails here as it fails in CI.
 
 import { readFileSync } from "node:fs"
 import { join, posix } from "node:path"

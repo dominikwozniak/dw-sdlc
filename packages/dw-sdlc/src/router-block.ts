@@ -1,8 +1,6 @@
 // The Router's block: a table of each Reference's `dir` and `when`, written from the `references` key
 // between two markers. The setup writes it and the Sync checks it; the rest of the Router is the
-// author's. A formatter may pad the table's columns and set blank lines around it, so a block is in
-// step when its rows say what the key says, not when its bytes match: cells are compared trimmed, and
-// a `when` that differs only in the spaces at a cell's edge reads as the same row.
+// author's. A block is in step when its rows say what the key says, not its bytes, which a formatter pads.
 
 import type { Reference } from "./references-key.ts"
 

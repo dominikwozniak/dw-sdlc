@@ -1,18 +1,6 @@
-// `dw-sdlc references setup` sets a repository up to declare References. Five files, each written only
-// when it would change, so a repeat with nothing changed writes nothing:
-//
-//   references/AGENTS.md       the Router, from templates/router.md when there is none; on every run the
-//                              block between its two markers, a table of each Reference's dir and when
-//                              from the key, while the text around the block stays the author's
-//   references/CLAUDE.md       a symlink to AGENTS.md, so Claude Code loads the Router; written once
-//   .claude/settings.json      claudeMdExcludes for the clones' own CLAUDE.md and AGENTS.md
-//   .gitignore                 references/* and the two exceptions that keep the Router tracked
-//   .ai/agentic.config.json    an empty references key when the config has none
-//
-// Existing content stays: a list gains the entries it lacks at its end, and nothing is removed or
-// reordered. A settings file or a config that is not a JSON object is refused, not rewritten, and so
-// is an ignore file that ignores references/ itself and a Router with one marker and not the other,
-// or whose key fails the parser. --check writes nothing and exits 1 when any file would change.
+// `dw-sdlc references setup` sets a repository up to declare References: the five files its USAGE names,
+// each written only when it would change. Existing content stays: a list gains the entries it lacks at
+// its end, nothing is removed or reordered, and a file the step cannot read as it expects is refused.
 
 import { spawnSync } from "node:child_process"
 import { existsSync, lstatSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs"
@@ -23,6 +11,7 @@ import { CONFIG, isObject, readReferences } from "../references-key.ts"
 import { renderBlock, withBlock } from "../router-block.ts"
 
 const ROUTER = "references/AGENTS.md"
+/** A symlink to the Router, so Claude Code loads it. */
 const ROUTER_LINK = "references/CLAUDE.md"
 const SETTINGS = ".claude/settings.json"
 const IGNORE = ".gitignore"

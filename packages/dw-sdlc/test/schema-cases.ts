@@ -254,6 +254,48 @@ export const CASES: Case[] = [
     ]
   },
   {
+    name: "the agentic schema takes the file-size Ratchet's groups and the comment budget's options",
+    schema: AGENTIC_SCHEMA,
+    value: {
+      gate: {
+        checks: {
+          "file-size-ratchet": { groups: [{ name: "source", maxLines: 500, files: ["src/**/*.ts"] }] },
+          "comment-budget": { maxProseLines: 3, roots: ["src"] }
+        }
+      }
+    },
+    problems: []
+  },
+  {
+    name: "the agentic schema refuses a group without its files, with an unknown key or a limit below 1",
+    schema: AGENTIC_SCHEMA,
+    value: {
+      gate: {
+        checks: {
+          "file-size-ratchet": {
+            groups: [
+              { name: "Source", maxLines: 0, files: [] },
+              { name: "tests", maxLines: 2000, glob: "**/*.test.ts" }
+            ]
+          },
+          "comment-budget": { maxProseLines: 0, dirs: ["src"] }
+        }
+      }
+    },
+    problems: [
+      {
+        path: "gate.checks.file-size-ratchet.groups[0].name",
+        message: '"Source" does not match /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/'
+      },
+      { path: "gate.checks.file-size-ratchet.groups[0].maxLines", message: "0 is below the minimum 1" },
+      { path: "gate.checks.file-size-ratchet.groups[0].files", message: "has 0 items, needs at least 1" },
+      { path: "gate.checks.file-size-ratchet.groups[1]", message: 'missing required key "files"' },
+      { path: "gate.checks.file-size-ratchet.groups[1]", message: 'unknown key "glob"' },
+      { path: "gate.checks.comment-budget.maxProseLines", message: "0 is below the minimum 1" },
+      { path: "gate.checks.comment-budget", message: 'unknown key "dirs"' }
+    ]
+  },
+  {
     name: "the agentic schema refuses a Check set to neither a boolean nor an object",
     schema: AGENTIC_SCHEMA,
     value: { gate: { checks: { primitives: false, "agents-map": "yes" } } },
