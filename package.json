@@ -8,7 +8,7 @@
     "format": "oxfmt --check --disable-nested-config .",
     "format:fix": "oxfmt --disable-nested-config .",
     "typecheck": "tsc -p tsconfig.json",
-    "check": "pnpm lint && pnpm format && pnpm typecheck && pnpm references:setup --check && pnpm test",
+    "check": "dw-sdlc gate",
     "test": "node --test \"packages/*/test/**/*.test.ts\" \"plugins/*/test/**/*.test.ts\"",
     "agentic:check": "node plugins/guardrails/scripts/agentic-config.ts",
     "guardrails:setup": "node plugins/guardrails/scripts/guardrails-setup.ts",
@@ -19,6 +19,7 @@
   },
   "devDependencies": {
     "@types/node": "24.19.2",
+    "dw-sdlc": "workspace:*",
     "husky": "9.1.7",
     "lint-staged": "17.6.0",
     "oxfmt": "0.72.0",
