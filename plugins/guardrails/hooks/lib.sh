@@ -303,9 +303,7 @@ guard_config_infer() {
         commit: {convention: "conventional"},
         packageManagers: (if $node != "" then {node: $node} else {} end)
       }
-    + if ($check | type) == "string" then
-        {gate: {command: (if $node == "" or $node == "pnpm" then "pnpm check" else "\($node) run check" end)}}
-      else {} end'
+    + if ($check | type) == "string" then {gate: {command: "pnpm check"}} else {} end'
 }
 
 # guard_config_layer <root> <main> <file> — GUARD_LAYER_JSON becomes the document at <root>, else at

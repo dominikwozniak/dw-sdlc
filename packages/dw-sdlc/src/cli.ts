@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-// The `dw-sdlc` bin. One row per subcommand, each a module under `commands/` that exports its
-// summary and `run`, which takes the arguments after the subcommand's name and returns the exit code.
+// The `dw-sdlc` bin: one row per subcommand, each a module under `commands/`.
 
 import * as gate from "./commands/gate.ts"
 
-type Command = { summary: string; run: (argv: string[]) => number | Promise<number> }
+/** `run` takes the arguments after the subcommand's name and returns the exit code. */
+type Command = { summary: string; run: (argv: string[]) => number }
 
 const COMMANDS = new Map<string, Command>([["gate", gate]])
 
@@ -13,7 +13,7 @@ function usage(): string {
   return `Usage: dw-sdlc <command> [options]\n\nCommands:\n${rows.join("\n")}\n\nRun dw-sdlc <command> --help for its options.`
 }
 
-async function main(argv: string[]): Promise<number> {
+function main(argv: string[]): number {
   const [name, ...rest] = argv
   if (name === "--help" || name === "-h") {
     process.stdout.write(`${usage()}\n`)
@@ -29,5 +29,5 @@ async function main(argv: string[]): Promise<number> {
 }
 
 if (import.meta.main) {
-  process.exitCode = await main(process.argv.slice(2))
+  process.exitCode = main(process.argv.slice(2))
 }

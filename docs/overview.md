@@ -4,8 +4,8 @@ The repository holds the software delivery process Dominik works by and the Clau
 carries it: a plugin marketplace and the code behind it. Its first plugin, `guardrails`, is a set of
 deterministic hooks that stop an agent session from doing the damage a human would not: rewriting
 history, reading a secret, installing through the wrong package manager, committing sloppily. This
-page is the long version of the README: how a guard judges a call, where its rules come from, how the
-Gate runs, why the design is shaped this way, and how a plugin is adopted and released. Every guard in full is in the
+page is the long version of the README: how a guard judges a call, where its rules come from, how
+the Gate runs, why the design is shaped this way, and how a plugin is adopted and released. Every guard in full is in the
 [plugin README](../plugins/guardrails/README.md).
 
 ## How a guard judges a call
@@ -50,15 +50,14 @@ whole store account from any directory. It carries no other stack-specific guard
 
 ## How the Gate runs
 
-`pnpm check` is the Gate, the one command a change must pass in a terminal, in a commit hook, in CI
-and from an agent hook. Its script is `dw-sdlc gate`, the bin of the `dw-sdlc` package, which reads
-the `gate` key of the resolved config. The Steps under `gate.steps` run in order from the repository
-root through `sh -c`, each one's output passed through, and the first that fails ends the Gate. Then
-every Check under `gate.checks` runs, and a failed Check does not stop the next. A repository's own
-script joins as a Check through `gate.checks.run`, a `name` and a `command`; the package's named
-Checks come with later releases, and the schema refuses a name the package does not ship.
-`gate.command` is the command an agent or a person runs, inferred as `pnpm check` from the `check`
-script of `package.json` when no layer sets it.
+`pnpm check` is the Gate, the one command a change must pass, the same in a terminal and in CI. Its
+script is `dw-sdlc gate`, the bin of the `dw-sdlc` package, which reads the `gate` key of the
+resolved config. The Steps under `gate.steps` run in order from the repository root through `sh -c`,
+each one's output passed through, and the first that fails ends the Gate. Then every Check under
+`gate.checks` runs, and a failed Check does not stop the next. A repository's own script joins as a
+Check through `gate.checks.run`, a `name` and a `command`, and the schema refuses a Check name the
+package does not ship. `gate.command` is the command an agent or a person runs, inferred as
+`pnpm check` from the `check` script of `package.json` when no layer sets it.
 
 Every failure is one line naming the file where there is one, the rule and the remedy:
 

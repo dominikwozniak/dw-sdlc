@@ -66,7 +66,7 @@ export function scratch(prefix: string): string {
 }
 
 export function git(cwd: string, ...args: string[]): string {
-  const result = spawnSync("git", ["-C", cwd, ...args], { encoding: "utf8" })
+  const result = spawnSync("git", ["-C", cwd, ...args], { encoding: "utf8", env: scratchEnv({}) })
   if (result.status !== 0) {
     throw new Error(`git ${args.join(" ")} in ${cwd}: ${result.stderr}`)
   }

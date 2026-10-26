@@ -111,6 +111,6 @@ A repository adopting the plugin declares its rules in `.ai/agentic.config.json`
 git clone git@github.com:dominikwozniak/dw-sdlc.git
 cd dw-sdlc
 pnpm install
-pnpm check             # the Gate: lint, format, typecheck, the Router check, tests; the same as CI
+pnpm check             # the Gate, the gate.steps of .ai/agentic.config.json; the same as CI
 pnpm references:sync   # clone the reference repositories on this machine
 ```

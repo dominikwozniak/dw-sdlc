@@ -260,11 +260,11 @@ function hasCheckScript(root: string): boolean {
   return typeof scripts === "object" && scripts !== null && "check" in scripts && typeof scripts.check === "string"
 }
 
-/** The Gate with nothing declared: the `check` script under the lockfile's package manager, else no command. */
-function inferGate(root: string, node: NodePackageManager | undefined): Gate {
+/** The Gate with nothing declared: `pnpm check` where the manifest has a `check` script, else no command. */
+function inferGate(root: string): Gate {
   const gate: Gate = { steps: [], checks: { run: [] } }
   if (hasCheckScript(root)) {
-    gate.command = node === undefined || node === "pnpm" ? "pnpm check" : `${node} run check`
+    gate.command = "pnpm check"
   }
   return gate
 }
@@ -275,14 +275,13 @@ function inferGate(root: string, node: NodePackageManager | undefined): Gate {
  * `resolveConfig`, which fills it from the convention when no layer sets one.
  */
 export function inferConfig(root: string): Merged {
-  const packageManagers = inferPackageManagers(root)
   return {
     version: 1,
     baseBranch: "auto",
-    packageManagers,
+    packageManagers: inferPackageManagers(root),
     guardrails: cloneGuardrails(DEFAULT_GUARDRAILS),
     commit: { convention: "conventional" },
-    gate: inferGate(root, packageManagers.node),
+    gate: inferGate(root),
     worktree: { setup: [] }
   }
 }

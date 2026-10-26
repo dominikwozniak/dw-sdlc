@@ -164,7 +164,7 @@ export const CASES: Case[] = [
     problems: []
   },
   {
-    name: "the agentic schema tolerates the validation key the gate key replaced",
+    name: "the agentic schema tolerates a validation key as an unknown top-level key",
     schema: AGENTIC_SCHEMA,
     value: { version: 1, validation: { commands: ["pnpm check"] } },
     problems: []

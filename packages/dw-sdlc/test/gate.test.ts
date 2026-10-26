@@ -117,7 +117,7 @@ describe("dw-sdlc gate, the config", () => {
     assert.deepEqual(lines(run.stdout), [UNKNOWN_CHECK_LINE, "gate: cannot run — 1 failure"])
   })
 
-  it("passes with nothing to run, a config still carrying validation included", () => {
+  it("passes with nothing to run, on a config with a validation key it does not know", () => {
     const root = repo({ files: { [CONFIG]: { version: 1, validation: { commands: ["pnpm check"] } } } })
     const run = runBin(["gate"], root)
     assert.equal(run.status, 0, run.stdout)
@@ -180,13 +180,30 @@ describe("dw-sdlc gate under GitHub Actions", () => {
     ])
   })
 
-  it("annotates a failure that has no file without one, and keeps stdout one document under --json", () => {
-    const root = withGate({ steps: ["exit 3"] })
-    const annotation = '::error title=step::"exit 3" exited 3 — fix what it printed above'
-    assert.ok(lines(runBin(["gate"], root, ACTIONS).stdout).includes(annotation))
-    const json = runBin(["gate", "--json"], root, ACTIONS)
-    assert.equal(JSON.parse(json.stdout).status, "fail")
-    assert.ok(lines(json.stderr).includes(annotation))
+  it("annotates each failure right after its line, without a file where it has none", () => {
+    const root = withGate({
+      checks: {
+        run: [
+          { name: "first", command: "exit 1" },
+          { name: "second", command: "exit 2" }
+        ]
+      }
+    })
+    const run = runBin(["gate"], root, ACTIONS)
+    assert.equal(run.status, 1)
+    assert.deepEqual(lines(run.stdout).slice(-5), [
+      'first: "exit 1" exited 1 — fix what it printed above',
+      '::error title=first::"exit 1" exited 1 — fix what it printed above',
+      'second: "exit 2" exited 2 — fix what it printed above',
+      '::error title=second::"exit 2" exited 2 — fix what it printed above',
+      "gate: failed — 2 failures"
+    ])
+  })
+
+  it("keeps stdout one document under --json and prints the annotations on stderr", () => {
+    const run = runBin(["gate", "--json"], withGate({ steps: ["exit 3"] }), ACTIONS)
+    assert.equal(JSON.parse(run.stdout).status, "fail")
+    assert.ok(lines(run.stderr).includes('::error title=step::"exit 3" exited 3 — fix what it printed above'))
   })
 
   it("prints no annotation outside GitHub Actions", () => {

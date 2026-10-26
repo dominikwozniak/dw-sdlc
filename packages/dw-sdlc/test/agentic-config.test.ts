@@ -71,17 +71,11 @@ describe("inference, with no config file", () => {
     assert.equal(config.commit.convention, "conventional")
   })
 
-  it("infers the Gate command from the manifest's check script, under the lockfile's package manager", () => {
+  it("infers the Gate command as pnpm check from the manifest's check script, and none without one", () => {
     const check = JSON.stringify({ scripts: { check: "dw-sdlc gate" } })
-    const table: [Record<string, string>, string][] = [
-      [{ "package.json": check }, "pnpm check"],
-      [{ "package.json": check, "pnpm-lock.yaml": "" }, "pnpm check"],
-      [{ "package.json": check, "package-lock.json": "" }, "npm run check"],
-      [{ "package.json": check, "yarn.lock": "" }, "yarn run check"],
-      [{ "package.json": check, "bun.lock": "" }, "bun run check"]
-    ]
-    for (const [files, command] of table) {
-      assert.deepEqual(resolveConfig(repo({ files })).config.gate, { command, steps: [], checks: { run: [] } })
+    for (const files of [{ "package.json": check }, { "package.json": check, "pnpm-lock.yaml": "" }]) {
+      const { config } = resolveConfig(repo({ files }))
+      assert.deepEqual(config.gate, { command: "pnpm check", steps: [], checks: { run: [] } })
     }
     for (const manifest of ["{}", JSON.stringify({ scripts: { lint: "x" } }), "[]", "{ not json"]) {
       const { config } = resolveConfig(repo({ files: { "package.json": manifest } }))
@@ -437,7 +431,7 @@ describe("validateDocument", () => {
     assert.ok("value" in result, JSON.stringify(result))
   })
 
-  it("tolerates the validation key the gate key replaced, as a top-level key it does not know", () => {
+  it("tolerates a validation key as a top-level key it does not know", () => {
     const result = validateDocument(
       COMMITTED_FILE,
       JSON.stringify({ version: 1, validation: { commands: ["pnpm check"] } })

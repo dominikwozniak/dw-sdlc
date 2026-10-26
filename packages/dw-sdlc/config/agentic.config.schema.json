@@ -105,16 +105,16 @@
       "additionalProperties": false
     },
     "gate": {
-      "description": "The Gate `dw-sdlc gate` runs: the steps of `steps` in order, then every Check under `checks`. Exit 0 when everything passes, 1 when a step or a Check fails, 2 when the Gate cannot run.",
+      "description": "The Gate `dw-sdlc gate` runs: the Steps under `steps` in order, then every Check under `checks`.",
       "type": "object",
       "properties": {
         "command": {
-          "description": "The one command that runs the Gate in a terminal, a commit hook, CI and an agent hook. Inferred from the `check` script of `package.json`: `pnpm check`, or `<manager> run check` where the lockfile names another Node package manager.",
+          "description": "The one command that runs the Gate, the same in a terminal and in CI. Inferred as `pnpm check` where `package.json` has a `check` script.",
           "type": "string",
           "minLength": 1
         },
         "steps": {
-          "description": "Toolchain commands run in order from the repository root through `sh -c`, each one's output passed through; the first that fails ends the Gate and no Check runs. A command the shell cannot find (exit 127) or execute (126) means the Gate cannot run.",
+          "description": "The Steps: toolchain commands run in order from the repository root through `sh -c`, each one's output passed through; the first that fails ends the Gate and no Check runs. A command the shell cannot find (exit 127) or execute (126) means the Gate cannot run.",
           "type": "array",
           "items": {
             "type": "string",
@@ -126,13 +126,13 @@
           "type": "object",
           "properties": {
             "run": {
-              "description": "The repository's own scripts, each run like a step and reported as a Check under its `name`: exit 0 passes, 127 or 126 means the Gate cannot run, any other code fails.",
+              "description": "The repository's own scripts, each run like a Step and reported as a Check under its `name`: exit 0 passes, 127 or 126 means the Gate cannot run, any other code fails.",
               "type": "array",
               "items": {
                 "type": "object",
                 "properties": {
                   "name": {
-                    "description": "The rule a failure line names: lowercase words joined by hyphens.",
+                    "description": "The Check's name, which each of its failure lines carries: lowercase words joined by hyphens.",
                     "type": "string",
                     "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$"
                   },

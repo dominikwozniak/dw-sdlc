@@ -71,7 +71,7 @@ describe("hooks/lib.sh agrees with resolveConfig", () => {
         })
     ],
     [
-      "on a Gate command inferred from the check script under the lockfile's package manager",
+      "on a Gate command inferred from the check script beside another package manager's lockfile",
       () =>
         repo({
           files: { "package.json": JSON.stringify({ scripts: { check: "dw-sdlc gate" } }), "yarn.lock": "" }
@@ -97,7 +97,7 @@ describe("hooks/lib.sh agrees with resolveConfig", () => {
         })
     ],
     [
-      "on the validation key the gate key replaced, tolerated as unknown",
+      "on a validation key, tolerated as an unknown top-level key",
       () => repo({ files: { [COMMITTED_FILE]: { validation: { commands: ["pnpm check"] } } } })
     ],
     [

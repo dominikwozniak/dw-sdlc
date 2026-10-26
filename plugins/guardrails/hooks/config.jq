@@ -2,9 +2,9 @@
 # tighten rule, the same messages. That file is the reference; the tests run both.
 #
 # `resolve($inferred; $committed; $local)` takes the inferred layer (commit.convention, packageManagers,
-# gate.command where the manifest has a check script), the committed and local documents (null when absent or invalid) and returns {config, problems},
-# where problems are the local loosenings. The caller puts guardrails on `strictest` when any layer
-# had a problem.
+# gate.command where the manifest has a check script), the committed and local documents (null when
+# absent or invalid) and returns {config, problems}, where problems are the local loosenings. The
+# caller puts guardrails on `strictest` when any layer had a problem.
 
 def local_file: ".ai/agentic.config.local.json";
 

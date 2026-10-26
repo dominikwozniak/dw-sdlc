@@ -85,7 +85,7 @@ is its long form: how a guard works, why the design, adopting and releasing.
 
 ```bash
 pnpm check                      # dw-sdlc gate: the gate.steps of .ai/agentic.config.json in order; = CI
-pnpm exec dw-sdlc gate [--json] # the Gate itself; exit 0 green, 1 a step or Check failed, 2 cannot run
+pnpm exec dw-sdlc gate [--json] # the Gate itself; exit 0 green, 1 a Step or Check failed, 2 cannot run
 pnpm lint | lint:fix            # oxlint — check / --fix
 pnpm format | format:fix        # oxfmt — check / write
 pnpm typecheck                  # tsc, no emit

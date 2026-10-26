@@ -1,7 +1,4 @@
-// `dw-sdlc gate`: the Gate of a repository. The commands of `gate.steps` run in order from the
-// repository root, each one's output passed through, and the first that fails ends the run; then every
-// Check under `gate.checks` runs, none stopping the next. The report is one line per failure, or with
-// `--json` one document on stdout while the commands' own output goes to stderr.
+// `dw-sdlc gate`: the Gate of a repository, from the `gate` key of its resolved agentic config.
 
 import { spawnSync } from "node:child_process"
 import { parseArgs } from "node:util"
@@ -9,18 +6,18 @@ import { parseArgs } from "node:util"
 import { type Problem, repositoryRoot, resolveConfig } from "../agentic-config.ts"
 import { annotation, type Failure, failureJson, failureLine } from "../report.ts"
 
-export const summary = "run the Gate: gate.steps in order, then every Check under gate.checks"
+export const summary = "run the Gate: the Steps of gate.steps in order, then every Check under gate.checks"
 
 const USAGE = `Usage: dw-sdlc gate [--json] [--root <dir>]
 
-Runs the Gate of the repository holding --root (default: the current directory): each command of
-gate.steps in order from the repository root, stopping at the first that fails, then every Check
-under gate.checks. Prints one line per failure: the file where there is one, the rule, the remedy;
-under GitHub Actions also a workflow annotation. --json prints one document instead and sends the
-commands' own output to stderr.
+Runs the Gate of the repository holding --root (default: the current directory): each Step of
+gate.steps in order from the repository root, its output passed through, stopping at the first that
+fails; then every Check under gate.checks, none stopping the next. Prints one line per failure: the
+file where there is one, the rule, the remedy; under GitHub Actions each line is also a workflow
+annotation. --json prints one document instead and sends the commands' own output to stderr.
 
-Exit 0 when everything passes, 1 when a step or a Check fails, 2 when the Gate cannot run: an
-invalid config layer, or a step or Check whose command the shell cannot find or execute.`
+Exit 0 when everything passes, 1 when a Step or a Check fails, 2 when the Gate cannot run: an
+invalid config layer, or a Step or Check whose command the shell cannot find or execute.`
 
 type Status = "pass" | "fail" | "error"
 type Outcome = { status: Status | "skipped"; exitCode: number | null }
@@ -40,14 +37,10 @@ const NOT_RUNNABLE: Record<number, string> = { 127: "was not found", 126: "could
 const SKIPPED: Outcome = { status: "skipped", exitCode: null }
 
 const REMEDIES = {
-  config: "fix the file; the Gate runs once every layer is valid",
+  invalidLayer: "fix the file; the Gate runs once every layer is valid",
   failed: "fix what it printed above",
-  steps: "install the command or fix gate.steps in the agentic config",
-  run: "install the command or fix gate.checks.run in the agentic config"
-}
-
-function show(value: string): string {
-  return JSON.stringify(value)
+  stepNotRunnable: "install the command or fix gate.steps in the agentic config",
+  checkNotRunnable: "install the command or fix gate.checks.run in the agentic config"
 }
 
 function plural(count: number, noun: string): string {
@@ -69,7 +62,8 @@ function parseCli(argv: string[]): Cli | { error: string } {
 }
 
 function configFailure({ file, path, message }: Problem): Failure {
-  return { file, rule: "config", message: path === "" ? message : `${path}: ${message}`, remedy: REMEDIES.config }
+  const where = path === "" ? message : `${path}: ${message}`
+  return { file, rule: "config", message: where, remedy: REMEDIES.invalidLayer }
 }
 
 /**
@@ -94,7 +88,6 @@ function runCommand(command: string, root: string, json: boolean): Outcome & { d
   return { status: "fail", exitCode: result.status, detail: `exited ${result.status}` }
 }
 
-/** `error` when anything could not run, else `fail` when anything failed, else `pass`. */
 function worst(outcomes: Outcome[]): Status {
   const statuses = new Set(outcomes.map(({ status }) => status))
   return statuses.has("error") ? "error" : statuses.has("fail") ? "fail" : "pass"
@@ -103,12 +96,22 @@ function worst(outcomes: Outcome[]): Status {
 function runGate(root: string, json: boolean): GateReport {
   const log = json ? process.stderr : process.stdout
   const { config, problems } = resolveConfig(root)
-  const command = config.gate.command ?? null
+  const gateCommand = config.gate.command ?? null
   if (problems.length > 0) {
-    return { status: "error", command, steps: [], checks: [], failures: problems.map(configFailure) }
+    return { status: "error", command: gateCommand, steps: [], checks: [], failures: problems.map(configFailure) }
   }
 
   const failures: Failure[] = []
+  /** Runs one Step or Check and records its failure under `rule`, if it has one. */
+  const runOne = (command: string, rule: string, notRunnable: string): Outcome => {
+    const { detail, ...outcome } = runCommand(command, root, json)
+    if (detail !== undefined) {
+      const remedy = outcome.status === "error" ? notRunnable : REMEDIES.failed
+      failures.push({ rule, message: `${JSON.stringify(command)} ${detail}`, remedy })
+    }
+    return outcome
+  }
+
   const steps: StepReport[] = []
   let stopped = false
   for (const step of config.gate.steps) {
@@ -117,13 +120,9 @@ function runGate(root: string, json: boolean): GateReport {
       continue
     }
     log.write(`gate: step ${step}\n`)
-    const { detail, ...outcome } = runCommand(step, root, json)
+    const outcome = runOne(step, "step", REMEDIES.stepNotRunnable)
     steps.push({ command: step, ...outcome })
-    if (detail !== undefined) {
-      const remedy = outcome.status === "error" ? REMEDIES.steps : REMEDIES.failed
-      failures.push({ rule: "step", message: `${show(step)} ${detail}`, remedy })
-      stopped = true
-    }
+    stopped = outcome.status !== "pass"
   }
 
   const checks: CheckReport[] = []
@@ -133,15 +132,10 @@ function runGate(root: string, json: boolean): GateReport {
       continue
     }
     log.write(`gate: check ${check.name}\n`)
-    const { detail, ...outcome } = runCommand(check.command, root, json)
-    checks.push({ ...check, ...outcome })
-    if (detail !== undefined) {
-      const remedy = outcome.status === "error" ? REMEDIES.run : REMEDIES.failed
-      failures.push({ rule: check.name, message: `${show(check.command)} ${detail}`, remedy })
-    }
+    checks.push({ ...check, ...runOne(check.command, check.name, REMEDIES.checkNotRunnable) })
   }
 
-  return { status: worst([...steps, ...checks]), command, steps, checks, failures }
+  return { status: worst([...steps, ...checks]), command: gateCommand, steps, checks, failures }
 }
 
 function verdict(report: GateReport): string {
@@ -164,17 +158,19 @@ export function run(argv: string[]): number {
   }
 
   const report = runGate(repositoryRoot(cli.root ?? process.cwd()), cli.json)
-  const annotations = process.env.GITHUB_ACTIONS === "true" ? report.failures.map(annotation) : []
+  const actions = process.env.GITHUB_ACTIONS === "true"
   if (cli.json) {
     const document = { ...report, failures: report.failures.map(failureJson) }
     process.stdout.write(`${JSON.stringify(document, null, 2)}\n`)
     // The runner reads workflow commands from stderr as from stdout, so stdout stays one document.
-    for (const line of annotations) {
-      process.stderr.write(`${line}\n`)
+    for (const failure of actions ? report.failures : []) {
+      process.stderr.write(`${annotation(failure)}\n`)
     }
   } else {
-    const lines = [...report.failures.map(failureLine), ...annotations, verdict(report)]
-    process.stdout.write(`${lines.join("\n")}\n`)
+    const lines = report.failures.flatMap((failure) =>
+      actions ? [failureLine(failure), annotation(failure)] : [failureLine(failure)]
+    )
+    process.stdout.write(`${[...lines, verdict(report)].join("\n")}\n`)
   }
   return EXIT_CODES[report.status]
 }
