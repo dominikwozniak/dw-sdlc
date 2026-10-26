@@ -1,5 +1,9 @@
 node_modules/
 
+# What tsc emits for the published package; `pnpm pack` builds it. Unanchored, so the plugin's link
+# to the package hides it too.
+dist/
+
 # husky writes the wrappers git runs; the hooks themselves are tracked.
 .husky/_/
 

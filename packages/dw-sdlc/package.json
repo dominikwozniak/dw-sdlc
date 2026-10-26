@@ -1,12 +1,41 @@
 {
   "name": "dw-sdlc",
   "version": "0.0.0",
-  "private": true,
   "description": "The Gate and the agentic config of a repository: the dw-sdlc bin with the Gate, the setup, the doctor, the config check, and the Sync and setup of References; the resolver of the config's layers, its JSON Schema and the validator that reads it.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dominikwozniak/dw-sdlc.git",
+    "directory": "packages/dw-sdlc"
+  },
   "bin": {
     "dw-sdlc": "src/cli.ts"
   },
+  "files": [
+    "dist",
+    "config",
+    "templates"
+  ],
   "type": "module",
+  "exports": {
+    ".": "./src/agentic-config.ts",
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "bin": {
+      "dw-sdlc": "dist/cli.js"
+    },
+    "exports": {
+      ".": {
+        "types": "./dist/agentic-config.d.ts",
+        "default": "./dist/agentic-config.js"
+      },
+      "./package.json": "./package.json"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "prepack": "pnpm build"
+  },
   "engines": {
     "node": ">=24"
   }

@@ -10,7 +10,7 @@ import { after } from "node:test"
 
 /** The checkout of dw-sdlc holding this package. */
 export const REPO_ROOT = join(import.meta.dirname, "..", "..", "..")
-const PACKAGE_ROOT = join(import.meta.dirname, "..")
+export const PACKAGE_ROOT = join(import.meta.dirname, "..")
 
 /** The file the manifest's `bin` names for `dw-sdlc`, so a test runs what an install links. */
 function binPath(): string {
@@ -43,13 +43,18 @@ function scratchEnv(over: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   return { ...Object.fromEntries(kept), GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1", ...over }
 }
 
-/** Runs `dw-sdlc <args>` from `cwd` under `scratchEnv()`, `env` over it. */
-export function runBin(args: string[], cwd: string, env: NodeJS.ProcessEnv = {}): Run {
-  const result = spawnSync(process.execPath, [BIN, ...args], { cwd, env: scratchEnv(env), encoding: "utf8" })
+/** Runs `command <args>` from `cwd` under `scratchEnv()`, `env` over it. */
+export function run(command: string, args: string[], cwd: string, env: NodeJS.ProcessEnv = {}): Run {
+  const result = spawnSync(command, args, { cwd, env: scratchEnv(env), encoding: "utf8" })
   if (result.error !== undefined) {
     throw result.error
   }
   return { status: result.status ?? -1, stdout: result.stdout, stderr: result.stderr }
+}
+
+/** Runs `dw-sdlc <args>` from `cwd` under `scratchEnv()`, `env` over it. */
+export function runBin(args: string[], cwd: string, env: NodeJS.ProcessEnv = {}): Run {
+  return run(process.execPath, [BIN, ...args], cwd, env)
 }
 
 const made: string[] = []

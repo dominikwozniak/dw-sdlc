@@ -1,5 +1,6 @@
 {
   "include": ["packages", "plugins"],
+  "exclude": ["**/node_modules", "**/dist"],
   "compilerOptions": {
     "target": "ES2024",
     "module": "NodeNext",
