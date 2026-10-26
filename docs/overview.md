@@ -186,8 +186,8 @@ Installs from a clone see the change in the next session without a bump.
 The `dw-sdlc` package goes to npm as JavaScript. Its source is TypeScript, and Node refuses to strip
 types from a file under `node_modules`, so `pnpm pack` runs the package's `prepack`: `tsc` emits
 `dist/` from `packages/dw-sdlc/tsconfig.build.json`. The manifest's `bin` and `exports` name the
-source, which this repository runs through its workspace link; their twins under `publishConfig` name
-`dist/`, and pnpm writes those into the packed manifest. `files` ships `dist/` and `config/`, where
+source, so this repository's workspace link runs it as written; their twins under `publishConfig`
+name `dist/`, and pnpm writes those into the packed manifest. `files` ships `dist/` and `config/`, where
 the schema lives, and the package has no runtime dependency. `test/pack.test.ts` packs it, installs
 the tarball into a throwaway repository and runs `dw-sdlc gate` from that repository's `node_modules`.
 
@@ -203,18 +203,20 @@ picks one of two modes:
   makes true: one job runs `pnpm check` and packs the tarball with no secret in reach; the next
   publishes it, pushes the `dw-sdlc@x.y.z` tag and creates the GitHub release.
 
-Merging the version pull request is the decision to release. The publish job authenticates through
-npm's trusted publishing first, from its `id-token: write`, and falls back to the `NPM_TOKEN`
-repository secret. A trusted publisher is set in the settings of a package that already exists on
-npm, so the first version goes out on the secret: a granular access token with read and write access
-to packages, the bypass-2FA option on, and the shortest expiry that covers the release. npm stops
-bypass-2FA tokens from publishing directly around January 2027. Once the package exists, its npm
-settings name `dominikwozniak/dw-sdlc` and `release.yaml` as the trusted publisher, and the secret is
-deleted.
+Merging the version pull request is the decision to release. The publish job signs in to npm by
+trusted publishing, from its `id-token: write`, when the package's npm settings name
+`dominikwozniak/dw-sdlc` and `release.yaml` as its trusted publisher; otherwise it signs in with the
+`NPM_TOKEN` repository secret. npm sets a trusted publisher only on a package that exists, so a
+version published before one is set needs the secret: a granular access token with read and write
+access to packages, the bypass-2FA option on, and the shortest expiry that covers the release. What
+npm lets such a token do, and until when, is in the
+[research notes](research/gate/toolchain.md#npm-publishing).
 
 Every publish carries a provenance attestation (`PNPM_CONFIG_PROVENANCE=true`), and npm attests only
 a build from a public repository, so a publish from a private one fails rather than ship without
 it. A consumer on `trustPolicy: no-downgrade` refuses a version that carries less trust evidence
-than an earlier one, so once a version is out through trusted publishing, no later one goes out on
-a token. A consumer takes a release through Dependabot after the seven days of `minimumReleaseAge`,
-as [ADR 0008](adr/0008-gate-runs-from-a-pinned-package-plugin-adapts.md) records.
+than an earlier one, so the secret is deleted once trusted publishing works: a run that fell back to
+it would publish a version those consumers refuse. A consumer takes a release through Dependabot
+after the seven days of `minimumReleaseAge`; one that cannot wait names `dw-sdlc` in
+`minimumReleaseAgeExclude` under its own rule for exclusions, as
+[ADR 0008](adr/0008-gate-runs-from-a-pinned-package-plugin-adapts.md) records.

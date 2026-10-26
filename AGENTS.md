@@ -65,7 +65,8 @@ is its long form: how a guard works, why the design, adopting and releasing.
 
 - **pnpm only**, pinned in `package.json` — never `npm`, `npx`, `yarn` or `bun`; one-off tools via
   `pnpm dlx`. Dependencies are pinned exactly; `pnpm-workspace.yaml` refuses versions younger than 7 days.
-- **TypeScript runs natively on Node 24** — `node packages/dw-sdlc/src/cli.ts <command>`, no build step.
+- **TypeScript runs natively on Node 24** — `node packages/dw-sdlc/src/cli.ts <command>`, no build
+  step; only `pnpm pack` runs tsc, for the JavaScript the package ships to npm.
   Erasable syntax only (no `enum`, `namespace` or parameter properties), and relative imports keep
   the `.ts` extension.
 - **Formatting and import order belong to oxfmt.** The pre-commit hook runs oxlint `--fix` and oxfmt on

@@ -1,7 +1,7 @@
 node_modules/
 
-# What tsc emits for the published package; `pnpm pack` builds it. Unanchored, so the plugin's link
-# to the package hides it too.
+# What tsc emits for the published package; `pnpm pack` builds it. Unanchored, because oxlint walks
+# the plugin's link to the package and reads this file to skip it there too.
 dist/
 
 # husky writes the wrappers git runs; the hooks themselves are tracked.
