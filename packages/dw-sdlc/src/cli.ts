@@ -2,6 +2,7 @@
 // The `dw-sdlc` bin: one row per subcommand, each a module under `commands/`. A plugin's hook or skill
 // reaches it through the plugin's `dw-sdlc` link.
 
+import * as check from "./commands/check.ts"
 import * as config from "./commands/config.ts"
 import * as doctor from "./commands/doctor.ts"
 import * as gate from "./commands/gate.ts"
@@ -15,6 +16,7 @@ type Command = { summary: string; run: (argv: string[]) => number | Promise<numb
 
 const COMMANDS = new Map<string, Command>([
   ["gate", gate],
+  ["check", check],
   ["primitives", primitives],
   ["setup", setup],
   ["doctor", doctor],
