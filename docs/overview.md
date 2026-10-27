@@ -1,12 +1,13 @@
 # How dw-sdlc works
 
 The repository holds the software delivery process Dominik works by and the Claude Code tooling that
-carries it: a plugin marketplace and the code behind it. Its first plugin, `guardrails`, is a set of
+carries it: a plugin marketplace and the code behind it. Its one plugin, `sdlc`, carries a set of
 deterministic hooks that stop an agent session from doing the damage a human would not: rewriting
-history, reading a secret, installing through the wrong package manager, committing sloppily. This
-page is the long version of the README: how a guard judges a call, where its rules come from, how
-the Gate runs, why the design is shaped this way, and how a plugin is adopted and released. Every guard in full is in the
-[plugin README](../plugins/guardrails/README.md).
+history, reading a secret, installing through the wrong package manager, committing sloppily. Beside
+them it carries the Sync of a repository's References and the skills that set a repository up and
+check a machine. This page is the long version of the README: how a guard judges a call, where its
+rules come from, how the Gate runs, why the design is shaped this way, and how the plugin is adopted
+and released. Every guard in full is in the [plugin README](../plugins/sdlc/README.md).
 
 ## How a guard judges a call
 
@@ -136,6 +137,9 @@ Each choice below is a one-paragraph decision record in `adr/`.
 
 - **One plugin, not hooks copied into every repository.** Copies drift; a plugin gives one shared
   library and one line to enable. [ADR 0001](adr/0001-guards-ship-from-this-marketplace.md)
+- **The guards, the Sync and the skills are that one plugin.** One `enabledPlugins` line and one
+  version cover a machine, and a machine takes every part or none.
+  [ADR 0010](adr/0010-one-sdlc-plugin-carries-guards-sync-and-gate.md)
 - **Policy is a validated config file, not prose.** A hook parsing a markdown rule is fragile; a JSON
   file against a schema is checked before it is trusted.
   [ADR 0002](adr/0002-agent-rules-are-a-validated-config-file.md)
@@ -183,20 +187,20 @@ key and its inferred value is described in the
 [schema](../packages/dw-sdlc/config/agentic.config.schema.json). The `$schema` URL is an annotation
 for editors; the guards always validate against the schema the plugin ships.
 
-The `/sdlc-guardrails-setup` skill then writes this machine's local config layer from what it infers,
+The `/sdlc-setup` skill then writes this machine's local config layer from what it infers,
 plus the commit convention when asked for one, excludes it from git, and adds a permission backstop
 to `.claude/settings.local.json` plus the lease-push exception to `~/.claude/settings.json`. It shows
 a dry run first, writes only what would change, and ends with the doctor: one PASS / WARN / FAIL line
-per machine check. The doctor needs only Node 24 and runs from the installed plugin: in a terminal,
-`node <plugin root>/dw-sdlc/src/cli.ts doctor` from the repository.
+per machine check. The doctor needs only Node 24 and runs from the installed plugin: `/sdlc-doctor`
+in a session, or `node <plugin root>/dw-sdlc/src/cli.ts doctor` from the repository in a terminal.
 
 ## From GitHub or from a clone
 
 Added from GitHub with `--sparse .claude-plugin plugins packages`, the plugin is a snapshot of `main`
-that `claude plugin update` refreshes, and the clone holds only the catalogue, the plugins and the
-`dw-sdlc` package. Each plugin reaches the package through its `dw-sdlc` link, which
+that `claude plugin update` refreshes, and the clone holds only the catalogue, the plugin and the
+`dw-sdlc` package. The plugin reaches the package through its `dw-sdlc` link, which
 `claude plugin install` copies as a real directory, so a hook and a skill run the package's
-`dw-sdlc` bin. A clone without `packages` installs the plugins without it: the guards then drop
+`dw-sdlc` bin. A clone without `packages` installs the plugin without it: the guards then drop
 every config layer and run strictest, and no command of the package starts. Added from a clone with
 `claude plugin marketplace add ./`, it runs live from that checkout, a broken edit included.
 The daily install is the GitHub one; a guard is developed through `pnpm test`, which runs every hook on
@@ -209,12 +213,16 @@ a real payload.
 push comes from Dominik's own terminal: the guards judge only the agent's tool calls. GitHub branch
 protection is not available on this private repository, so the guard is the only check.
 
-## Releasing a plugin
+## Releasing the plugin
 
-`plugins/<name>/.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json` carry one version
-for a plugin, and `claude plugin update` refreshes an installed copy by that version only. A change
-ships when both files are bumped in one `chore: release <name> x.y.z` commit that lands on `main`.
-Installs from a clone see the change in the next session without a bump.
+`plugins/sdlc/.claude-plugin/plugin.json` and its entry in `.claude-plugin/marketplace.json` carry
+one version, and `claude plugin update` refreshes an installed copy by that version only. A change
+to any part of the plugin ships when both files are bumped in one `chore: release sdlc x.y.z` commit
+that lands on `main`. Installs from a clone see the change in the next session without a bump.
+
+The plugin's version is its own, apart from the package's: a release of one never bumps the other.
+Where the two meet, the doctor's `package` line names a drift between the `dw-sdlc` the plugin links
+and the one a repository pins.
 
 ## Releasing the package
 

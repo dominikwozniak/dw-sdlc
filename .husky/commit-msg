@@ -1,1 +1,1 @@
-bash plugins/guardrails/hooks/commit-msg.sh "$1"
+bash plugins/sdlc/hooks/commit-msg.sh "$1"

@@ -1,6 +1,6 @@
-// `dw-sdlc doctor`: one PASS / WARN / FAIL line per machine check the guardrails rely on, for the
+// `dw-sdlc doctor`: one PASS / WARN / FAIL line per machine check the sdlc plugin relies on, for the
 // repository holding --root and the user's home; it installs nothing. FAIL is a guard that does not guard
-// (no jq, plugin absent or disabled, an invalid config), WARN a layer missing or loose, INFO one that does not apply.
+// (no jq, plugin absent or disabled, an invalid config), WARN a layer missing, loose or out of step, INFO one that does not apply.
 
 import { spawnSync } from "node:child_process"
 import { existsSync, readFileSync } from "node:fs"
@@ -9,6 +9,7 @@ import { join } from "node:path"
 import { parseArgs } from "node:util"
 
 import { findRepository, resolveConfig } from "../agentic-config.ts"
+import { EXACT_VERSION, parseCatalog, parsePins } from "../pins.ts"
 
 export type Level = "PASS" | "WARN" | "FAIL" | "INFO"
 export type Check = { name: string; level: Level; detail: string }
@@ -45,9 +46,11 @@ export function claudeConfigDir(env: Record<string, string | undefined>, home: s
   return env.CLAUDE_CONFIG_DIR ?? join(home, ".claude")
 }
 
-/** The marketplace Claude Code registers this repository under, and the plugin id inside it. */
+/** The marketplace Claude Code registers this repository under, the plugin in it, and the package the plugin links to. */
 export const MARKETPLACE = "dw-sdlc"
-export const PLUGIN_ID = `guardrails@${MARKETPLACE}`
+export const PLUGIN = "sdlc"
+export const PLUGIN_ID = `${PLUGIN}@${MARKETPLACE}`
+export const PACKAGE = "dw-sdlc"
 /** rtk find passes -exec through verbatim from this release; before it, `rtk find … -exec` exits 1. */
 export const RTK_FIND_EXEC_FIXED = "0.46.0"
 export const PNPM_MINIMUM_RELEASE_AGE = 10080
@@ -103,7 +106,7 @@ function liveCheckout(probe: Probe, claude: string): string | undefined {
 function pluginOrigin(probe: Probe, claude: string, installPath: string): string {
   const checkout = liveCheckout(probe, claude)
   if (checkout !== undefined) {
-    return `runs live from ${checkout}/plugins/guardrails; a change there is in the next session`
+    return `runs live from ${checkout}/plugins/${PLUGIN}; a change there is in the next session`
   }
   return `installed at ${installPath}; a change reaches it through claude plugin update`
 }
@@ -112,7 +115,7 @@ function pluginOrigin(probe: Probe, claude: string, installPath: string): string
 function runningPluginRoot(probe: Probe, claude: string): string | undefined {
   const checkout = liveCheckout(probe, claude)
   if (checkout !== undefined) {
-    return join(checkout, "plugins", "guardrails")
+    return join(checkout, "plugins", PLUGIN)
   }
   const { status, stdout } = probe.run("claude", ["plugin", "list", "--json"])
   const list: unknown = status === 0 ? parseJson(stdout) : undefined
@@ -150,6 +153,58 @@ function checkPlugin(probe: Probe, claude: string): Check {
     level: "PASS",
     detail: `${version} enabled; ${pluginOrigin(probe, claude, String(entry.installPath ?? ""))}`
   }
+}
+
+/** The `version` of the package.json in `dir`, or undefined when there is none. */
+function manifestVersion(probe: Probe, dir: string): string | undefined {
+  const manifest = parseJson(probe.read(join(dir, "package.json")))
+  return isObject(manifest) && typeof manifest.version === "string" ? manifest.version : undefined
+}
+
+/** Whether the plugin's hooks and skills run the dw-sdlc the repository pins, the one its Gate runs. */
+function checkPackage(probe: Probe, claude: string, root: string | undefined): Check {
+  const name = "package"
+  const manifest = root === undefined ? undefined : probe.read(join(root, "package.json"))
+  if (root === undefined || manifest === undefined) {
+    return { name, level: "INFO", detail: `no package.json here to pin ${PACKAGE}` }
+  }
+  let spec: string | undefined
+  try {
+    spec = parsePins(manifest, parseCatalog(probe.read(join(root, "pnpm-workspace.yaml")) ?? ""))[PACKAGE]
+  } catch {
+    return { name, level: "INFO", detail: `${join(root, "package.json")} is not JSON` }
+  }
+  if (spec === undefined) {
+    return { name, level: "INFO", detail: `the repository does not pin ${PACKAGE}` }
+  }
+  // `workspace:` or a range names no one version: the copy installed under node_modules is the one that runs.
+  const pinned = EXACT_VERSION.test(spec) ? spec : manifestVersion(probe, join(root, "node_modules", PACKAGE))
+  if (pinned === undefined) {
+    return { name, level: "WARN", detail: `the repository pins ${PACKAGE} ${spec}, not installed: pnpm install` }
+  }
+  const plugin = runningPluginRoot(probe, claude)
+  if (plugin === undefined) {
+    return { name, level: "INFO", detail: `no ${PLUGIN_ID} runs here to compare with the pinned ${pinned}` }
+  }
+  const linked = manifestVersion(probe, join(plugin, PACKAGE))
+  if (linked === undefined) {
+    return {
+      name,
+      level: "WARN",
+      detail: `the plugin at ${plugin} carries no ${PACKAGE}: an install from GitHub needs packages in its --sparse set`
+    }
+  }
+  if (linked !== pinned) {
+    const remedy = versionBefore(linked, pinned)
+      ? `claude plugin update ${PLUGIN_ID}`
+      : `pnpm add --save-dev --save-exact ${PACKAGE}@${linked}`
+    return {
+      name,
+      level: "WARN",
+      detail: `drift: the plugin runs ${PACKAGE} ${linked} and the repository pins ${pinned}, so its hooks and skills run other code than the Gate. ${remedy}`
+    }
+  }
+  return { name, level: "PASS", detail: `${PACKAGE} ${linked} in the plugin and in the repository` }
 }
 
 /** Every hook command string in a settings file, whatever the event and matcher. */
@@ -341,6 +396,7 @@ export function diagnose(inputs: Inputs): Check[] {
   return [
     checkJq(probe),
     checkPlugin(probe, claude),
+    checkPackage(probe, claude, inputs.config === undefined ? undefined : inputs.root),
     checkRtk(probe, home, claude),
     checkSafeChain(probe),
     checkPnpmReleaseAge(probe, home),
@@ -353,12 +409,12 @@ export function render(checks: Check[]): string {
   return checks.map((check) => `${check.level.padEnd(5)} ${check.name.padEnd(17)} ${check.detail}`).join("\n")
 }
 
-export const summary = "one PASS / WARN / FAIL line per machine check the guardrails rely on"
+export const summary = "one PASS / WARN / FAIL line per machine check the sdlc plugin relies on"
 
 const USAGE = `Usage: dw-sdlc doctor [--root <dir>] [--home <dir>]
   or:  pnpm guardrails:doctor [--root <dir>] [--home <dir>], in a checkout of dw-sdlc
 
-One PASS / WARN / FAIL line per machine check the guardrails rely on; read-only. Exit 1 when any
+One PASS / WARN / FAIL line per machine check the sdlc plugin relies on; read-only. Exit 1 when any
 check fails. Claude Code's settings are read from $CLAUDE_CONFIG_DIR, or ~/.claude without it; a
 --home reads <home>/.claude.`
 

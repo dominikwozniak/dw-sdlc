@@ -9,22 +9,13 @@
   },
   "plugins": [
     {
-      "name": "guardrails",
-      "version": "0.13.0",
-      "source": "./plugins/guardrails",
-      "description": "Deterministic guardrails for an agent session: refuses destructive git, the env files the repository does not vouch for, the wrong package manager, sloppy commits and writes to App Store Connect; a repository's own rules come from its .ai/agentic.config.json.",
-      "keywords": ["guardrails", "hooks", "git", "env", "pnpm", "worktree"],
+      "name": "sdlc",
+      "version": "0.14.0",
+      "source": "./plugins/sdlc",
+      "description": "Dominik Woźniak's software delivery process in one plugin: deterministic guards that refuse destructive git, the env files the repository does not vouch for, the wrong package manager, sloppy commits and writes to App Store Connect; the Sync that brings a repository's References to their ref as a session starts; and the skills /sdlc-setup, /sdlc-doctor and /sdlc-references-add. A repository's own rules come from its .ai/agentic.config.json.",
+      "keywords": ["guardrails", "hooks", "skills", "git", "env", "pnpm", "worktree", "references"],
       "category": "utilities",
-      "tags": ["guardrails", "hooks", "safety"]
-    },
-    {
-      "name": "references",
-      "version": "0.5.0",
-      "source": "./plugins/references",
-      "description": "Brings the repositories a project reads for prior art, declared as the references key of its .ai/agentic.config.json, to their ref under references/: shallow, at a branch or a tag, sparse where paths are named or skipped. /sdlc-references-add sets a repository up and adds one.",
-      "keywords": ["references", "hooks", "skills", "git", "clone"],
-      "category": "utilities",
-      "tags": ["references", "hooks", "research"]
+      "tags": ["guardrails", "hooks", "safety", "references"]
     }
   ]
 }

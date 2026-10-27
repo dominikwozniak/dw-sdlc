@@ -1,4 +1,4 @@
-// What session-start.sh tells a session as it starts, fed the real SessionStart payload the way Claude
+// What references-sync.sh tells a session as it starts, fed the real SessionStart payload the way Claude
 // Code spawns it: from a directory other than the project's, CLAUDE_PROJECT_DIR naming the project.
 // A repository without the key gets nothing, a failed Sync its lines and one more; either way, exit 0.
 
@@ -8,14 +8,24 @@ import { join } from "node:path"
 import { describe, it } from "node:test"
 import { pathToFileURL } from "node:url"
 
-import { commit, git, initRepo, runHook, runReferences, scratch, write, writeJson, type Run } from "../harness.ts"
+import {
+  commit,
+  git,
+  initRepo,
+  runHook,
+  runReferences,
+  scratch,
+  write,
+  writeJson,
+  type Run
+} from "../references-harness.ts"
 
 const CONFIG = ".ai/agentic.config.json"
 
 /** The hook's run for a session starting in `project`, spawned from elsewhere. */
 function start(project: string): Run {
   const payload = { hook_event_name: "SessionStart", source: "startup", cwd: project }
-  return runHook("session-start", payload, scratch("elsewhere"), { CLAUDE_PROJECT_DIR: project })
+  return runHook("references-sync", payload, scratch("elsewhere"), { CLAUDE_PROJECT_DIR: project })
 }
 
 /** A repository with one commit, by the file:// URL a Reference names it. */
@@ -31,7 +41,7 @@ function entry(dir: string, url: string): Record<string, unknown> {
   return { dir, repository: url, ref: "main", what: `the ${dir} clone`, when: "a test reads it" }
 }
 
-describe("session-start.sh", () => {
+describe("references-sync.sh", () => {
   it("prints nothing and exits 0 in a repository without the key", () => {
     const project = initRepo(scratch("keyless"))
     writeJson(join(project, CONFIG), { version: 1 })

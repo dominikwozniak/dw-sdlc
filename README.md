@@ -3,22 +3,21 @@
 **The software delivery process Dominik works by, and the Claude Code tooling that carries it.**
 
 A plugin marketplace and the code behind it. The process is proven in this repository before it goes
-wider. Today the marketplace ships two plugins: `guardrails`, and `references`, which syncs the
-repositories an agent reads for prior art.
+wider. The marketplace ships one plugin, `sdlc`: the guards, the Sync of the repositories an agent
+reads for prior art, and the skills that set a repository up and check a machine.
 
 ## Install
 
 ```bash
 claude plugin marketplace add dominikwozniak/dw-sdlc --sparse .claude-plugin plugins packages
-claude plugin install guardrails@dw-sdlc --scope user
-claude plugin install references@dw-sdlc --scope user
+claude plugin install sdlc@dw-sdlc --scope user
 ```
 
-`--sparse` checks out only the catalogue, the plugins and the `dw-sdlc` package they link to, not the
+`--sparse` checks out only the catalogue, the plugin and the `dw-sdlc` package it links to, not the
 docs and tooling around them. The repository is private, so the clone uses your git credentials.
 
 > [!NOTE]
-> The guardrails hooks need `jq`. Without it every guard is silent, and the doctor says so.
+> The guards need `jq`. Without it every guard is silent, and the doctor says so.
 
 ## Why guardrails
 
@@ -34,17 +33,17 @@ In a repository you work on, run the setup skill in Claude Code. It shows a dry 
 this machine's local layer, and ends with the doctor: one PASS / WARN / FAIL line per machine check.
 
 ```bash
-/sdlc-guardrails-setup
+/sdlc-setup
 ```
 
-The doctor ships in the plugin and needs only Node 24. To run it again from a terminal in the
-repository:
+The doctor ships in the plugin and needs only Node 24. `/sdlc-doctor` runs it again; from a terminal
+in the repository:
 
 ```bash
 node <plugin root>/dw-sdlc/src/cli.ts doctor
 ```
 
-`claude plugin list --json` names the plugin root as the `installPath` of `guardrails@dw-sdlc`.
+`claude plugin list --json` names the plugin root as the `installPath` of `sdlc@dw-sdlc`.
 
 ## What it stops
 
@@ -66,8 +65,8 @@ node <plugin root>/dw-sdlc/src/cli.ts doctor
 
 Each rule holds at every command position: an indented line, a loop, a subshell, behind `sudo`,
 `xargs`, `timeout`, `find -exec` or `bash -c`, and in a heredoc a shell reads. Every rule in full:
-[plugin README](plugins/guardrails/README.md#guards). A commit typed in a
-terminal meets the same subject rule through the [commit hook](plugins/guardrails/README.md#commit-hook).
+[plugin README](plugins/sdlc/README.md#guards). A commit typed in a
+terminal meets the same subject rule through the [commit hook](plugins/sdlc/README.md#commit-hook).
 
 ## Configure your repository
 
@@ -81,11 +80,10 @@ terminal meets the same subject rule through the [commit hook](plugins/guardrail
 
 Everything unset is inferred: the package manager from the lockfile, Conventional Commits for the
 subject. A repository whose subjects start with a ticket key sets `"commit": { "convention": "ticket-key" }`;
-on one machine only, `/sdlc-guardrails-setup ticket-key` pins it in the local layer instead.
-A repository where every change starts on a branch sets `"guardrails": { "commitOnProtected": "deny" }`.
-Plugin 0.8.2 and older read that key as an invalid layer and run the strictest set, so it belongs in
-the local layer until every machine runs 0.9.0: `/sdlc-guardrails-setup` with `--commit-on-protected deny`,
-and `--force-push ask` for a prompt before each lease push.
+on one machine only, `/sdlc-setup ticket-key` pins it in the local layer instead.
+A repository where every change starts on a branch sets `"guardrails": { "commitOnProtected": "deny" }`;
+on one machine only, `/sdlc-setup` with `--commit-on-protected deny` pins it, and `--force-push ask`
+asks before each lease push.
 Every key: [schema](packages/dw-sdlc/config/agentic.config.schema.json).
 
 ## References
@@ -94,11 +92,11 @@ A Reference is a repository cloned under `references/` so an agent reads how a p
 before. A repository declares its References as the `references` key of `.ai/agentic.config.json`,
 and the plugin brings each one to its ref when a local Claude Code session starts: one line per
 Reference, and nothing at all in a repository without the key. Offline, a clone stays where it was
-and the session starts anyway. The key and the Sync in full: [plugin README](plugins/references/README.md).
+and the session starts anyway. The key and the Sync in full: [plugin README](plugins/sdlc/README.md#references).
 
 ## Docs
 
-[how it works, why, releasing](docs/overview.md) · [guardrails README](plugins/guardrails/README.md) · [references README](plugins/references/README.md) · [decisions](docs/adr/) · [terms](GLOSSARY.md) · [Router](references/AGENTS.md)
+[how it works, why, releasing](docs/overview.md) · [plugin README](plugins/sdlc/README.md) · [decisions](docs/adr/) · [terms](GLOSSARY.md) · [Router](references/AGENTS.md)
 
 ## Agent instructions
 

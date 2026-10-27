@@ -17,15 +17,12 @@ is its long form: how a guard works, why the design, adopting and releasing.
   unnamed; `templates/` the Router the setup writes; `test/` their tests, the bin spawned on a
   throwaway repo, from the source and from the packed tarball; `dist/` the JavaScript `pnpm pack`
   emits for npm, ignored
-- `plugins/guardrails/` — the guardrails plugin, published through `.claude-plugin/marketplace.json`:
-  `hooks/` holds the bash guards on a shared `lib.sh` plus the jq config contract, `dw-sdlc` a link
-  to the package, whose bin the skill runs, and `test/` the guard tests, mirroring `hooks/`:
-  `harness.ts` spawns a guard on the real stdin payload; every input a test reads is built beside
-  it; `skills/sdlc-guardrails-setup/` the user-invoked skill that runs `dw-sdlc setup`
-- `plugins/references/` — the references plugin, published beside guardrails and enabled at user
-  scope: `hooks/` the session-start hook that runs `dw-sdlc references sync`, `dw-sdlc` a link to
-  the package, `skills/sdlc-references-add/` the user-invoked skill that adds a Reference, and
-  `test/` the hook test, on the package's References harness through the link
+- `plugins/sdlc/` — the one plugin `.claude-plugin/marketplace.json` publishes, enabled at user
+  scope: `hooks/` the bash guards on a shared `lib.sh` plus the jq config contract, and the session
+  hooks, the report and the Sync; `skills/` the user-invoked `sdlc-setup`, `sdlc-doctor` and
+  `sdlc-references-add`; `dw-sdlc` a link to the package, whose bin the hooks and skills run; `test/`
+  the hook tests, mirroring `hooks/`, each spawning a hook on the real stdin payload, and the
+  manifest test
 - `.ai/` — `agentic.config.json`, this repo's agent rules against the package's schema, its References
   under the `references` key; `primitives.json`, the catalogue of what this repo exposes to an agent,
   per Primitive its code and the doc that explains it, held to the tree by the `primitives` Check;
@@ -35,7 +32,7 @@ is its long form: how a guard works, why the design, adopting and releasing.
   `CLAUDE.md` and `AGENTS.md` out of context. `.claude/settings.local.json` is one machine's
   permission backstop, written by the setup and excluded from git. A worktree reads it and the local
   config from the main checkout, so nothing is copied into one. The references are not copied either:
-  the references plugin's session-start hook clones them
+  the plugin's Sync hook clones them
 - `.agents/skills/` — the engineering skills this repo works with, pinned in `skills-lock.json`;
   `.claude/skills/` links to them
 - `docs/agents/` — how those skills use this repo: the issue tracker and the domain docs
@@ -49,7 +46,7 @@ is its long form: how a guard works, why the design, adopting and releasing.
 - `references/` — repositories cloned on each machine for reading, never tracked; the Router is
   `references/AGENTS.md`, the list the `references` key of `.ai/agentic.config.json`, and the
   Router's table of each Reference's `when` is written from the list by `pnpm references:setup`; the
-  references plugin's session-start hook or `pnpm references:sync` fetches them
+  plugin's Sync hook or `pnpm references:sync` fetches them
 - `ideas/` — local-only notes; everything but `.gitkeep` is gitignored, so nothing in it reaches a clone
 - `.github/` — CI: `workflows/quality-gate.yaml` runs `pnpm check` on every pull request and on `main`;
   `workflows/release.yaml` turns the changesets under `.changeset/` into a version pull request and,
@@ -73,8 +70,8 @@ is its long form: how a guard works, why the design, adopting and releasing.
   staged files.
 - **CI runs on `ubuntu-latest`.** External actions are pinned to a full commit SHA with a `# vX.Y.Z`
   comment.
-- **A skill a plugin ships is named `sdlc-<plugin>-<verb>`**, as `sdlc-references-add`, so the skills
-  group in the slash menu and never collide with the `dw-*` skills of dw-solo.
+- **A skill the plugin ships is named `sdlc-<verb>`, or `sdlc-<area>-<verb>`**, as `sdlc-setup` and
+  `sdlc-references-add`, so the skills group in the slash menu and never collide with dw-solo's `dw-*`.
 
 ## Git
 
@@ -111,10 +108,10 @@ Match this table **before** researching or coding — read every row that matche
 | task                                                                     | read                                                                      |
 | ------------------------------------------------------------------------ | ------------------------------------------------------------------------- |
 | how others built a skill, hook, plugin or workflow, before designing one | `references/AGENTS.md`, then the clones whose `when` matches the task     |
-| reading, adding or updating a reference repository                       | `references/AGENTS.md`, then `plugins/references/README.md`               |
+| reading, adding or updating a reference repository                       | `references/AGENTS.md`, then `plugins/sdlc/README.md`                     |
 | editing a guard, `lib.sh`, the schema or the config resolver             | `docs/adr/*.md`, then the Decisions of `docs/specs/agentic-guardrails.md` |
 | explaining the repo, editing `README.md` or anything under `docs/`       | `README.md`, `docs/overview.md`, `GLOSSARY.md`                            |
-| releasing a plugin or the package, bumping a version                     | `docs/overview.md`, its two Releasing sections                            |
+| releasing the plugin or the package, bumping a version                   | `docs/overview.md`, its two Releasing sections                            |
 | planning new work, filing or reading an issue                            | `docs/agents/issue-tracker.md`                                            |
 | what a guard, hook, script, key or skill is and where it lives           | `.ai/primitives.json`, or `dw-sdlc primitives --paths` on the files       |
 

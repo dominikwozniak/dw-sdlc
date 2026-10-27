@@ -1,14 +1,14 @@
 ---
-name: sdlc-guardrails-setup
+name: sdlc-setup
 description: >-
-  Set a repository and this machine up for the guardrails plugin: the machine's
+  Set a repository and this machine up for the sdlc plugin's guards: the machine's
   `.ai/agentic.config.local.json` from inference, its git exclude entry, the repository's
   `permissions.deny` backstop, and the lease-push exception in `~/.claude/settings.json`.
   Safe to repeat; a run with nothing changed writes nothing.
 disable-model-invocation: true
 ---
 
-# sdlc-guardrails-setup
+# sdlc-setup
 
 Four files, each written only when its content would change. Run the dry run first and show its
 lines; then run for real and show those. A `refused` line ends the run: show it and stop, and never
@@ -23,7 +23,7 @@ node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" setup
 Pass a flag only for what the argument or the request names, to both commands; a pin the local
 config already holds stays without one:
 
-- a commit convention, as `/sdlc-guardrails-setup ticket-key` does: `--convention ticket-key` or
+- a commit convention, as `/sdlc-setup ticket-key` does: `--convention ticket-key` or
   `--convention conventional`;
 - how a lease push goes: `--force-push ask` (a prompt each time), `--force-push deny` or
   `--force-push lease`;

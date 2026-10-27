@@ -162,7 +162,7 @@ describe("what the setup never overwrites or removes", () => {
     assert.equal(
       read(root, ".gitignore"),
       "node_modules/\n\n" +
-        "# References are cloned on each machine by the references plugin; only the Router is tracked.\n" +
+        "# References are cloned on each machine by the sdlc plugin; only the Router is tracked.\n" +
         "references/*\n!references/AGENTS.md\n!references/CLAUDE.md\n"
     )
 

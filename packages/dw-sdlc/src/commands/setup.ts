@@ -1,4 +1,4 @@
-// `dw-sdlc setup` sets a repository and this machine up for the guardrails plugin: the four files its USAGE
+// `dw-sdlc setup` sets a repository and this machine up for the sdlc plugin: the four files its USAGE
 // names, each written only when its content would change, so a run is safe to repeat. Existing content is
 // merged, never replaced: other keys stay, and a settings file that is not JSON is refused.
 
@@ -75,7 +75,7 @@ function isCommitOnProtected(value: string): value is CommitOnProtected {
 
 /** Where Claude Code registers the plugin: the marketplace name and the plugin's name inside it. */
 const MARKETPLACE = "dw-sdlc"
-const PLUGIN = "guardrails"
+const PLUGIN = "sdlc"
 /** The plugin's link to the dw-sdlc package, which carries the schema. */
 const PACKAGE_LINK = "dw-sdlc"
 

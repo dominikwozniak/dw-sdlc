@@ -43,7 +43,7 @@ if [[ "$size" -gt "$MAX_BYTES" ]]; then
     echo "a dumped log, or generated output that belongs in .gitignore rather than in the tree. The file"
     echo "is already written — check it is what you meant, and delete it if it is not."
     echo "If a file this size is genuinely right here, raise or disable the threshold with"
-    echo "CLAUDE_MAX_WRITE_BYTES (0 disables). Flagged by the guardrails plugin."
+    echo "CLAUDE_MAX_WRITE_BYTES (0 disables). Flagged by the sdlc plugin."
   } >&2
   exit 2
 fi

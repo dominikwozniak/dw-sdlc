@@ -53,11 +53,11 @@ const HEALTHY: Fake = {
     "claude plugin list --json": {
       stdout: JSON.stringify([
         {
-          id: "guardrails@dw-sdlc",
+          id: "sdlc@dw-sdlc",
           version: "0.1.0",
           scope: "user",
           enabled: true,
-          installPath: "/cache/guardrails/0.1.0"
+          installPath: "/cache/sdlc/0.1.0"
         }
       ])
     },
@@ -67,7 +67,9 @@ const HEALTHY: Fake = {
   },
   files: {
     [`${HOME}/.claude/settings.json`]: "{}",
-    "/src/dw-sdlc/plugins/guardrails/hooks/rtk-rewrite.sh": "#!/bin/bash\n",
+    "/src/dw-sdlc/plugins/sdlc/hooks/rtk-rewrite.sh": "#!/bin/bash\n",
+    "/src/dw-sdlc/plugins/sdlc/dw-sdlc/package.json": JSON.stringify({ name: "dw-sdlc", version: "0.2.0" }),
+    [`${ROOT}/package.json`]: JSON.stringify({ devDependencies: { "dw-sdlc": "0.2.0" } }),
     [`${HOME}/.claude/plugins/known_marketplaces.json`]: JSON.stringify({
       "dw-sdlc": { source: { source: "directory", path: "/src/dw-sdlc" }, installLocation: "/src/dw-sdlc" }
     }),
@@ -120,12 +122,88 @@ describe("diagnose", () => {
     const checks = diagnose({ root: ROOT, home: HOME, probe: fake(HEALTHY), config: CONFIG })
     assert.deepEqual(
       checks.map((check) => check.name),
-      ["jq", "plugin", "rtk", "safe chain", "pnpm release age", "commit signing", "config"]
+      ["jq", "plugin", "package", "rtk", "safe chain", "pnpm release age", "commit signing", "config"]
     )
     assert.deepEqual(new Set(checks.map((check) => check.level)), new Set(["PASS"]))
     assert.match(line(checks, "jq").detail, /jq-1\.8\.2/)
     assert.match(line(checks, "plugin").detail, /0\.1\.0/)
-    assert.match(line(checks, "plugin").detail, /runs live from \/src\/dw-sdlc\/plugins\/guardrails/)
+    assert.match(line(checks, "plugin").detail, /runs live from \/src\/dw-sdlc\/plugins\/sdlc/)
+    assert.equal(line(checks, "package").detail, "dw-sdlc 0.2.0 in the plugin and in the repository")
+  })
+
+  it("package: a drift line when the plugin's package and the repository's pin differ", () => {
+    const behind = withFile(
+      HEALTHY,
+      `${ROOT}/package.json`,
+      JSON.stringify({ devDependencies: { "dw-sdlc": "0.3.0" } })
+    )
+    const update = line(diagnose({ root: ROOT, home: HOME, probe: fake(behind), config: CONFIG }), "package")
+    assert.equal(update.level, "WARN")
+    assert.equal(
+      update.detail,
+      "drift: the plugin runs dw-sdlc 0.2.0 and the repository pins 0.3.0, so its hooks and skills run other code than the Gate. claude plugin update sdlc@dw-sdlc"
+    )
+    const ahead = withFile(HEALTHY, `${ROOT}/package.json`, JSON.stringify({ devDependencies: { "dw-sdlc": "0.1.0" } }))
+    const pin = line(diagnose({ root: ROOT, home: HOME, probe: fake(ahead), config: CONFIG }), "package")
+    assert.equal(pin.level, "WARN")
+    assert.match(pin.detail, /^drift: the plugin runs dw-sdlc 0\.2\.0 and the repository pins 0\.1\.0/)
+    assert.match(pin.detail, /pnpm add --save-dev --save-exact dw-sdlc@0\.2\.0$/)
+  })
+
+  it("package: a catalog pin, and workspace: or a range read from the installed copy", () => {
+    const catalog = withFile(
+      withFile(HEALTHY, `${ROOT}/package.json`, JSON.stringify({ devDependencies: { "dw-sdlc": "catalog:" } })),
+      `${ROOT}/pnpm-workspace.yaml`,
+      "catalog:\n  dw-sdlc: 0.3.0\n"
+    )
+    assert.match(
+      line(diagnose({ root: ROOT, home: HOME, probe: fake(catalog), config: CONFIG }), "package").detail,
+      /repository pins 0\.3\.0/
+    )
+    const workspace = withFile(
+      HEALTHY,
+      `${ROOT}/package.json`,
+      JSON.stringify({ devDependencies: { "dw-sdlc": "workspace:*" } })
+    )
+    const installed = withFile(
+      workspace,
+      `${ROOT}/node_modules/dw-sdlc/package.json`,
+      JSON.stringify({ version: "0.2.0" })
+    )
+    assert.equal(
+      line(diagnose({ root: ROOT, home: HOME, probe: fake(installed), config: CONFIG }), "package").level,
+      "PASS"
+    )
+    const missing = line(diagnose({ root: ROOT, home: HOME, probe: fake(workspace), config: CONFIG }), "package")
+    assert.equal(missing.level, "WARN")
+    assert.equal(missing.detail, "the repository pins dw-sdlc workspace:*, not installed: pnpm install")
+  })
+
+  it("package: no pin, no repository, or a plugin without the package", () => {
+    const unpinned = withFile(HEALTHY, `${ROOT}/package.json`, JSON.stringify({ devDependencies: {} }))
+    const none = line(diagnose({ root: ROOT, home: HOME, probe: fake(unpinned), config: CONFIG }), "package")
+    assert.equal(none.level, "INFO")
+    assert.equal(none.detail, "the repository does not pin dw-sdlc")
+    const outside = line(diagnose({ root: ROOT, home: HOME, probe: fake(HEALTHY), config: undefined }), "package")
+    assert.equal(outside.level, "INFO")
+    const sparse = withFile(HEALTHY, "/src/dw-sdlc/plugins/sdlc/dw-sdlc/package.json", undefined)
+    const bare = line(diagnose({ root: ROOT, home: HOME, probe: fake(sparse), config: CONFIG }), "package")
+    assert.equal(bare.level, "WARN")
+    assert.match(bare.detail, /carries no dw-sdlc: an install from GitHub needs packages in its --sparse set/)
+  })
+
+  it("package: a snapshot install is read at its installPath", () => {
+    const fromGit = withFile(
+      withFile(
+        HEALTHY,
+        `${HOME}/.claude/plugins/known_marketplaces.json`,
+        JSON.stringify({ "dw-sdlc": { source: { source: "github", repo: "dominikwozniak/dw-sdlc" } } })
+      ),
+      "/cache/sdlc/0.1.0/dw-sdlc/package.json",
+      JSON.stringify({ version: "0.1.0" })
+    )
+    const check = line(diagnose({ root: ROOT, home: HOME, probe: fake(fromGit), config: CONFIG }), "package")
+    assert.match(check.detail, /^drift: the plugin runs dw-sdlc 0\.1\.0 and the repository pins 0\.2\.0/)
   })
 
   it("jq missing is a FAIL that names the consequence", () => {
@@ -147,7 +225,7 @@ describe("diagnose", () => {
       "FAIL"
     )
     const disabled = withCommand(HEALTHY, "claude plugin list --json", {
-      stdout: JSON.stringify([{ id: "guardrails@dw-sdlc", version: "0.1.0", enabled: false }])
+      stdout: JSON.stringify([{ id: "sdlc@dw-sdlc", version: "0.1.0", enabled: false }])
     })
     const check = line(diagnose({ root: ROOT, home: HOME, probe: fake(disabled), config: CONFIG }), "plugin")
     assert.equal(check.level, "FAIL", "a disabled plugin guards nothing")
@@ -160,7 +238,7 @@ describe("diagnose", () => {
     const snapshot = line(diagnose({ root: ROOT, home: HOME, probe: fake(fromGit), config: CONFIG }), "plugin")
     assert.match(
       snapshot.detail,
-      /installed at \/cache\/guardrails\/0\.1\.0; a change reaches it through claude plugin update/
+      /installed at \/cache\/sdlc\/0\.1\.0; a change reaches it through claude plugin update/
     )
     const noClaude = withCommand(HEALTHY, "claude plugin list --json", undefined)
     assert.equal(
@@ -204,7 +282,7 @@ describe("diagnose", () => {
       ).level,
       "FAIL"
     )
-    const stale = withFile(HEALTHY, "/src/dw-sdlc/plugins/guardrails/hooks/rtk-rewrite.sh", undefined)
+    const stale = withFile(HEALTHY, "/src/dw-sdlc/plugins/sdlc/hooks/rtk-rewrite.sh", undefined)
     const old = line(diagnose({ root: ROOT, home: HOME, probe: fake(stale), config: CONFIG }), "rtk")
     assert.equal(old.level, "WARN", "a plugin without the hook rewrites nothing")
     assert.match(old.detail, /claude plugin update; nothing rewrites/)
@@ -225,7 +303,7 @@ describe("diagnose", () => {
         `${HOME}/.claude/plugins/known_marketplaces.json`,
         JSON.stringify({ "dw-sdlc": { source: { source: "github", repo: "dominikwozniak/dw-sdlc" } } })
       ),
-      "/cache/guardrails/0.1.0/hooks/rtk-rewrite.sh",
+      "/cache/sdlc/0.1.0/hooks/rtk-rewrite.sh",
       "#!/bin/bash\n"
     )
     assert.equal(

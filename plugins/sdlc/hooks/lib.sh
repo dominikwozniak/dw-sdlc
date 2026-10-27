@@ -229,7 +229,7 @@ guard_subject_fits() {
 # never the masked scan.
 guard_block() {
   printf 'BLOCKED: %s\n' "$1" >&2
-  printf 'Refused by the guardrails plugin. If this is genuinely needed, the user runs it.\n' >&2
+  printf 'Refused by the sdlc plugin. If this is genuinely needed, the user runs it.\n' >&2
   exit 2
 }
 

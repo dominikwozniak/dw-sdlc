@@ -28,7 +28,7 @@ No Reference is declared yet: `/sdlc-references-add <repository>` adds one.
   `AGENTS.md`. It describes _that_ repository; `claudeMdExcludes` in `.claude/settings.json` keeps
   Claude Code from loading them.
 - **Missing is normal.** CI, a fresh clone and a new worktree have none of them until a local Claude
-  Code session starts with the references plugin enabled, which syncs them. A directory that is
+  Code session starts with the sdlc plugin enabled, which syncs them. A directory that is
   absent is not a broken link, and neither is a path its entry's `skip` leaves out.
 - **A starting point, not the whole field.** The list is hand-picked, and each clone is its ref at
   the last sync. Research into a feature or an approach reads the matching entries first, then looks
