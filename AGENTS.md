@@ -10,10 +10,10 @@ is its long form: how a guard works, why the design, adopting and releasing.
 
 - `packages/dw-sdlc/` — the `dw-sdlc` package, a workspace member: `src/` the resolver of the
   config's layers, the JSON Schema validator and the `dw-sdlc` bin, `cli.ts`, one row per
-  subcommand, each a module under `commands/` (`gate`, `primitives`, `setup`, `doctor`, `config`,
-  `references sync`, `references setup`), and one module per Check it ships under `checks/`, beside
-  the modules they share; `config/` the JSON Schema for `.ai/agentic.config.json`, which declares
-  how this repo works for an agent, and the `references` key's own, which that schema leaves
+  subcommand, each a module under `commands/` (`gate`, `check`, `primitives`, `setup`, `doctor`,
+  `config`, `references sync`, `references setup`), and one module per Check it ships under
+  `checks/`, beside the modules they share; `config/` the JSON Schema for `.ai/agentic.config.json`,
+  which declares how this repo works for an agent, and the `references` key's own, which that schema leaves
   unnamed; `templates/` the Router the setup writes; `test/` their tests, the bin spawned on a
   throwaway repo, from the source and from the packed tarball; `dist/` the JavaScript `pnpm pack`
   emits for npm, ignored
@@ -88,6 +88,7 @@ is its long form: how a guard works, why the design, adopting and releasing.
 ```bash
 pnpm check                      # dw-sdlc gate: the gate.steps of .ai/agentic.config.json in order, then its Checks; = CI
 pnpm exec dw-sdlc gate [--json] [--update-baseline] # exit 0 green, 1 failed, 2 cannot run; the flag tightens baselines
+pnpm exec dw-sdlc check <name> [--json] # one Check of the Gate by name, no Step; off in the config, it runs on its defaults
 pnpm exec dw-sdlc primitives --paths <files> [--json] # the Primitives that own each path: summary, docs to read
 pnpm lint | lint:fix            # oxlint — check / --fix
 pnpm format | format:fix        # oxfmt — check / write

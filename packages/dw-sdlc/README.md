@@ -17,7 +17,8 @@ pnpm add -D dw-sdlc
 
 `dw-sdlc gate` runs the Steps under `gate.steps` in order from the repository root, then every Check
 under `gate.checks`. It exits 0 when everything passes, 1 when a Step or a Check fails, and 2 when the
-Gate cannot run. `--json` prints the result as one document.
+Gate cannot run. `--json` prints the result as one document. `dw-sdlc check <name>` runs one Check
+alone, with the same lines, exit codes and document.
 
 ```json
 {
@@ -38,6 +39,7 @@ Gate cannot run. `--json` prints the result as one document.
 | command            | what it does                                                                        |
 | ------------------ | ----------------------------------------------------------------------------------- |
 | `gate`             | the Steps of `gate.steps` in order, then every Check under `gate.checks`            |
+| `check <name>`     | one Check of the Gate by its name, without the Steps and the other Checks           |
 | `primitives`       | the Primitives that own each path, with their summaries and documents               |
 | `setup`            | this machine's local config layer, the git excludes and the permission rules        |
 | `doctor`           | one PASS / WARN / FAIL line per machine check the guardrails rely on                |

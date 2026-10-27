@@ -353,6 +353,14 @@
       "docs": ["docs/overview.md#how-the-gate-runs", "GLOSSARY.md"]
     },
     {
+      "id": "gate.one-check",
+      "name": "dw-sdlc check",
+      "group": "gate",
+      "summary": "Runs one Check of the Gate by name and no Step, on its defaults where the config leaves it off.",
+      "code": ["packages/dw-sdlc/src/commands/check.ts"],
+      "docs": ["docs/overview.md#the-checks-the-package-ships", "packages/dw-sdlc/README.md#commands"]
+    },
+    {
       "id": "gate.checks",
       "name": "Check registry",
       "group": "gate",

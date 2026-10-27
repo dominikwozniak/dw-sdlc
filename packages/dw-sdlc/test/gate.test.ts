@@ -245,7 +245,7 @@ describe("the dw-sdlc bin", () => {
     const run = runBin(["--help"], scratch("bin"))
     assert.equal(run.status, 0)
     assert.match(run.stdout, /^ {2}gate +run the Gate/m)
-    for (const name of ["setup", "doctor", "config", "references sync", "references setup"]) {
+    for (const name of ["check", "setup", "doctor", "config", "references sync", "references setup"]) {
       assert.match(run.stdout, new RegExp(`^ {2}${name} {2,}\\S`, "m"), name)
     }
   })
