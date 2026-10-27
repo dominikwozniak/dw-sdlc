@@ -1,6 +1,6 @@
-// `dw-sdlc setup` sets a repository and this machine up for the sdlc plugin: the four files its USAGE
-// names, each written only when its content would change, so a run is safe to repeat. Existing content is
-// merged, never replaced: other keys stay, and a settings file that is not JSON is refused.
+// `dw-sdlc setup` sets a repository and this machine up for the sdlc plugin: the files its USAGE names,
+// each written only when its content would change, so a run is safe to repeat. Existing content is
+// merged, never replaced: other keys stay, and a file that is not a JSON object is refused.
 
 import { spawnSync } from "node:child_process"
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
@@ -22,12 +22,16 @@ import {
   STRICTNESS,
   inferConfig,
   repositoryRoot,
+  resolveConfig,
   schemaId,
   validateDocument
 } from "../agentic-config.ts"
+import { isObject, type JsonObject, parseObject, render } from "../json-text.ts"
+import { type Change, withGate, withPackage } from "../setup-gate.ts"
 import { GLOBAL_DENY, LEASE_RULE, RETIRED_DENY, repositoryDeny } from "../setup-rules.ts"
 
-export type Outcome = "wrote" | "unchanged" | "refused"
+/** `by hand` is an edit the setup names and leaves to the user. */
+export type Outcome = "wrote" | "unchanged" | "refused" | "by hand"
 export type Step = { file: string; outcome: Outcome; detail?: string }
 export type SetupOptions = {
   root: string
@@ -42,13 +46,16 @@ export type SetupOptions = {
   forcePush?: ForcePush | undefined
   /** Pins `guardrails.commitOnProtected` in the local layer; refused where it loosens the committed value. */
   commitOnProtected?: CommitOnProtected | undefined
+  /** The owner's yes to pinning dw-sdlc as a devDependency where package.json lacks it. */
+  addPackage?: boolean
 }
 
-export const summary = "write this machine's local config layer, the git excludes and the permission rules"
+export const summary =
+  "adopt the Gate where asked, and write this machine's local config layer, the git excludes and the permission rules"
 
 const USAGE = `Usage: dw-sdlc setup [--root <dir>] [--home <dir>]
        [--convention <preset>] [--force-push deny|ask|lease] [--commit-on-protected deny|allow]
-       [--force] [--dry-run]
+       [--add-package] [--force] [--dry-run]
   or:  pnpm guardrails:setup with the same flags, in a checkout of dw-sdlc
 
 Writes .ai/agentic.config.local.json from inference, excludes it in .git/info/exclude, generates
@@ -59,7 +66,14 @@ written only when it would change; --convention ticket-key | conventional pins c
 the local config, and a run without it keeps the pin as it is; a guardrails block in the local config
 is kept, and --force-push and --commit-on-protected pin those two keys in it, refused where they would
 loosen what the committed config sets; --force overwrites a local config that differs in anything
-else; --dry-run reports without writing.`
+else; --dry-run reports without writing.
+
+Where the repository has a package.json, the setup adopts the Gate. --add-package pins dw-sdlc
+there as a devDependency, at the version running the setup; a new dependency needs the owner's yes,
+so without the flag the file is refused. Once the package is there, .ai/agentic.config.json gains
+the gate key when it has none, and the file is created when absent. Both files go to the repository
+holding --root, a linked worktree included. The agent map is never written. Settings that still
+enable guardrails@dw-sdlc or references@dw-sdlc get a "by hand" line naming the enabledPlugins edit.`
 
 function isConvention(value: string): value is CommitConvention {
   return COMMIT_CONVENTIONS.some((preset) => preset === value)
@@ -78,12 +92,8 @@ const MARKETPLACE = "dw-sdlc"
 const PLUGIN = "sdlc"
 /** The plugin's link to the dw-sdlc package, which carries the schema. */
 const PACKAGE_LINK = "dw-sdlc"
-
-type JsonObject = Record<string, unknown>
-
-function isObject(value: unknown): value is JsonObject {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
+/** The two plugins the sdlc plugin replaced, which the marketplace does not list (ADR 0010). */
+const RETIRED_PLUGINS = ["guardrails", "references"].map((name) => `${name}@${MARKETPLACE}`)
 
 /** A read-only git command, the one thing the setup runs in the repository. */
 function git(root: string, args: string[]): string | undefined {
@@ -235,25 +245,8 @@ function union(existing: unknown, additions: string[]): string[] {
   return list
 }
 
-function readJsonText(text: string): unknown {
-  try {
-    const parsed: unknown = JSON.parse(text)
-    return parsed
-  } catch {
-    return undefined
-  }
-}
-
 function readJson(path: string): JsonObject | undefined | "invalid" {
-  if (!existsSync(path)) {
-    return undefined
-  }
-  const parsed = readJsonText(readFileSync(path, "utf8"))
-  return isObject(parsed) ? parsed : "invalid"
-}
-
-function render(value: unknown): string {
-  return JSON.stringify(value, null, 2) + "\n"
+  return existsSync(path) ? (parseObject(readFileSync(path, "utf8")) ?? "invalid") : undefined
 }
 
 class Writer {
@@ -263,8 +256,8 @@ class Writer {
     this.dryRun = dryRun
   }
 
-  /** Writes when the text differs from what is on disk; records the outcome under `label`. */
-  put(label: string, path: string, text: string): void {
+  /** Writes when the text differs from what is on disk; records the outcome under `label`, with what the write does. */
+  put(label: string, path: string, text: string, detail?: string): void {
     const current = existsSync(path) ? readFileSync(path, "utf8") : undefined
     if (current === text) {
       this.steps.push({ file: label, outcome: "unchanged" })
@@ -274,12 +267,41 @@ class Writer {
       mkdirSync(dirname(path), { recursive: true })
       writeFileSync(path, text)
     }
-    this.steps.push({ file: label, outcome: "wrote" })
+    this.steps.push(
+      detail === undefined ? { file: label, outcome: "wrote" } : { file: label, outcome: "wrote", detail }
+    )
   }
 
   refuse(label: string, detail: string): void {
     this.steps.push({ file: label, outcome: "refused", detail })
   }
+
+  /** The step's file as `change` leaves it: written, unchanged or refused. */
+  apply(label: string, path: string, change: Change): void {
+    if ("refusal" in change) {
+      this.refuse(label, change.refusal)
+    } else {
+      this.put(label, path, change.text, change.detail)
+    }
+  }
+
+  byHand(label: string, detail: string): void {
+    this.steps.push({ file: label, outcome: "by hand", detail })
+  }
+}
+
+/** The enabledPlugins edit settings that still enable a retired plugin need; none where they enable neither. */
+function enabledPluginsEdit(settings: JsonObject): string | undefined {
+  const enabled = isObject(settings.enabledPlugins) ? settings.enabledPlugins : {}
+  const retired = RETIRED_PLUGINS.filter((id) => enabled[id] === true)
+  if (retired.length === 0) {
+    return undefined
+  }
+  const id = `${PLUGIN}@${MARKETPLACE}`
+  const remove = `enabledPlugins: remove ${retired.map((name) => JSON.stringify(name)).join(" and ")}, which the marketplace does not list`
+  return enabled[id] === true
+    ? remove
+    : `${remove}, and add "${id}": true after claude plugin install ${id} --scope user`
 }
 
 /**
@@ -304,7 +326,7 @@ export function setup(options: SetupOptions): Step[] {
   // the guardrails block the file holds, with the keys the flags pin.
   const localPath = join(checkout, LOCAL_FILE)
   const localCurrent = existsSync(localPath) ? readFileSync(localPath, "utf8") : undefined
-  const existing = localCurrent === undefined ? undefined : readJsonText(localCurrent)
+  const existing = localCurrent === undefined ? undefined : parseObject(localCurrent)
   const convention = options.convention ?? pinnedConvention(existing)
   const pinned = pinnedGuardrails(keptGuardrails(existing), committedConfig(checkout), options)
   if ("refusal" in pinned) {
@@ -363,6 +385,28 @@ export function setup(options: SetupOptions): Step[] {
     const permissions = isObject(settings.permissions) ? settings.permissions : {}
     settings.permissions = { ...permissions, deny: union(permissions.deny, GLOBAL_DENY) }
     writer.put(userLabel, userPath, render(settings))
+    const edit = enabledPluginsEdit(settings)
+    if (edit !== undefined) {
+      writer.byHand(userLabel, edit)
+    }
+  }
+
+  // 5. The Gate, where the repository has a package.json: the pinned package, then the gate key once the
+  // package is there. Both are committed, so they go to the repository holding --root, never the main
+  // checkout, and stay on the branch the setup runs on.
+  const manifestPath = join(root, "package.json")
+  if (existsSync(manifestPath)) {
+    const manager = resolveConfig(root).config.packageManagers.node ?? "pnpm"
+    const pin = withPackage(readFileSync(manifestPath, "utf8"), options.addPackage === true, manager)
+    writer.apply("package.json", manifestPath, pin)
+    if (!("refusal" in pin)) {
+      const configPath = join(root, COMMITTED_FILE)
+      writer.apply(
+        COMMITTED_FILE,
+        configPath,
+        withGate(existsSync(configPath) ? readFileSync(configPath, "utf8") : undefined)
+      )
+    }
   }
 
   return writer.steps
@@ -381,6 +425,7 @@ export function run(argv: string[]): number {
     convention?: string
     "force-push"?: string
     "commit-on-protected"?: string
+    "add-package"?: boolean
     force?: boolean
     "dry-run"?: boolean
   }
@@ -394,6 +439,7 @@ export function run(argv: string[]): number {
         convention: { type: "string" },
         "force-push": { type: "string" },
         "commit-on-protected": { type: "string" },
+        "add-package": { type: "boolean" },
         force: { type: "boolean" },
         "dry-run": { type: "boolean" }
       }
@@ -427,7 +473,8 @@ export function run(argv: string[]): number {
     dryRun: values["dry-run"] === true,
     convention: values.convention,
     forcePush,
-    commitOnProtected
+    commitOnProtected,
+    addPackage: values["add-package"] === true
   })
   for (const step of steps) {
     const verb = step.outcome === "wrote" && values["dry-run"] === true ? "would write" : step.outcome

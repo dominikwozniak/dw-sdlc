@@ -7,7 +7,8 @@ import { existsSync, lstatSync, mkdirSync, readFileSync, symlinkSync, writeFileS
 import { dirname, join } from "node:path"
 import { parseArgs } from "node:util"
 
-import { CONFIG, isObject, readReferences } from "../references-key.ts"
+import { appendKey, parseObject, render } from "../json-text.ts"
+import { CONFIG, readReferences } from "../references-key.ts"
 import { renderBlock, withBlock } from "../router-block.ts"
 
 const ROUTER = "references/AGENTS.md"
@@ -58,21 +59,6 @@ function messageOf(error: unknown): string {
 function fail(message: string): never {
   console.error(`references:setup: ${message}`)
   process.exit(2)
-}
-
-function render(value: unknown): string {
-  return `${JSON.stringify(value, null, 2)}\n`
-}
-
-/** The JSON object `text` holds, or undefined when it holds anything else. */
-function parseObject(text: string): Record<string, unknown> | undefined {
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(text)
-  } catch {
-    return undefined
-  }
-  return isObject(parsed) ? parsed : undefined
 }
 
 class Writer {
@@ -160,13 +146,7 @@ function withEmptyKey(current: string | undefined): Change {
   if (config === undefined) {
     return { refusal: "is not a JSON object; fix it by hand first" }
   }
-  if (Object.hasOwn(config, "references")) {
-    return { text: current }
-  }
-  const close = current.lastIndexOf("}")
-  const body = current.slice(0, close).trimEnd()
-  const comma = body.endsWith("{") ? "" : ","
-  return { text: `${body}${comma}\n  "references": []\n${current.slice(close)}` }
+  return { text: Object.hasOwn(config, "references") ? current : appendKey(current, "references", []) }
 }
 
 /** The repository `dir` sits in, or `dir` itself outside one. */

@@ -49,6 +49,9 @@ const SHIPPED: Shipped[] = [
   ship(commentBudget)
 ]
 
+/** The name of every Check the package ships, in the order the Gate runs them. */
+export const CHECK_NAMES: readonly string[] = SHIPPED.map(({ name }) => name)
+
 /** Every shipped Check a resolved `gate.checks` turns on with `true` or its options. */
 export function enabledChecks(checks: Record<string, unknown>): EnabledCheck[] {
   return SHIPPED.flatMap(({ name, enable }) => enable(checks[name]) ?? [])

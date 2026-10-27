@@ -156,7 +156,8 @@ so and lets the commit through. A repository wires it from its own hook manager;
 
 ## Setup
 
-The `sdlc-setup` skill runs `dw-sdlc setup` through the link: it writes this machine's
+The `sdlc-setup` skill runs `dw-sdlc setup` through the link: it adopts the Gate where the
+repository has a `package.json` ([Adopting the Gate](#adopting-the-gate)), and writes this machine's
 `.ai/agentic.config.local.json` with `$schema` and, when the committed config leaves it unset, the
 Node package manager from the lockfile. `commit.convention` is written only when
 `--convention ticket-key` or `--convention conventional` asks for it, because a local pin outranks a
@@ -175,6 +176,45 @@ an `autoMode.allow` list the run creates opens with `"$defaults"`, an existing o
 exception. Every file is written only when it would change; `--dry-run` shows the changes, `--force`
 overwrites a differing local config, and a `refused` line exits 1. The only thing run in the
 repository is read-only `git`.
+
+### Adopting the Gate
+
+In a repository with a `package.json`, the setup adopts the Gate in two committed files, written to
+the repository holding `--root`, so from a linked worktree they stay on its branch:
+
+- `package.json` gains `dw-sdlc` in `devDependencies`, pinned at the version that runs the setup, so
+  the doctor's `package` line passes. A new dependency needs the owner's yes, so the pin is written
+  only with `--add-package`; without it the file is `refused` with the version the flag would pin,
+  and the run exits 1. A pin the file holds, at any version, stays. The line written names the
+  install that brings the package in, `pnpm install` in a pnpm repository.
+- `.ai/agentic.config.json` gains the `gate` key once the package is there, created with `$schema`
+  pointing at the installed package's schema when the file is absent. A `gate` key the config has
+  stays as it is, and a config that is not a JSON object is refused and left untouched.
+
+The key names every Check the package ships, `true` or `false`. A Check is on when it judges the
+tree as it is, with nothing to add first: `markdown-refs`, `temporal-language` and `comment-budget`.
+`agents-map` is on too, though it reads `AGENTS.md`: the map is the user's to write, and the first
+Gate names what it lacks. Every other Check is off, since each reads an input the repository adds
+first: `primitives` a catalogue, `decision-records` a records directory, `markdown-budget` the docs
+its glob matches, `file-size-ratchet` its baseline. On without that input, a Check fails the Gate,
+or leaves a Gate that cannot run, exit 2, which reads as a broken setup. The Ratchet's refresh,
+`dw-sdlc gate --update-baseline`, runs only when every other Check passes, so it turns on once the
+Gate is green: set it to `true` and run the refresh, which records the baseline to commit.
+
+The setup never writes the agent map. The first `dw-sdlc gate` names what the map lacks through
+`agents-map`: a missing `AGENTS.md`, which ends that Gate as cannot run, the Gate command the map
+does not name, a Task Router path that does not exist. A repository without a `package.json` gets
+neither file.
+
+Settings that still enable `guardrails@dw-sdlc` or `references@dw-sdlc`, the two plugins `sdlc`
+replaced, get a `by hand` line naming the `enabledPlugins` edit: remove them and add
+`"sdlc@dw-sdlc": true` after `claude plugin install sdlc@dw-sdlc --scope user`. The setup leaves the
+edit to the user and the exit code as it is.
+
+The `sdlc-setup` skill asks before the pin: on the dry run's `refused package.json` line it asks
+whether to add `dw-sdlc` at the version the line names, stops on a no, and on a yes runs both
+commands again with `--add-package`, then the install. It runs the Gate once after a run that wrote
+the key.
 
 ## Doctor
 
