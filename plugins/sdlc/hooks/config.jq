@@ -1,10 +1,5 @@
 # The merge dw-sdlc/src/agentic-config.ts performs, for the guards: the same defaults, the same
 # tighten rule, the same messages. That file is the reference; the tests run both.
-#
-# `resolve($inferred; $committed; $local)` takes the inferred layer (commit.convention, packageManagers,
-# gate.command where the manifest has a check script), the committed and local documents (null when
-# absent or invalid) and returns {config, problems}, where problems are the local loosenings. The
-# caller puts guardrails on `strictest` when any layer had a problem.
 
 def local_file: ".ai/agentic.config.local.json";
 
@@ -100,6 +95,8 @@ def loosenings($base; $local):
 # commit.pattern from the convention's preset when no layer set one; a set pattern wins.
 def finalize: .commit.pattern //= commit_patterns[.commit.convention];
 
+# resolve($inferred; $committed; $local) — {config, problems}, the problems the local loosenings; a
+# layer is null when absent or invalid. The caller puts guardrails on `strictest` on any problem.
 def resolve($inferred; $committed; $local):
   (defaults($inferred) | if $committed != null then apply($committed) else . end) as $base
   | loosenings($base.guardrails; $local.guardrails) as $problems

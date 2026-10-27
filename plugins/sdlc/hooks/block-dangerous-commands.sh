@@ -1,41 +1,7 @@
 #!/bin/bash
-# Refuses the commands that destroy work the reflog cannot bring back, and the remote writes that
-# replace or delete what others build on. Every command is judged where the shell runs one: a line
-# start, indented or not, after a separator, a subshell or a substitution, and behind the words that
-# run the command after them — `sudo`, `xargs`, `timeout`, `find -exec`, `bash -c`, a heredoc a shell
-# reads, the full list in lib-words.sh.
-#
-# git and gh are read as words, each verb with its own options, so spacing, quoting, a cluster such as
-# `-fb` and an option's value such as `--sort -refname` read once:
-#   reset --hard; clean -f/-d/-x/-X/--force unless a dry run; branch -M/-C, and -f/--force on a
-#   move, a copy or an existing branch; checkout -f or of the whole tree; switch -f/--discard-changes;
-#   restore of the whole tree unless --staged alone; stash drop/clear; worktree remove -f; reflog
-#   expire/delete; gc --prune=now|all; prune; update-ref -d.
-#   branch -D, -d -f, --delete --force: unless it is a command of its own and each branch it names
-#   has its work on origin's base branch (baseBranch, `auto` the one origin/HEAD names): its tip is
-#   there, or a base commit since it forked holds the tip's tree or the patch-id of its whole diff,
-#   as a squash merge leaves them.
-#   push: a bare --force, -f or +refspec and a --mirror are always refused; --force-with-lease and
-#   --force-if-includes pass to a branch outside guardrails.protectedBranches, each behind a
-#   permission prompt when guardrails.forcePush is `ask`, and nothing passes when it is `deny`; a
-#   plain push to a protected branch is refused, and so is a remote branch deletion: --delete, -d, a
-#   `:branch` refspec, or a --prune that reaches past the refspecs named. --all and a wildcard
-#   refspec count every local branch.
-#   commit, merge, cherry-pick, revert: on a protected branch, when guardrails.commitOnProtected is
-#   `deny`. A `switch` or `checkout` earlier in the same command moves the branch a commit or a push
-#   is judged on.
-#   gh: `repo delete`, `pr merge|close --delete-branch`, and `api` deleting a ref or a repository or
-#   force-updating a ref, REST or GraphQL.
-# A git command is judged where it runs: the payload's cwd, moved by a literal `cd` earlier in the
-# command (one inside a subshell ends with it) or by `git -C`, for its branch and its config alike. A
-# path computed at runtime cannot be followed and leaves the cwd.
-# rm, find and shred are read as text, where a target is: `rm` at the root, the home, a directory
-# above, the working directory by any of its names, or a `.git`; `.`, `./*` and a bare `*` where the
-# command runs, unless a `cd` moved it below the payload's cwd; `find -delete`; `shred`.
-#
-# Guardrail against agent accidents, not a security boundary: a command assembled at runtime, an
-# alias, a script on disk or a remote shell is not read. Runs always-on from bash-guard.sh, or alone
-# on the JSON payload; `--bash-command <cwd>` is the dispatcher's fast path.
+# Refuses what destroys work the reflog cannot bring back, and the remote writes others build on:
+# git and gh read as words, rm, find and shred read in place, each rule in README.md#guards. Not a
+# security boundary: a command assembled at runtime, an alias or a script on disk is not read.
 set -uo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
@@ -45,11 +11,9 @@ guard_read_payload "$@" || exit 0
 # --- rm, find and shred, read in place ------------------------------------------------------------
 
 END='([^A-Za-z0-9_-]|$)'
-# A target may be any operand, so the arm ends at whitespace, a separator, a closing parenthesis or
-# backtick. `/` and `.` mean the same quoted or not, so either quote may wrap them. The home directory
-# is `~` only bare — quoted, the shell passes a literal `~` — and `$HOME` bare or in double quotes;
-# single quotes keep it literal. A quote after it closes a wrapper's, as in `bash -c 'rm -rf ~'`,
-# where the inner shell expands the `~`.
+# A target may be any operand, so an arm ends at whitespace, a separator, `)` or a backtick. `/` and
+# `.` read the same in either quote, `~` only bare, `$HOME` bare or in double quotes. A quote after a
+# target closes a wrapper's, as in `bash -c 'rm -rf ~'`, where the inner shell expands the `~`.
 Q=$GUARD_OPEN_QUOTE
 RM="rm([[:space:]]+[^;&|]*)?[[:space:]]+"
 TEND="${Q}([[:space:]]|\$|[;&|)\`])"
@@ -161,10 +125,9 @@ check_restore() {
   return 0
 }
 
-# check_commit <flag>... — a verb that commits, on a protected branch, where
-# guardrails.commitOnProtected is `deny`; guard_opts has read its options, and one of the flags makes
-# it commit nothing. The branch is the one HEAD is on once the switches earlier in this command ran;
-# a detached HEAD passes.
+# check_commit <flag>... — a verb that commits, on a protected branch under commitOnProtected `deny`;
+# guard_opts has read its options, and any <flag> makes it commit nothing. The branch is HEAD's once
+# the switches earlier in this command ran; a detached HEAD passes.
 check_commit() {
   local branch
   guard_opt "$@" && return 0
@@ -186,11 +149,9 @@ REDIRECT_ALONE='^[0-9]*(<|>|>>)$'
 ALONE=0
 [[ "$(guard_pipelines "$SCAN")" != *$'\n'* && "$SCAN" != *[\|\(\)\`]* ]] && ALONE=1
 
-# check_branch_delete <segment> — a forced `git branch` delete, guard_opts having read it. It skips
-# git's merge check, which a squash-merged branch always fails, so it passes when every branch it
-# names has its work on the base branch (guard_landed), and only as a command of its own,
-# `[rtk] git [-C <path>] branch …` with each branch and the path written out: a `cd`, a `GIT_DIR`, a
-# variable, a glob or an xargs could point git elsewhere than the guard looks.
+# check_branch_delete <segment> — a forced `git branch` delete, guard_opts having read it. It passes
+# when each branch it names is landed (guard_landed), and only as a command of its own with each
+# branch and the path written out, `[rtk] git [-C <path>] branch …`: README.md#guards says why.
 check_branch_delete() {
   local word branch base i=0 skip=0 branches=()
   guard_opt -r --remotes && guard_block "'$GUARD_COMMAND' force-deletes remote-tracking branches."

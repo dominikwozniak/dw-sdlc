@@ -1,40 +1,11 @@
 #!/bin/bash
-# The text scanners lib.sh sources — the quote walker and what reads its pieces: substitutions, plain
-# words; the mask that reads them for quoted separators is lib-mask.sh. Not a hook and not sourced on
-# its own: lib.sh sets the locale and GUARD_LIB_DIR first and sources lib-lines.sh, then this file,
-# lib-live.sh, lib-mask.sh and lib-words.sh, whose live-quote readers, mask, word reader, escape
-# decoders and GUARD_LIVE_QUOTE the scanners here call only once every file is sourced.
+# The text scanners lib.sh sources: the quote walker and what reads its pieces. Not a hook: lib.sh
+# sources every lib-*.sh before a scanner runs, so the files call each other freely.
 # --- the quotes ---------------------------------------------------------------------------------
 
 # guard_quote_walk <text> [<live>] [<state>] [<from>] [<stop>] — the one reader of shell quoting: the
-# mask, the substitution split, the word reader, the heredoc opener and the heredoc body passes are
-# each a loop over the pieces it leaves, GUARD_QW_KIND[i] and GUARD_QW_TEXT[i], whose texts joined are
-# the text again.
-# A kind:
-#   t<c>  text read in context <c>        e<c>  a backslash and the character it keeps
-#   o<c>  what opens context <c>          c<c>  what closes it
-#   tC    a comment, up to the newline    h     a heredoc operator and its delimiter
-# The contexts: P the top level, S and D a single- and a double-quoted span, A an ANSI-C `$'…'` span,
-# where a backslash escapes and the next `'` closes, U a `$(…)`, V a bare `(` inside one, B a backtick
-# substitution, H an unquoted heredoc body, where only a substitution and a backslash act, E a `${…}`,
-# where a quote nests even inside a `"…"`, a `(` and a `#` are text and the first bare `}` closes it.
-# A `$'` opens A wherever a `'` would open S; a `$"…"` is a double-quoted span after a `$` of text; a
-# `$` before anything else is text. With <live> set, a quote after a shell's `-c`, `eval` or `rtk run`
-# opens s, d or a instead, a quote that holds a command; in a, a backslash still escapes, so a `\'`
-# there is text the walk does not follow. A `${…}` in d opens e: the outer shell expands it and hands
-# the shell what it expands to, so its text holds the command too, and a `"…"`, `'…'` or `$'…'` in it
-# opens d, s or a. The outer shell drops those quotes, all but a `'…'` that bash 3.2 and a `:-` keep,
-# where reading it as a command refuses more, not less. A comment and a heredoc operator count only
-# where the shell reads a command: in P, U, V and B.
-# GUARD_QW_STATE is the stack the text ends in, one context per character, starting from <state>, P by
-# default; the walk returns 1 when it ends elsewhere, a quote or substitution left open. It jumps from
-# one character that can change the context to the next, so a long quoted body costs a step per
-# quote, backslash and substitution, not one per character. A step reads a window of the text,
-# GUARD_QW_WINDOW characters: in bash 3.2 a substring costs the length of the string it is taken from,
-# so a step on the whole text would cost the text's length and a long command the square of it.
-# The walk starts at offset <from>, 0 by default, with the text before it read as what precedes it.
-# <stop> ends it early: `o` just after a quote handed to a shell opens, `c` just after the context it
-# starts in closes. GUARD_QW_END is the offset it stops at.
+# text cut into pieces, GUARD_QW_KIND[i] and GUARD_QW_TEXT[i], whose texts joined are the text again.
+# Its kinds, contexts, arguments and costs are in README.md#the-quote-walker.
 GUARD_QW_KIND=()
 GUARD_QW_TEXT=()
 GUARD_QW_STATE=""
@@ -47,9 +18,8 @@ guard_quote_walk() {
 }
 
 # guard_qw_walk <end> [<live>] [<state>] [<from>] [<stop>] — guard_quote_walk over GUARD_QW_SRC, cut
-# at offset <end>. An argument costs its length in bash 3.2, so a loop of walks over one text sets the
-# text once, in a local of its own that a walk nested in the loop leaves as it was. A walk starts with
-# one read of the text: its window and the 512 characters before it, guard_qw_live's tail.
+# at <end>: an argument costs its length in bash 3.2, so a loop of walks sets the text once, in a local
+# a nested walk leaves as it was. It reads its window and the 512 characters before, for guard_qw_live.
 guard_qw_walk() {
   local live="${2:-0}" st="${3:-P}" from="${4:-0}" stop="${5:-}"
   local around base=0 rest pos=${4:-0} wend total=$1 top run ch kind len quote prev="" depth=${#st} behind=""
@@ -218,13 +188,9 @@ guard_qw_walk() {
   [[ "$st" == "${3:-P}" ]]
 }
 
-# guard_qw_live <before> — 0 when the text before a quote ends where a quote is handed to a shell,
-# GUARD_LIVE_QUOTE. Past its first character a match holds only letters, `_`, `+`, `-`, `<` and
-# whitespace, so a match starts at or after the last character outside those: <before> is the whole
-# text before the quote or any tail of it that holds such a character, and the walk keeps it to one.
-# The last 128 characters decide it whenever one of them is such a character; only a longer run of
-# the others is read in full. A long command then costs a step per quote, not one per character
-# before it.
+# guard_qw_live <before> — 0 when the text before a quote ends in GUARD_LIVE_QUOTE. Past its first
+# character a match holds no GUARD_QW_NOT_LIVE character, so any tail holding one decides: the last
+# 128 characters do unless none is there, and a long command costs a step per quote.
 GUARD_QW_NOT_LIVE='[!A-Za-z_+<[:space:]-]'
 guard_qw_live() {
   local pre=$1
@@ -260,15 +226,9 @@ guard_replace_set() {
 
 # --- the text -----------------------------------------------------------------------------------
 
-# guard_strip_quoted <command> — what a path or token check scans: heredoc bodies dropped but for
-# the substitutions an unquoted one runs, then each segment's plain words, so prose in a commit
-# message never reads as a file while `cat ".env.local"` still names one. In a search tool's segment
-# every quoted word is dropped, because there a quoted word is the pattern: `grep -rn ".env.local"
-# src` looks for the name and opens no such file. A substitution the shell runs, `"$(cat .env.local)"`
-# included, is read as a command of its own, so its words count even inside double quotes while the
-# prose around it stays prose. A quote handed to a shell's `-c`, `eval` or `rtk run` is read the same
-# way, and a comment runs nothing, so its words are dropped. The first line holds the command's own
-# words, each line after it the words of one substitution or one quote that holds a command.
+# guard_strip_quoted <command> — the words a path check scans, prose and heredoc bodies off, by the
+# rules in README.md#paths-in-a-command: the first line the command's own words, each line after it
+# those of one substitution or one quote that holds a command.
 GUARD_SEARCH_WORD='(^|[^A-Za-z0-9_.-])(rg|ag|ack)([[:space:]]|$)'
 guard_strip_quoted() {
   local text line
@@ -283,12 +243,9 @@ guard_strip_quoted() {
   done < <(guard_split_substitutions "$text")
 }
 
-# guard_split_substitutions <text> — the text with every `$(…)` and backtick substitution replaced by
-# `_`, then the body of each substitution, one per line; a nested one is split out of its parent the
-# same way, and a comment is dropped. Single quotes keep a `$(` literal and double quotes do not. A
-# quote handed to a shell's `-c`, `eval` or `rtk run` is replaced by `_` too, and guard_live_body's
-# lines follow, read where the outer shell ends the quote. Each line is folded to one, its newlines
-# spaces. An unterminated quote or substitution hands back the text as typed.
+# guard_split_substitutions <text> — the text with each `$(…)`, backtick span and live quote made `_`,
+# then each one's body a line, nested ones split out alike, comments dropped, newlines made spaces. An
+# unterminated quote or substitution hands back the text as typed.
 guard_split_substitutions() {
   local GUARD_QW_SRC="$1" st=P from=0 i n kind piece depth=0 buf="" bodies="" total=${#1}
   # The text of each enclosing substitution while a nested one is read.
@@ -373,14 +330,9 @@ guard_search_segment() {
   esac
 }
 
-# guard_plain_words <text> — the text's shell words with the quotes gone, joined by one space, and
-# every word that holds whitespace dropped: only a quoted span puts whitespace into a word, and a
-# quoted span with whitespace is prose — a message, a pattern, a sentence. A quoted word without
-# whitespace is a word like any other: `'db:drop'` and `"$HOME/.ssh/id_rsa"` are what the shell
-# passes on. The costs: a quoted path holding a space reads as prose, so `cat "my dir/.env"` passes,
-# and outside the search tools guard_strip_quoted knows, a quoted word that is exactly a guarded name
-# reads as that file. An unterminated quote hands back the text as typed — fail closed, judge what was
-# typed.
+# guard_plain_words <text> — the text's shell words, quotes off, joined by a space, each word holding
+# whitespace dropped as prose; its costs are in README.md#paths-in-a-command. An unterminated quote
+# hands back the text as typed: fail closed.
 guard_plain_words() {
   local word plain=""
   if ! guard_split_words "$1"; then

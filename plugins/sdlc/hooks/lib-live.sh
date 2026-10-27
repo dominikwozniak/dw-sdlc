@@ -1,24 +1,11 @@
 #!/bin/bash
-# The live-quote readers lib.sh sources — a quote handed to a shell's `-c`, `eval` or `rtk run`, read
-# where the outer shell ends it, for the mask and the substitution split. Not a hook and not sourced
-# on its own: lib.sh sets the locale and GUARD_LIB_DIR first and sources lib-lines.sh and
-# lib-text.sh, then this file, then lib-mask.sh and lib-words.sh, whose escape decoder and
-# GUARD_HAS_LIVE_QUOTE these readers call only once every file is sourced.
+# The live-quote readers lib.sh sources: a quote handed to a shell's `-c`, `eval` or `rtk run`, read
+# where the outer shell ends it. Not a hook: lib.sh sources every lib-*.sh before a reader runs.
 # --- the live quotes ----------------------------------------------------------------------------
 
-# guard_live_span <opening kind> — a quote handed to a shell, read from the walk's pieces, which start
-# just after its opening quote: os, oa or od where a live walk opened it, oS, oA or oD where the walk
-# already read it the outer shell's way. GUARD_LIVE_CTX is the context the outer shell reads it in, S, A or D;
-# GUARD_LIVE_RAW the text up to the walk's closing quote, GUARD_LIVE_LEN the characters through it,
-# GUARD_LIVE_END its piece. GUARD_LIVE_TEXT is the text the shell is handed: a `$'…'` decoded, the
-# escapes of `$`, a backtick, `"` and `\` in a `"…"` undone. GUARD_LIVE_SPLIT is that text with each
-# substitution of a `"…"` a `_`, its body in GUARD_LIVE_SUBS, since the outer shell runs it first.
-# A `${…}` nests its quotes the way the outer shell does. Returns 1 when the quote never closes, and
-# 2 when the outer shell may end it elsewhere than a live walk does: a `'…'` holding a `'`, a `$'…'`
-# an unescaped `'`, a `"…"` a `'…'` or `$'…'` with a `"`, `$`, backtick or backslash, text there to
-# the outer shell, or a substitution read with a quote handed on inside it. Returns 3 when the walk
-# ends it where the shell does but read the text as typed, not the text the shell is handed: a
-# `$'…'` holding a backslash.
+# guard_live_span <opening kind> — a quote handed to a shell, read from the walk's pieces just after
+# its opening quote into the GUARD_LIVE_* fields. Returns 1 when it never closes, 2 when the outer
+# shell may end it elsewhere, 3 when read as typed: each field and case in README.md#live-quotes.
 GUARD_LIVE_CTX=""
 GUARD_LIVE_RAW=""
 GUARD_LIVE_TEXT=""
@@ -106,13 +93,9 @@ guard_live_span() {
   return 0
 }
 
-# guard_live_walk <end> <state> <from> <opening kind> — walks a quote of GUARD_QW_SRC, whose text ends
-# at <end>, that a live walk opened with <opening kind> in <state>, <from> the offset just after its
-# opening quote, and reads it with guard_live_span. The outer shell's walk finds where the quote ends,
-# and the live walk reads only up to there, so each walk stops at the quote's end and a command costs
-# time linear in its live quotes.
-# Returns guard_live_span's 0 or 3 when the live walk ends the quote there too and reads it so, else
-# 2 with the outer shell's reading in its place, or 1 when the quote never closes.
+# guard_live_walk <end> <state> <from> <opening kind> — reads the quote a live walk opened just before
+# <from> with guard_live_span: the outer shell's walk finds its end, and the live one stops there.
+# Returns 0 or 3 when both end it there, else 2 with the outer shell's reading, or 1 if it never closes.
 guard_live_walk() {
   local ctx end rc
   case "$4" in

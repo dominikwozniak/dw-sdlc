@@ -1,11 +1,6 @@
-# The subset of JSON Schema draft 2020-12 the shipped schemas use, for the guards. The same keywords,
-# messages and paths as dw-sdlc/src/json-schema.ts; the tests run both copies against one case list.
-# A keyword outside the subset is an error, never a silent pass. `format` is enforced: `regex` is
-# the one format, tried as an Oniguruma expression and refused when it holds a construct POSIX ERE
-# lacks, because `grep -E` runs the pattern and BSD and GNU grep read those differently.
-#
-# Usage: `jq -L <this dir> --slurpfile s schema.json 'include "schema"; validate($s[0])' doc.json`
-# prints an array of {path, message}, empty when the document validates.
+# The subset of JSON Schema draft 2020-12 the shipped schemas use, for the guards: the keywords,
+# messages and paths of dw-sdlc/src/json-schema.ts, both run on one case list. A keyword outside the
+# subset is an error, never a pass. `validate($schema)` gives [{path, message}], [] when valid.
 
 def _at($path): if $path == "" then "(root)" else $path end;
 def _child($path; $key): if $path == "" then $key else "\($path).\($key)" end;
@@ -21,6 +16,8 @@ def _type_matches($t):
   elif $t == "null" then type == "null"
   else error("unknown type \($t | tojson)") end;
 
+# `regex`, the one `format` enforced: an Oniguruma expression, refused by _not_ere when it holds what
+# POSIX ERE lacks, since `grep -E` runs the pattern and BSD and GNU grep read those differently.
 def _is_regex: . as $re | (try ("" | test($re)) catch "bad") != "bad";
 
 # The first `\d`, `\s`, `\w`, `\b`, capital twin or `(?` outside a bracket expression. The pattern is

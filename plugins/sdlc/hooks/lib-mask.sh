@@ -1,21 +1,11 @@
 #!/bin/bash
-# The quote mask lib.sh sources — a command with every separator a quoted span holds made text, so no
-# command boundary opens inside a quote, and a quote handed to a shell masked as the command it is.
-# Not a hook and not sourced on its own: lib.sh sets the locale and GUARD_LIB_DIR first and sources
-# lib-lines.sh, lib-text.sh and lib-live.sh, then this file, then lib-words.sh, whose heredoc mask,
-# walk, live-quote readers and escape decoder the mask calls only once every file is sourced.
+# The quote mask lib.sh sources: each separator a quoted span holds made text, and a quote handed to a
+# shell masked as the command it is. Not a hook: lib.sh sources every lib-*.sh before the mask runs.
 # --- the mask -----------------------------------------------------------------------------------
 
-# guard_mask_quoted_separators <command> — `;` `&` `|` `(` `)` and a backtick inside a quoted span are
-# text, not separators, so they become \002 and cannot open a command boundary: `git commit -m "docs:
-# never | git push --force"` is a message, not a push. The quotes themselves stay, so the boundary's
-# optional quote still matches `rtk run "npm install"`, where the quoted text really is the command.
-# What runs stays unmasked: a `$(…)` or a backtick substitution inside double quotes, and a quote
-# handed to a shell's `-c`, `eval` or `rtk run`, so `bash -c "cd x && git reset --hard"` keeps its
-# `&&`. Such a quote ends where the outer shell ends it: where guard_live_walk finds the walk reads it
-# otherwise, its body is masked as a command of its own. A comment is text, and so is a heredoc body
-# but for the substitutions an unquoted one runs. An unterminated quote or substitution hands back the
-# original — fail closed, judge what was typed.
+# guard_mask_quoted_separators <command> — `;` `&` `|` `(` `)` and a backtick made \002 where they are
+# text, so `git commit -m "a | git push -f"` is one command; the quotes stay. What runs stays live: a
+# `$(…)` in double quotes, a live quote. An unterminated quote hands back the original: fail closed.
 guard_mask_quoted_separators() {
   guard_mask_text "$1"
   printf '%s' "$GUARD_MASKED"
@@ -76,11 +66,9 @@ guard_mask_live_text() {
   fi
 }
 
-# guard_mask_pieces [<from> [<to>]] — the walk's pieces, all of them or those from <from> up to
-# <to>, joined into GUARD_MASKED, `;` `&` `|` `(` `)` and a backtick made \002 wherever they are text:
-# a quoted span, a `${…}`, a comment, an escape. A newline in a quoted span is text too, so a line of a
-# multi-line message never starts a line of its own. In the text of an unquoted heredoc body the
-# quotes and a `#` go too, so a walk of the whole command finds none of them there.
+# guard_mask_pieces [<from> [<to>]] — the walk's pieces joined into GUARD_MASKED, separators made \002
+# where text: a quoted span and its newlines, a `${…}`, a comment, an escape. An unquoted heredoc body
+# loses its quotes and `#` too, so a later walk of the whole command finds none there.
 GUARD_MASKED=""
 guard_mask_pieces() {
   local i n=${2:-${#GUARD_QW_KIND[@]}} piece

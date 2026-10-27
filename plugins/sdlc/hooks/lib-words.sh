@@ -1,8 +1,6 @@
 #!/bin/bash
-# The word readers lib.sh sources — a command split into shell words, the wrappers in front of it,
-# and the boundary every guard's pattern sees through. Not a hook and not sourced on its own: lib.sh
-# sets the locale and GUARD_LIB_DIR first and sources lib-lines.sh, lib-text.sh, lib-live.sh and
-# lib-mask.sh, then this file.
+# The word readers lib.sh sources: a command split into shell words, the launchers in front of it,
+# and the boundary every guard's pattern reads through. Not a hook: lib.sh sources it.
 # --- the words ----------------------------------------------------------------------------------
 
 # guard_tokens <text> — one token per line, split on whitespace and shell punctuation.
@@ -10,16 +8,9 @@ guard_tokens() {
   printf '%s\n' "$1" | tr -s "[:space:];|&()<>=\`\"'" '\n' | sed '/^$/d'
 }
 
-# guard_split_words <segment> — GUARD_WORDS becomes the segment split into words the way a shell
-# would, read on guard_quote_walk's pieces: whitespace at the top level separates, quotes group and
-# are dropped, the `$` of a `$'…'` or a `$"…"` with them, a backslash keeps the next character, and in
-# a `$'…'` stands for what bash decodes it to, a newline read as a space and the text ending at a NUL.
-# A `$(…)`, a backtick substitution or a `${…}` stays in its word, delimiters and whitespace included,
-# with the quotes and backslashes inside it read the same way. A comment's text splits as the
-# command's does, and a heredoc operator reads as `<<EOF`, the delimiter's quotes dropped. For one
-# command's arguments, where `-C 'my repo'` must stay one word; a segment holds no newline. Returns 1
-# when a quote or substitution is left open, with what it read. Runs in the caller's shell, so a
-# segment costs no fork, and overwrites the walk's pieces.
+# guard_split_words <segment> — GUARD_WORDS, the segment's words as README.md#words splits them; a
+# segment holds no newline. Returns 1 when a quote or substitution is left open, with what it read.
+# Runs in the caller's shell, so a segment costs no fork, and overwrites the walk's pieces.
 GUARD_WORDS=()
 guard_split_words() {
   local i n kind piece word="" have=0 depth=0 cut=0 quote="" status=0 noglob=0 run k
@@ -153,11 +144,9 @@ guard_words() {
   return $status
 }
 
-# guard_ansi_escape <text after a backslash> — what an escape in a `$'…'` stands for, the way bash
-# decodes it: GUARD_ANSI_CHAR, and GUARD_ANSI_LEN, the characters of the text it takes. A letter, hex,
-# octal or `\c` control code becomes its character when that is ASCII; a NUL is no character and sets
-# GUARD_ANSI_NUL, since bash ends the quote's text there; a code past ASCII and an escape bash does not
-# know stay as typed. `\u` and `\U` are bash 4.2's and zsh's, shells a command may run under.
+# guard_ansi_escape <text after a backslash> — GUARD_ANSI_CHAR, what a `$'…'` escape decodes to when
+# ASCII, else the escape as typed, and GUARD_ANSI_LEN, its length. A NUL sets GUARD_ANSI_NUL, as bash
+# ends the text there; `\u` and `\U` decode as in bash 4.2 and zsh, which a command may run under.
 GUARD_ANSI_CHAR=""
 GUARD_ANSI_LEN=0
 GUARD_ANSI_NUL=0
@@ -226,34 +215,13 @@ guard_ansi_decode() {
   GUARD_ANSI_TEXT+=$rest
 }
 
-# The command position. A command runs where the shell reads one — a line start, indented or not, or
-# after `;` `&` `|` `(` or a backtick — and behind the words that run the command after them:
-#
-#   word                                     its options that take a value (glued or the next word)
-#   then do else elif if while until ! {     —
-#   time                                     -o -f (GNU time; the keyword's -p takes none)
-#   sudo                                     -u -g -h -p -U -r -t -C -D -R -T
-#   env                                      -u -C -S; then any VAR=value
-#   command                                  -p runs the command; -v and -V only look it up
-#   eval  nohup                              —
-#   exec                                     -a
-#   nice                                     -n
-#   timeout                                  -s -k; then one duration
-#   stdbuf                                   -i -o -e
-#   xargs                                    -a -d -E -I -J -L -n -P -R -s -S
-#   find … -exec / -execdir / -ok / -okdir   the command runs up to its `;` or `{} +`
-#   sh bash zsh dash ksh                     the text after a `-c`, or after `<<<`
-#   rtk                                      its flags, then run, proxy, err, test or summary
-#   VAR=value                                —
-#
-# A command named by a path or with a leading backslash, `/usr/bin/git` or `\rm`, is that command.
-# Two readers keep this table: guard_unwrap_words on words and GUARD_BOUNDARY on text, for the arms
-# that must read a target in place. test/hooks/lib.test.ts holds them to the same spellings.
+# The command position and its launchers, the table in README.md#the-command-position, have two
+# readers: guard_unwrap_words on words and GUARD_BOUNDARY on text, for the arms that read a target in
+# place. test/hooks/lib.test.ts holds them to the same spellings.
 
-# guard_read_words <segment> — WORDS becomes the segment's words, as guard_split_words reads them. A
-# segment cut out of a quote handed to a shell, `bash -c "${x:-$'a; git reset --hard'}"`, ends in the
-# quotes, braces and parentheses that close outside it; guard_split_words reads those as a quote left
-# open, and then every word is read without them. A trailing empty word, `git push ''`, is dropped.
+# guard_read_words <segment> — WORDS, guard_split_words' words, a trailing empty one (`git push ''`)
+# dropped. A segment cut out of a live quote, `bash -c "${x:-$'a; git reset --hard'}"`, ends in what
+# closes outside it, a quote left open: each word then drops its trailing quotes, braces and parens.
 guard_read_words() {
   local word status=0
   WORDS=()
@@ -341,7 +309,7 @@ guard_find_exec() {
   WORDS=("${WORDS[@]:from:to-from}")
 }
 
-# guard_unwrap_words — drops from the front of the array WORDS every word the table above names, with
+# guard_unwrap_words — drops from the front of the array WORDS every launcher the table names, with
 # its options, until the command itself leads. Word by word, so `rtk git` keeps its `git`, `bash
 # script.sh` stays a shell and `command -v git` stays a lookup.
 guard_unwrap_words() {
@@ -462,10 +430,9 @@ guard_split_first_word() {
   WORDS=("${GUARD_WORDS[@]+"${GUARD_WORDS[@]}"}" "${WORDS[@]:1}")
 }
 
-# The table above as text: one of its words with its options. GUARD_BOUNDARY reads zero or more in
-# front of the command, so `sudo -u me rtk run git push --force` matches the same as the bare form.
-# A flag is any `-word`; an option that takes a value is spelled out with it. rtk's own subcommands
-# are left optional, so `rtk git` and `rtk proxy git` both read.
+# The launcher table as text, one launcher with its options; GUARD_BOUNDARY reads any number before
+# the command. A flag is any `-word`, an option that takes a value is spelled out with it, and rtk's
+# subcommand is optional, so `rtk git` and `rtk proxy git` both read.
 GUARD_SHELL_OPTION='([[:space:]]+(-[A-Za-z]+|--[a-z-]+|[-+][A-Za-z]*[oO][[:space:]]+[A-Za-z_]+))'
 GUARD_SHELL_C="(ba|da|k|z)?sh${GUARD_SHELL_OPTION}*[[:space:]]+-[A-Za-z]*c[A-Za-z]*${GUARD_SHELL_OPTION}*[[:space:]]+"
 GUARD_SHELL_HERE="(ba|da|k|z)?sh${GUARD_SHELL_OPTION}*[[:space:]]*<<<[[:space:]]*"
@@ -500,8 +467,7 @@ GUARD_HAS_LIVE_QUOTE="${GUARD_LIVE_PREFIX}\\\$?[\"']"
 # An optional opening quote for an ERE: `'`, `"`, `$'` or `$"`.
 GUARD_OPEN_QUOTE="(\\\$?[\"'])?"
 
-# Start-of-command boundary for an ERE: a line start, indented or not, or right after `;` `&` `|` `(`
-# or a backtick — the last two open a subshell or a command substitution — then the wrappers, each
-# one free to open a quote for the `rtk run "git push --force"`, `bash -c 'X=1 rm -rf /'` and
-# `bash -c $'…'` forms, and the command's path. `grep -E "${GUARD_BOUNDARY}rm"`.
+# Start-of-command boundary for an ERE, `grep -E "${GUARD_BOUNDARY}rm"`: a command position, then the
+# launchers, each free to open a quote, as `rtk run "git push --force"` and `bash -c $'…'` do, then
+# the command's path.
 GUARD_BOUNDARY="(^[[:space:]]*|[;&|(\`][[:space:]]*)(${GUARD_CMD_DIR}(${GUARD_LAUNCHER})|\\\$?[\"'])*${GUARD_CMD_DIR}"

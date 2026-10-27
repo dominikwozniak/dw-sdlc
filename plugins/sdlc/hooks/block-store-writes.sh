@@ -1,25 +1,7 @@
 #!/bin/bash
-# Refuses an agent every change to App Store Connect. `asc`, its CLI, reaches the whole account from
-# any directory with the owner's Keychain key, so this guard is on in every repository and reads no
-# config: only the owner writes to the store, at a terminal.
-#
-# Two refusals, judged on each command's shell words with the wrappers off. `--confirm` on any store
-# command: a word naming a `store:<name>` script or a `store-<name>.ts` file, one not written yet
-# included, beside a `--confirm` word, quoted or not. A store command without it runs,
-# `store:price-levels --write` included. And every `asc` call that is not a read: a read's verb, the
-# last word before the first flag, is in READ_VERBS — list, view, show, summary, status, the
-# listing's pull, plan, diff, validate, audit, download, init, approve, sizes, and the asset
-# library's specs and placements — or the call is `asc search <query>`, which searches asc's own
-# command index locally, has `--help`, no verb at all (`asc --version`), or `--dry-run` without
-# `--confirm`. The verb comes from under any command: `metadata keywords audit`
-# reads, `metadata keywords push` writes, `localizations placements create` writes; `show` alone
-# takes a word after it, the guide `asc docs show` prints. A flag before the command is refused,
-# since which word is its value is unknown, and so is the verb. `prices set`, `offers introductory
-# create`, `metadata apply` and `metadata push` write without any `--confirm`, so the flag alone is
-# no signal. Under a verb `--version` is the app's, not asc's.
-#
-# Guardrail against agent accidents, not a security boundary. Spawned by bash-guard.sh when the
-# command names `asc` or a store script; runs alone on the JSON payload too.
+# Refuses an agent every write to App Store Connect, in every repository and with no config: a store
+# command with `--confirm`, and an `asc` call that is no read, both in README.md#guards. Only the
+# owner writes to the store, at a terminal. Not a security boundary.
 set -uo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
@@ -47,7 +29,8 @@ check_store() {
   return 0
 }
 
-# check_asc — refuses WORDS that run asc and are no read.
+# check_asc — refuses WORDS that run asc and are no read, judged by the verb: `--confirm` is no signal
+# alone, as `prices set` and `metadata apply` write without it.
 check_asc() {
   [[ "${WORDS[0]##*/}" == asc ]] || return 0
   local word flag verb="" shown=0 in_flags=0 hidden=0 dry=0 confirm=0 help=0

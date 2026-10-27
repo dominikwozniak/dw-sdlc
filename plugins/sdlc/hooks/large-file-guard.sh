@@ -1,15 +1,7 @@
 #!/bin/bash
-# PostToolUse Write — flags a file the agent just wrote that is far larger than anything a human
-# maintains by hand. PostToolUse, so the write ALREADY HAPPENED and this cannot prevent it: measuring
-# inside a PreToolUse hook means deciding on a string the model may still be streaming, and a limit
-# that fires before the write has to be right the first time. After the fact the file is on disk
-# with a real size, the check is exact, and exit 2 puts the number in front of the model while the
-# decision to keep or delete it is still live.
-#
-# The threshold is bytes, and generous: a "you did not mean to do that" check — a pasted bundle, a
-# base64 blob, a dumped log, generated output that belongs in .gitignore — not a style rule about
-# file length. CLAUDE_MAX_WRITE_BYTES overrides it; 0 disables the guard without unwiring it. The
-# one guard with a kill switch, because it is advisory and the bytes are already on disk.
+# PostToolUse Write — flags a file over the threshold once it is on disk: README.md#guards. After
+# the write, so the size is exact and not read off text the model may still be streaming; exit 2
+# puts it before the model while keeping or deleting the file is still its call.
 set -uo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 

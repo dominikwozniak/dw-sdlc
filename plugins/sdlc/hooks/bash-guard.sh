@@ -1,12 +1,7 @@
 #!/bin/bash
-# PreToolUse Bash dispatcher — the one hook the manifest wires for matcher "Bash". One stdin read,
-# one jq parse, heredoc bodies dropped once — all but a body a shell reads, which is its script —
-# and each guard spawned only when the command could trip it. A guard gets the scan text on stdin — environ shares the exec size limit, and a long
-# enough command in it once killed every spawn with 126, so no guard ran and the call went through —
-# and the payload's cwd as argv, which is what its config lookup keys on.
-#
-# The lists below are the whole policy of the plugin, and a guard's own self-test cannot see them:
-# test/hooks/bash-guard.test.ts is what pins that a guard is spawned at all.
+# PreToolUse Bash dispatcher, the one hook wired for matcher "Bash": README.md#layout. Its trigger
+# lists are the plugin's whole policy, which a guard's own self-test cannot see, so
+# test/hooks/bash-guard.test.ts pins that each guard is spawned at all.
 set -uo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
@@ -15,17 +10,17 @@ guard_read_payload "$@" || exit 0
 
 SCAN=$(printf '%s\n' "$GUARD_COMMAND" | guard_strip_heredocs | guard_join_continuations)
 
-# run <guard> [text] — the scan on stdin unless another text is given, on this dispatcher's own bash
-# rather than the first one in PATH. A guard pruned from the directory is a skip, not a failure.
+# run <guard> [text] — the scan, or another text, on stdin and on this dispatcher's own bash; a pruned
+# guard is a skip. Never the environment: it shares the exec size limit, and a long command there
+# fails every spawn with 126, so no guard runs and the call goes through. The cwd travels as argv.
 run() {
   [[ -f "$GUARD_LIB_DIR/$1" ]] || return 0
   printf '%s' "${2-$SCAN}" | "$BASH" "$GUARD_LIB_DIR/$1" --bash-command "$GUARD_CWD"
 }
 
-# guard <guard> [text] — A refusal (exit 2) stops the chain. An ask (a JSON verdict on stdout) is held
-# until every guard has run, so a refusal from a later one still wins; the first ask is the one
-# printed, since two verdicts would not parse as one. Any other non-zero is a broken guard rather
-# than a verdict — say so, and let the guards below it still run.
+# guard <guard> [text] — a refusal (exit 2) stops the chain; an ask, a JSON verdict on stdout, waits
+# for every guard, so a later refusal still wins, and only the first prints, as two would not parse.
+# Any other non-zero is a broken guard, not a verdict: say so, and run the guards below it.
 ASK=""
 guard() {
   local out rc
@@ -47,9 +42,8 @@ guard credential-leak-guard.sh
 guard block-env-access.sh
 
 # Trigger-scoped guards run only when a substring says they could fire; the substring
-# over-approximates on purpose and the guard does the exact match. `npx` needs its own arm: it
-# shares no substring with `npm`, and a trigger list without it means the guard is never spawned no
-# matter what its own patterns say.
+# over-approximates and the guard does the exact match. `npx` needs its own arm: it shares no
+# substring with `npm`, and without it the guard is never spawned, whatever its own patterns say.
 case "$SCAN" in
   *npm* | *npx* | *yarn* | *bun*) guard block-non-pnpm.sh ;;
 esac
