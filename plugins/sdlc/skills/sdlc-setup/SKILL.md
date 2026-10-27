@@ -47,7 +47,8 @@ refused     package.json — no dw-sdlc devDependency, and a new one needs your 
 ```
 
 Before anything is written, ask the user whether to add `dw-sdlc` as a devDependency pinned at the
-version the line names. On no, stop: run nothing more. On yes, add `--add-package` to both commands,
+version the line names, and say that a yes also adds the `gate` key below, which this dry run does
+not show yet. On no, stop: run nothing more. On yes, add `--add-package` to both commands,
 run the dry run again and show its lines, then run for real. When the real run wrote
 `package.json`, run the install its line names, `pnpm install` in a pnpm repository, so the lockfile
 and `node_modules` hold the package. An install the release-age gate refuses is shown and ends the
@@ -57,10 +58,11 @@ With the package there, the run adds the `gate` key to the committed `.ai/agenti
 the config has none, and creates the file when it is absent. A `gate` key the config has stays as it
 is. A repository without a `package.json` gets neither line, and its run is the guards' files alone.
 
-The key names every Check the package ships. `agents-map`, `markdown-refs`, `temporal-language` and
-`comment-budget` are on: each judges the tree as it is. The other four are `false`, as each reads an
-input the repository adds first: `primitives` a catalogue, `decision-records` a records directory,
-`markdown-budget` the docs its glob matches, and `file-size-ratchet` its baseline.
+The key names every Check the package ships. `markdown-refs`, `temporal-language` and
+`comment-budget` are on: each judges the tree as it is. `agents-map` is on too: it reads `AGENTS.md`,
+which the user writes, and the first Gate names what the map lacks. Every other Check is `false`, as
+each reads an input the repository adds first: `primitives` a catalogue, `decision-records` a
+records directory, `markdown-budget` the docs its glob matches, `file-size-ratchet` its baseline.
 
 ## What each file is
 

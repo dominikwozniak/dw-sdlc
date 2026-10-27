@@ -736,7 +736,7 @@ describe("adopting the Gate", () => {
     assert.equal(both.status, 0, both.stdout)
     assert.ok(
       lines(both.stdout).includes(
-        'by hand     ~/.claude/settings.json — enabledPlugins: remove "guardrails@dw-sdlc" and "references@dw-sdlc", which the marketplace no longer lists, and add "sdlc@dw-sdlc": true after claude plugin install sdlc@dw-sdlc --scope user'
+        'by hand     ~/.claude/settings.json — enabledPlugins: remove "guardrails@dw-sdlc" and "references@dw-sdlc", which the marketplace does not list, and add "sdlc@dw-sdlc": true after claude plugin install sdlc@dw-sdlc --scope user'
       ),
       both.stdout
     )
@@ -750,7 +750,7 @@ describe("adopting the Gate", () => {
     assert.deepEqual(
       lines(one.stdout).filter((line) => line.startsWith("by hand")),
       [
-        'by hand     ~/.claude/settings.json — enabledPlugins: remove "references@dw-sdlc", which the marketplace no longer lists'
+        'by hand     ~/.claude/settings.json — enabledPlugins: remove "references@dw-sdlc", which the marketplace does not list'
       ]
     )
 

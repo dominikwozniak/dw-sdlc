@@ -68,12 +68,12 @@ is kept, and --force-push and --commit-on-protected pin those two keys in it, re
 loosen what the committed config sets; --force overwrites a local config that differs in anything
 else; --dry-run reports without writing.
 
-Where the repository has a package.json, the Gate: dw-sdlc pinned there as a devDependency at the
-version running the setup, only with --add-package, since a new dependency needs the owner's yes, and
-refused without it; with the package there, the gate key in .ai/agentic.config.json when the config
-has none, the file created when absent. Both go to the repository holding --root, a linked worktree
-included. The agent map is never written. Settings that still enable guardrails@dw-sdlc or
-references@dw-sdlc get a "by hand" line with the enabledPlugins edit, left to the user.`
+Where the repository has a package.json, the setup adopts the Gate. --add-package pins dw-sdlc
+there as a devDependency, at the version running the setup; a new dependency needs the owner's yes,
+so without the flag the file is refused. Once the package is there, .ai/agentic.config.json gains
+the gate key when it has none, and the file is created when absent. Both files go to the repository
+holding --root, a linked worktree included. The agent map is never written. Settings that still
+enable guardrails@dw-sdlc or references@dw-sdlc get a "by hand" line naming the enabledPlugins edit.`
 
 function isConvention(value: string): value is CommitConvention {
   return COMMIT_CONVENTIONS.some((preset) => preset === value)
@@ -92,7 +92,7 @@ const MARKETPLACE = "dw-sdlc"
 const PLUGIN = "sdlc"
 /** The plugin's link to the dw-sdlc package, which carries the schema. */
 const PACKAGE_LINK = "dw-sdlc"
-/** The two plugins the sdlc plugin replaced, which the marketplace no longer lists (ADR 0010). */
+/** The two plugins the sdlc plugin replaced, which the marketplace does not list (ADR 0010). */
 const RETIRED_PLUGINS = ["guardrails", "references"].map((name) => `${name}@${MARKETPLACE}`)
 
 /** A read-only git command, the one thing the setup runs in the repository. */
@@ -298,7 +298,7 @@ function enabledPluginsEdit(settings: JsonObject): string | undefined {
     return undefined
   }
   const id = `${PLUGIN}@${MARKETPLACE}`
-  const remove = `enabledPlugins: remove ${retired.map((name) => JSON.stringify(name)).join(" and ")}, which the marketplace no longer lists`
+  const remove = `enabledPlugins: remove ${retired.map((name) => JSON.stringify(name)).join(" and ")}, which the marketplace does not list`
   return enabled[id] === true
     ? remove
     : `${remove}, and add "${id}": true after claude plugin install ${id} --scope user`
