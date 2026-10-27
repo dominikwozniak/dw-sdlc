@@ -1,7 +1,7 @@
 #!/bin/bash
 # Enforces the commit conventions the resolved config carries: the subject, the trailer, a live
-# backtick and a `git add` of the whole tree, each in README.md#guards. A lexer of its own, since BSD
-# `xargs -n1` dies on a quoted newline; it keys off a `git` token, so a launcher before one needs nothing.
+# backtick and a `git add` of the whole tree, each in README.md#guards. A lexer of its own, as BSD
+# `xargs -n1` dies on a quoted newline; it keys off a `git` token, so launchers need no handling.
 set -uo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 

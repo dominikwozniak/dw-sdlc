@@ -30,7 +30,7 @@ check_store() {
 }
 
 # check_asc — refuses WORDS that run asc and are no read, judged by the verb: `--confirm` is no signal
-# alone, as `prices set` and `metadata apply` write without it.
+# alone, as `prices set` and `metadata apply` write without it. Under a verb, `--version` is the app's.
 check_asc() {
   [[ "${WORDS[0]##*/}" == asc ]] || return 0
   local word flag verb="" shown=0 in_flags=0 hidden=0 dry=0 confirm=0 help=0

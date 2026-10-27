@@ -145,8 +145,8 @@ guard_strip_heredocs() {
 }
 
 # guard_join_continuations — stdin to stdout, a line ending in an odd run of backslashes joined to the
-# next, as the shell runs them; after the heredoc pass, so no body swallows its terminator. A `\⏎` in
-# single quotes joins too, a gap taken; a line ending in a comment continues nothing.
+# next, as the shell runs them; after the heredoc pass, so no body swallows its terminator. A known
+# gap: a `\⏎` inside single quotes joins too. A line ending in a comment continues nothing.
 GUARD_CONTINUED='(^|[^\])(\\\\)*\\$'
 guard_join_continuations() {
   local line joined=""
@@ -162,7 +162,8 @@ guard_join_continuations() {
   return 0
 }
 
-# guard_ends_in_comment <line> — 0 when the line's last piece is a comment.
+# guard_ends_in_comment <line> — 0 when the line's last piece is a comment, the line walked from the
+# top level: a quote opened on an earlier line is unknown.
 guard_ends_in_comment() {
   [[ "$1" == *'#'* ]] || return 1
   guard_quote_walk "$1"

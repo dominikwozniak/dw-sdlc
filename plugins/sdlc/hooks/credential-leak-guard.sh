@@ -1,7 +1,7 @@
 #!/bin/bash
 # Refuses the credential hunting block-env-access.sh leaves, listed in README.md#guards: the stores
-# that are not dotenv, the environment, a curl or wget carrying either. Not every curl: a guard that
-# refuses every network call gets unwired. Not a security boundary.
+# that are not dotenv, the environment, a curl or wget carrying those or a dotenv file. Not every
+# curl: a guard that refuses every network call gets unwired. Not a security boundary.
 set -uo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
@@ -64,8 +64,8 @@ if [[ "$STRIPPED" =~ $CRED_NAMES ]]; then
 fi
 
 # --- 2. hunting the environment -------------------------------------------------------------------
-# A dump and a credential filter in one pipeline: `env; grep -rn password src/` searches the source.
-# Only a bare `set` dumps, `set -e` does not, and a `(` or a backtick opens a dump: `$(env | grep …)`.
+# A dump and a credential filter in one pipeline; `env; grep -rn password src/` passes, as its search
+# never reads the dump. Only a bare `set` dumps, not `set -e`; a `(` or a backtick opens a dump too.
 ENV_DUMP='(^[[:space:]]*|[;&|(`][[:space:]]*)((env|printenv)([[:space:]]|$|[;&|)`])|export -p|declare -x|set[[:space:]]*($|[;&|)`]))'
 
 # The command position is read on the masked text: a backtick or a `(` inside a quoted message is prose.

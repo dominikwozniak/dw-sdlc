@@ -1,6 +1,6 @@
 #!/bin/bash
-# PreToolUse Bash dispatcher, the one hook wired for matcher "Bash": README.md#layout. Its trigger
-# lists are the plugin's whole policy, which a guard's own self-test cannot see, so
+# PreToolUse Bash dispatcher, the hook that runs every guard on a Bash call: README.md#layout. Its
+# trigger lists are the plugin's whole policy, which a guard's own self-test cannot see, so
 # test/hooks/bash-guard.test.ts pins that each guard is spawned at all.
 set -uo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"

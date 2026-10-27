@@ -121,7 +121,8 @@ disk is in the next session, a broken edit included.
   whole account from any directory with the owner's Keychain key. An `asc` call passes as a read
   when its verb, the last word before the first flag, is `list`, `view`, `show`, `summary`,
   `status`, `pull`, `plan`, `diff`, `validate`, `audit`, `download`, `init`, `approve`, `sizes`,
-  `specs` or `placements` (`asc docs show <guide>` included), with `--help`, with no verb at all
+  `specs` or `placements` (`asc docs show <guide>` included), as `asc search <query>`, which
+  searches asc's own command index locally, with `--help`, with no verb at all
   (`asc --version`), or with `--dry-run` and no `--confirm`. Every other verb is refused —
   `metadata apply`, `prices set`, the asset library's `upload`, `rename`, `archive`, `unarchive`
   and `delete`, `localizations placements create`, `reorder`, `swap` and `delete` — and so is a flag
@@ -136,7 +137,8 @@ disk is in the next session, a broken edit included.
   into the message. A live backtick inside `-m` or an unquoted heredoc is refused: the shell runs it
   as a substitution, which mangles the message and still exits 0. So is a `git add` of the whole
   tree: `-A` or `--all` with no path, `.`, `./` or `:/`. `-A <paths>` stages those paths, and a dry
-  run stages nothing.
+  run stages nothing. A commit inside a substitution or another shell is out of the guard's reach;
+  the [Commit hook](#commit-hook) checks its subject.
 - `large-file-guard.sh` (after a Write) — flags a file over 256 KiB once it is on disk: a pasted
   bundle, a blob, a dumped log. Advisory, so it is the one guard with a kill switch:
   `CLAUDE_MAX_WRITE_BYTES` raises or lowers the threshold, `0` disables it.
@@ -178,8 +180,9 @@ with the options that take a value, glued or as the next word:
 | `rtk`                                                          | its flags, then `run`, `proxy`, `err`, `test` or `summary`       |
 | `VAR=value`                                                    | none                                                             |
 
-`hooks/lib-words.sh` reads the table twice: `guard_unwrap_words` on words, for git, gh, the store
-and every location, and `GUARD_BOUNDARY` on text, for the arms that read a target in place.
+`hooks/lib-words.sh` reads the table twice: `guard_unwrap_words` on words, for the guards that read
+a command word by word and for a `cd`, and `GUARD_BOUNDARY` on text, for the arms that read a target
+in place.
 `test/hooks/lib.test.ts` holds the two to the same spellings.
 
 ### The quote walker

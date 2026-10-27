@@ -57,7 +57,7 @@ guard_git_verb_words() {
 
 # guard_parse_push <segment> — 0 for a `git … push` once the wrappers are off, its options read into
 # the GUARD_PUSH_* flags, a cluster letter by letter, and GUARD_PUSH_REFSPECS one a line, `+` off. A
-# bare `:` is the matching refspec and deletes nothing; a --prune deletes past the refspecs named.
+# bare `:` deletes nothing; a --prune deletes with --all, --tags, no refspec or a `*` refspec.
 guard_parse_push() {
   local word i n prune=0
   GUARD_PUSH_BARE=0
