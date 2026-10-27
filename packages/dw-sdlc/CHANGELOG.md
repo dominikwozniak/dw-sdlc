@@ -1,5 +1,12 @@
 # dw-sdlc
 
+## 0.4.0
+
+### Minor Changes
+
+- a3f8c96: `dw-sdlc check <name> [--json] [--root <dir>]` runs one Check of the Gate by its name: a script under `gate.checks.run` or a Check the package ships, without the Steps and the other Checks. A shipped Check runs on the setting `gate.checks` gives it, and on its defaults where the config sets it `false` or leaves it out. The lines, the exit codes and the `--json` document are the Gate's; a name no Check carries exits 2.
+- e5ca2bc: `dw-sdlc setup` adopts the Gate in a repository with a `package.json`: `--add-package` pins `dw-sdlc` as a devDependency at the version that runs the setup, refused without the flag, and the committed config gains a `gate` key when it has none, with `agents-map`, `markdown-refs`, `temporal-language` and `comment-budget` on and every other Check `false`. A machine whose settings still enable `guardrails@dw-sdlc` or `references@dw-sdlc` gets a `by hand` line with the `enabledPlugins` edit.
+
 ## 0.3.0
 
 ### Minor Changes
