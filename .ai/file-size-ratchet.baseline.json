@@ -1,6 +1,5 @@
 {
-  "AGENTS.md": 129,
+  "AGENTS.md": 127,
   "GLOSSARY.md": 132,
-  "plugins/sdlc/hooks/enforce-commit-hygiene.sh": 567,
-  "plugins/sdlc/hooks/lib-words.sh": 507
+  "plugins/sdlc/hooks/enforce-commit-hygiene.sh": 538
 }
