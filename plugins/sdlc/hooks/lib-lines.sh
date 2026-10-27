@@ -1,31 +1,16 @@
 #!/bin/bash
-# The line scanners lib.sh sources — heredoc openers and bodies, continuation lines: what the shell
-# reads across a newline. Not a hook and not sourced on its own: lib.sh sets the locale and
-# GUARD_LIB_DIR first, then sources this file ahead of lib-text.sh, whose quote walker each scanner
-# here reads a line with; it reads GUARD_HEREDOC_DELIM from here. Neither runs while being sourced.
+# The line scanners lib.sh sources: heredocs and continuation lines, what the shell reads across a
+# newline. Not a hook: lib.sh sources every lib-*.sh, the quote walker's too, before a scanner runs.
 # --- the lines ----------------------------------------------------------------------------------
 
-# A heredoc BODY is the text of a file being written, not commands being run, and every guard
-# matches line by line — so `npm install` inside one reads exactly like an invocation. That false
-# refusal stops the agent from writing its own test fixtures, so bodies are dropped once, here. A
-# body a shell reads as its script (`bash <<EOF`, `cat <<EOF | sh`) is commands, and stays.
-# What the shell runs in a body stays: an unquoted delimiter leaves a `$(…)` or a backtick in it to
-# run, so `cat <<EOF` / `$(cat .env.local)` / `EOF` reads the file before cat sees a line.
-# The opener line is KEPT, because a redirect target on it (`cat > .env <<EOF`) is a real path that
-# must still count — but its `<<` is collapsed to `<`, so no second pass mistakes a kept opener for a
-# fresh heredoc and swallows every real command after it. An opener is only what the shell would
-# read as one: a `<<` outside quotes and before a comment, so `echo "a << EOF"` and `# see << EOF`
-# open nothing and the line after them is judged; a `<<` that did open one would otherwise hide every
-# command after it. What follows the `<<`: 1 the `-` that strips a body's leading tabs, 2 the quote
-# that keeps it literal, 3 the delimiter.
+# An opener is a `<<` the shell reads as one, outside quotes and before a comment, so `echo "a << EOF"`
+# hides no command after it. What follows the `<<`: 1 the `-` that strips a body's leading tabs, 2 the
+# quote that keeps it literal, 3 the delimiter.
 GUARD_HEREDOC_DELIM='^(-?)[[:space:]]*(["'"'"'\]?)([A-Za-z_][A-Za-z0-9_]*)'
 
-# guard_heredoc_opener <line> [<state>] — the first heredoc opener on the line, or 1 when there is
-# none. Sets GUARD_HD_HEAD (the text before `<<`), GUARD_HD_DASH, GUARD_HD_QUOTE, GUARD_HD_DELIM
-# and GUARD_HD_TAIL (from the character after the delimiter on, its closing quote included). Always
-# sets GUARD_HD_STATE, guard_quote_walk's stack at the end of the line, to hand back as the next
-# line's <state>: a `-m` body spanning lines is quoted from where it opened, and inside a `$(…)` the
-# shell reads commands again even within double quotes, which is why `-m "$(cat <<'EOF'` opens.
+# guard_heredoc_opener <line> [<state>] — the line's first opener, or 1: GUARD_HD_HEAD before `<<`,
+# GUARD_HD_DASH, GUARD_HD_QUOTE, GUARD_HD_DELIM, and GUARD_HD_TAIL after the delimiter. GUARD_HD_STATE,
+# the walk's stack at the line's end, is the next line's <state>, so `-m "$(cat <<'EOF'` opens one.
 guard_heredoc_opener() {
   local i n found=0
   GUARD_HD_HEAD="" GUARD_HD_DASH="" GUARD_HD_QUOTE="" GUARD_HD_DELIM="" GUARD_HD_TAIL=""
@@ -48,10 +33,9 @@ guard_heredoc_opener() {
   ((found))
 }
 
-# guard_heredoc_substitutions <line> <state> — GUARD_HD_SUBS becomes the substitutions a line of an
-# unquoted heredoc body runs, each `$(…)` and backtick span as typed, joined by a space, the text
-# around them dropped. <state> is where the line starts, H outside every substitution, and
-# GUARD_QW_STATE where it ends, for the next body line.
+# guard_heredoc_substitutions <line> <state> — GUARD_HD_SUBS, each `$(…)` and backtick span a line of
+# an unquoted body runs, as typed and joined by a space. <state> is where the line starts, H outside
+# every substitution, and GUARD_QW_STATE where it ends, for the next line.
 GUARD_HD_SUBS=""
 guard_heredoc_substitutions() {
   local i n kind depth=$((${#2} - 1))
@@ -74,10 +58,9 @@ guard_heredoc_substitutions() {
   return 0
 }
 
-# guard_heredoc_feeds_shell — 0 when the heredoc guard_heredoc_opener just found is a script: the
-# command holding its `<<`, or one piped after it, is a shell that reads its stdin. `bash <<EOF`,
-# `bash -s <<EOF` and `cat <<EOF | sh` run the body; `bash x.sh <<EOF` hands x.sh data and
-# `cat <<EOF > x.sh` writes a file.
+# guard_heredoc_feeds_shell — 0 when the heredoc guard_heredoc_opener just found is a script: its
+# command, or one piped after it, is a shell reading stdin. `bash -s <<EOF` and `cat <<EOF | sh` run
+# the body; `bash x.sh <<EOF` hands x.sh data and `cat <<EOF > x.sh` writes a file.
 guard_heredoc_feeds_shell() {
   local head tail piece consumer=1
   [[ "$GUARD_HD_HEAD$GUARD_HD_TAIL" == *sh* ]] || return 1
@@ -125,8 +108,9 @@ guard_shell_reads_stdin() {
   return 0
 }
 
-# guard_strip_heredocs — stdin to stdout. A body a shell reads (guard_heredoc_feeds_shell) is its
-# script, so its lines stay as typed and are judged as the commands they are.
+# guard_strip_heredocs — stdin to stdout, each body dropped, since a file's lines are no commands, but
+# for a body a shell reads and the substitutions an unquoted one runs. The opener stays, `<<` made
+# `<`: a redirect on it is a real path, and no later pass reopens the body.
 guard_strip_heredocs() {
   local line delim="" body=0 state="" expanded=0 inner="" script=0
   while IFS= read -r line; do
@@ -160,14 +144,9 @@ guard_strip_heredocs() {
   return 0
 }
 
-# guard_join_continuations — stdin to stdout. A line ending in an odd run of backslashes continues on
-# the next one, and the shell runs the two as one line: judged apart, `git push \` and `--force` each
-# looked harmless, while a quoted argument that opened a continuation line read as a command of its
-# own. Runs after the heredoc pass, so a body line ending in a backslash cannot swallow its terminator.
-# Inside single quotes the shell keeps a backslash-newline, and joining it there changes quoted text:
-# a word split that way, `'.env.lo\⏎cal'`, reads joined. Rare enough to take. A comment ends at its
-# newline, backslash or not, so a line whose last piece is a comment continues nothing; each line is
-# walked from the top level, a quote opened on an earlier line unknown.
+# guard_join_continuations — stdin to stdout, a line ending in an odd run of backslashes joined to the
+# next, as the shell runs them; after the heredoc pass, so no body swallows its terminator. A known
+# gap: a `\⏎` inside single quotes joins too. A line ending in a comment continues nothing.
 GUARD_CONTINUED='(^|[^\])(\\\\)*\\$'
 guard_join_continuations() {
   local line joined=""
@@ -183,18 +162,17 @@ guard_join_continuations() {
   return 0
 }
 
-# guard_ends_in_comment <line> — 0 when the line's last piece is a comment.
+# guard_ends_in_comment <line> — 0 when the line's last piece is a comment, the line walked from the
+# top level: a quote opened on an earlier line is unknown.
 guard_ends_in_comment() {
   [[ "$1" == *'#'* ]] || return 1
   guard_quote_walk "$1"
   [[ ${#GUARD_QW_KIND[@]} -gt 0 && "${GUARD_QW_KIND[${#GUARD_QW_KIND[@]} - 1]}" == tC ]]
 }
 
-# guard_mask_heredoc_bodies — stdin to stdout: a heredoc body is text, so its separators, backticks
-# and quotes become \002 and an apostrophe in a message cannot open a quote; the openers, the
-# terminators and the rest of the text stay as typed, line starts included. In an unquoted body a
-# `$(…)` or a backtick runs, so those stay live and are masked as a command is. A body a shell reads
-# (`bash <<EOF`, `cat <<EOF | sh`) stays as typed throughout.
+# guard_mask_heredoc_bodies — stdin to stdout, a body's separators, backticks and quotes made \002, so
+# an apostrophe opens no quote; the rest stays as typed. An unquoted body's substitutions stay live,
+# masked as a command is, and a body a shell reads stays as typed throughout.
 guard_mask_heredoc_bodies() {
   local line delim="" body=0 state="" mode="" inner=""
   while IFS= read -r line; do

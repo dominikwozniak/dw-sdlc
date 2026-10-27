@@ -1,28 +1,7 @@
 #!/bin/bash
-# Enforces the commit conventions the resolved config carries, so the rules a session is trusted to
-# follow are checked instead. Four refusals:
-#
-#   1. a subject that misses `commit.pattern`, a POSIX ERE — the preset `commit.convention` names
-#      when nothing declares it; `.+` declares that any subject is fine. The message is read from
-#      `-m`, and from the heredoc a `-m "$(cat <<'EOF' … EOF)"` or a `-F - <<'EOF'` hands git
-#   2. a message missing the `commit.trailer` line, when one is declared; a `--trailer` counts, since
-#      git writes it into the message
-#   3. a LIVE backtick inside a `-m` string or an unquoted heredoc — command substitution that
-#      mangles the message and still exits 0, so nobody notices until they read the log
-#   4. a `git add` of the whole tree — `-A` or `--all` with no path, `.`, `./` or `:/` — stage
-#      session work by name; `-A <paths>` stages those paths and a dry run stages nothing
-#
-# Guardrail against agent sloppiness, not a security boundary; check 4 is a habit rule. Spawned by
-# bash-guard.sh when the command names git with commit or add, and handed the command as typed,
-# heredoc bodies included; runs alone on the JSON payload too.
-#
-# WHY A LEXER AND NOT `xargs -n1`: BSD xargs dies with "unterminated quote" the moment a quoted
-# argument contains a newline, and a multi-line `-m` body is the normal shape here. The scanner
-# below has no such limit and carries the one state checks 1 and 3 need: whether a backtick or a
-# `$` sat in a single-quoted span (inert) or a double-quoted one (live). Launchers need no handling:
-# the walk keys off a `git` token, `/usr/bin/git` included, and every token before one — `sudo`,
-# `xargs`, `rtk proxy` — is simply not that token. A commit inside a substitution or handed to another
-# shell is out of its reach; the subject is a convention, and git's commit-msg hook checks it there.
+# Enforces the commit conventions the resolved config carries: the subject, the trailer, a live
+# backtick and a `git add` of the whole tree, each in README.md#guards. A lexer of its own, as BSD
+# `xargs -n1` dies on a quoted newline; it keys off a `git` token, so launchers need no handling.
 set -uo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
@@ -37,9 +16,7 @@ case "$RAW" in
 esac
 
 # --- the policies -----------------------------------------------------------------------------------
-# A commit is judged by the config of the repository it runs in: the payload's cwd, moved by a literal
-# `cd` earlier in the command (one inside a subshell ends with it) or by `git -C`. A path computed at
-# runtime cannot be followed and leaves the cwd.
+# A commit is judged by the config of the repository it runs in, which the walk below follows.
 PATTERN=""
 TRAILER=""
 POLICY_DIR=""
@@ -55,11 +32,8 @@ policies() {
 }
 
 # --- the lexer --------------------------------------------------------------------------------------
-# Splits the command into TOKENS the way a shell would — quotes removed, escapes honoured — and
-# records per token whether a LIVE backtick appeared in it (TOKEN_LIVE_BT) and whether a LIVE
-# expansion did (TOKEN_LIVE_DOLLAR, a `$` opening `(`, `{` or a name): outside single quotes and not
-# backslash-escaped. `;` `&` `|` `(` `)` become tokens of their own so a chained command or a
-# subshell closes off.
+# TOKENS, the command split as a shell would, and per token a live backtick (TOKEN_LIVE_BT) or a live
+# `$(`, `${` or `$name` (TOKEN_LIVE_DOLLAR), outside single quotes and unescaped; `;&|()` stand alone.
 TOKENS=()
 TOKEN_LIVE_BT=()
 TOKEN_LIVE_DOLLAR=()
@@ -170,16 +144,14 @@ lex() {
 }
 
 # --- heredocs ---------------------------------------------------------------------------------------
-# One pass over the command as typed that does what guard_strip_heredocs does — openers found by
-# guard_heredoc_opener, bodies dropped, so a body that writes a file never reads as commands, openers
-# kept with `<<` collapsed to `<` — and keeps each body by index, with whether the shell leaves it
-# literal (a quoted delimiter) or expands it. The kept opener's delimiter carries that index, `EOF`
-# becoming `EOF__HD0`, so a `-m "$(cat <<'EOF' …)"` or a `-F - <<'EOF'` names its own body even when
-# an earlier `cat > file <<'EOF'` shares the delimiter. Parallel arrays read by index: bash 3.2 has no
-# associative arrays and errors on "${arr[@]}" for an empty one under `set -u`.
+# Each body by index: HD_BODIES, and HD_LITERAL for a quoted delimiter. Parallel arrays: bash 3.2 has
+# no associative ones and errors on "${arr[@]}" for an empty one under `set -u`.
 HD_BODIES=()
 HD_LITERAL=()
 STRIPPED=""
+# split_heredocs — STRIPPED, the command with every body dropped and each opener's `<<` made `<`, its
+# delimiter tagged with the body's index, `EOF__HD0`, so a `-m "$(cat <<'EOF' …)"` or `-F - <<'EOF'`
+# names its own body even when an earlier `cat > file <<'EOF'` shares the delimiter.
 split_heredocs() {
   local line delim="" dash="" literal=0 body="" lines=0 inbody=0 state=""
   while IFS= read -r line; do
@@ -362,10 +334,9 @@ check_group() {
   subject=${MSG_FIRST%%$'\n'*}
 
   guard_subject_by_git "$subject" && return 0
-  # A message assembled by the shell is not the message: `-m "$MSG"` reaches here as the literal
-  # dollars-and-a-name, and checking that would be checking nothing. A message reading "costs $5"
-  # holds no expansion, and single quotes, an escaping backslash or a quoted heredoc delimiter keep
-  # `$HOME` literal: all of those stay checked.
+  # A message the shell assembles, `-m "$MSG"`, is not the text read here, so it goes unchecked.
+  # "costs $5" expands nothing, and single quotes, a backslash or a quoted heredoc delimiter keep
+  # `$HOME` literal: those stay checked.
   ((MSG_EXPANDS)) && return 0
   policies "$GROUP_DIR" || return 0
 

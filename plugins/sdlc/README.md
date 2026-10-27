@@ -35,8 +35,8 @@ disk is in the next session, a broken edit included.
   continuation lines — `hooks/lib-text.sh`, the text scanners — the one quote walker every
   scanner reads, substitutions, plain words — `hooks/lib-live.sh`, the live-quote readers — a
   quote handed to a shell, ended where the outer shell ends it — `hooks/lib-mask.sh`, the quote
-  mask — separators inside a quote made text — `hooks/lib-words.sh`,
-  the word readers — shell words, the launcher table and its two readers, the boundary — and
+  mask — separators inside a quote made text — `hooks/lib-words.sh`, the word readers — shell
+  words, the two readers of the [launcher table](#the-command-position), the boundary — and
   `hooks/lib-git.sh`, the git readers — a verb and its options, a push and its targets, the
   current branch.
 - `hooks/schema.jq`, `hooks/config.jq` — the config contract in jq: schema validation and the
@@ -121,7 +121,8 @@ disk is in the next session, a broken edit included.
   whole account from any directory with the owner's Keychain key. An `asc` call passes as a read
   when its verb, the last word before the first flag, is `list`, `view`, `show`, `summary`,
   `status`, `pull`, `plan`, `diff`, `validate`, `audit`, `download`, `init`, `approve`, `sizes`,
-  `specs` or `placements` (`asc docs show <guide>` included), with `--help`, with no verb at all
+  `specs` or `placements` (`asc docs show <guide>` included), as `asc search <query>`, which
+  searches asc's own command index locally, with `--help`, with no verb at all
   (`asc --version`), or with `--dry-run` and no `--confirm`. Every other verb is refused —
   `metadata apply`, `prices set`, the asset library's `upload`, `rename`, `archive`, `unarchive`
   and `delete`, `localizations placements create`, `reorder`, `swap` and `delete` — and so is a flag
@@ -130,17 +131,173 @@ disk is in the next session, a broken edit included.
   `--confirm`, quoted or not, on a continuation line, or behind `rtk`, `env`, `sudo` or `VAR=value`.
 - `enforce-commit-hygiene.sh` (when the command names `git commit` or `git add`) — the subject must
   match `commit.pattern`, or the preset `commit.convention` names when no pattern is set:
-  `conventional` unless a config layer sets `ticket-key`; `.+` accepts anything. The message must
-  carry `commit.trailer` when one is declared, a live backtick inside `-m` is refused, and so are
-  `git add -A` and `git add .`.
+  `conventional` unless a config layer sets `ticket-key`; `.+` accepts anything. The message is read
+  from `-m`, and from the heredoc a `-m "$(cat <<'EOF' … EOF)"` or a `-F - <<'EOF'` hands git. It
+  must carry `commit.trailer` when one is declared, and a `--trailer` counts, since git writes it
+  into the message. A live backtick inside `-m` or an unquoted heredoc is refused: the shell runs it
+  as a substitution, which mangles the message and still exits 0. So is a `git add` of the whole
+  tree: `-A` or `--all` with no path, `.`, `./` or `:/`. `-A <paths>` stages those paths, and a dry
+  run stages nothing. A commit inside a substitution or another shell is out of the guard's reach;
+  the [Commit hook](#commit-hook) checks its subject.
 - `large-file-guard.sh` (after a Write) — flags a file over 256 KiB once it is on disk: a pasted
   bundle, a blob, a dumped log. Advisory, so it is the one guard with a kill switch:
   `CLAUDE_MAX_WRITE_BYTES` raises or lowers the threshold, `0` disables it.
 - `rtk-rewrite.sh` (Bash, not a guard) — the plugin's wiring of `rtk hook claude`, so a machine wires
   nothing by hand and `rtk init --show` reporting "Hook: not found" is expected. Without rtk it is
-  silent. In a linked worktree a command naming `git` goes through unrewritten: the session's
-  isolation check cannot read through the `rtk` wrapper and would refuse the plain `git status` the
-  agent typed. It runs beside `bash-guard.sh`, and the guards judge the command before the rewrite.
+  silent. In a linked worktree every command goes through unrewritten: the session's isolation check
+  cannot read through the `rtk` wrapper, so it would refuse the `git status` the agent typed as
+  `rtk git status`, and an `ls *` as an `rtk` call with a value computed at runtime. The check has no
+  off switch (Claude Code 2.1.302, rtk 0.49.0), and skipping the rewrite costs only output
+  compression. It runs beside `bash-guard.sh`, and the guards judge the command before the rewrite.
+
+## Reading a command
+
+A guard judges a Bash command the way the shell reads it, through the scanners in `hooks/lib-*.sh`.
+A rule fires on a command the shell runs, not on text that only looks like one.
+
+### The command position
+
+A command runs where the shell reads one: at a line start, indented or not, or after `;`, `&`, `|`,
+`(` or a backtick. It runs, too, behind a launcher, a word that runs the command after it. A command
+named by a path or with a leading backslash, `/usr/bin/git` or `\rm`, is that command. The launchers,
+with the options that take a value, glued or as the next word:
+
+| launcher                                                       | its options that take a value                                    |
+| -------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `then`, `do`, `else`, `elif`, `if`, `while`, `until`, `!`, `{` | none                                                             |
+| `time`                                                         | `-o`, `-f` (GNU time; the keyword's `-p` takes none)             |
+| `sudo`                                                         | `-u`, `-g`, `-h`, `-p`, `-U`, `-r`, `-t`, `-C`, `-D`, `-R`, `-T` |
+| `env`                                                          | `-u`, `-C`, `-S`, then any `VAR=value`                           |
+| `command`                                                      | none; `-p` runs the command, `-v` and `-V` only look it up       |
+| `eval`, `nohup`                                                | none                                                             |
+| `exec`                                                         | `-a`                                                             |
+| `nice`                                                         | `-n`                                                             |
+| `timeout`                                                      | `-s`, `-k`, then one duration                                    |
+| `stdbuf`                                                       | `-i`, `-o`, `-e`                                                 |
+| `xargs`                                                        | `-a`, `-d`, `-E`, `-I`, `-J`, `-L`, `-n`, `-P`, `-R`, `-s`, `-S` |
+| `find` with `-exec`, `-execdir`, `-ok` or `-okdir`             | none; the command runs up to its `;` or `{} +`                   |
+| `sh`, `bash`, `zsh`, `dash`, `ksh`                             | none; the command is the text after a `-c`, or after `<<<`       |
+| `rtk`                                                          | its flags, then `run`, `proxy`, `err`, `test` or `summary`       |
+| `VAR=value`                                                    | none                                                             |
+
+`hooks/lib-words.sh` reads the table twice: `guard_unwrap_words` on words, for the guards that read
+a command word by word and for a `cd`, and `GUARD_BOUNDARY` on text, for the arms that read a target
+in place.
+`test/hooks/lib.test.ts` holds the two to the same spellings.
+
+### The quote walker
+
+`guard_quote_walk <text> [<live>] [<state>] [<from>] [<stop>]`, in `hooks/lib-text.sh`, is the one
+reader of shell quoting. It cuts the text into pieces, `GUARD_QW_KIND[i]` and `GUARD_QW_TEXT[i]`,
+whose texts joined are the text again. The mask, the substitution split, the word reader and the
+heredoc passes each loop over those pieces. A piece's kind:
+
+| kind   | the piece                              |
+| ------ | -------------------------------------- |
+| `t<c>` | text read in context `<c>`             |
+| `e<c>` | a backslash and the character it keeps |
+| `o<c>` | what opens context `<c>`               |
+| `c<c>` | what closes it                         |
+| `tC`   | a comment, up to the newline           |
+| `h`    | a heredoc operator and its delimiter   |
+
+The contexts:
+
+- `P`, the top level;
+- `S` and `D`, a single- and a double-quoted span;
+- `A`, an ANSI-C `$'…'` span, where a backslash escapes and the next `'` closes;
+- `U`, a `$(…)`, and `V`, a bare `(` inside one;
+- `B`, a backtick substitution;
+- `H`, an unquoted heredoc body, where only a substitution and a backslash act;
+- `E`, a `${…}`, where a quote nests even inside a `"…"`, a `(` and a `#` are text, and the first
+  bare `}` closes it.
+
+A `$'` opens `A` wherever a `'` would open `S`. A `$"…"` is a double-quoted span after a `$` of text,
+and a `$` before anything else is text. A comment and a heredoc operator count only where the shell
+reads a command: in `P`, `U`, `V` and `B`.
+
+With `<live>` set, a quote after a shell's `-c`, `eval` or `rtk run` holds a command and opens `s`,
+`d` or `a` instead. In `a` a backslash still escapes, so a `\'` there is text the walk does not
+follow. A `${…}` in `d` opens `e`: the outer shell expands it and hands the shell what it expands to,
+so its text holds the command too, and a `"…"`, `'…'` or `$'…'` in it opens `d`, `s` or `a`. The
+outer shell drops those quotes, all but a `'…'` that bash 3.2 and a `:-` keep; reading that one as a
+command refuses more, not less.
+
+`GUARD_QW_STATE` is the stack the text ends in, one context per character, starting from `<state>`,
+`P` by default. The walk returns 1 when it ends elsewhere, with a quote or a substitution left open.
+It starts at offset `<from>`, 0 by default, and reads the text before it as what precedes it.
+`<stop>` ends it early: `o` just after a quote handed to a shell opens, `c` just after the context it
+starts in closes. `GUARD_QW_END` is the offset it stops at.
+
+The walk jumps from one character that can change the context to the next, so a long quoted body
+costs a step per quote, backslash and substitution, not one per character. A step reads a window of
+the text, `GUARD_QW_WINDOW` characters. In bash 3.2 a substring costs the length of the string it is
+taken from, so a step on the whole text would cost the text's length, and a long command the square
+of it.
+
+### Live quotes
+
+A quote handed to a shell, a live quote, is read where the outer shell ends it.
+`guard_live_span <opening kind>`, in `hooks/lib-live.sh`, reads one from the walk's pieces, which
+start just after its opening quote: `os`, `oa` or `od` where a live walk opened it, `oS`, `oA` or
+`oD` where the walk read it the outer shell's way. It sets:
+
+- `GUARD_LIVE_CTX`, the context the outer shell reads it in: `S`, `A` or `D`;
+- `GUARD_LIVE_RAW`, the text up to the walk's closing quote; `GUARD_LIVE_LEN`, the characters
+  through that quote; `GUARD_LIVE_END`, its piece;
+- `GUARD_LIVE_TEXT`, the text the shell is handed: a `$'…'` decoded, and in a `"…"` the escapes of
+  `$`, a backtick, `"` and `\` undone;
+- `GUARD_LIVE_SPLIT`, that text with each substitution of a `"…"` made `_`, and its body in
+  `GUARD_LIVE_SUBS`, since the outer shell runs it first.
+
+A `${…}` nests its quotes the way the outer shell does. The reader returns:
+
+- 1 when the quote never closes;
+- 2 when the outer shell may end it elsewhere than a live walk does: a `'…'` holding a `'`, a `$'…'`
+  holding an unescaped `'`, a `"…"` holding a `'…'` or `$'…'` with a `"`, `$`, backtick or
+  backslash, which is text there to the outer shell, or a substitution read with a quote handed on
+  inside it;
+- 3 when the walk ends it where the shell does but reads the text as typed, not as the shell is
+  handed it: a `$'…'` holding a backslash.
+
+`guard_live_walk` finds where the quote ends with the outer shell's walk and stops the live walk
+there, so a command costs time linear in its live quotes.
+
+### Words
+
+`guard_split_words`, in `hooks/lib-words.sh`, splits one command's arguments into words the way a
+shell does, so `-C 'my repo'` stays one word. It reads the walk's pieces:
+
+- whitespace at the top level separates words;
+- quotes group and are dropped, the `$` of a `$'…'` or a `$"…"` with them;
+- a backslash keeps the next character; in a `$'…'` an escape stands for what bash decodes it to, a
+  newline reads as a space, and the text ends at a NUL;
+- a `$(…)`, a backtick substitution or a `${…}` stays in its word, delimiters and whitespace
+  included, with the quotes and backslashes inside it read the same way;
+- a comment's text splits as the command's does, and a heredoc operator reads as `<<EOF`, the
+  delimiter's quotes dropped.
+
+### Paths in a command
+
+The env and credential guards look for a path among a command's words. `guard_strip_quoted`, in
+`hooks/lib-text.sh`, decides which words count:
+
+- A heredoc body is dropped, but for the substitutions an unquoted one runs.
+- A word that holds whitespace is prose and is dropped: only a quoted span puts whitespace into a
+  word, and such a span is a message, a pattern or a sentence. A quoted word without whitespace
+  counts like any other, since `'db:drop'` and `"$HOME/.ssh/id_rsa"` are what the shell passes on.
+  So prose in a commit message never reads as a file, while `cat ".env.local"` still names one.
+- In the segment of a search tool, `grep`, `egrep`, `fgrep`, `rg`, `ag`, `ack` or `git grep`, every
+  quoted word is dropped: there it is the pattern, and `grep -rn ".env.local" src` opens no such
+  file.
+- A substitution the shell runs, `"$(cat .env.local)"` included, is read as a command of its own, so
+  its words count even inside double quotes while the prose around it stays prose. A quote handed to
+  a shell's `-c`, `eval` or `rtk run` is read the same way.
+- A comment runs nothing, so its words are dropped.
+
+Two costs follow. A quoted path holding a space reads as prose, so `cat "my dir/.env"` passes.
+Outside the search tools, a quoted word that is exactly a guarded name reads as that file. An
+unterminated quote hands back the text as typed: the guard fails closed and judges what was typed.
 
 ## Commit hook
 

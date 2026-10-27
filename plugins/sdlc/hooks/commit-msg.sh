@@ -1,11 +1,6 @@
 #!/bin/bash
-# The git commit-msg hook: the subject check enforce-commit-hygiene.sh applies to the agent's tool
-# calls, applied to every commit git makes, so one typed in a terminal meets the same pattern. Run
-# with the message file git hands the hook (`.husky/commit-msg` passes it on); exit 1 aborts the
-# commit. The trailer stays the agent's rule: a commit a person writes has no co-author to name.
-#
-# Reads the same resolved config as the guards. Without jq it says so and lets the commit through,
-# as the guards do.
+# The git commit-msg hook: enforce-commit-hygiene.sh's subject check on every commit git makes, run
+# on the message file git hands it; exit 1 aborts the commit. README.md#commit-hook has the rest.
 set -uo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 

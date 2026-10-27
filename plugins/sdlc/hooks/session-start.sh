@@ -1,18 +1,7 @@
 #!/bin/bash
-# SessionStart report — what a fresh context should know before its first turn, as
-# additionalContext. Reports, never installs: the timings of a real setup are unknown, so a session
-# is told what a fresh checkout lacks and decides for itself.
-#
-#   - jq missing: every guard in this plugin is silent, and this is the one place that says so
-#   - an invalid .ai/agentic.config.json or local override: one loud line with every problem, and the
-#     reminder that the guards run on the strictest defaults until it is fixed. A layer the plugin's
-#     schema cannot validate is invalid too
-#   - in a linked worktree only: the .worktreeinclude files the checkout still lacks (the same rule
-#     Claude Code copies by — match a pattern AND be gitignored — computed by git, so it never drifts),
-#     but for the config layers and `.claude/settings.local.json`, read from the main checkout when a
-#     worktree lacks them; and the worktree.setup commands from the config
-#
-# Nothing to say means no output at all. A main checkout in order is silent.
+# SessionStart report, as additionalContext: what a fresh context should know before its first
+# turn, listed in README.md#session-start. Reports, never installs: a setup's timing is unknown, so
+# the session is told what the checkout lacks and decides. Nothing to say means no output at all.
 set -uo pipefail
 export LC_ALL=C
 
@@ -39,7 +28,8 @@ if main=$(guard_worktree_main "$cwd"); then
   worktree="$GUARD_CONFIG_ROOT"
 
   # 1. What .worktreeinclude would have copied and is not here: ignored in the main checkout AND
-  #    matching a pattern, two ls-files runs intersected.
+  #    matching a pattern, two ls-files runs intersected. The config layers and
+  #    .claude/settings.local.json are skipped: a worktree reads them from the main checkout.
   include="$worktree/.worktreeinclude"
   [[ -f "$include" ]] || include="$main/.worktreeinclude"
   if [[ -f "$include" ]]; then

@@ -1,23 +1,7 @@
 #!/bin/bash
-# Refuses reading, editing or writing an env file the repository's config does not vouch for. The
-# name finds the candidates — `.env`, `.env.*`, `.envrc` — and `guardrails.envFiles` in the resolved
-# config gives the verdict, in this order: a path listed in `deny` is refused; one listed in `allow`
-# passes; then `policy: deny` refuses the rest, and `policy: git` asks git — a tracked file passes,
-# because a committed env file is secret-free by the repository's own rule, while an ignored or
-# untracked one is refused, because that is where the secrets live. The lists are globs against the
-# path relative to the repository root, `**/` meaning at any depth; the defaults are policy `git`,
-# allow `**/.env.example`, `**/.env.sample`, `**/.env.template`, deny nothing. From a linked
-# worktree its main checkout is the same repository: a path there is judged against the main
-# checkout's root and git. A path outside the repository root, or outside any repository, is judged
-# by its basename against the `**/` entries alone, and there is no git to vouch for it.
-#
-# Wired for the file tools (Read, Edit, Write, MultiEdit, NotebookEdit, Grep) on tool_input's path,
-# for a Grep of a directory on the env files its `glob` reaches, and for Bash through bash-guard.sh
-# on the command's tokens: heredoc bodies and quoted prose — a quoted span holding whitespace — are
-# dropped first, so a commit message naming a file does not count, while a quoted path such as
-# `cat ".env.local"` and the words of a `$(…)` or backtick substitution the shell runs, in double
-# quotes or an unquoted heredoc body, still do. Guardrail against accidental secret exposure, not a
-# security boundary.
+# Refuses reading, editing or writing an env file the config does not vouch for, by the order, globs
+# and defaults in README.md#guards. A file tool is judged on its path, a Grep of a directory on what
+# its glob reaches, a Bash command on its words: README.md#paths-in-a-command. Not a security boundary.
 set -uo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
@@ -78,12 +62,9 @@ physical() {
   printf '%s/%s' "${real%/}" "$base"
 }
 
-# relative_to_root <path> — REL becomes the path relative to the repository root, the form the
-# config lists, and FILE_ROOT that root. From a linked worktree its main checkout is the same
-# repository under the same config, so a path there is relative to the main checkout. Outside the
-# root, or outside a repository, REL is the basename and OUTSIDE is set: there only a `**/` entry
-# applies, since a plain entry names a path in this repository and nothing else. Globals, not
-# stdout: a subshell would lose the flag.
+# relative_to_root <path> — REL, the path relative to FILE_ROOT: the repository root or, from a linked
+# worktree, its main checkout's. Outside both REL is the basename and OUTSIDE is set, so only the `**/`
+# entries apply. Globals, not stdout: a subshell would lose the flag.
 REL=""
 FILE_ROOT=""
 OUTSIDE=0
@@ -103,10 +84,9 @@ relative_to_root() {
   fi
 }
 
-# env_glob_matches <glob> <relative-path> — 0 when a config entry selects the file: a shell pattern
-# against the whole relative path, `*` crossing `/`; with a leading `**/`, at any depth. `[` and `\`
-# are literal, so the rule is the one dw-sdlc/src/agentic-config.ts applies for the settings backstop,
-# where a bracket expression does not exist.
+# env_glob_matches <glob> <relative-path> — 0 when a config entry selects the file: a shell pattern on
+# the whole path, `*` crossing `/`, a leading `**/` at any depth. `[` and `\` are literal, as in
+# dw-sdlc/src/agentic-config.ts, whose settings backstop has no bracket expression.
 env_glob_matches() {
   local glob="$1" rel="$2"
   glob="${glob//\\/\\\\}"
@@ -175,10 +155,8 @@ if [[ -n "$GUARD_FILE_PATH" ]]; then
 fi
 
 # --- a directory Grep with a glob ----------------------------------------------------------------
-# A Grep of a directory opens every file its glob selects, so the glob is judged by the env files it
-# reaches: each env-named file under the path that the glob matches gets the verdict a Read of it
-# gets. Only a glob that could name one is worth listing the tree for — `*.ts` cannot, `.env*`, `*`
-# or `.env.{local,production}` can.
+# Each env file under the path that the glob matches gets the verdict a Read of it gets. Only a glob
+# that could name one lists the tree: `*.ts` cannot, `.env*`, `*` or `.env.{local,production}` can.
 
 # could_name_env <glob> — 0 when the glob's last segment can match an env file's name: it is one
 # itself, or a pattern one of the probe names fits. A brace group is not a bash pattern, so there the
@@ -215,10 +193,9 @@ glob_matches() {
   return 1
 }
 
-# env_files <dir> — every env-named file under <dir>, relative to it: in a repository the ones git
-# knows or sees, tracked and untracked, then ignored; outside one, what find sees. The directory
-# decides, not the cwd: a Grep may aim outside the repository it runs from. The verdict on each is
-# refused's.
+# env_files <dir> — every env-named file under <dir>, relative to it: in a repository what git sees,
+# tracked, untracked, then ignored; outside one, what find sees. The directory decides, not the cwd:
+# a Grep may aim outside the repository it runs from.
 env_files() {
   local f
   if ! git -C "$1" rev-parse --show-toplevel >/dev/null 2>&1; then

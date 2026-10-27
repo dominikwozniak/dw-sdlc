@@ -1,22 +1,7 @@
 #!/bin/bash
-# Refuses the three shapes of credential hunting that block-env-access.sh does not cover. Three
-# things guard this ground and each leaves a different gap: block-env-access owns env files and
-# nothing else; the CI secrets scan reads what was committed, long after the fact, and never sees a
-# value that only passed through a shell. What is left, and what this guard owns:
-#
-#   1. the credential stores that are not dotenv — ~/.ssh, ~/.aws, ~/.gnupg, ~/.kube, ~/.netrc,
-#      ~/.git-credentials, ~/.pypirc, ~/.pgpass, the user's ~/.npmrc
-#   2. hunting the ENVIRONMENT: an env/printenv dump filtered for a credential-ish name, or echoing
-#      such a variable straight out
-#   3. exfil: curl or wget in the same command as a credential path, a credential-ish variable, or a
-#      dotenv file
-#
-# Check 3 is deliberately not "no network calls": a guard that blocks every curl is unwired within a
-# day; one that blocks a curl carrying a secret is one nobody argues with. Heredoc bodies and quoted
-# prose — a quoted span holding whitespace — are dropped before the path check, while a quoted path
-# such as `cat "$HOME/.ssh/id_rsa"` and a substitution the shell runs, in double quotes or an unquoted
-# heredoc body, still count. Guardrail against agent accidents, not a security boundary. Runs
-# always-on from bash-guard.sh.
+# Refuses the credential hunting block-env-access.sh leaves, listed in README.md#guards: the stores
+# that are not dotenv, the environment, a curl or wget carrying those or a dotenv file. Not every
+# curl: a guard that refuses every network call gets unwired. Not a security boundary.
 set -uo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
@@ -24,12 +9,9 @@ guard_read_payload "$@" || exit 0
 [[ -n "$GUARD_COMMAND" ]] || exit 0
 COMMAND="$GUARD_COMMAND"
 
-# Credential-ish name fragments, case-blind, against a variable name or a grep pattern. A bare `key`
-# is absent — it matches keyboard, keychain and keys() — and `auth` has to end the word (`$AUTH`,
-# `$BASIC_AUTH`) or be followed by a separator (`$AUTH_TOKEN`), with `authorization` spelled out:
-# a bare `auth` swallowed $AUTHOR, $AUTHORS and $AUTHOR_DATE, which is everyday git scripting. ERE
-# has no negative lookahead, so "not followed by a letter" consumes that character, which is safe
-# only because nothing in either regex below follows CRED_WORDS.
+# Credential-ish name fragments, case-blind. No bare `key` (keyboard, keys()), and `auth` ends a word
+# or meets a separator, so $AUTHOR passes. ERE has no lookahead, so that consumes a character: safe
+# only while nothing in a regex below follows CRED_WORDS.
 CRED_WORDS='(token|secret|password|passwd|passphrase|api[_-]?key|access[_-]?key|private[_-]?key|credential|authorization|auth([^A-Za-z]|$))'
 
 # --- 1. the credential stores ---------------------------------------------------------------------
@@ -82,14 +64,8 @@ if [[ "$STRIPPED" =~ $CRED_NAMES ]]; then
 fi
 
 # --- 2. hunting the environment -------------------------------------------------------------------
-# An env dump on its own is ordinary. Filtered for a credential name it is not a look, it is a
-# search. The dump and the filter have to share a pipeline: `env; grep -rn password src/` dumps, then
-# searches the source, and the search never reads the dump. `set` counts only with NO arguments, the
-# spelling that dumps the environment: `set -e` and `set -euo pipefail` set shell options and dump
-# nothing, and matching them would refuse `set -e && grep -rn "password" src/`, which is searching
-# your own source for a field name. The alternatives end `($|[;&|)`])` rather than `$` so that
-# `set | grep -i token` still matches. A `(` or a backtick opens a dump too: `$(env | grep -i token)`
-# runs it, inside double quotes as well, and the mask leaves that substitution live.
+# A dump and a credential filter in one pipeline; `env; grep -rn password src/` passes, as its search
+# never reads the dump. Only a bare `set` dumps, not `set -e`; a `(` or a backtick opens a dump too.
 ENV_DUMP='(^[[:space:]]*|[;&|(`][[:space:]]*)((env|printenv)([[:space:]]|$|[;&|)`])|export -p|declare -x|set[[:space:]]*($|[;&|)`]))'
 
 # The command position is read on the masked text: a backtick or a `(` inside a quoted message is prose.

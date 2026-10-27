@@ -1,8 +1,6 @@
 #!/bin/bash
-# The git readers lib.sh sources — a git command's verb, its options, a push's targets, the branch a
-# repository stands on. Not a hook and not sourced on its own: lib.sh sets the locale and
-# GUARD_LIB_DIR first and sources this file after the word readers, whose WORDS and guard_words the
-# readers here work on.
+# The git readers lib.sh sources: a git command's verb and options, a push's targets, the branch a
+# repository stands on. Not a hook: lib.sh sources it after lib-words.sh, whose WORDS it reads.
 # --- git ----------------------------------------------------------------------------------------
 
 GUARD_PUSH_LOC=""
@@ -18,10 +16,9 @@ GUARD_PUSH_REFSPECS=""
 GUARD_GIT_VERB=""
 WORD_INDEX=0
 
-# guard_git_verb <segment> — words in WORDS with the wrappers off; sets GUARD_GIT_VERB, GUARD_PUSH_LOC
-# (where git runs) and WORD_INDEX (the first word after the verb). Returns 1 when the segment is not a
-# git command. Globals, not stdout: a caller capturing stdout would run this in a subshell and lose
-# the words.
+# guard_git_verb <segment> — WORDS with the wrappers off, GUARD_GIT_VERB, GUARD_PUSH_LOC where git
+# runs, WORD_INDEX the word after the verb; 1 for no git command. Globals, not stdout: a caller
+# capturing stdout runs it in a subshell and loses the words.
 guard_git_verb() {
   guard_read_words "$1"
   guard_unwrap_words
@@ -58,15 +55,9 @@ guard_git_verb_words() {
   return 1
 }
 
-# guard_parse_push <segment> — 0 when the segment is a `git … push` once the wrappers are off. Fills
-# GUARD_PUSH_LOC (where git runs), GUARD_PUSH_BARE (--force, -f, +refspec), GUARD_PUSH_LEASE
-# (--force-with-lease, --force-if-includes), GUARD_PUSH_DELETE (--delete, -d, a `:branch` refspec
-# with no source — a bare `:` is the matching refspec and deletes nothing — and a --prune that reaches
-# past the refspecs it names: with --all, --tags, no refspec or one holding a `*`), GUARD_PUSH_MIRROR
-# (--mirror, which force-updates and deletes every remote ref), GUARD_PUSH_ALL (--all, --branches:
-# every local branch), GUARD_PUSH_TAGS (--tags: no branch unless a refspec names one), GUARD_PUSH_DRY
-# (--dry-run, -n: nothing is written), GUARD_PUSH_REMOTE and GUARD_PUSH_REFSPECS, one per line with a
-# leading + stripped. A cluster of short options is read letter by letter.
+# guard_parse_push <segment> — 0 for a `git … push` once the wrappers are off, its options read into
+# the GUARD_PUSH_* flags, a cluster letter by letter, and GUARD_PUSH_REFSPECS one a line, `+` off. A
+# bare `:` deletes nothing; a --prune deletes with --all, --tags, no refspec or a `*` refspec.
 guard_parse_push() {
   local word i n prune=0
   GUARD_PUSH_BARE=0
@@ -145,10 +136,9 @@ guard_push_matching() {
   done <<<"$heads"
 }
 
-# guard_push_targets — the branches the parsed push writes to, one per line: every local branch of
-# GUARD_PUSH_LOC for --all and for a refspec holding a `*`, else the destination side of each refspec
-# (the matching refspec `:` by guard_push_matching), or the branch HEAD is on when none names one.
-# Returns 1 when those branches cannot be read.
+# guard_push_targets — the branches the parsed push writes to, one a line: every local branch for
+# --all or a `*` refspec, else each refspec's destination, `:` by guard_push_matching, or HEAD's
+# branch when none names one. Returns 1 when they cannot be read.
 guard_push_targets() {
   local spec target specs="$GUARD_PUSH_REFSPECS"
   if ((GUARD_PUSH_ALL)) || [[ "$specs" == *'*'* ]]; then
@@ -180,10 +170,9 @@ guard_current_branch() {
 # last line for a location the one that holds; `-` is a detached HEAD.
 GUARD_SWITCHED=""
 
-# guard_note_switch — records where the `git switch` or `git checkout` in WORDS leaves its location:
-# the branch it creates, the branch it names, or `-` for --detach. A checkout's operand counts only
-# when it is the one operand and names a local branch, since `git checkout main -- a.txt` copies a
-# path and stays put.
+# guard_note_switch — records the branch the `git switch` or `git checkout` in WORDS leaves its
+# location on, `-` for --detach. A checkout's operand counts only alone and naming a local branch:
+# `git checkout main -- a.txt` copies a path and stays put.
 guard_note_switch() {
   local i=$WORD_INDEX n=${#WORDS[@]} word target="" operand="" operands=0
   while ((i < n)); do
@@ -237,11 +226,9 @@ guard_head_branch() {
 OPT_FLAGS=" "
 OPT_OPERANDS=()
 
-# guard_opts <letters> <long options> [<from>] — reads the options of the git verb in WORDS from
-# <from>, WORD_INDEX by default: OPT_FLAGS gets ` -x ` per letter of a cluster and ` --name ` per long
-# option, a `=value` cut, and OPT_OPERANDS every other word; `--` ends the options. One of <letters>
-# takes the rest of its cluster or the next word as its value, and so does one of <long options>
-# written apart, so `--sort -refname`, `-e '*.log'` and the `x` of `-fb x` hold no flag.
+# guard_opts <letters> <long options> [<from>] — the git verb's options in WORDS from <from>,
+# WORD_INDEX by default: OPT_FLAGS ` -x ` a letter and ` --name ` a long one, OPT_OPERANDS the rest.
+# <letters> and <long options> take a value, so `--sort -refname` and the `x` of `-fb x` hold no flag.
 guard_opts() {
   local short="$1" long=" $2 " i="${3:-$WORD_INDEX}" n=${#WORDS[@]} word j ch
   OPT_FLAGS=" "
@@ -303,10 +290,9 @@ guard_protected() {
 
 GUARD_BASE_REF=""
 
-# guard_base_ref <dir> — GUARD_BASE_REF becomes the remote-tracking ref of the base branch at <dir>:
-# refs/remotes/origin/<baseBranch>, or for `auto` the ref refs/remotes/origin/HEAD names, kept only
-# under refs/remotes/origin/. Returns 1 when it is no valid ref naming a commit here, GUARD_BASE_REF
-# then empty when origin/HEAD gave none.
+# guard_base_ref <dir> — GUARD_BASE_REF, origin's ref of baseBranch at <dir>, under `auto` the one
+# refs/remotes/origin/HEAD names. Returns 1 when that names no commit here, the ref left empty when
+# origin/HEAD named no branch of origin.
 guard_base_ref() {
   local base
   base=$(guard_config_get '.baseBranch')
@@ -324,14 +310,9 @@ guard_base_ref() {
 # rather than read for seconds.
 GUARD_LANDED_SCAN=5000
 
-# guard_landed <dir> <base-ref> <branch> — 0 when the work of the local <branch> at <dir> is on
-# <base-ref>: its tip is there (a merge or a fast-forward), or a base commit since the fork holds the
-# tip's tree (a squash of a branch up to date with the base) or the patch-id of the branch's whole
-# diff (a squash of one behind it). A branch whose tip has the fork's tree is not: its commits may hold
-# work no tree shows. The patch-id is --verbatim, so whitespace counts, though not where in a file a
-# hunk sits. Local objects only, never fetched lazily in a partial clone: a missing one refuses, and a
-# base fetched before the squash lacks it. grep reads to the end, as `grep -q` would cut the pipe and
-# pipefail fail it.
+# guard_landed <dir> <base-ref> <branch> — 0 when the local <branch>'s work is on <base-ref>, landed
+# as README.md#guards defines it. The patch-id is --verbatim, so whitespace counts. grep reads to the
+# end: `grep -q` would cut the pipe, and pipefail fail it.
 guard_landed() {
   local tip fork tree patch
   git check-ref-format "refs/heads/$3" || return 1

@@ -1,13 +1,7 @@
 #!/bin/bash
-# Refuses npm, npx, yarn and bun in a repository whose package manager is pnpm — the resolved config's
-# `packageManagers.node`, inferred from the lockfile when nothing declares it. pnpm and `pnpm dlx` are
-# the whole allowed set: npx reaches the registry with npm's resolution, and `pnpm dlx` is its
-# one-for-one replacement. The point is supply chain: routing every install through pnpm is what
-# applies the repository's `minimumReleaseAge` and `strictDepBuilds`. In a repository on another
-# package manager, or with no Node at all, this guard is silent.
-#
-# Guardrail against agent habit, not a security boundary. Spawned by bash-guard.sh when the command
-# names one of the four; runs alone on the JSON payload too.
+# Refuses npm, npx, yarn and bun where the package manager is pnpm: README.md#guards. Every install
+# goes through pnpm, so the repository's `minimumReleaseAge` and `strictDepBuilds` apply; `pnpm dlx`
+# replaces npx one for one. A guardrail against agent habit, not a security boundary.
 set -uo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 

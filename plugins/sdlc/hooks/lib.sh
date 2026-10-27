@@ -1,12 +1,7 @@
 #!/bin/bash
-# The library every guard in this plugin sources: `source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"`.
-# One copy of what each guard used to carry itself — the payload reader, the heredoc strip, the
-# quote masking, the wrapper boundary, the refusal — plus the config lookup that turns
-# .ai/agentic.config.json and its local override into what a guard may act on.
-#
-# Guardrails against agent accidents, not a security boundary: a command can always be spelled in a
-# way a text scan does not see. Fails open without jq — every reader returns 1 and the guard exits 0;
-# the SessionStart report and the doctor are where a missing jq gets said out loud.
+# The library every guard sources, its parts in README.md#layout. Not a security boundary: a command
+# can always be spelled so a text scan misses it. Without jq every reader returns 1 and the guard
+# exits 0; the SessionStart report and the doctor say so.
 
 # Bytes, not characters: every scanner below splits only on ASCII — quotes, whitespace, separators —
 # and a UTF-8 continuation byte is never ASCII, so the verdicts are the same. Under a UTF-8 locale
@@ -34,12 +29,9 @@ GUARD_LAYER_JSON="null"
 
 # --- the payload --------------------------------------------------------------------------------
 
-# guard_read_payload [--bash-command <cwd>] — fills GUARD_EVENT, GUARD_TOOL, GUARD_CWD,
-# GUARD_FILE_PATH, GUARD_GLOB (a Grep's file filter) and GUARD_COMMAND from the hook payload on
-# stdin. On the dispatcher's fast path the stdin is the bare command it already extracted and the
-# cwd travels as argv: the flag is argv too, never an environment variable, so a stray one cannot
-# skip a check. Returns 1 when there is nothing to judge — no jq, empty or malformed stdin — so a
-# guard writes `guard_read_payload "$@" || exit 0`.
+# guard_read_payload [--bash-command <cwd>] — the GUARD_* fields, GUARD_GLOB a Grep's file filter,
+# from the payload on stdin; with the flag, the dispatcher's fast path, stdin is the bare command. The
+# flag is argv so a stray variable cannot skip a check. Returns 1 on no jq, empty or malformed stdin.
 guard_read_payload() {
   GUARD_FILE_PATH=""
   GUARD_GLOB=""
@@ -95,11 +87,9 @@ guard_segments() {
   printf '%s\n' "$1" | tr ';&|()`' '\n\n\n\n\n\n' | sed -E '/^[[:space:]]*$/d'
 }
 
-# guard_pipelines <scan> — the masked scan split into pipelines, one non-empty per line: at `;`, `&&`,
-# `||`, a lone `&` and a newline, never at `|`. The `&` of a redirect (`2>&1`, `&>`, `|&`) becomes
-# \003, no separator. sed splits, not `${s//…/…}`, which bash 3.2 makes rescan the text for every
-# match: seconds on a command of a few thousand separators. A newline in a sed replacement is a
-# backslash and a newline, for BSD and GNU sed alike.
+# guard_pipelines <scan> — the masked scan split into pipelines, one per line, at `;`, `&&`, `||`, a
+# lone `&` and a newline; a redirect's `&` (`2>&1`, `&>`, `|&`) becomes \003. sed splits, since bash
+# 3.2 rescans the text on each `${s//…/…}` match: seconds on a few thousand separators.
 guard_pipelines() {
   printf '%s\n' "$1" |
     sed -E -e $'s/[|][|]|&&|;/\\\n/g' -e $'s/>&/>\003/g' -e $'s/<&/<\003/g' -e $'s/[|]&/|\003/g' \
@@ -242,13 +232,9 @@ guard_ask() {
 
 # --- the config ---------------------------------------------------------------------------------
 
-# guard_config_load <cwd> — resolves the config of the repository holding <cwd>: local over
-# committed over inferred, as dw-sdlc/src/agentic-config.ts does (the reference; the tests run
-# both). A linked worktree reads a layer it lacks from its main checkout, where a repository that
-# keeps `.ai/` out of git has the only copy. Sets GUARD_CONFIG (the effective object as one line of
-# JSON), GUARD_CONFIG_ROOT (the worktree's own top level) and GUARD_CONFIG_PROBLEMS, one
-# `file: path: message` per line. Any problem drops that layer whole and puts `guardrails` on the
-# strictest set. Returns 1 without jq.
+# guard_config_load <cwd> — the config of the repository holding <cwd>, resolved as
+# dw-sdlc/src/agentic-config.ts does: GUARD_CONFIG one line of JSON, GUARD_CONFIG_ROOT the worktree's
+# top level, GUARD_CONFIG_PROBLEMS one `file: path: message` a line. Returns 1 without jq.
 guard_config_load() {
   local cwd="$1" root git_dir common_dir main="" paths inferred committed local_layer resolved loosened
   command -v jq >/dev/null 2>&1 || return 1
