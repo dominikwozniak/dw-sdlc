@@ -215,7 +215,7 @@
       "id": "tools.doctor",
       "name": "Doctor",
       "group": "tools",
-      "summary": "One PASS, WARN, FAIL or INFO line per machine check; installs nothing and exits 1 on a FAIL.",
+      "summary": "One PASS, WARN, FAIL or INFO line per machine check, a drift of plugin and package among them; exits 1 on a FAIL.",
       "code": ["packages/dw-sdlc/src/commands/doctor.ts"],
       "docs": ["plugins/sdlc/README.md#doctor"]
     },

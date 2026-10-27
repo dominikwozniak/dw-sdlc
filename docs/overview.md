@@ -221,6 +221,8 @@ to any part of the plugin ships when both files are bumped in one `chore: releas
 that lands on `main`. Installs from a clone see the change in the next session without a bump.
 
 The plugin's version is its own, apart from the package's: a release of one never bumps the other.
+Where the two meet, the doctor's `package` line names a drift between the `dw-sdlc` the plugin links
+and the one a repository pins.
 
 ## Releasing the package
 

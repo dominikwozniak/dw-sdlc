@@ -180,12 +180,20 @@ repository is read-only `git`.
 ## Doctor
 
 `dw-sdlc doctor` prints one PASS / WARN / FAIL line per machine check and installs
-nothing: `jq`, the plugin enabled, rtk not wired by hand beside the plugin's hook and the filters
-that misbehave on the installed release excluded (`find` below rtk 0.46.0), Safe Chain visible to
-the agent's login shell with `npm` going through it (a WARN when absent), pnpm's global
-`minimumReleaseAge`, commit signing, and the resolved config of the repository holding `--root` or
-the current directory. A check that does not apply here is INFO, the config outside any repository
-among them. Exit 1 on a FAIL.
+nothing: `jq`, the plugin enabled, the package the plugin links against the one the repository pins,
+rtk not wired by hand beside the plugin's hook and the filters that misbehave on the installed
+release excluded (`find` below rtk 0.46.0), Safe Chain visible to the agent's login shell with `npm`
+going through it (a WARN when absent), pnpm's global `minimumReleaseAge`, commit signing, and the
+resolved config of the repository holding `--root` or the current directory. A check that does not
+apply here is INFO, the config outside any repository among them. Exit 1 on a FAIL.
+
+The plugin and the package carry separate versions, and the `package` line compares them where they
+meet: the `version` of the plugin's `dw-sdlc/package.json` against the `dw-sdlc` the repository's
+`package.json` pins, an exact version, through the default catalog of `pnpm-workspace.yaml` too, or
+for `workspace:` or a range the copy installed under `node_modules`. Equal versions pass. Different
+ones are a WARN that starts with `drift:`, since the hooks and skills then run other code than the
+repository's Gate, and it names the fix: `claude plugin update sdlc@dw-sdlc` when the plugin is
+behind, the exact pin when the repository is. A repository that pins no `dw-sdlc` gets INFO.
 
 The `sdlc-doctor` skill runs it as `node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" doctor` from the
 repository, and the setup skill runs it last; a terminal runs
