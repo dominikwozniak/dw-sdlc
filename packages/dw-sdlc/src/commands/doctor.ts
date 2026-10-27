@@ -9,7 +9,7 @@ import { join } from "node:path"
 import { parseArgs } from "node:util"
 
 import { findRepository, resolveConfig } from "../agentic-config.ts"
-import { parseCatalog, parsePins } from "../pins.ts"
+import { EXACT_VERSION, parseCatalog, parsePins } from "../pins.ts"
 
 export type Level = "PASS" | "WARN" | "FAIL" | "INFO"
 export type Check = { name: string; level: Level; detail: string }
@@ -51,7 +51,6 @@ export const MARKETPLACE = "dw-sdlc"
 export const PLUGIN = "sdlc"
 export const PLUGIN_ID = `${PLUGIN}@${MARKETPLACE}`
 export const PACKAGE = "dw-sdlc"
-const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[\w.]+)?$/
 /** rtk find passes -exec through verbatim from this release; before it, `rtk find … -exec` exits 1. */
 export const RTK_FIND_EXEC_FIXED = "0.46.0"
 export const PNPM_MINIMUM_RELEASE_AGE = 10080

@@ -8,7 +8,8 @@ import { join } from "node:path"
 /** Versions by package name: what package.json pins, or what a catalog lists. */
 export type Pins = Record<string, string>
 
-const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[\w.]+)?$/
+/** A pin that names one version: `x.y.z`, a pre-release tag allowed. */
+export const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[\w.]+)?$/
 /** The two ways a pin names the default catalog: by its name, or by pnpm's shorthand. */
 const DEFAULT_CATALOG = new Set(["catalog:", "catalog:default"])
 
