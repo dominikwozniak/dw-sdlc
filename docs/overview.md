@@ -187,12 +187,26 @@ key and its inferred value is described in the
 [schema](../packages/dw-sdlc/config/agentic.config.schema.json). The `$schema` URL is an annotation
 for editors; the guards always validate against the schema the plugin ships.
 
-The `/sdlc-setup` skill then writes this machine's local config layer from what it infers,
-plus the commit convention when asked for one, excludes it from git, and adds a permission backstop
-to `.claude/settings.local.json` plus the lease-push exception to `~/.claude/settings.json`. It shows
-a dry run first, writes only what would change, and ends with the doctor: one PASS / WARN / FAIL line
-per machine check. The doctor needs only Node 24 and runs from the installed plugin: `/sdlc-doctor`
-in a session, or `node <plugin root>/dw-sdlc/src/cli.ts doctor` from the repository in a terminal.
+The `/sdlc-setup` skill then sets the repository and the machine up, a dry run first, and writes
+only what would change. In a repository with a `package.json` it adopts the Gate. It asks before it
+adds `dw-sdlc` as a devDependency, naming the version it pins, the one the plugin runs, and stops on
+a no. On a yes it pins the package and runs the install. The committed config gains a `gate` key
+when it has none; a `gate` key it has stays. The key turns on `agents-map`, `markdown-refs`,
+`temporal-language` and `comment-budget`, which judge any tree as it is, and writes the other four
+Checks `false`, since each reads an input the repository adds first: a catalogue, a records
+directory, the docs a glob matches, a Ratchet's baseline. The setup never writes `AGENTS.md`: the
+first `dw-sdlc gate` names what the map lacks through `agents-map`. The Ratchet joins once the Gate
+is green: `file-size-ratchet` set to `true`, then `dw-sdlc gate --update-baseline` records the
+baseline to commit.
+
+For the machine, the setup writes the local config layer from what it infers, plus the commit
+convention when asked for one, excludes it from git, and adds a permission backstop to
+`.claude/settings.local.json` plus the lease-push exception to `~/.claude/settings.json`. Where those
+settings still enable `guardrails@dw-sdlc` or `references@dw-sdlc`, it prints the `enabledPlugins`
+edit and leaves it to the user. It ends with the doctor, one PASS / WARN / FAIL line per machine
+check, and after a run that wrote the `gate` key, with one Gate run. The doctor needs only Node 24
+and runs from the installed plugin: `/sdlc-doctor` in a session, or
+`node <plugin root>/dw-sdlc/src/cli.ts doctor` from the repository in a terminal.
 
 ## From GitHub or from a clone
 

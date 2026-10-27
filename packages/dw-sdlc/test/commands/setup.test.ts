@@ -7,22 +7,38 @@ import { pathToFileURL } from "node:url"
 import { COMMITTED_FILE, LOCAL_FILE, resolveConfig, schemaId } from "../../src/agentic-config.ts"
 import { type SetupOptions, type Step, schemaReference, setup } from "../../src/commands/setup.ts"
 import { GLOBAL_DENY, LEASE_RULE } from "../../src/setup-rules.ts"
-import { commit, git, initRepo, REPO_ROOT, runBin, scratch, write as writeFile, writeJson } from "../harness.ts"
+import {
+  commit,
+  git,
+  initRepo,
+  lines,
+  PACKAGE_ROOT,
+  REPO_ROOT,
+  type Run,
+  runBin,
+  scratch,
+  write as writeFile,
+  writeJson
+} from "../harness.ts"
 
 function write(root: string, file: string, text: string): void {
   writeFile(join(root, file), text)
 }
 
-/** A pnpm repository with a tracked .env, an ignored .env.development and one commit. */
+/** The version of the package under test, the one the setup pins. */
+const VERSION: unknown = JSON.parse(readFileSync(join(PACKAGE_ROOT, "package.json"), "utf8")).version
+
+/** A pnpm repository on the Gate, with a tracked .env, an ignored .env.development and one commit. */
 function nodeRepo(): string {
   const root = initRepo(scratch("setup"), { branch: "main", remote: "git@github.com:acme/app.git" })
-  write(root, "package.json", "{}\n")
+  write(root, "package.json", JSON.stringify({ devDependencies: { "dw-sdlc": VERSION } }) + "\n")
   write(root, "pnpm-lock.yaml", "")
+  write(root, COMMITTED_FILE, JSON.stringify({ version: 1, gate: {} }) + "\n")
   write(root, ".gitignore", ".env.development\n*.local\n")
   write(root, ".env", "SAFE=1\n")
   write(root, ".env.development", "SECRET=1\n")
   write(root, ".env.local", "SECRET=2\n")
-  git(root, "add", "package.json", "pnpm-lock.yaml", ".gitignore", ".env")
+  git(root, "add", "package.json", "pnpm-lock.yaml", COMMITTED_FILE, ".gitignore", ".env")
   commit(root, "-m", "init")
   return root
 }
@@ -108,7 +124,9 @@ describe("setup", () => {
       [LOCAL_FILE]: "wrote",
       ".git/info/exclude": "wrote",
       ".claude/settings.local.json": "wrote",
-      "~/.claude/settings.json": "wrote"
+      "~/.claude/settings.json": "wrote",
+      "package.json": "unchanged",
+      [COMMITTED_FILE]: "unchanged"
     })
 
     const local = json(join(root, LOCAL_FILE))
@@ -422,7 +440,14 @@ describe("setup", () => {
     const root = nodeRepo()
     const home = scratch("home")
     const steps = run(root, home, { dryRun: true })
-    assert.deepEqual(new Set(steps.map((step) => step.outcome)), new Set(["wrote"]))
+    assert.deepEqual(outcomes(steps), {
+      [LOCAL_FILE]: "wrote",
+      ".git/info/exclude": "wrote",
+      ".claude/settings.local.json": "wrote",
+      "~/.claude/settings.json": "wrote",
+      "package.json": "unchanged",
+      [COMMITTED_FILE]: "unchanged"
+    })
     assert.ok(!existsSync(join(root, LOCAL_FILE)))
     assert.ok(!existsSync(join(root, ".claude/settings.local.json")))
     assert.ok(!existsSync(join(home, ".claude/settings.json")))
@@ -515,5 +540,225 @@ describe("the guardrails:setup command", () => {
       assert.equal(off.status, 2)
       assert.match(off.stderr, new RegExp(`${flag} must be`))
     }
+  })
+})
+
+function setupBin(root: string, home: string, ...flags: string[]): Run {
+  return runBin(["setup", "--root", root, "--home", home, ...flags], REPO_ROOT)
+}
+
+function read(root: string, file: string): string {
+  return readFileSync(join(root, file), "utf8")
+}
+
+describe("adopting the Gate", () => {
+  const MANIFEST = {
+    name: "app",
+    scripts: { check: "dw-sdlc gate" },
+    devDependencies: { "@types/node": "24.0.0", typescript: "5.9.3" }
+  }
+  /** The Checks a new gate key names, in the order the package ships them. */
+  const DEFAULT_CHECKS = [
+    ["primitives", false],
+    ["agents-map", true],
+    ["markdown-budget", false],
+    ["markdown-refs", true],
+    ["temporal-language", true],
+    ["decision-records", false],
+    ["file-size-ratchet", false],
+    ["comment-budget", true]
+  ]
+  const PINNED = `wrote       package.json — pins dw-sdlc ${VERSION} as a devDependency; pnpm install brings it in`
+  const GATE_KEY =
+    "the gate key, agents-map, markdown-refs, temporal-language and comment-budget on and the other Checks off"
+
+  /** A pnpm repository whose package.json lacks dw-sdlc, with `files` beside it, all committed. */
+  function withoutGate(files: Record<string, string> = {}): string {
+    const root = initRepo(scratch("adopt"), { branch: "main" })
+    write(root, "package.json", JSON.stringify(MANIFEST, null, 2) + "\n")
+    write(root, "pnpm-lock.yaml", "")
+    for (const [file, text] of Object.entries(files)) {
+      write(root, file, text)
+    }
+    git(root, "add", "package.json", "pnpm-lock.yaml", ...Object.keys(files))
+    commit(root, "-m", "init")
+    return root
+  }
+
+  it("pins the package and adds the gate key to a repository with neither, and a second run writes nothing", () => {
+    const config = '{\n  "version": 1,\n  "commit": { "convention": "ticket-key" }\n}\n'
+    const root = withoutGate({ [COMMITTED_FILE]: config })
+    const home = scratch("home")
+    const first = setupBin(root, home, "--add-package")
+    assert.equal(first.status, 0, first.stdout)
+    assert.ok(lines(first.stdout).includes(PINNED), first.stdout)
+    assert.ok(lines(first.stdout).includes(`wrote       ${COMMITTED_FILE} — ${GATE_KEY}`), first.stdout)
+
+    const devDependencies = { "@types/node": "24.0.0", "dw-sdlc": VERSION, typescript: "5.9.3" }
+    assert.equal(read(root, "package.json"), JSON.stringify({ ...MANIFEST, devDependencies }, null, 2) + "\n")
+    const written = read(root, COMMITTED_FILE)
+    assert.ok(written.startsWith(config.slice(0, -3) + ',\n  "gate": {\n'), "the config keeps its layout")
+    assert.deepEqual(Object.entries(JSON.parse(written).gate.checks), DEFAULT_CHECKS)
+    const { config: resolved, problems } = resolveConfig(root)
+    assert.deepEqual(problems, [])
+    assert.equal(resolved.commit.convention, "ticket-key")
+
+    const snapshot = [read(root, "package.json"), written]
+    const second = setupBin(root, home)
+    assert.equal(second.status, 0, second.stdout)
+    assert.deepEqual(
+      lines(second.stdout).filter((line) => !line.startsWith("unchanged")),
+      [],
+      "the pin is there, so no flag is needed"
+    )
+    assert.deepEqual([read(root, "package.json"), read(root, COMMITTED_FILE)], snapshot)
+  })
+
+  it("creates the committed config where there is none, and a dry run shows both writes and makes neither", () => {
+    const root = withoutGate()
+    const home = scratch("home")
+    const manifest = read(root, "package.json")
+    const dry = setupBin(root, home, "--add-package", "--dry-run")
+    assert.equal(dry.status, 0, dry.stdout)
+    assert.ok(lines(dry.stdout).includes(PINNED.replace("wrote      ", "would write")), dry.stdout)
+    assert.ok(lines(dry.stdout).includes(`would write ${COMMITTED_FILE} — ${GATE_KEY}`), dry.stdout)
+    assert.equal(read(root, "package.json"), manifest)
+    assert.ok(!existsSync(join(root, COMMITTED_FILE)))
+
+    assert.equal(setupBin(root, home, "--add-package").status, 0)
+    assert.deepEqual(json(join(root, COMMITTED_FILE)), {
+      $schema: "../node_modules/dw-sdlc/config/agentic.config.schema.json",
+      version: 1,
+      gate: { checks: Object.fromEntries(DEFAULT_CHECKS) }
+    })
+    assert.deepEqual(resolveConfig(root).problems, [])
+  })
+
+  it("without --add-package refuses the package, naming the version it would pin, and adds no gate key", () => {
+    const root = withoutGate()
+    const manifest = read(root, "package.json")
+    const result = setupBin(root, scratch("home"))
+    assert.equal(result.status, 1)
+    assert.ok(
+      lines(result.stdout).includes(
+        `refused     package.json — no dw-sdlc devDependency, and a new one needs your yes: --add-package pins dw-sdlc ${VERSION}`
+      ),
+      result.stdout
+    )
+    assert.ok(!result.stdout.includes(COMMITTED_FILE), "the gate key waits for the package that runs it")
+    assert.equal(read(root, "package.json"), manifest)
+    assert.ok(!existsSync(join(root, COMMITTED_FILE)))
+  })
+
+  it("leaves a gate key the config holds and a pin the manifest holds as they are", () => {
+    const config = '{ "gate": { "checks": { "agents-map": false } } }\n'
+    const root = withoutGate({ [COMMITTED_FILE]: config })
+    const manifest = JSON.stringify({ devDependencies: { "dw-sdlc": "workspace:*" } }) + "\n"
+    write(root, "package.json", manifest)
+    const result = setupBin(root, scratch("home"), "--add-package")
+    assert.equal(result.status, 0, result.stdout)
+    assert.ok(lines(result.stdout).includes("unchanged   package.json"), result.stdout)
+    assert.ok(lines(result.stdout).includes(`unchanged   ${COMMITTED_FILE}`), result.stdout)
+    assert.equal(read(root, "package.json"), manifest)
+    assert.equal(read(root, COMMITTED_FILE), config)
+  })
+
+  it("refuses a committed config or a manifest that is not a JSON object with exit 1, and leaves it untouched", () => {
+    for (const text of ["[]\n", "{ not json"]) {
+      const root = withoutGate({ [COMMITTED_FILE]: text })
+      const result = setupBin(root, scratch("home"), "--add-package")
+      assert.equal(result.status, 1, result.stdout)
+      assert.ok(
+        lines(result.stdout).includes(`refused     ${COMMITTED_FILE} — is not a JSON object; fix it by hand first`),
+        result.stdout
+      )
+      assert.equal(read(root, COMMITTED_FILE), text)
+    }
+    const root = withoutGate()
+    write(root, "package.json", "[]\n")
+    const result = setupBin(root, scratch("home"), "--add-package")
+    assert.equal(result.status, 1)
+    assert.ok(lines(result.stdout).includes("refused     package.json — is not a JSON object; fix it by hand first"))
+    assert.equal(read(root, "package.json"), "[]\n")
+    assert.ok(!existsSync(join(root, COMMITTED_FILE)))
+  })
+
+  it("never writes the agent map, and the next Gate run names what the map lacks", () => {
+    const map = "# app\n\nRead the code before you change it.\n"
+    const root = withoutGate({ "AGENTS.md": map })
+    assert.equal(setupBin(root, scratch("home"), "--add-package").status, 0)
+    assert.equal(read(root, "AGENTS.md"), map)
+    const gate = runBin(["gate", "--root", root], REPO_ROOT)
+    assert.equal(gate.status, 1, gate.stdout)
+    assert.deepEqual(lines(gate.stdout).slice(-2), [
+      'AGENTS.md: agents-map: does not name the Gate command "pnpm check" — name it where the map lists the commands',
+      "gate: failed — 1 failure"
+    ])
+
+    const bare = withoutGate()
+    assert.equal(setupBin(bare, scratch("home"), "--add-package").status, 0)
+    assert.ok(!existsSync(join(bare, "AGENTS.md")))
+    const missing = runBin(["gate", "--root", bare], REPO_ROOT)
+    assert.equal(missing.status, 2, missing.stdout)
+    assert.deepEqual(lines(missing.stdout).slice(-2), [
+      "AGENTS.md: agents-map: the map does not exist — write it, or point gate.checks.agents-map.file at the map",
+      "gate: cannot run — 1 failure"
+    ])
+  })
+
+  it("from a linked worktree the package and the gate key go to the worktree, on its branch", () => {
+    const root = withoutGate()
+    const manifest = read(root, "package.json")
+    const worktree = join(root, ".claude/worktrees/wt")
+    git(root, "worktree", "add", "-q", worktree, "-b", "wt")
+    assert.equal(setupBin(worktree, scratch("home"), "--add-package").status, 0)
+    assert.equal(JSON.parse(read(worktree, "package.json")).devDependencies["dw-sdlc"], VERSION)
+    assert.ok(existsSync(join(worktree, COMMITTED_FILE)))
+    assert.equal(read(root, "package.json"), manifest, "the main checkout's branch is not the one being set up")
+    assert.ok(!existsSync(join(root, COMMITTED_FILE)))
+  })
+
+  it("a repository without a package.json gets neither step", () => {
+    const root = initRepo(scratch("setup"), { branch: "main" })
+    const result = setupBin(root, scratch("home"))
+    assert.equal(result.status, 0, result.stdout)
+    assert.ok(!/package\.json|agentic\.config\.json/.test(result.stdout), result.stdout)
+    assert.ok(!existsSync(join(root, COMMITTED_FILE)))
+  })
+
+  it("names the enabledPlugins edit settings on the retired plugins need, and leaves the settings to the user", () => {
+    const root = nodeRepo()
+    const home = scratch("home")
+    const settings = join(home, ".claude/settings.json")
+    const retired = { "guardrails@dw-sdlc": true, "references@dw-sdlc": true, "x@y": true }
+    writeJson(settings, { enabledPlugins: retired })
+    const both = setupBin(root, home)
+    assert.equal(both.status, 0, both.stdout)
+    assert.ok(
+      lines(both.stdout).includes(
+        'by hand     ~/.claude/settings.json — enabledPlugins: remove "guardrails@dw-sdlc" and "references@dw-sdlc", which the marketplace no longer lists, and add "sdlc@dw-sdlc": true after claude plugin install sdlc@dw-sdlc --scope user'
+      ),
+      both.stdout
+    )
+    assert.deepEqual(json(settings).enabledPlugins, retired)
+
+    writeJson(settings, {
+      enabledPlugins: { "guardrails@dw-sdlc": false, "references@dw-sdlc": true, "sdlc@dw-sdlc": true }
+    })
+    const one = setupBin(root, home)
+    assert.equal(one.status, 0, one.stdout)
+    assert.deepEqual(
+      lines(one.stdout).filter((line) => line.startsWith("by hand")),
+      [
+        'by hand     ~/.claude/settings.json — enabledPlugins: remove "references@dw-sdlc", which the marketplace no longer lists'
+      ]
+    )
+
+    writeJson(settings, { enabledPlugins: { "sdlc@dw-sdlc": true } })
+    const none = setupBin(root, home)
+    assert.deepEqual(
+      lines(none.stdout).filter((line) => line.startsWith("by hand")),
+      []
+    )
   })
 })

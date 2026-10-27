@@ -205,11 +205,16 @@
     },
     {
       "id": "tools.setup",
-      "name": "Guardrails setup",
+      "name": "Setup",
       "group": "tools",
-      "summary": "Writes a machine's local config, excludes, settings deny rules and the lease-push exception; only what would change.",
-      "code": ["packages/dw-sdlc/src/commands/setup.ts", "packages/dw-sdlc/src/setup-rules.ts"],
-      "docs": ["plugins/sdlc/README.md#setup"]
+      "summary": "Pins dw-sdlc and adds the gate key on a yes; writes the machine's local config, excludes, deny rules, lease exception.",
+      "code": [
+        "packages/dw-sdlc/src/commands/setup.ts",
+        "packages/dw-sdlc/src/setup-gate.ts",
+        "packages/dw-sdlc/src/setup-rules.ts",
+        "packages/dw-sdlc/src/json-text.ts"
+      ],
+      "docs": ["plugins/sdlc/README.md#setup", "plugins/sdlc/README.md#adopting-the-gate"]
     },
     {
       "id": "tools.doctor",
@@ -234,6 +239,7 @@
       "summary": "Makes a repository ready for References: the Router with its table from the key, the excludes, the ignore rules.",
       "code": [
         "packages/dw-sdlc/src/commands/references-setup.ts",
+        "packages/dw-sdlc/src/json-text.ts",
         "packages/dw-sdlc/src/router-block.ts",
         "packages/dw-sdlc/templates/router.md"
       ],
@@ -251,7 +257,7 @@
       "id": "skills.setup",
       "name": "sdlc-setup",
       "group": "skills",
-      "summary": "The user-invoked skill that runs the setup as a dry run, then for real, then the doctor.",
+      "summary": "The user-invoked skill that runs the setup as a dry run, asks before it pins dw-sdlc, then runs it and the doctor.",
       "code": ["plugins/sdlc/skills/sdlc-setup/SKILL.md"],
       "docs": ["plugins/sdlc/README.md#setup"]
     },
