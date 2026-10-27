@@ -18,12 +18,11 @@ claude plugin install sdlc@dw-sdlc --scope user
 ```
 
 The install is that one plugin, `"sdlc@dw-sdlc": true` under `enabledPlugins` in
-`~/.claude/settings.json`. The marketplace lists no other: a machine that enables
-`guardrails@dw-sdlc` or `references@dw-sdlc` removes both lines. The hooks need `jq`. Without it
-every guard exits 0 and guards nothing; the doctor says so.
+`~/.claude/settings.json`, and the marketplace lists no other. The hooks need `jq`. Without it every
+guard exits 0 and guards nothing; the doctor says so.
 
 Added from GitHub, the plugin is a snapshot of `main` that `claude plugin update` refreshes, and
-`--sparse` keeps the clone to the catalogue, the plugins and the package the `dw-sdlc` link points
+`--sparse` keeps the clone to the catalogue, the plugin and the package the `dw-sdlc` link points
 at; without `packages` the plugin installs without the package. Added from a clone
 (`claude plugin marketplace add ./` in the checkout), it runs live from that checkout: a change on
 disk is in the next session, a broken edit included.
