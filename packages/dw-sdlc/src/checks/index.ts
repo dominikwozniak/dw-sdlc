@@ -56,3 +56,9 @@ export const CHECK_NAMES: readonly string[] = SHIPPED.map(({ name }) => name)
 export function enabledChecks(checks: Record<string, unknown>): EnabledCheck[] {
   return SHIPPED.flatMap(({ name, enable }) => enable(checks[name]) ?? [])
 }
+
+/** The shipped Check `name` on `setting`, or on its defaults where `setting` leaves it off. */
+export function shippedCheck(name: string, setting: unknown): EnabledCheck | undefined {
+  const on = setting === false || setting === undefined ? true : setting
+  return SHIPPED.find((check) => check.name === name)?.enable(on)
+}

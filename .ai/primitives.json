@@ -356,7 +356,7 @@
       "id": "gate.one-check",
       "name": "dw-sdlc check",
       "group": "gate",
-      "summary": "Runs one Check of the Gate by name, no Step; off in the config, on its defaults. The Gate's lines and exit codes.",
+      "summary": "Runs one Check of the Gate by name and no Step, on its defaults where the config leaves it off.",
       "code": ["packages/dw-sdlc/src/commands/check.ts"],
       "docs": ["docs/overview.md#the-checks-the-package-ships", "packages/dw-sdlc/README.md#commands"]
     },

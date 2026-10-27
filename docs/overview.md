@@ -128,13 +128,13 @@ count that shrank is lowered, and no file joins. Where there is no baseline it r
 file over its limit at its count, unless HEAD holds one the tree lost: that one is restored with git,
 never recorded again. A refused refresh leaves the file byte for byte as it was.
 
-`dw-sdlc check <name>` runs one Check of the Gate alone, so a person iterates on one rule and a
-skill reads one result. The name is a script under `gate.checks.run` or a Check the package ships.
-No Step runs and no other Check. A shipped Check runs on the setting `gate.checks` gives it, and on
-its defaults where the config sets it `false` or leaves it out, so a Check can be tried before it is
-turned on. Its lines, its exit codes and its `--json` document are the Gate's, the document with no
-Step. It takes no `--update-baseline`: a refresh needs every other Check to pass, and only the Gate
-runs them.
+`dw-sdlc check <name>` runs one Check of the Gate alone, so a person iterates on one Check and a
+skill reads one result. The name is a script under `gate.checks.run` or a Check the package ships; a
+name both carry runs both, as the Gate does. No Step runs and no other Check. A shipped Check runs
+on the setting `gate.checks` gives it, and on its defaults where the config sets it `false` or
+leaves it out, so a Check can be tried before it is turned on. Its lines, its exit codes and its
+`--json` document are the Gate's, the document with no Step. It takes no `--update-baseline`: a
+refresh needs every other Check to pass, and only the Gate runs them.
 
 `dw-sdlc primitives --paths <files>` answers from the same catalogue: for each path, the Primitives
 whose `code` names it nearest, with their summaries and the documents to read, or that none does.

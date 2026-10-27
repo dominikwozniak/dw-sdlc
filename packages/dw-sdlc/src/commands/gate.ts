@@ -4,9 +4,9 @@
 import { spawnSync } from "node:child_process"
 import { parseArgs } from "node:util"
 
-import { type GateChecks, type Problem, type RunCheck, repositoryRoot, resolveConfig } from "../agentic-config.ts"
+import { type Gate, type Problem, type RunCheck, repositoryRoot, resolveConfig } from "../agentic-config.ts"
 import { CannotRun } from "../checks/check.ts"
-import { CHECK_NAMES, type EnabledCheck, enabledChecks } from "../checks/index.ts"
+import { CHECK_NAMES, type EnabledCheck, enabledChecks, shippedCheck } from "../checks/index.ts"
 import { annotation, type Failure, failureJson, failureLine } from "../report.ts"
 
 export const summary = "run the Gate: the Steps of gate.steps in order, then every Check under gate.checks"
@@ -33,7 +33,7 @@ type Outcome = { status: Status | "skipped"; exitCode: number | null }
 type StepReport = Outcome & { command: string }
 /** A Check the package ships runs in this process: it has no command. */
 type CheckReport = Outcome & { name: string; command: string | null }
-export type GateReport = {
+type GateReport = {
   status: Status
   command: string | null
   steps: StepReport[]
@@ -44,8 +44,10 @@ export type GateReport = {
 type Judged = { check: EnabledCheck; outcome: Outcome; failures: Failure[] }
 /** Where the Gate says what it runs: stdout, or stderr under `--json`. */
 type Log = { write: (text: string) => unknown }
-/** What a run judges: the whole Gate, or with `only` the Checks of that name alone and no Step. */
-type Scope = { json: boolean; updateBaseline: boolean; only?: string }
+/** The Steps and Checks one run judges. */
+type Selection = { steps: string[]; run: RunCheck[]; shipped: EnabledCheck[] }
+/** A run of the whole Gate, or of the Checks named `only` alone: no Step, no progress line, no refresh. */
+type RunOptions = { json: boolean } & ({ updateBaseline: boolean } | { only: string })
 
 const EXIT_CODES: Record<Status, number> = { pass: 0, fail: 1, error: 2 }
 /** What the shell answers for a command it cannot find, and for one it cannot execute. */
@@ -179,36 +181,35 @@ function worst(outcomes: Outcome[]): Status {
 }
 
 /**
- * The Checks named `name`: the run Checks of that name, and the shipped one on its setting, or on its
- * defaults where the config leaves it off.
+ * Every Step and Check of `gate`, or with `only` no Step and the Checks of that name: the run Checks
+ * and the shipped one, which runs on its defaults where the config leaves it off. No Check of that
+ * name is a failure.
  */
-function named(checks: GateChecks, name: string): { run: RunCheck[]; shipped: EnabledCheck[] } {
-  const setting = checks[name] ?? false
-  return {
-    run: checks.run.filter((check) => check.name === name),
-    shipped: enabledChecks({ [name]: setting === false ? true : setting })
+function select(gate: Gate, only: string | undefined): Selection | Failure {
+  if (only === undefined) {
+    return { steps: gate.steps, run: gate.checks.run, shipped: enabledChecks(gate.checks) }
   }
+  const scripts = gate.checks.run.filter((check) => check.name === only)
+  const shipped = shippedCheck(only, gate.checks[only])
+  if (scripts.length === 0 && shipped === undefined) {
+    const names = [...gate.checks.run.map((check) => check.name), ...CHECK_NAMES].join(", ")
+    return { rule: "check", message: `no Check is named ${JSON.stringify(only)}`, remedy: `name one of ${names}` }
+  }
+  return { steps: [], run: scripts, shipped: shipped === undefined ? [] : [shipped] }
 }
 
-function unknownCheck(name: string, scripts: RunCheck[]): Failure {
-  const names = [...scripts.map((check) => check.name), ...CHECK_NAMES].join(", ")
-  return { rule: "check", message: `no Check is named ${JSON.stringify(name)}`, remedy: `name one of ${names}` }
-}
-
-export function runGate(root: string, { json, updateBaseline, only }: Scope): GateReport {
+export function runGate(root: string, options: RunOptions): GateReport {
+  const { json } = options
+  const only = "only" in options ? options.only : undefined
   const log: Log = only !== undefined ? QUIET : json ? process.stderr : process.stdout
   const { config, problems } = resolveConfig(root)
   const gateCommand = config.gate.command ?? null
   if (problems.length > 0) {
     return { status: "error", command: gateCommand, steps: [], checks: [], failures: problems.map(configFailure) }
   }
-  const scope =
-    only === undefined
-      ? { steps: config.gate.steps, run: config.gate.checks.run, shipped: enabledChecks(config.gate.checks) }
-      : { steps: [], ...named(config.gate.checks, only) }
-  if (only !== undefined && scope.run.length + scope.shipped.length === 0) {
-    const failures = [unknownCheck(only, config.gate.checks.run)]
-    return { status: "error", command: gateCommand, steps: [], checks: [], failures }
+  const selected = select(config.gate, only)
+  if ("rule" in selected) {
+    return { status: "error", command: gateCommand, steps: [], checks: [], failures: [selected] }
   }
 
   const failures: Failure[] = []
@@ -224,7 +225,7 @@ export function runGate(root: string, { json, updateBaseline, only }: Scope): Ga
 
   const steps: StepReport[] = []
   let stopped = false
-  for (const step of scope.steps) {
+  for (const step of selected.steps) {
     if (stopped) {
       steps.push({ command: step, ...SKIPPED })
       continue
@@ -236,7 +237,7 @@ export function runGate(root: string, { json, updateBaseline, only }: Scope): Ga
   }
 
   const checks: CheckReport[] = []
-  for (const check of scope.run) {
+  for (const check of selected.run) {
     if (stopped) {
       checks.push({ ...check, ...SKIPPED })
       continue
@@ -244,14 +245,14 @@ export function runGate(root: string, { json, updateBaseline, only }: Scope): Ga
     log.write(`gate: check ${check.name}\n`)
     checks.push({ ...check, ...runOne(check.command, check.name, REMEDIES.checkNotRunnable) })
   }
-  const judged = scope.shipped.map((check): Judged => {
+  const judged = selected.shipped.map((check): Judged => {
     if (stopped) {
       return { check, outcome: SKIPPED, failures: [] }
     }
     log.write(`gate: check ${check.name}\n`)
     return runShipped(check, root)
   })
-  if (updateBaseline) {
+  if ("updateBaseline" in options && options.updateBaseline) {
     refreshBaselines(judged, [...steps, ...checks], root, log)
   }
   for (const { check, outcome, failures: found } of judged) {

@@ -44,8 +44,10 @@ describe("dw-sdlc check, a run Check", () => {
   })
 
   it("passes its output through and exits 1 with its failure line when it fails", () => {
-    const run = runBin(["check", "stale"], withChecks({}))
+    const root = withChecks({})
+    const run = runBin(["check", "stale"], root)
     assert.equal(run.status, 1)
+    assert.deepEqual(ran(root), [])
     assert.deepEqual(lines(run.stdout), [
       "stale output",
       'stale: "echo stale output; exit 1" exited 1 — fix what it printed above',
@@ -54,8 +56,10 @@ describe("dw-sdlc check, a run Check", () => {
   })
 
   it("exits 2 when the shell cannot find its command", () => {
-    const run = runBin(["check", "missing"], withChecks({}))
+    const root = withChecks({})
+    const run = runBin(["check", "missing"], root)
     assert.equal(run.status, 2)
+    assert.deepEqual(ran(root), [])
     assert.deepEqual(lines(run.stdout), [
       'missing: "dw-sdlc-no-such-command" was not found (exit 127) — install the command or fix gate.checks.run in the agentic config',
       "check missing: cannot run — 1 failure"
@@ -155,6 +159,17 @@ describe("dw-sdlc check --json", () => {
       ]
     })
     assert.deepEqual(lines(run.stderr), ["stale output"])
+  })
+
+  it("runs a script and the shipped Check that share a name, as the Gate does, each its own entry", () => {
+    const gate = { checks: { run: [{ name: "comment-budget", command: "true" }] } }
+    const root = repo({ files: { [CONFIG]: { version: 1, gate }, ...LONG_COMMENT } })
+    const run = runBin(["check", "comment-budget", "--json"], root)
+    assert.equal(run.status, 1)
+    assert.deepEqual(JSON.parse(run.stdout).checks, [
+      { name: "comment-budget", command: "true", status: "pass", exitCode: 0 },
+      { name: "comment-budget", command: null, status: "fail", exitCode: 1 }
+    ])
   })
 })
 

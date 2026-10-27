@@ -10,11 +10,12 @@ export const summary = "run one Check of the Gate by its name, without the Steps
 
 const USAGE = `Usage: dw-sdlc check <name> [--json] [--root <dir>]
 
-Runs the Checks named <name> in the Gate of the repository holding --root (default: the current
-directory): the script of that name under gate.checks.run, and the Check the package ships under it,
-one of ${CHECK_NAMES.join(", ")}. A shipped Check runs on the setting gate.checks
-gives it, and on its defaults where the config sets it false or leaves it out. No Step runs. Prints
-one line per failure, as the Gate does; --json prints the Gate's document, with no Step.
+Runs the Check named <name> in the Gate of the repository holding --root (default: the current
+directory): a script under gate.checks.run, or a Check the package ships, one of
+${CHECK_NAMES.join(", ")}. A name both carry runs both, as the Gate does. A
+shipped Check runs on the setting gate.checks gives it, and on its defaults where the config sets it
+false or leaves it out. No Step runs. Prints one line per failure, as the Gate does; --json prints
+the Gate's document, with no Step.
 
 A Ratchet's baseline is refreshed by dw-sdlc gate --update-baseline, which needs every other Check to
 pass.
@@ -61,6 +62,6 @@ export function run(argv: string[]): number {
   }
 
   const { json, name } = cli
-  const report = runGate(repositoryRoot(cli.root ?? process.cwd()), { json, updateBaseline: false, only: name })
+  const report = runGate(repositoryRoot(cli.root ?? process.cwd()), { json, only: name })
   return printReport(report, json, `check ${name}`)
 }
