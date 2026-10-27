@@ -240,22 +240,22 @@ picks one of two modes:
   publishes it, pushes the `dw-sdlc@x.y.z` tag and creates the GitHub release.
 
 Merging the version pull request is the decision to release. The publish job signs in to npm by
-trusted publishing, from its `id-token: write`, when the package's npm settings name
-`dominikwozniak/dw-sdlc` and `release.yaml` as its trusted publisher; otherwise it signs in with the
-`NPM_TOKEN` repository secret. npm sets a trusted publisher only on a package that exists, so a
-version published before one is set needs the secret: a granular access token with read and write
-access to packages, the bypass-2FA option on, and the shortest expiry that covers the release. A
-version published on the token lands staged: the workflow and changesets report it published, and
-npm keeps it off the registry until a maintainer approves it, with 2FA, under the package's Staged
-Packages tab on npmjs.com. What npm lets such a token do, and until when, is in the
-[research notes](research/gate/toolchain.md#npm-publishing).
+trusted publishing alone: no secret and no `.npmrc` exist, and pnpm exchanges the job's OIDC token,
+from its `id-token: write`, for a token scoped to the package. npm accepts the exchange because the
+package's settings on npmjs.com hold a saved trusted publisher: `dominikwozniak/dw-sdlc`, the
+workflow `release.yaml`, no environment, and `npm publish` allowed beside `npm stage publish`.
+`pnpm publish`, which `changeset publish` runs, names `npm publish` in its request. The version goes
+live on the registry about a minute later, with no approval, and its `_npmUser` names GitHub Actions
+as the trusted publisher. A publish with no trusted publisher saved fails with `E404: 404 Not Found`
+and no reason in the log: pnpm warns why it skipped OIDC, and changesets drops that warning. What the
+releases showed is in the [research notes](research/gate/toolchain.md#npm-publishing).
 
 npm attests provenance only for a build from a public repository, and this one is private, so the
 workflow leaves pnpm's `provenance` setting unset and trusted publishing decides: a version published
 from here carries no provenance, and once the repository is public npm attaches it. Trust evidence
 then only grows from one version to the next. A consumer on `trustPolicy: no-downgrade` refuses a
-version that carries less trust evidence than an earlier one, so the secret is deleted once trusted publishing works: a run that fell back to
-it would publish a version those consumers refuse. A consumer takes a release through Dependabot
-after the seven days of `minimumReleaseAge`; one that cannot wait names `dw-sdlc` in
-`minimumReleaseAgeExclude` under its own rule for exclusions, as
-[ADR 0008](adr/0008-gate-runs-from-a-pinned-package-plugin-adapts.md) records.
+version that carries less trust evidence than an earlier one, so a version after 0.1.0 never goes
+out on an access token. A consumer takes a release through Dependabot after the seven days of
+`minimumReleaseAge`; one that cannot wait names `dw-sdlc` in `minimumReleaseAgeExclude` under its own
+rule for exclusions, as [ADR 0008](adr/0008-gate-runs-from-a-pinned-package-plugin-adapts.md)
+records.
