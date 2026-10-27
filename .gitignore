@@ -11,7 +11,7 @@ dist/
 ideas/*
 !ideas/.gitkeep
 
-# References are cloned on each machine by the references plugin's Sync; only the Router is tracked.
+# References are cloned on each machine by the sdlc plugin's Sync; only the Router is tracked.
 references/*
 !references/AGENTS.md
 !references/CLAUDE.md

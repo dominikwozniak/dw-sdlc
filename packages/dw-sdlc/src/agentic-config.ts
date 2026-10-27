@@ -1,5 +1,5 @@
 // Reads what a repository declares for an agent: the committed config, the machine's local layer over it,
-// and what the repository implies; an invalid layer is dropped whole. The guardrails plugin's
+// and what the repository implies; an invalid layer is dropped whole. The sdlc plugin's
 // `hooks/config.jq` is the same merge for the guards; this file is the reference, and the tests run both.
 
 import { spawnSync } from "node:child_process"

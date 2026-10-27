@@ -1,7 +1,7 @@
 {
-  "name": "guardrails",
+  "name": "sdlc",
   "version": "0.13.0",
-  "description": "Deterministic guardrails for an agent session: refuses destructive git, the env files the repository does not vouch for, the wrong package manager, sloppy commits and writes to App Store Connect; a repository's own rules come from its .ai/agentic.config.json.",
+  "description": "Dominik Woźniak's software delivery process in one plugin: deterministic guards that refuse destructive git, the env files the repository does not vouch for, the wrong package manager, sloppy commits and writes to App Store Connect; the Sync that brings a repository's References to their ref as a session starts; and the skills /sdlc-setup, /sdlc-doctor and /sdlc-references-add. A repository's own rules come from its .ai/agentic.config.json.",
   "author": {
     "name": "Dominik Woźniak"
   },
@@ -42,6 +42,17 @@
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/session-start.sh\"",
             "timeout": 30
+          }
+        ]
+      },
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/references-sync.sh\"",
+            "timeout": 60,
+            "statusMessage": "Syncing references/ to each Reference's ref"
           }
         ]
       }

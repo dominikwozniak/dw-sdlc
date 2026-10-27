@@ -15,8 +15,8 @@
       "name": "Dispatcher",
       "group": "guards",
       "summary": "Reads a shell command once and spawns each guard only where the command could trip it.",
-      "code": ["plugins/guardrails/hooks/bash-guard.sh"],
-      "docs": ["plugins/guardrails/README.md#layout", "docs/overview.md#how-a-guard-judges-a-call", "GLOSSARY.md"]
+      "code": ["plugins/sdlc/hooks/bash-guard.sh"],
+      "docs": ["plugins/sdlc/README.md#layout", "docs/overview.md#how-a-guard-judges-a-call", "GLOSSARY.md"]
     },
     {
       "id": "guards.lib",
@@ -24,96 +24,96 @@
       "group": "guards",
       "summary": "The shell library every guard sources: payload reader, scanners, quote mask, launcher table, git readers, refusal.",
       "code": [
-        "plugins/guardrails/hooks/lib.sh",
-        "plugins/guardrails/hooks/lib-lines.sh",
-        "plugins/guardrails/hooks/lib-text.sh",
-        "plugins/guardrails/hooks/lib-live.sh",
-        "plugins/guardrails/hooks/lib-mask.sh",
-        "plugins/guardrails/hooks/lib-words.sh",
-        "plugins/guardrails/hooks/lib-git.sh"
+        "plugins/sdlc/hooks/lib.sh",
+        "plugins/sdlc/hooks/lib-lines.sh",
+        "plugins/sdlc/hooks/lib-text.sh",
+        "plugins/sdlc/hooks/lib-live.sh",
+        "plugins/sdlc/hooks/lib-mask.sh",
+        "plugins/sdlc/hooks/lib-words.sh",
+        "plugins/sdlc/hooks/lib-git.sh"
       ],
-      "docs": ["plugins/guardrails/README.md#layout", "GLOSSARY.md"]
+      "docs": ["plugins/sdlc/README.md#layout", "GLOSSARY.md"]
     },
     {
       "id": "guards.dangerous-commands",
       "name": "Dangerous commands guard",
       "group": "guards",
       "summary": "Refuses what the reflog cannot bring back, bare force and protected-branch pushes, remote deletes, rm aimed at a root.",
-      "code": ["plugins/guardrails/hooks/block-dangerous-commands.sh"],
-      "docs": ["plugins/guardrails/README.md#guards", "docs/adr/0004-lease-push-passes-bare-force-refused.md"]
+      "code": ["plugins/sdlc/hooks/block-dangerous-commands.sh"],
+      "docs": ["plugins/sdlc/README.md#guards", "docs/adr/0004-lease-push-passes-bare-force-refused.md"]
     },
     {
       "id": "guards.env-access",
       "name": "Env access guard",
       "group": "guards",
       "summary": "Judges an env file read by guardrails.envFiles: the deny list, the allow list, then the policy, git by default.",
-      "code": ["plugins/guardrails/hooks/block-env-access.sh"],
-      "docs": ["plugins/guardrails/README.md#guards", "docs/adr/0005-env-access-is-a-list-in-the-config.md"]
+      "code": ["plugins/sdlc/hooks/block-env-access.sh"],
+      "docs": ["plugins/sdlc/README.md#guards", "docs/adr/0005-env-access-is-a-list-in-the-config.md"]
     },
     {
       "id": "guards.credential-leak",
       "name": "Credential leak guard",
       "group": "guards",
       "summary": "Refuses reads of credential stores outside dotenv, credential-ish env dumps, and a curl or wget carrying one.",
-      "code": ["plugins/guardrails/hooks/credential-leak-guard.sh"],
-      "docs": ["plugins/guardrails/README.md#guards"]
+      "code": ["plugins/sdlc/hooks/credential-leak-guard.sh"],
+      "docs": ["plugins/sdlc/README.md#guards"]
     },
     {
       "id": "guards.non-pnpm",
       "name": "Package manager guard",
       "group": "guards",
       "summary": "Refuses npm, npx, yarn and bun where the resolved packageManagers.node is pnpm; silent in every other repository.",
-      "code": ["plugins/guardrails/hooks/block-non-pnpm.sh"],
-      "docs": ["plugins/guardrails/README.md#guards"]
+      "code": ["plugins/sdlc/hooks/block-non-pnpm.sh"],
+      "docs": ["plugins/sdlc/README.md#guards"]
     },
     {
       "id": "guards.store-writes",
       "name": "Store writes guard",
       "group": "guards",
       "summary": "Refuses every write to App Store Connect: an asc verb that is not a read, a store script without --confirm.",
-      "code": ["plugins/guardrails/hooks/block-store-writes.sh"],
-      "docs": ["plugins/guardrails/README.md#guards"]
+      "code": ["plugins/sdlc/hooks/block-store-writes.sh"],
+      "docs": ["plugins/sdlc/README.md#guards"]
     },
     {
       "id": "guards.commit-hygiene",
       "name": "Commit hygiene guard",
       "group": "guards",
       "summary": "Holds a subject to commit.pattern or the convention, requires commit.trailer, refuses git add -A and git add .",
-      "code": ["plugins/guardrails/hooks/enforce-commit-hygiene.sh"],
-      "docs": ["plugins/guardrails/README.md#guards", "AGENTS.md#git"]
+      "code": ["plugins/sdlc/hooks/enforce-commit-hygiene.sh"],
+      "docs": ["plugins/sdlc/README.md#guards", "AGENTS.md#git"]
     },
     {
       "id": "guards.large-file",
       "name": "Large file guard",
       "group": "guards",
       "summary": "Flags a file over 256 KiB once a Write lands it; advisory, CLAUDE_MAX_WRITE_BYTES is its one switch.",
-      "code": ["plugins/guardrails/hooks/large-file-guard.sh"],
-      "docs": ["plugins/guardrails/README.md#guards"]
+      "code": ["plugins/sdlc/hooks/large-file-guard.sh"],
+      "docs": ["plugins/sdlc/README.md#guards"]
     },
     {
       "id": "hooks.rtk-rewrite",
       "name": "rtk rewrite",
       "group": "hooks",
       "summary": "Wires rtk hook claude from the plugin; silent without rtk, and git in a linked worktree goes through unrewritten.",
-      "code": ["plugins/guardrails/hooks/rtk-rewrite.sh"],
-      "docs": ["plugins/guardrails/README.md#guards", "docs/research/agentic-guardrails/rtk.md"]
+      "code": ["plugins/sdlc/hooks/rtk-rewrite.sh"],
+      "docs": ["plugins/sdlc/README.md#guards", "docs/research/agentic-guardrails/rtk.md"]
     },
     {
       "id": "hooks.session-start",
       "name": "Guardrails session hook",
       "group": "hooks",
       "summary": "Tells the first turn what no file says: a missing jq, an invalid config layer, a linked worktree still to set up.",
-      "code": ["plugins/guardrails/hooks/session-start.sh"],
-      "docs": ["plugins/guardrails/README.md#session-start", "docs/adr/0003-invalid-config-layer-runs-strictest.md"]
+      "code": ["plugins/sdlc/hooks/session-start.sh"],
+      "docs": ["plugins/sdlc/README.md#session-start", "docs/adr/0003-invalid-config-layer-runs-strictest.md"]
     },
     {
-      "id": "hooks.references-session-start",
-      "name": "References session hook",
+      "id": "hooks.references-sync",
+      "name": "Sync hook",
       "group": "hooks",
       "summary": "Runs the Sync at startup and prints its lines; a repository without the references key gets no output.",
-      "code": ["plugins/references/hooks/session-start.sh"],
+      "code": ["plugins/sdlc/hooks/references-sync.sh"],
       "docs": [
-        "plugins/references/README.md#the-session-hook",
+        "plugins/sdlc/README.md#the-sync-at-session-start",
         "docs/adr/0006-sync-ships-as-a-plugin-for-local-sessions.md"
       ]
     },
@@ -122,8 +122,8 @@
       "name": "Commit-msg hook",
       "group": "hooks",
       "summary": "The subject check as a git commit-msg hook, so a commit typed in a terminal meets it; wired from .husky/commit-msg.",
-      "code": ["plugins/guardrails/hooks/commit-msg.sh", ".husky/commit-msg"],
-      "docs": ["plugins/guardrails/README.md#commit-hook"]
+      "code": ["plugins/sdlc/hooks/commit-msg.sh", ".husky/commit-msg"],
+      "docs": ["plugins/sdlc/README.md#commit-hook"]
     },
     {
       "id": "config.file",
@@ -146,10 +146,10 @@
         "packages/dw-sdlc/src/agentic-config.ts",
         "packages/dw-sdlc/src/json-schema.ts",
         "packages/dw-sdlc/src/commands/config.ts",
-        "plugins/guardrails/hooks/config.jq",
-        "plugins/guardrails/hooks/schema.jq"
+        "plugins/sdlc/hooks/config.jq",
+        "plugins/sdlc/hooks/schema.jq"
       ],
-      "docs": ["plugins/guardrails/README.md#layout", "docs/adr/0003-invalid-config-layer-runs-strictest.md"]
+      "docs": ["plugins/sdlc/README.md#layout", "docs/adr/0003-invalid-config-layer-runs-strictest.md"]
     },
     {
       "id": "config.guardrails",
@@ -169,7 +169,7 @@
       "group": "config",
       "summary": "The convention or pattern a commit subject follows and the trailer every commit carries.",
       "code": ["packages/dw-sdlc/config/agentic.config.schema.json"],
-      "docs": ["plugins/guardrails/README.md#guards", "AGENTS.md#git"]
+      "docs": ["plugins/sdlc/README.md#guards", "AGENTS.md#git"]
     },
     {
       "id": "config.package-managers",
@@ -177,7 +177,7 @@
       "group": "config",
       "summary": "The Node package manager a repository works with, inferred from the lockfile when nothing sets it.",
       "code": ["packages/dw-sdlc/config/agentic.config.schema.json"],
-      "docs": ["plugins/guardrails/README.md#guards"]
+      "docs": ["plugins/sdlc/README.md#guards"]
     },
     {
       "id": "config.gate",
@@ -193,7 +193,7 @@
       "group": "config",
       "summary": "The commands a fresh worktree still needs; the session hook names them in a linked worktree.",
       "code": ["packages/dw-sdlc/config/agentic.config.schema.json"],
-      "docs": ["plugins/guardrails/README.md#session-start"]
+      "docs": ["plugins/sdlc/README.md#session-start"]
     },
     {
       "id": "config.references",
@@ -201,10 +201,7 @@
       "group": "config",
       "summary": "The References a repository reads: dir, repository, ref, skipped paths, what and when; its schema stands apart.",
       "code": ["packages/dw-sdlc/config/references.schema.json", "packages/dw-sdlc/src/references-key.ts"],
-      "docs": [
-        "plugins/references/README.md#the-key",
-        "docs/adr/0007-references-are-a-key-the-references-plugin-owns.md"
-      ]
+      "docs": ["plugins/sdlc/README.md#the-key", "docs/adr/0007-references-are-a-key-the-references-plugin-owns.md"]
     },
     {
       "id": "tools.setup",
@@ -212,7 +209,7 @@
       "group": "tools",
       "summary": "Writes a machine's local config, excludes, settings deny rules and the lease-push exception; only what would change.",
       "code": ["packages/dw-sdlc/src/commands/setup.ts", "packages/dw-sdlc/src/setup-rules.ts"],
-      "docs": ["plugins/guardrails/README.md#setup"]
+      "docs": ["plugins/sdlc/README.md#setup"]
     },
     {
       "id": "tools.doctor",
@@ -220,7 +217,7 @@
       "group": "tools",
       "summary": "One PASS, WARN, FAIL or INFO line per machine check; installs nothing and exits 1 on a FAIL.",
       "code": ["packages/dw-sdlc/src/commands/doctor.ts"],
-      "docs": ["plugins/guardrails/README.md#doctor"]
+      "docs": ["plugins/sdlc/README.md#doctor"]
     },
     {
       "id": "tools.sync",
@@ -228,7 +225,7 @@
       "group": "tools",
       "summary": "Brings every declared Reference to its ref, shallow and sparse; a clone with local edits is reported and left alone.",
       "code": ["packages/dw-sdlc/src/commands/references-sync.ts", "packages/dw-sdlc/src/pins.ts"],
-      "docs": ["plugins/references/README.md#the-sync", "plugins/references/README.md#failures", "GLOSSARY.md"]
+      "docs": ["plugins/sdlc/README.md#the-sync", "plugins/sdlc/README.md#failures", "GLOSSARY.md"]
     },
     {
       "id": "tools.references-setup",
@@ -240,7 +237,7 @@
         "packages/dw-sdlc/src/router-block.ts",
         "packages/dw-sdlc/templates/router.md"
       ],
-      "docs": ["plugins/references/README.md#adding-a-reference"]
+      "docs": ["plugins/sdlc/README.md#adding-a-reference"]
     },
     {
       "id": "tools.primitives",
@@ -251,61 +248,67 @@
       "docs": ["docs/overview.md#the-checks-the-package-ships", "AGENTS.md#commands"]
     },
     {
-      "id": "skills.guardrails-setup",
-      "name": "sdlc-guardrails-setup",
+      "id": "skills.setup",
+      "name": "sdlc-setup",
       "group": "skills",
       "summary": "The user-invoked skill that runs the setup as a dry run, then for real, then the doctor.",
-      "code": ["plugins/guardrails/skills/sdlc-guardrails-setup/SKILL.md"],
-      "docs": ["plugins/guardrails/README.md#setup"]
+      "code": ["plugins/sdlc/skills/sdlc-setup/SKILL.md"],
+      "docs": ["plugins/sdlc/README.md#setup"]
+    },
+    {
+      "id": "skills.doctor",
+      "name": "sdlc-doctor",
+      "group": "skills",
+      "summary": "The user-invoked skill that runs the doctor from the repository and shows its lines; it fixes nothing unasked.",
+      "code": ["plugins/sdlc/skills/sdlc-doctor/SKILL.md"],
+      "docs": ["plugins/sdlc/README.md#doctor"]
     },
     {
       "id": "skills.references-add",
       "name": "sdlc-references-add",
       "group": "skills",
       "summary": "The user-invoked skill that runs the setup, writes one Reference's entry into the key and syncs its dir.",
-      "code": ["plugins/references/skills/sdlc-references-add/SKILL.md"],
-      "docs": ["plugins/references/README.md#adding-a-reference"]
+      "code": ["plugins/sdlc/skills/sdlc-references-add/SKILL.md"],
+      "docs": ["plugins/sdlc/README.md#adding-a-reference"]
     },
     {
       "id": "distribution.marketplace",
       "name": "Marketplace",
       "group": "distribution",
-      "summary": "The catalogue Claude Code installs the plugins from, this repository's own; one enabledPlugins line installs one.",
+      "summary": "The catalogue Claude Code installs the plugin from, this repository's own; it lists sdlc alone.",
       "code": [".claude-plugin/marketplace.json"],
-      "docs": ["docs/overview.md#from-github-or-from-a-clone", "docs/adr/0001-guards-ship-from-this-marketplace.md"]
+      "docs": [
+        "docs/overview.md#from-github-or-from-a-clone",
+        "docs/adr/0001-guards-ship-from-this-marketplace.md",
+        "docs/adr/0010-one-sdlc-plugin-carries-guards-sync-and-gate.md"
+      ]
     },
     {
-      "id": "distribution.guardrails-plugin",
-      "name": "guardrails plugin",
+      "id": "distribution.plugin",
+      "name": "sdlc plugin",
       "group": "distribution",
       "summary": "The manifest wiring each guard and hook to its event, and the README; its version and the marketplace's bump together.",
-      "code": ["plugins/guardrails/.claude-plugin/plugin.json", "plugins/guardrails/README.md"],
-      "docs": ["plugins/guardrails/README.md#install", "docs/overview.md#releasing-a-plugin"]
-    },
-    {
-      "id": "distribution.references-plugin",
-      "name": "references plugin",
-      "group": "distribution",
-      "summary": "The manifest wiring the session hook, and the README; its version and the marketplace's bump together.",
-      "code": ["plugins/references/.claude-plugin/plugin.json", "plugins/references/README.md"],
-      "docs": ["plugins/references/README.md#install", "docs/overview.md#releasing-a-plugin"]
+      "code": ["plugins/sdlc/.claude-plugin/plugin.json", "plugins/sdlc/README.md"],
+      "docs": [
+        "plugins/sdlc/README.md#install",
+        "docs/overview.md#releasing-the-plugin",
+        "docs/adr/0010-one-sdlc-plugin-carries-guards-sync-and-gate.md"
+      ]
     },
     {
       "id": "distribution.package",
       "name": "dw-sdlc package",
       "group": "distribution",
-      "summary": "The workspace package both plugins link to, an install copying each link; npm ships it as JavaScript tsc emits.",
+      "summary": "The workspace package the plugin links to, an install copying the link; npm ships it as JavaScript tsc emits.",
       "code": [
         "packages/dw-sdlc/package.json",
         "packages/dw-sdlc/tsconfig.build.json",
         "packages/dw-sdlc/README.md",
         "packages/dw-sdlc/LICENSE",
-        "plugins/guardrails/dw-sdlc",
-        "plugins/references/dw-sdlc"
+        "plugins/sdlc/dw-sdlc"
       ],
       "docs": [
-        "plugins/guardrails/README.md#layout",
-        "plugins/references/README.md#layout",
+        "plugins/sdlc/README.md#layout",
         "docs/overview.md#from-github-or-from-a-clone",
         "docs/overview.md#releasing-the-package",
         "docs/adr/0008-gate-runs-from-a-pinned-package-plugin-adapts.md"
@@ -325,12 +328,7 @@
       "group": "distribution",
       "summary": "The package's command line: one table of subcommands, each a module under src/commands/.",
       "code": ["packages/dw-sdlc/src/cli.ts"],
-      "docs": [
-        "AGENTS.md#commands",
-        "docs/overview.md#how-the-gate-runs",
-        "plugins/guardrails/README.md#layout",
-        "plugins/references/README.md#layout"
-      ]
+      "docs": ["AGENTS.md#commands", "docs/overview.md#how-the-gate-runs", "plugins/sdlc/README.md#layout"]
     },
     {
       "id": "gate.check",

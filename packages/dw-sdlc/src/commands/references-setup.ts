@@ -30,7 +30,7 @@ const IGNORED = "references/*"
 const TRACKED = ["!references/AGENTS.md", "!references/CLAUDE.md"]
 /** Lines that ignore references/ itself: git never looks inside it, so no exception tracks the Router. */
 const WHOLE = new Set(["references", "references/", "/references", "/references/"])
-const IGNORE_COMMENT = "# References are cloned on each machine by the references plugin; only the Router is tracked."
+const IGNORE_COMMENT = "# References are cloned on each machine by the sdlc plugin; only the Router is tracked."
 
 export const summary = "set a repository up to declare References: the Router, its table and the ignore rules"
 

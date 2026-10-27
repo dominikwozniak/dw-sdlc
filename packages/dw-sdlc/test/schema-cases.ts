@@ -1,4 +1,4 @@
-// The one case list both validators answer: `validate` here and the guardrails plugin's
+// The one case list both validators answer: `validate` here and the sdlc plugin's
 // `hooks/schema.jq`, whose test reads this file through the plugin's link.
 
 import { readFileSync } from "node:fs"

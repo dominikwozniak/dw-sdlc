@@ -1,4 +1,4 @@
-// `dw-sdlc doctor`: one PASS / WARN / FAIL line per machine check the guardrails rely on, for the
+// `dw-sdlc doctor`: one PASS / WARN / FAIL line per machine check the sdlc plugin relies on, for the
 // repository holding --root and the user's home; it installs nothing. FAIL is a guard that does not guard
 // (no jq, plugin absent or disabled, an invalid config), WARN a layer missing or loose, INFO one that does not apply.
 
@@ -45,9 +45,10 @@ export function claudeConfigDir(env: Record<string, string | undefined>, home: s
   return env.CLAUDE_CONFIG_DIR ?? join(home, ".claude")
 }
 
-/** The marketplace Claude Code registers this repository under, and the plugin id inside it. */
+/** The marketplace Claude Code registers this repository under, and the plugin in it. */
 export const MARKETPLACE = "dw-sdlc"
-export const PLUGIN_ID = `guardrails@${MARKETPLACE}`
+export const PLUGIN = "sdlc"
+export const PLUGIN_ID = `${PLUGIN}@${MARKETPLACE}`
 /** rtk find passes -exec through verbatim from this release; before it, `rtk find … -exec` exits 1. */
 export const RTK_FIND_EXEC_FIXED = "0.46.0"
 export const PNPM_MINIMUM_RELEASE_AGE = 10080
@@ -103,7 +104,7 @@ function liveCheckout(probe: Probe, claude: string): string | undefined {
 function pluginOrigin(probe: Probe, claude: string, installPath: string): string {
   const checkout = liveCheckout(probe, claude)
   if (checkout !== undefined) {
-    return `runs live from ${checkout}/plugins/guardrails; a change there is in the next session`
+    return `runs live from ${checkout}/plugins/${PLUGIN}; a change there is in the next session`
   }
   return `installed at ${installPath}; a change reaches it through claude plugin update`
 }
@@ -112,7 +113,7 @@ function pluginOrigin(probe: Probe, claude: string, installPath: string): string
 function runningPluginRoot(probe: Probe, claude: string): string | undefined {
   const checkout = liveCheckout(probe, claude)
   if (checkout !== undefined) {
-    return join(checkout, "plugins", "guardrails")
+    return join(checkout, "plugins", PLUGIN)
   }
   const { status, stdout } = probe.run("claude", ["plugin", "list", "--json"])
   const list: unknown = status === 0 ? parseJson(stdout) : undefined
@@ -353,12 +354,12 @@ export function render(checks: Check[]): string {
   return checks.map((check) => `${check.level.padEnd(5)} ${check.name.padEnd(17)} ${check.detail}`).join("\n")
 }
 
-export const summary = "one PASS / WARN / FAIL line per machine check the guardrails rely on"
+export const summary = "one PASS / WARN / FAIL line per machine check the sdlc plugin relies on"
 
 const USAGE = `Usage: dw-sdlc doctor [--root <dir>] [--home <dir>]
   or:  pnpm guardrails:doctor [--root <dir>] [--home <dir>], in a checkout of dw-sdlc
 
-One PASS / WARN / FAIL line per machine check the guardrails rely on; read-only. Exit 1 when any
+One PASS / WARN / FAIL line per machine check the sdlc plugin relies on; read-only. Exit 1 when any
 check fails. Claude Code's settings are read from $CLAUDE_CONFIG_DIR, or ~/.claude without it; a
 --home reads <home>/.claude.`
 

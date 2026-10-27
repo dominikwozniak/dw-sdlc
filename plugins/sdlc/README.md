@@ -1,21 +1,26 @@
-# guardrails
+# sdlc
 
-Deterministic guardrails for a Claude Code session, shipped as a plugin. Every rule is a shell hook
-that reads the tool call on stdin and refuses it with exit 2, or asks for a prompt, before the call
-runs. The rules a repository wants come from its `.ai/agentic.config.json`; a machine adds its own
-`.ai/agentic.config.local.json` on top, which may tighten `guardrails` and never loosen it. A key
-neither file sets is inferred: the package manager from the lockfile, and the `conventional` commit
-convention. The plugin guards Node repositories, and App Store Connect from every repository; it
-carries no other stack-specific guard.
+The software delivery process for a Claude Code session, shipped as one plugin: deterministic guards
+on the agent's tool calls, the session hooks, the Sync of a repository's [References](#references),
+and the skills that set a repository up, check a machine and add a Reference. Every guard is a shell
+hook that reads the tool call on stdin and refuses it with exit 2, or asks for a prompt, before the
+call runs. The rules a repository wants come from its `.ai/agentic.config.json`; a machine adds its
+own `.ai/agentic.config.local.json` on top, which may tighten `guardrails` and never loosen it. A
+key neither file sets is inferred: the package manager from the lockfile, and the `conventional`
+commit convention. The plugin guards Node repositories, and App Store Connect from every repository;
+it carries no other stack-specific guard.
 
 ## Install
 
 ```bash
 claude plugin marketplace add dominikwozniak/dw-sdlc --sparse .claude-plugin plugins packages
-claude plugin install guardrails@dw-sdlc --scope user
+claude plugin install sdlc@dw-sdlc --scope user
 ```
 
-The hooks need `jq`. Without it every guard exits 0 and guards nothing; the doctor says so.
+The install is that one plugin, `"sdlc@dw-sdlc": true` under `enabledPlugins` in
+`~/.claude/settings.json`. The marketplace lists no other: a machine that enables
+`guardrails@dw-sdlc` or `references@dw-sdlc` removes both lines. The hooks need `jq`. Without it
+every guard exits 0 and guards nothing; the doctor says so.
 
 Added from GitHub, the plugin is a snapshot of `main` that `claude plugin update` refreshes, and
 `--sparse` keeps the clone to the catalogue, the plugins and the package the `dw-sdlc` link points
@@ -25,7 +30,7 @@ disk is in the next session, a broken edit included.
 
 ## Layout
 
-- `.claude-plugin/plugin.json` — the manifest; its `hooks` key wires each guard below to its event.
+- `.claude-plugin/plugin.json` — the manifest; its `hooks` key wires each hook below to its event.
 - `hooks/lib.sh` — the library every guard sources: payload reader, git helpers, refusal, config
   lookup; it sources `hooks/lib-lines.sh`, the line scanners — heredoc openers and bodies,
   continuation lines — `hooks/lib-text.sh`, the text scanners — the one quote walker every
@@ -39,19 +44,25 @@ disk is in the next session, a broken edit included.
   local-over-committed-over-inferred merge, the same behaviour as `dw-sdlc/src/agentic-config.ts`.
 - `hooks/bash-guard.sh` — the dispatcher: one stdin read, heredoc bodies dropped once but for the
   substitutions an unquoted one runs, each guard spawned only when the command could trip it.
+- `hooks/session-start.sh` and `hooks/references-sync.sh` — the two session hooks:
+  [Session start](#session-start) and [the Sync at session start](#the-sync-at-session-start).
 - `hooks/commit-msg.sh` — a git hook, not a Claude Code one: the Commit hook below.
 - `dw-sdlc` — a link to `packages/dw-sdlc`, the package that owns the config and the TypeScript
   side: `src/agentic-config.ts` resolves the layers, `src/json-schema.ts` is the dependency-free
   schema validator, `config/agentic.config.schema.json` is the JSON Schema for
   `.ai/agentic.config.json`, and `src/cli.ts` is the `dw-sdlc` bin. Its `config` checks the config
-  (`node <plugin root>/dw-sdlc/src/cli.ts config` from a repository runs it), and its `setup`
-  and `doctor` are the Setup and Doctor below, one module each under `src/commands/`.
-  `claude plugin install` copies the link as a real directory, so the installed plugin carries the
-  package's code.
-- `skills/sdlc-guardrails-setup/` — the skill a user invokes to run `dw-sdlc setup`; the model cannot
-  start it on its own.
-- `test/` — the guard tests, mirroring `hooks/`: `harness.ts` spawns a guard on the real stdin
-  payload; every input a test reads is built beside it.
+  (`node <plugin root>/dw-sdlc/src/cli.ts config` from a repository runs it), and its `setup`,
+  `doctor`, `references sync` and `references setup` are the Setup, the Doctor, the Sync and the
+  References setup below, one module each under `src/commands/`. Beside them,
+  `src/references-key.ts` parses the `references` key and reads the config that holds it,
+  `src/pins.ts` resolves a ref's `{name}`, `src/router-block.ts` writes the Router's block,
+  `config/references.schema.json` is the key's JSON Schema, and `templates/router.md` is the Router
+  the setup writes. `claude plugin install` copies the link as a real directory, so the installed
+  plugin carries the package's code.
+- `skills/sdlc-setup/`, `skills/sdlc-doctor/`, `skills/sdlc-references-add/` — the skills: the
+  [Setup](#setup), the [Doctor](#doctor) and [Adding a Reference](#adding-a-reference). A user
+  invokes each one; the model cannot start one on its own.
+- `test/` — the hook tests, mirroring `hooks/`, and the manifest's: [Tests](#tests).
 
 ## Guards
 
@@ -142,11 +153,11 @@ leading blank lines and a `--verbose` diff below the scissors line are skipped, 
 left to git, and git's own `Merge`, `Revert`, `fixup!`, `squash!` and `amend!` subjects pass. The
 trailer is not checked, since a commit a person writes has no co-author to name. Without jq it says
 so and lets the commit through. A repository wires it from its own hook manager; this one runs
-`bash plugins/guardrails/hooks/commit-msg.sh "$1"` from `.husky/commit-msg`.
+`bash plugins/sdlc/hooks/commit-msg.sh "$1"` from `.husky/commit-msg`.
 
 ## Setup
 
-The `sdlc-guardrails-setup` skill runs `dw-sdlc setup` through the link: it writes this machine's
+The `sdlc-setup` skill runs `dw-sdlc setup` through the link: it writes this machine's
 `.ai/agentic.config.local.json` with `$schema` and, when the committed config leaves it unset, the
 Node package manager from the lockfile. `commit.convention` is written only when
 `--convention ticket-key` or `--convention conventional` asks for it, because a local pin outranks a
@@ -174,8 +185,10 @@ that misbehave on the installed release excluded (`find` below rtk 0.46.0), Safe
 the agent's login shell with `npm` going through it (a WARN when absent), pnpm's global
 `minimumReleaseAge`, commit signing, and the resolved config of the repository holding `--root` or
 the current directory. A check that does not apply here is INFO, the config outside any repository
-among them. Exit 1 on a FAIL. The setup skill runs it last, as
-`node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" doctor` from the repository; a terminal runs
+among them. Exit 1 on a FAIL.
+
+The `sdlc-doctor` skill runs it as `node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" doctor` from the
+repository, and the setup skill runs it last; a terminal runs
 `node <plugin root>/dw-sdlc/src/cli.ts doctor`, where `claude plugin list --json` names the
 plugin root as `installPath`. It needs only Node 24.
 
@@ -195,15 +208,168 @@ an install from GitHub needs `packages` in its `--sparse` set. A schema that is 
 jq, one that is not JSON for example, is named with jq's first error line. Either way the layer is
 dropped and the guards run strictest.
 
+## References
+
+The Sync for a repository's References: the repositories an agent reads to see how a problem was
+solved before, declared as the `references` key of `.ai/agentic.config.json` and cloned under
+`references/`. Only the committed file is read; the local layer adds no References. A repository
+without the key gets no output at all.
+
+Enabled at user scope, the plugin syncs a repository's References when a local Claude Code session
+starts, a new worktree's session included. A cloud session, Codex and a plain terminal load no
+plugin, so a Reference there is what the last local session left on disk (ADR 0006). A repository
+that runs a Sync hook of its own drops it, or the Sync runs twice.
+
+### The Sync at session start
+
+`hooks/references-sync.sh` runs on `SessionStart` with matcher `startup` and a 60 s timeout. It runs the
+Sync from the project directory and prints its lines, both streams, as the session's context. When the
+Sync fails, one line more says the clones stay where they were and names the command to rerun. It
+always exits 0, so being offline never blocks a session. The Sync is the package's
+`dw-sdlc references sync`, which the hook runs through the plugin's `dw-sdlc` link.
+
+### The key
+
+An array of entries, each with:
+
+- `dir` — the one directory under `references/` the clone lives in, unique in the list;
+- `repository` — a URL `git` can fetch; a `https://github.com/` one fetches with the GitHub CLI's
+  credentials, so a private repository clones without a prompt;
+- `ref` — a branch or a tag; `{name}` in it stands for the exact version the root `package.json`
+  pins for package `name`, read through the default catalog of `pnpm-workspace.yaml` when the pin
+  says `catalog:` or `catalog:default`;
+- `only` — optional, at least one path the clone holds beside the repository's top-level files,
+  relative and inside the clone, a directory ending in `/`; absent, the clone holds the whole tree;
+- `skip` — optional, paths the sparse checkout leaves out, relative and inside the clone; with
+  `only`, each lies inside one of its paths;
+- `what` and `when` — what the Reference is, and when an agent reaches for it.
+
+With `only`, the clone holds the repository's top-level files too, since a README or a manifest
+there tells an agent where the part sits. Nothing else is checked out: not the files beside a
+nested path, nor a directory the repository adds later. `cursor/plugins`, read for its pstack part
+alone:
+
+```json
+{
+  "dir": "pstack",
+  "repository": "https://github.com/cursor/plugins",
+  "ref": "main",
+  "only": ["pstack/", "harness/pstack/"],
+  "what": "Cursor's pstack plugin. The clone holds only `pstack/` and `harness/pstack/`: 387 of its 1267 files",
+  "when": "designing a plugin that ships skills and a harness"
+}
+```
+
+An unknown field is refused. The package's `config/references.schema.json` documents the contract;
+at runtime its `src/references-key.ts` is the authority, and one case list holds the two in
+agreement. The
+guardrails schema never names the key, so a mistake in it never moves the guards to the strictest
+set (ADR 0007).
+
+### The Sync
+
+```bash
+node <plugin root>/dw-sdlc/src/cli.ts references sync [dir...]
+pnpm references:sync [dir...]   # in a checkout of dw-sdlc
+```
+
+Every Reference, or only the named ones. A missing one is cloned shallow, blobless and without a
+checkout; an existing one is fetched at depth 1. Either is then checked out detached at what was
+fetched, sparse when `only` or `skip` names paths. The sparse checkout is set from both on every
+run, so adding, changing or removing either moves the clone at the next Sync, and a move between a
+branch and a tag keeps it. Each prints one line: directory, short commit, repository and ref. The
+variables `git rev-parse --local-env-vars` lists are dropped, so a run from a git hook never
+touches the repository that hook points at, and the terminal prompt is off.
+
+A directory under `references/` the list does not name is reported and never deleted. When the
+Router or its table is missing or behind the key, one line more names the setup to run, and when
+the Router has one marker without the other, the line says so instead; neither changes the exit
+code.
+
+One Sync runs in a checkout at a time: it holds `references/.sync.lock`, with its pid inside, while
+it syncs. A second one started meanwhile, a session starting beside another or `pnpm references:sync`
+during a session start, waits for it, up to 30 s, then syncs. Past that it prints one line naming the
+pid, exits 0 and leaves the clones to the Sync still running. `REFERENCES_SYNC_WAIT` sets the seconds
+to wait. A lock whose pid is not a running process of this user, left by a killed Sync, is removed
+and never waited on. A worktree has a `references/` of its own, so only Syncs in one checkout wait
+on each other.
+
+### Failures
+
+- **Exit 2**: a key the parser refuses, a config that is not JSON, or a named dir the list lacks.
+  Nothing is synced, and one line names the entry, the field and the reason.
+- **Exit 1**: an entry that fails to resolve fails alone, and the rest proceed. That covers an
+  unreachable repository, a missing or inexact pin, an `only` path the fetched tree lacks, a clone
+  with local edits the update would overwrite, and a directory that is not a clone of its
+  repository; each is left as it is. The line for a missing `only` path names it, so a renamed
+  upstream folder shows at session start instead of leaving an empty clone.
+
+### Adding a Reference
+
+`/sdlc-references-add <repository>` adds one. Only the user invokes it. It runs the setup and shows
+its lines, then does the parts that need judgment: it names the licence, picks the ref (a branch
+head, or a tag or `{name}` when the repository is a dependency of this one), counts the files and
+proposes `skip` for the vendored directories, writes `what` and `when`, appends the entry, runs the
+setup again so the Router's table gains its row, and runs the Sync for its `dir`. When no row of the
+root agent instructions points at the Router, it proposes one, phrased from the entries' `when`, and
+writes it only after a yes. It commits nothing.
+
+It takes a link to a folder on GitHub too, `https://github.com/cursor/plugins/tree/main/pstack`.
+The ref is the longest branch or tag that leads the path after `tree/`, since a branch name may
+hold a `/`, and the rest is the first `only` path. The skill proposes for `only` each other
+directory named like it, `harness/pstack/` beside `pstack/`, with its file count, and writes one
+only after a yes. The licence it names is the root's, or with none there, the one inside `only`.
+It counts the files and proposes `skip` within `only`, and `what` says what the clone holds out of
+the whole tree. A link that ends at the ref names the ref and no `only`.
+
+The setup makes a repository ready to declare References:
+
+```bash
+node <plugin root>/dw-sdlc/src/cli.ts references setup [--root <dir>] [--dry-run | --check]
+pnpm references:setup [--root <dir>] [--dry-run | --check]   # in a checkout of dw-sdlc
+```
+
+- `references/AGENTS.md`, the Router, from the package's `templates/router.md` when nothing sits at
+  its path, with its `CLAUDE.md` symlink, written once too. On every run, the block between the
+  Router's two markers: a table of each Reference's `dir` and `when`, one row per entry in the key's
+  order with `|` escaped, or one line saying `/sdlc-references-add <repository>` adds one when the
+  key is empty.
+  The text around the block stays as it is, and a Router without the markers gets the block at its
+  end. A formatter may pad the table and space the block, so the block is in step when its rows say
+  what the key says, not when its bytes match;
+- `claudeMdExcludes` in `.claude/settings.json`: the clones' own `CLAUDE.md` and `AGENTS.md`;
+- `.gitignore`: `references/*`, then the two exceptions that keep the Router tracked;
+- `.ai/agentic.config.json`: an empty `references` key when the config has none, inserted so the
+  file keeps its layout.
+
+A list gains only the entries it lacks, and nothing is removed, so a repeat writes nothing. Each
+file prints one line: `wrote`, `unchanged` or `refused`, and `would write` on a dry run. `--check`
+writes nothing and exits 1 when any file would change, so a repository's check can run it. A
+settings file or a config that is not a JSON object is refused and left as it is, and so is a
+`.gitignore` that ignores `references/` itself, since git then tracks nothing under it, and a Router
+with one marker and not the other, or whose key fails the parser; the run then exits 1.
+
 ## Tests
 
 `test/` mirrors `hooks/`: `test/hooks/<guard>.test.ts` spawns the guard on the real stdin payload
 and asserts its exit code and verdict, `test/harness.ts` is the shared part, and every input a test
-reads is built beside it in a scratch directory. The tests of `dw-sdlc setup`, `doctor` and `config`
-sit beside the package's code, in its `test/commands/`. `pnpm test` runs them all on `node:test`, a
-file per process, as part of `pnpm check`. The jq and TypeScript copies of the config contract are
+reads is built beside it in a scratch directory. `pnpm test` runs them all on `node:test`, a file
+per process, as part of `pnpm check`. The jq and TypeScript copies of the config contract are
 tested against the same cases: `test/hooks/config.test.ts` runs `lib.sh` against the package's
 resolver. `test/hooks/command-position.test.ts` runs every rule through the dispatcher bare and
 behind each launcher family, and `lib.test.ts` holds the word reader and the boundary to every
 launcher spelling. jq is a hard requirement: without it the harness fails loudly instead of passing
 empty.
+
+`test/hooks/references-sync.test.ts` feeds the Sync hook a `SessionStart` payload;
+`test/references-harness.ts` spawns the hook the way Claude Code does, on the package's
+`test/references-harness.ts` through the link, which builds throwaway repositories apart from the
+machine's git config. `test/manifest.test.ts` holds the manifest to the tree: each hook script wired
+to its event and matcher, run by the dispatcher or left to git, each skill under its name and every
+plugin path it runs on disk, the link to the package, and the marketplace listing this plugin alone
+at the manifest's version.
+
+The commands' tests sit beside the package's code, in its `test/commands/`: `setup`, `doctor` and
+`config`, `references-sync.test.ts`, which drives the Sync against upstreams served over `file://`,
+and `references-setup.test.ts`, the setup with `--root`; `test/references-key.test.ts` runs one case
+list through the key's parser and its schema.

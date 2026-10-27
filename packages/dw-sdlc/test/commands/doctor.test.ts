@@ -53,11 +53,11 @@ const HEALTHY: Fake = {
     "claude plugin list --json": {
       stdout: JSON.stringify([
         {
-          id: "guardrails@dw-sdlc",
+          id: "sdlc@dw-sdlc",
           version: "0.1.0",
           scope: "user",
           enabled: true,
-          installPath: "/cache/guardrails/0.1.0"
+          installPath: "/cache/sdlc/0.1.0"
         }
       ])
     },
@@ -67,7 +67,7 @@ const HEALTHY: Fake = {
   },
   files: {
     [`${HOME}/.claude/settings.json`]: "{}",
-    "/src/dw-sdlc/plugins/guardrails/hooks/rtk-rewrite.sh": "#!/bin/bash\n",
+    "/src/dw-sdlc/plugins/sdlc/hooks/rtk-rewrite.sh": "#!/bin/bash\n",
     [`${HOME}/.claude/plugins/known_marketplaces.json`]: JSON.stringify({
       "dw-sdlc": { source: { source: "directory", path: "/src/dw-sdlc" }, installLocation: "/src/dw-sdlc" }
     }),
@@ -125,7 +125,7 @@ describe("diagnose", () => {
     assert.deepEqual(new Set(checks.map((check) => check.level)), new Set(["PASS"]))
     assert.match(line(checks, "jq").detail, /jq-1\.8\.2/)
     assert.match(line(checks, "plugin").detail, /0\.1\.0/)
-    assert.match(line(checks, "plugin").detail, /runs live from \/src\/dw-sdlc\/plugins\/guardrails/)
+    assert.match(line(checks, "plugin").detail, /runs live from \/src\/dw-sdlc\/plugins\/sdlc/)
   })
 
   it("jq missing is a FAIL that names the consequence", () => {
@@ -147,7 +147,7 @@ describe("diagnose", () => {
       "FAIL"
     )
     const disabled = withCommand(HEALTHY, "claude plugin list --json", {
-      stdout: JSON.stringify([{ id: "guardrails@dw-sdlc", version: "0.1.0", enabled: false }])
+      stdout: JSON.stringify([{ id: "sdlc@dw-sdlc", version: "0.1.0", enabled: false }])
     })
     const check = line(diagnose({ root: ROOT, home: HOME, probe: fake(disabled), config: CONFIG }), "plugin")
     assert.equal(check.level, "FAIL", "a disabled plugin guards nothing")
@@ -160,7 +160,7 @@ describe("diagnose", () => {
     const snapshot = line(diagnose({ root: ROOT, home: HOME, probe: fake(fromGit), config: CONFIG }), "plugin")
     assert.match(
       snapshot.detail,
-      /installed at \/cache\/guardrails\/0\.1\.0; a change reaches it through claude plugin update/
+      /installed at \/cache\/sdlc\/0\.1\.0; a change reaches it through claude plugin update/
     )
     const noClaude = withCommand(HEALTHY, "claude plugin list --json", undefined)
     assert.equal(
@@ -204,7 +204,7 @@ describe("diagnose", () => {
       ).level,
       "FAIL"
     )
-    const stale = withFile(HEALTHY, "/src/dw-sdlc/plugins/guardrails/hooks/rtk-rewrite.sh", undefined)
+    const stale = withFile(HEALTHY, "/src/dw-sdlc/plugins/sdlc/hooks/rtk-rewrite.sh", undefined)
     const old = line(diagnose({ root: ROOT, home: HOME, probe: fake(stale), config: CONFIG }), "rtk")
     assert.equal(old.level, "WARN", "a plugin without the hook rewrites nothing")
     assert.match(old.detail, /claude plugin update; nothing rewrites/)
@@ -225,7 +225,7 @@ describe("diagnose", () => {
         `${HOME}/.claude/plugins/known_marketplaces.json`,
         JSON.stringify({ "dw-sdlc": { source: { source: "github", repo: "dominikwozniak/dw-sdlc" } } })
       ),
-      "/cache/guardrails/0.1.0/hooks/rtk-rewrite.sh",
+      "/cache/sdlc/0.1.0/hooks/rtk-rewrite.sh",
       "#!/bin/bash\n"
     )
     assert.equal(

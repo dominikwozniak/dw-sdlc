@@ -28,7 +28,7 @@ function nodeRepo(): string {
 }
 
 /** Where the marketplace clone holds the schema: behind the plugin's link to the package. */
-const SCHEMA_FILE = "plugins/guardrails/dw-sdlc/config/agentic.config.schema.json"
+const SCHEMA_FILE = "plugins/sdlc/dw-sdlc/config/agentic.config.schema.json"
 
 /** A home where Claude Code registers the dw-sdlc marketplace at `clone`, holding the schema. */
 function homeWithClone(clone: string, options: { schema?: boolean } = {}): string {
@@ -38,7 +38,7 @@ function homeWithClone(clone: string, options: { schema?: boolean } = {}): strin
   })
   writeJson(join(clone, ".claude-plugin/marketplace.json"), {
     name: "dw-sdlc",
-    plugins: [{ name: "guardrails", source: "./plugins/guardrails" }]
+    plugins: [{ name: "sdlc", source: "./plugins/sdlc" }]
   })
   if (options.schema !== false) {
     write(clone, SCHEMA_FILE, "{}\n")
