@@ -84,6 +84,12 @@ the changesets guide `site/guide/automating.md`; `changesets/action` at `v2.1.2`
 `@changesets/cli@3.0.3` through the GitHub API; the GitHub changelog of 2026-07-08 on bypass-2FA
 tokens; pnpm's v10.21.0 and v11.11.0 release notes; and this repository's Actions settings.
 
+Read on 2026-10-27, for the points from setup-node's `registry-url` on: `actions/setup-node` at
+v7.1.0 (`src/authutil.ts`, its README) through Context7 and the GitHub API; pnpm's
+`pnpm11/releasing/commands/src/publish/publishPackedPkg.ts` at v11.21.0; `@changesets/cli` 3.0.3's
+`dist/getPublishPlan.mjs`; the logs of release run 40395814282; the registry's metadata for
+`dw-sdlc`; and the package's trusted publisher on npmjs.com, as the maintainer's screenshots show it.
+
 - `publishConfig` "can be used to override several other fields in the manifest before the package
   is packed": `bin`, `main`, `exports`, `types` or `typings`, `module`, `browser`, `esnext`,
   `es2015`, `unpkg`, `umd:main`, `typesVersions`, `cpu`, `os`, `engines` (v10.22.0) and `name`
@@ -114,7 +120,7 @@ tokens; pnpm's v10.21.0 and v11.11.0 release notes; and this repository's Action
   default. The guide sets `id-token: write` only on the job that publishes, and the `version`
   sub-action needs "Allow GitHub Actions to create and approve pull requests" in the repository's
   settings.
-- This repository on that day: private, `can_approve_pull_request_reviews` false, no Actions
+- This repository on 2026-10-26: private, `can_approve_pull_request_reviews` false, no Actions
   secrets, and `dw-sdlc` free on npm (`GET https://registry.npmjs.org/dw-sdlc` answers 404).
 - The first publish, release run 40378772829 on `NPM_TOKEN`: `changeset publish` printed
   "Successfully published: dw-sdlc@0.1.0" and the tag and GitHub release followed, while the
@@ -124,8 +130,34 @@ tokens; pnpm's v10.21.0 and v11.11.0 release notes; and this repository's Action
   `staged-publishing`: "You will be prompted for 2FA verification regardless of whether you approve
   the package in the CLI or on npmjs.com. Once approved, the package is published to the live
   registry."
-- What follows: the first version of `dw-sdlc` needs the `NPM_TOKEN` secret, and a version published
-  on it goes live only once a maintainer approves it with 2FA; a version carries provenance only
-  once this repository is public, when trusted publishing attaches it unasked; and once trusted
-  publishing works the secret goes, because a version a later run published on it would be refused
-  by consumers on `no-downgrade`.
+- setup-node's `registry-url` writes `//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}` and
+  `registry=https://registry.npmjs.org/` to `$RUNNER_TEMP/.npmrc` and exports `NPM_CONFIG_USERCONFIG`.
+  v7 exports `NODE_AUTH_TOKEN` only when the job sets it, with no placeholder otherwise. Its README:
+  "npm Trusted Publishing (OIDC) is not affected, since it does not use `NODE_AUTH_TOKEN`."
+- pnpm 11.21.0, `publishPackedPkg.ts`: OIDC "takes precedence over a configured static
+  `_authToken`"; the registry falls back to `registries.default`; the request names
+  `npm-command: publish`. A failed exchange warns `Skipped OIDC: …` and falls back to the configured
+  credentials; a successful one prints nothing.
+- `@changesets/cli` 3.0.3 runs `pnpm publish <tarball> --json --access … --tag … --no-git-checks`
+  with its output piped. A success prints "Successfully published" and none of pnpm's output; a
+  failure whose JSON names an error prints that error's message alone, without pnpm's warnings.
+- Release run 40395814282, the first publish with no secret and no `.npmrc` in the job, attempt 1 on
+  2026-10-26: "E404: 404 Not Found - PUT https://registry.npmjs.org/dw-sdlc - Not found"; nothing
+  staged, no tag. The package's trusted publisher form was filled in but not yet submitted. Once
+  saved, the trusted publisher reads `dominikwozniak/dw-sdlc`, `release.yaml`, no environment, the
+  permissions `npm publish` and `npm stage publish`, and "Pending validation" with "Publish once
+  before Oct 29, 2026, 6:23 AM UTC to validate this configuration".
+- Attempt 2 on 2026-10-27, the same tarball: "Successfully published: dw-sdlc@0.2.0" at 06:24:47 UTC,
+  then the tag and the GitHub release. `GET https://registry.npmjs.org/dw-sdlc/0.2.0` answered 404
+  at 06:25:36 and 200 at 06:25:51, and the registry dates 0.2.0 at 06:25:44; no maintainer approved
+  anything under Staged Packages. 0.2.0 is `latest`, with `_npmUser` `{ "name": "GitHub Actions",
+  "email": "npm-oidc-no-reply@github.com", "trustedPublisher": { "id": "github", … } }` and
+  `attestations` null; 0.1.0's `_npmUser` is the maintainer.
+- What follows: npm sets a trusted publisher only on a package that exists, so the first version of
+  `dw-sdlc` needed a token, and npm staged it until a maintainer approved it with 2FA. A later
+  version publishes through the trusted publisher alone, which must be saved before the run. With
+  `npm publish` allowed beside `npm stage publish`, the version went live about a minute after the
+  publish, unapproved. What npm does with a `pnpm publish` under a trusted publisher that allows only
+  `npm stage publish` is unknown: this one allows both. Provenance comes only once this repository
+  is public. A token publishing a later version would lower its trust evidence, and consumers on
+  `no-downgrade` would refuse it.
