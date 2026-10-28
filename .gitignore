@@ -3,9 +3,6 @@ node_modules/
 # What tsc emits for the published package; `pnpm pack` builds it.
 dist/
 
-# husky writes the wrappers git runs; the hooks themselves are tracked.
-.husky/_/
-
 # Local-only notes; the folder stays in the repo, its contents do not.
 ideas/*
 !ideas/.gitkeep

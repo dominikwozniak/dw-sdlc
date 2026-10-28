@@ -67,7 +67,7 @@ is its long form: how a guard works, why the design, adopting and releasing.
   Erasable syntax only (no `enum`, `namespace` or parameter properties), and relative imports keep
   the `.ts` extension.
 - **Formatting, import order, lint and the type check belong to Vite+**, configured in `vite.config.ts`.
-  The pre-commit hook runs `vp lint --fix` and `vp fmt` on staged files.
+  The pre-commit hook runs `vp staged`: `vp lint --fix` and `vp fmt` on the staged files.
 - **CI runs on `ubuntu-latest`.** External actions are pinned to a full commit SHA with a `# vX.Y.Z`
   comment.
 - **A skill the plugin ships is named `sdlc-<verb>`, or `sdlc-<area>-<verb>`**, as `sdlc-setup` and
@@ -76,8 +76,8 @@ is its long form: how a guard works, why the design, adopting and releasing.
 ## Git
 
 - Subjects follow Conventional Commits and every commit carries a `Co-Authored-By` trailer; the
-  guards enforce both from `.ai/agentic.config.json`. `.husky/commit-msg` checks the subject of
-  every commit, one typed in a terminal included.
+  guards enforce both from `.ai/agentic.config.json`. `.vite-hooks/commit-msg` checks the subject of
+  every commit, one typed in a terminal included. `pnpm install` installs it and the pre-commit hook.
 - `main` is a protected branch: a change reaches it through a pull request, after `pnpm check` passes
   in CI. For a small fix the agent commits on `main` and the push comes from Dominik's own terminal;
   the guards judge only the agent's tool calls. GitHub branch protection is not available on this private

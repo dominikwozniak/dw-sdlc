@@ -309,7 +309,7 @@ leading blank lines and a `--verbose` diff below the scissors line are skipped, 
 left to git, and git's own `Merge`, `Revert`, `fixup!`, `squash!` and `amend!` subjects pass. The
 trailer is not checked, since a commit a person writes has no co-author to name. Without jq it says
 so and lets the commit through. A repository wires it from its own hook manager; this one runs
-`bash plugins/sdlc/hooks/commit-msg.sh "$1"` from `.husky/commit-msg`.
+`bash plugins/sdlc/hooks/commit-msg.sh "$1"` from `.vite-hooks/commit-msg`, a Vite+ git hook.
 
 ## Setup
 

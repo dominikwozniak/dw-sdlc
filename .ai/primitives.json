@@ -121,8 +121,8 @@
       "id": "hooks.commit-msg",
       "name": "Commit-msg hook",
       "group": "hooks",
-      "summary": "The subject check as a git commit-msg hook, so a commit typed in a terminal meets it; wired from .husky/commit-msg.",
-      "code": ["plugins/sdlc/hooks/commit-msg.sh", ".husky/commit-msg"],
+      "summary": "The subject check as a git commit-msg hook, so a commit typed in a terminal meets it; wired from .vite-hooks/commit-msg.",
+      "code": ["plugins/sdlc/hooks/commit-msg.sh", ".vite-hooks/commit-msg"],
       "docs": ["plugins/sdlc/README.md#commit-hook"]
     },
     {
@@ -445,8 +445,8 @@
       "id": "gate.pre-commit",
       "name": "Pre-commit hook",
       "group": "gate",
-      "summary": "lint-staged over the staged files, vp lint --fix and vp fmt, before the commit-msg hook judges the subject.",
-      "code": [".husky/pre-commit", ".lintstagedrc.json", "vite.config.ts"],
+      "summary": "vp staged over the staged files, vp lint --fix and vp fmt, before the commit-msg hook judges the subject.",
+      "code": [".vite-hooks/pre-commit", "vite.config.ts"],
       "docs": ["AGENTS.md#tooling"]
     },
     {
