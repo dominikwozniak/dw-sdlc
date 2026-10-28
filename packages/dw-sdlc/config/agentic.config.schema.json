@@ -331,7 +331,7 @@
               "additionalProperties": false
             },
             "comment-budget": {
-              "description": "The comment budget: each comment block in the JavaScript and TypeScript files under `roots` carries at most `maxProseLines` lines of prose, a line with a letter or a digit once the comment markers are off. A block is one `/* … */` comment or a run of `//` comments each alone on consecutive lines; a comment after code on its line is none.",
+              "description": "The comment budget: each comment block in the JavaScript, TypeScript and shell (`.sh`) files under `roots` carries at most `maxProseLines` lines of prose, a line with a letter or a digit once the comment markers are off. A block is one `/* … */` comment or a run of `//` or `#` comments each alone on consecutive lines; a comment after code on its line is none, and so is a shell `#` that does not start a word of code.",
               "type": ["boolean", "object"],
               "properties": {
                 "maxProseLines": {

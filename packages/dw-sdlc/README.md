@@ -34,6 +34,10 @@ alone, with the same lines, exit codes and document.
 { "scripts": { "check": "dw-sdlc gate" } }
 ```
 
+Under `gate.checks`, a Check the package ships is `true` for its defaults or an object of its options.
+`comment-budget` holds each comment block in the JavaScript, TypeScript and shell (`.sh`) files under
+its `roots` to `maxProseLines` lines of prose, 3 by default.
+
 ## Commands
 
 | command            | what it does                                                                        |

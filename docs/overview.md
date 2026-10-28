@@ -113,9 +113,11 @@ schema.
   `.ai/file-size-ratchet.baseline.json`, lists it, and then only up to the count recorded there.
   A baseline that lists a file twice, at a count within its group's limit or in no group fails the
   Check.
-- `comment-budget` holds each comment block in the JavaScript and TypeScript under `packages`,
-  `plugins`, `scripts` and `src` to 3 lines of prose. A block is one `/* … */` comment or a run of
-  `//` lines, each alone on its line; a comment after code is none.
+- `comment-budget` holds each comment block in the JavaScript, TypeScript and shell (`.sh`) under
+  `packages`, `plugins`, `scripts` and `src` to 3 lines of prose. A block is one `/* … */` comment or
+  a run of `//` or `#` lines, each alone on its line; a comment after code is none. In shell, a `#`
+  opens a comment only where it starts a word of code: never inside a quote, a `${…}`, an arithmetic
+  `((…))` or a heredoc body, and the shebang on line 1 is none.
 
 The Checks that read many files judge the ones git tracks or would track, never one it ignores, so a
 link to an ignored file, or to another case of a file's name, fails on a Mac as it fails in CI. A

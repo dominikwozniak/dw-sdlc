@@ -23,7 +23,25 @@ function slashes(count: number): string {
   return Array.from({ length: count }, (_, index) => `// prose line ${index + 1}\n`).join("")
 }
 
+/** `count` lines of `#` prose. */
+function hashes(count: number): string {
+  return Array.from({ length: count }, (_, index) => `# prose line ${index + 1}\n`).join("")
+}
+
 const OVER = "cut it to what the code cannot say, or move the reasoning into a doc and point at it"
+
+/**
+ * A shell file whose line 1 leaves four `#` lines inside the string or heredoc `opener` starts, until
+ * `closer` ends it, then a block of four on line 7. Read right, only line 7 fails.
+ */
+function trapped(opener: string, closer: string): string {
+  return `${opener}\n${hashes(4)}${closer}\n${hashes(4)}`
+}
+
+/** The failure line of a block of `count` prose lines that starts at `at`, a `file:line`. */
+function over(at: string, count = 4): string {
+  return `${at}: comment-budget: a comment block of ${count} prose lines, over the 3-line budget — ${OVER}`
+}
 
 describe("the comment-budget Check", () => {
   it("passes a block of three prose lines", () => {
@@ -93,24 +111,146 @@ describe("the comment-budget Check", () => {
     ])
   })
 
-  it("judges only JavaScript and TypeScript under the roots, by default packages, plugins, scripts and src", () => {
+  it("judges only JavaScript, TypeScript and shell under the roots, by default packages, plugins, scripts and src", () => {
     const run = runBin(
       ["gate"],
       withBudget({
         "packages/a/index.mts": slashes(4),
         "plugins/b/hook.cjs": slashes(4),
+        "plugins/b/hook.sh": hashes(4),
+        "plugins/b/config.jq": hashes(4),
         "scripts/c.tsx": slashes(4),
-        "plugins/b/hook.sh": "# one\n# two\n# three\n# four\n",
         "docs/d.ts": slashes(9),
+        "docs/e.sh": hashes(9),
         "notes.md": slashes(9)
       })
     )
     assert.equal(run.status, 1)
     assert.deepEqual(failures(run.stdout), [
-      `packages/a/index.mts:1: comment-budget: a comment block of 4 prose lines, over the 3-line budget — ${OVER}`,
-      `plugins/b/hook.cjs:1: comment-budget: a comment block of 4 prose lines, over the 3-line budget — ${OVER}`,
-      `scripts/c.tsx:1: comment-budget: a comment block of 4 prose lines, over the 3-line budget — ${OVER}`
+      over("packages/a/index.mts:1"),
+      over("plugins/b/hook.cjs:1"),
+      over("plugins/b/hook.sh:1"),
+      over("scripts/c.tsx:1")
     ])
+  })
+})
+
+describe("the comment-budget Check on shell", () => {
+  it("fails a # block of four prose lines with the file, the line it starts on and the count, and passes three", () => {
+    const files = { "src/a.sh": `${hashes(3)}set -eu\n`, "src/b.sh": `set -eu\n\n${hashes(4)}exit 0\n` }
+    const run = runBin(["gate"], withBudget(files))
+    assert.equal(run.status, 1)
+    assert.deepEqual(failures(run.stdout), [over("src/b.sh:3")])
+  })
+
+  it("splits # lines at a blank line or a line of code, not at a blank # line, and leaves a comment after code out", () => {
+    const split = "# one\n# two\n\n# three\n# four\necho a # trailing\n# five\n# six\ntrue\n# seven\n"
+    const trailing = "echo a # one\necho b # two\n# three\necho c # four\n# five\n# six\n"
+    const joined = "# one\n#\n# two\n# three\n# four\n"
+    const run = runBin(
+      ["gate"],
+      withBudget({ "src/split.sh": split, "src/trailing.sh": trailing, "src/joined.sh": joined })
+    )
+    assert.equal(run.status, 1)
+    assert.deepEqual(failures(run.stdout), [over("src/joined.sh:1")])
+  })
+
+  it("skips the shebang on line 1 and reads a #! line further down as a comment", () => {
+    const files = {
+      "src/first.sh": `#!/usr/bin/env bash\n${hashes(3)}`,
+      "src/later.sh": `set -eu\n#!/bin/sh\n${hashes(3)}`
+    }
+    const run = runBin(["gate"], withBudget(files))
+    assert.equal(run.status, 1)
+    assert.deepEqual(failures(run.stdout), [over("src/later.sh:2")])
+  })
+
+  it("reads no comment in '…' without escapes, \"…\" with \\\" and $(…) inside, $'…' or a backtick span, nor after \\'", () => {
+    const files = {
+      "src/single.sh": trapped("echo 'C:\\' '", "'"),
+      "src/double.sh": trapped('echo "say \\" # not a comment', '"'),
+      "src/escaped.sh": trapped("echo \\' '", "'"),
+      "src/substitution.sh": trapped(`echo "$(printf '"')" '`, "'"),
+      "src/ansi.sh": trapped("echo $'it\\'s' '", "'"),
+      "src/backtick.sh": trapped("stamp=`echo \\`date +%s\\` # seconds`; echo '", "'")
+    }
+    const run = runBin(["gate"], withBudget(files))
+    assert.equal(run.status, 1)
+    assert.deepEqual(failures(run.stdout), [
+      over("src/ansi.sh:7"),
+      over("src/backtick.sh:7"),
+      over("src/double.sh:7"),
+      over("src/escaped.sh:7"),
+      over("src/single.sh:7"),
+      over("src/substitution.sh:7")
+    ])
+  })
+
+  it("reads a # as a comment only where it starts a word", () => {
+    const files = {
+      "src/word.sh": trapped("echo foo#bar \\# '", "'"),
+      "src/base.sh": trapped("echo $((16#ff)) '", "'"),
+      "src/pattern.sh": trapped("[[ $a == *#* ]] && echo '", "'"),
+      "src/operator.sh": `true;# it's a comment\n${hashes(4)}`
+    }
+    const run = runBin(["gate"], withBudget(files))
+    assert.equal(run.status, 1)
+    assert.deepEqual(failures(run.stdout), [
+      over("src/base.sh:7"),
+      over("src/operator.sh:2"),
+      over("src/pattern.sh:7"),
+      over("src/word.sh:7")
+    ])
+  })
+
+  it("reads no comment in $#, ${#x}, ${x#pattern}, ${x##*/} or anywhere else inside ${…}", () => {
+    const files = {
+      "src/count.sh": trapped("[ $# -gt 0 ] && echo '", "'"),
+      "src/length.sh": trapped("echo ${#x} '", "'"),
+      "src/prefix.sh": trapped("echo ${x#*/} '", "'"),
+      "src/longest.sh": trapped("echo ${x##*/} '", "'"),
+      "src/default.sh": trapped("echo ${x:- #y} '", "'")
+    }
+    const run = runBin(["gate"], withBudget(files))
+    assert.equal(run.status, 1)
+    assert.deepEqual(failures(run.stdout), [
+      over("src/count.sh:7"),
+      over("src/default.sh:7"),
+      over("src/length.sh:7"),
+      over("src/longest.sh:7"),
+      over("src/prefix.sh:7")
+    ])
+  })
+
+  it("reads no comment in a heredoc body, whatever its delimiter, and none of <<< or a shift opens one", () => {
+    const files = {
+      "src/plain.sh": trapped("cat <<EOF", "EOF"),
+      "src/tabs.sh": trapped("\tcat <<-EOF", "\tEOF"),
+      "src/single.sh": trapped("cat <<'EOF'", "EOF"),
+      "src/double.sh": trapped('cat <<"EOF"', "EOF"),
+      "src/substitution.sh": trapped(`msg="$(cat <<'EOF'`, 'EOF\n)"'),
+      "src/string.sh": `read -r a <<<"$1"\n${hashes(4)}`,
+      "src/shift.sh": trapped("echo $((1 << 2)) '", "'"),
+      "src/command.sh": trapped("(( n = 1 << 2 )) && echo '", "'")
+    }
+    const run = runBin(["gate"], withBudget(files))
+    assert.equal(run.status, 1)
+    assert.deepEqual(failures(run.stdout), [
+      over("src/command.sh:7"),
+      over("src/double.sh:7"),
+      over("src/plain.sh:7"),
+      over("src/shift.sh:7"),
+      over("src/single.sh:7"),
+      over("src/string.sh:2"),
+      over("src/substitution.sh:8"),
+      over("src/tabs.sh:7")
+    ])
+  })
+
+  it("counts a # shellcheck directive as prose", () => {
+    const run = runBin(["gate"], withBudget({ "src/a.sh": `# shellcheck disable=SC2016\n${hashes(3)}echo '$HOME'\n` }))
+    assert.equal(run.status, 1)
+    assert.deepEqual(failures(run.stdout), [over("src/a.sh:1")])
   })
 })
 
