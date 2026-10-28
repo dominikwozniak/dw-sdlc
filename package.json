@@ -10,14 +10,12 @@
     "guardrails:doctor": "dw-sdlc doctor",
     "references:sync": "dw-sdlc references sync",
     "references:setup": "dw-sdlc references setup",
-    "prepare": "husky"
+    "prepare": "vp config --no-agent"
   },
   "devDependencies": {
     "@changesets/cli": "3.0.3",
     "@types/node": "24.19.2",
     "dw-sdlc": "workspace:*",
-    "husky": "9.1.7",
-    "lint-staged": "17.6.0",
     "typescript": "7.0.2",
     "vite-plus": "1.3.0"
   },

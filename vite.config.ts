@@ -53,5 +53,9 @@ export default defineConfig({
       "typescript/restrict-template-expressions": "off",
       "typescript/unbound-method": "off"
     }
+  },
+  staged: {
+    "*.{ts,js,mjs,cjs}": ["vp lint --no-error-on-unmatched-pattern --fix", "vp fmt --no-error-on-unmatched-pattern"],
+    "*.{json,jsonc,md,yaml,yml}": "vp fmt --no-error-on-unmatched-pattern"
   }
 })

@@ -42,8 +42,8 @@ strictest set until it is fixed; the session start hook names each problem.
 
 The guards judge the agent's tool calls only. A commit typed in a terminal meets the subject rule
 through git's `commit-msg` hook: `hooks/commit-msg.sh` resolves the same config and refuses a subject
-off the pattern. This repository runs it from `.husky/commit-msg`. The trailer stays the agent's
-rule, since a commit a person writes has no co-author to name.
+off the pattern. This repository runs it from `.vite-hooks/commit-msg`, a Vite+ git hook. The trailer
+stays the agent's rule, since a commit a person writes has no co-author to name.
 
 The plugin guards Node repositories, and App Store Connect from every repository: `asc` reaches the
 whole store account from any directory. It carries no other stack-specific guard;

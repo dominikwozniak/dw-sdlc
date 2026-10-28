@@ -265,7 +265,7 @@ refuses.
     and an empty message is left to git
   - Verify: `test/hooks/commit-msg.test.ts`, the message file alone and real commits through
     `core.hooksPath`
-  - Files: `plugins/guardrails/hooks/commit-msg.sh`, `plugins/guardrails/hooks/lib.sh`, `.husky/commit-msg`
+  - Files: `plugins/sdlc/hooks/commit-msg.sh`, `plugins/sdlc/hooks/lib.sh`, `.vite-hooks/commit-msg`
 
 Open work on the plugin is tracked in GitHub Issues.
 
