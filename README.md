@@ -110,5 +110,6 @@ git clone git@github.com:dominikwozniak/dw-sdlc.git
 cd dw-sdlc
 pnpm install
 pnpm check             # the Gate, the gate.steps of .ai/agentic.config.json; the same as CI
+pnpm exec vp check --fix # Vite+ formats, fixes what lint can, and type-checks, from vite.config.ts
 pnpm references:sync   # clone the reference repositories on this machine
 ```

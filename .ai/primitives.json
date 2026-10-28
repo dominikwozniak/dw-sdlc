@@ -341,7 +341,7 @@
       "name": "pnpm check",
       "group": "gate",
       "summary": "The Gate command: dw-sdlc gate behind the check script, the same in a terminal and in CI.",
-      "code": ["package.json", ".ai/agentic.config.json", ".github/workflows/quality-gate.yaml"],
+      "code": ["package.json", ".ai/agentic.config.json", ".github/workflows/quality-gate.yaml", "vite.config.ts"],
       "docs": ["AGENTS.md#commands", "docs/overview.md#how-the-gate-runs", "GLOSSARY.md"]
     },
     {
@@ -445,8 +445,8 @@
       "id": "gate.pre-commit",
       "name": "Pre-commit hook",
       "group": "gate",
-      "summary": "lint-staged over the staged files, oxlint --fix and oxfmt, before the commit-msg hook judges the subject.",
-      "code": [".husky/pre-commit", ".lintstagedrc.json"],
+      "summary": "lint-staged over the staged files, vp lint --fix and vp fmt, before the commit-msg hook judges the subject.",
+      "code": [".husky/pre-commit", ".lintstagedrc.json", "vite.config.ts"],
       "docs": ["AGENTS.md#tooling"]
     },
     {

@@ -66,8 +66,8 @@ is its long form: how a guard works, why the design, adopting and releasing.
   step; only `pnpm pack` runs tsc, for the JavaScript the package ships to npm.
   Erasable syntax only (no `enum`, `namespace` or parameter properties), and relative imports keep
   the `.ts` extension.
-- **Formatting and import order belong to oxfmt.** The pre-commit hook runs oxlint `--fix` and oxfmt on
-  staged files.
+- **Formatting, import order, lint and the type check belong to Vite+**, configured in `vite.config.ts`.
+  The pre-commit hook runs `vp lint --fix` and `vp fmt` on staged files.
 - **CI runs on `ubuntu-latest`.** External actions are pinned to a full commit SHA with a `# vX.Y.Z`
   comment.
 - **A skill the plugin ships is named `sdlc-<verb>`, or `sdlc-<area>-<verb>`**, as `sdlc-setup` and
@@ -90,9 +90,7 @@ pnpm check                      # dw-sdlc gate: the gate.steps of .ai/agentic.co
 pnpm exec dw-sdlc gate [--json] [--update-baseline] # exit 0 green, 1 failed, 2 cannot run; the flag tightens baselines
 pnpm exec dw-sdlc check <name> [--json] # one Check of the Gate by name, no Step; off in the config, it runs on its defaults
 pnpm exec dw-sdlc primitives --paths <files> [--json] # the Primitives that own each path: summary, docs to read
-pnpm lint | lint:fix            # oxlint — check / --fix
-pnpm format | format:fix        # oxfmt — check / write
-pnpm typecheck                  # tsc, no emit
+pnpm exec vp check [--fix]      # Vite+: oxfmt, oxlint and the type check from vite.config.ts; --fix writes
 pnpm test                       # node --test over every *.test.ts under packages/*/test/ and plugins/*/test/, in one run
 pnpm agentic:check [file]       # resolve .ai/agentic.config.json (+ .local) or validate one file
 pnpm guardrails:setup [--dry-run] # write this machine's local config, excludes, deny rules, lease exception

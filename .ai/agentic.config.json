@@ -12,7 +12,7 @@
     "trailer": "Co-Authored-By"
   },
   "gate": {
-    "steps": ["pnpm lint", "pnpm format", "pnpm typecheck", "pnpm references:setup --check", "pnpm test"],
+    "steps": ["pnpm exec vp check", "pnpm references:setup --check", "pnpm test"],
     "checks": {
       "primitives": true,
       "agents-map": true,
