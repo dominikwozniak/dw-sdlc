@@ -32,7 +32,7 @@ const OVER = "cut it to what the code cannot say, or move the reasoning into a d
 
 /**
  * A shell file whose line 1 leaves four `#` lines inside the string or heredoc `opener` starts, until
- * `closer` ends it, then a block of four on line 7. Read right, only line 7 fails.
+ * `closer` ends it, then a block of four. Read right, only that last block fails, on line 7 for a one-line closer.
  */
 function trapped(opener: string, closer: string): string {
   return `${opener}\n${hashes(4)}${closer}\n${hashes(4)}`
@@ -165,7 +165,7 @@ describe("the comment-budget Check on shell", () => {
     assert.deepEqual(failures(run.stdout), [over("src/later.sh:2")])
   })
 
-  it("reads no comment in '…' without escapes, \"…\" with \\\" and $(…) inside, $'…' or a backtick span, nor after \\'", () => {
+  it("reads no comment inside '…', \"…\", $'…' or a backtick span, nor after an escaped quote", () => {
     const files = {
       "src/single.sh": trapped("echo 'C:\\' '", "'"),
       "src/double.sh": trapped('echo "say \\" # not a comment', '"'),
@@ -191,12 +191,14 @@ describe("the comment-budget Check on shell", () => {
       "src/word.sh": trapped("echo foo#bar \\# '", "'"),
       "src/base.sh": trapped("echo $((16#ff)) '", "'"),
       "src/pattern.sh": trapped("[[ $a == *#* ]] && echo '", "'"),
-      "src/operator.sh": `true;# it's a comment\n${hashes(4)}`
+      "src/operator.sh": `true;# it's a comment\n${hashes(4)}`,
+      "src/continued.sh": `echo a \\\n# it's a comment\n${hashes(3)}`
     }
     const run = runBin(["gate"], withBudget(files))
     assert.equal(run.status, 1)
     assert.deepEqual(failures(run.stdout), [
       over("src/base.sh:7"),
+      over("src/continued.sh:2"),
       over("src/operator.sh:2"),
       over("src/pattern.sh:7"),
       over("src/word.sh:7")

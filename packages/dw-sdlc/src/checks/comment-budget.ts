@@ -117,9 +117,9 @@ function lineEnd(text: string, index: number): number {
 /** Where a span that `closer` ends, read from `start`, stops, past the closer; `\` escapes a character when `escapes`. */
 function spanEnd(text: string, start: number, closer: string, escapes: boolean): number {
   for (let index = start; index < text.length; index += 1) {
-    if (escapes && text[index] === "\\") {
+    if (escapes && text.charAt(index) === "\\") {
       index += 1
-    } else if (text[index] === closer) {
+    } else if (text.charAt(index) === closer) {
       return index + 1
     }
   }
@@ -145,7 +145,7 @@ function heredocAt(text: string, start: number): Heredoc & { end: number } {
 }
 
 /** Where the heredoc body that starts at `start` ends: past the line that is its delimiter. */
-function bodyEnd(text: string, start: number, { delimiter, strip }: Heredoc): number {
+function heredocEnd(text: string, start: number, { delimiter, strip }: Heredoc): number {
   for (let index = start; index < text.length;) {
     const end = lineEnd(text, index)
     const line = text.slice(index, end)
@@ -157,8 +157,13 @@ function bodyEnd(text: string, start: number, { delimiter, strip }: Heredoc): nu
   return text.length
 }
 
-/** The character that opens and the one that closes a nesting inside each frame. */
-const NESTING: Record<ShellFrame["kind"], string> = { code: "()", arithmetic: "()", expansion: "{}", double: "" }
+/** The character that opens a nesting inside each frame and the one that closes it; a double quote has none. */
+const NESTING: Record<ShellFrame["kind"], [string, string] | []> = {
+  code: ["(", ")"],
+  arithmetic: ["(", ")"],
+  expansion: ["{", "}"],
+  double: []
+}
 
 /**
  * Every `#` comment in shell `text`: a `#` that starts a word of code, never one in a quote, an
@@ -192,7 +197,9 @@ function shellCommentsOf(text: string): Comment[] {
     const next = text.charAt(index + 1)
     const { kind } = frame
     const [opener, closer] = NESTING[kind]
-    if (char === "\\") {
+    if (char === "\\" && next === "\n") {
+      index += 2
+    } else if (char === "\\") {
       skipTo(index + 2)
     } else if (kind === "double" && char === '"') {
       close(1)
@@ -221,7 +228,7 @@ function shellCommentsOf(text: string): Comment[] {
     } else if (kind === "code" && char === "\n") {
       index += 1
       for (const heredoc of heredocs.splice(0)) {
-        index = bodyEnd(text, index, heredoc)
+        index = heredocEnd(text, index, heredoc)
       }
       wordStart = true
     } else if (kind === "code" && text.startsWith("<<<", index)) {
