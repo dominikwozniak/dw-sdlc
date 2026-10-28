@@ -90,7 +90,7 @@ _Avoid_: Check (which judges the tree and runs on after another fails), stage, j
 **Gate**:
 The Steps and then the Checks a change must pass, run by one command that is the same locally and in
 CI.
-_Avoid_: quality gate, CI (which runs it), lint (one Step of it)
+_Avoid_: quality gate, CI (which runs it), lint (one part of a Step)
 
 **Ratchet**:
 A Check with a recorded baseline whose limit may only tighten: a number that must not grow, or a list

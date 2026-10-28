@@ -65,7 +65,7 @@ Every failure is one line naming the file where there is one, the rule and the r
 
 ```text
 .ai/agentic.config.json: config: gate.checks: unknown key "nope" — fix the file; the Gate runs once every layer is valid
-step: "pnpm lint" exited 1 — fix what it printed above
+step: "pnpm exec vp check" exited 1 — fix what it printed above
 ```
 
 Under GitHub Actions each line is also a workflow annotation on its file. `--json` prints the same as
@@ -208,7 +208,7 @@ useful example:
     "trailer": "Co-Authored-By"
   },
   "gate": {
-    "steps": ["pnpm lint", "pnpm format", "pnpm typecheck", "pnpm references:setup --check", "pnpm test"]
+    "steps": ["pnpm exec vp check", "pnpm references:setup --check", "pnpm test"]
   }
 }
 ```
