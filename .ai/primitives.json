@@ -437,7 +437,7 @@
       "id": "gate.comment-budget",
       "name": "comment-budget Check",
       "group": "gate",
-      "summary": "Holds each comment block in the JavaScript and TypeScript under the roots to a few lines of prose, three by default.",
+      "summary": "Holds each JavaScript, TypeScript and shell comment block under the roots to a few lines of prose, three by default.",
       "code": ["packages/dw-sdlc/src/checks/comment-budget.ts"],
       "docs": ["docs/overview.md#the-checks-the-package-ships"]
     },
