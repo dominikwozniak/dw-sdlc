@@ -16,7 +16,7 @@ GUARD_PUSH_REFSPECS=""
 GUARD_GIT_VERB=""
 WORD_INDEX=0
 
-# guard_git_verb <segment> — WORDS with the wrappers off, GUARD_GIT_VERB, GUARD_PUSH_LOC where git
+# guard_git_verb <segment> — WORDS with the launchers off, GUARD_GIT_VERB, GUARD_PUSH_LOC where git
 # runs, WORD_INDEX the word after the verb; 1 for no git command. Globals, not stdout: a caller
 # capturing stdout runs it in a subshell and loses the words.
 guard_git_verb() {
@@ -25,7 +25,7 @@ guard_git_verb() {
   guard_git_verb_words
 }
 
-# guard_git_verb_words — guard_git_verb for the words already in WORDS, the wrappers off.
+# guard_git_verb_words — guard_git_verb for the words already in WORDS, the launchers off.
 guard_git_verb_words() {
   local word i n
   GUARD_PUSH_LOC="${GUARD_SHELL_DIR:-$GUARD_CWD}"
@@ -55,7 +55,7 @@ guard_git_verb_words() {
   return 1
 }
 
-# guard_parse_push <segment> — 0 for a `git … push` once the wrappers are off, its options read into
+# guard_parse_push <segment> — 0 for a `git … push` once the launchers are off, its options read into
 # the GUARD_PUSH_* flags, a cluster letter by letter, and GUARD_PUSH_REFSPECS one a line, `+` off. A
 # bare `:` deletes nothing; a --prune deletes with --all, --tags, no refspec or a `*` refspec.
 guard_parse_push() {

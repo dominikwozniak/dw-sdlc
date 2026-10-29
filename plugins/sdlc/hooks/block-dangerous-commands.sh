@@ -13,7 +13,7 @@ guard_read_payload "$@" || exit 0
 END='([^A-Za-z0-9_-]|$)'
 # A target may be any operand, so an arm ends at whitespace, a separator, `)` or a backtick. `/` and
 # `.` read the same in either quote, `~` only bare, `$HOME` bare or in double quotes. A quote after a
-# target closes a wrapper's, as in `bash -c 'rm -rf ~'`, where the inner shell expands the `~`.
+# target closes a launcher's, as in `bash -c 'rm -rf ~'`, where the inner shell expands the `~`.
 Q=$GUARD_OPEN_QUOTE
 RM="rm([[:space:]]+[^;&|]*)?[[:space:]]+"
 TEND="${Q}([[:space:]]|\$|[;&|)\`])"
@@ -75,7 +75,7 @@ check_rm_here() {
 
 # --- git, read as words ---------------------------------------------------------------------------
 
-# check_push <segment> — one command segment that starts, after the wrappers, with `git … push`.
+# check_push <segment> — one command segment that starts, after the launchers, with `git … push`.
 check_push() {
   guard_parse_push "$1" || return 0
   ((GUARD_PUSH_DELETE)) && guard_block "'$GUARD_COMMAND' deletes a remote branch."
