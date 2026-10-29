@@ -28,6 +28,7 @@ is, its repository, its ref and the paths its clone skips. Before you research, 
 | `byarcadia-foundation`    | a pnpm library monorepo on Vite+ with changesets and npm publishing, a React Native hook package and its tests, or an oxlint JS plugin                                               |
 | `dmmulroy-anti-slop`      | writing an oxlint JS plugin rule with RuleTester, a lint policy against `unknown`, `as` and `typeof` in TypeScript, or a skill that vendors code into a repo and updates it in place |
 | `pstack`                  | a mode skill that routes a task to playbooks, a skill that runs several models or parallel agents on one task, or engineering principles written as skills                           |
+| `grateful-me-app-v2`      | agent instructions, docs and checks for a real product repo, the dw-solo lane in daily use, or guard hooks and a check script for an Expo app                                        |
 
 <!-- references:end -->
 
