@@ -79,7 +79,7 @@ guard_heredoc_feeds_shell() {
   return 1
 }
 
-# guard_shell_reads_stdin <command> — 0 when the command, wrappers off, is sh, bash, zsh, dash or ksh
+# guard_shell_reads_stdin <command> — 0 when the command, launchers off, is sh, bash, zsh, dash or ksh
 # with no `-c` and no script operand, or with `-s`.
 guard_shell_reads_stdin() {
   local -a WORDS=()

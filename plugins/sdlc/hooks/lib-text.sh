@@ -314,7 +314,7 @@ guard_strip_quoted_text() {
   printf '\n'
 }
 
-# guard_search_segment <segment> — 0 when the segment, wrappers off, runs grep, egrep, fgrep, rg, ag,
+# guard_search_segment <segment> — 0 when the segment, launchers off, runs grep, egrep, fgrep, rg, ag,
 # ack or git grep. The command word sits at the start, so only the first 256 bytes are scanned: a long
 # message further on would cost a walk for nothing.
 guard_search_segment() {

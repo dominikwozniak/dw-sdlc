@@ -32,7 +32,7 @@
         "plugins/sdlc/hooks/lib-words.sh",
         "plugins/sdlc/hooks/lib-git.sh"
       ],
-      "docs": ["plugins/sdlc/README.md#layout", "GLOSSARY.md"]
+      "docs": ["plugins/sdlc/README.md#layout", "plugins/sdlc/README.md#reading-a-command", "GLOSSARY.md"]
     },
     {
       "id": "guards.dangerous-commands",
