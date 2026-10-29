@@ -1,5 +1,11 @@
 # dw-sdlc
 
+## 0.5.1
+
+### Patch Changes
+
+- b8ae934: `dw-sdlc doctor` names a snapshot install's path only when `claude plugin list --json` gives it as a string; any other value reads `installed at ?`, as an unknown version reads `?`.
+
 ## 0.5.0
 
 ### Minor Changes
