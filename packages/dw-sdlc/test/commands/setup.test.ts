@@ -26,7 +26,7 @@ function write(root: string, file: string, text: string): void {
 }
 
 /** The version of the package under test, the one the setup pins. */
-const VERSION: unknown = JSON.parse(readFileSync(join(PACKAGE_ROOT, "package.json"), "utf8")).version
+const VERSION = String(JSON.parse(readFileSync(join(PACKAGE_ROOT, "package.json"), "utf8")).version)
 
 /** A pnpm repository on the Gate, with a tracked .env, an ignored .env.development and one commit. */
 function nodeRepo(): string {
