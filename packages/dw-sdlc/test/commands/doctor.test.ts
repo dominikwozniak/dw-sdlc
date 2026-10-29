@@ -247,6 +247,20 @@ describe("diagnose", () => {
     )
   })
 
+  it("plugin: a snapshot whose installPath is not a string is installed at ?", () => {
+    const fromGit = withFile(
+      HEALTHY,
+      `${HOME}/.claude/plugins/known_marketplaces.json`,
+      JSON.stringify({ "dw-sdlc": { source: { source: "git", url: "git@github.com:dominikwozniak/dw-sdlc.git" } } })
+    )
+    const odd = withCommand(fromGit, "claude plugin list --json", {
+      stdout: JSON.stringify([{ id: "sdlc@dw-sdlc", version: "0.1.0", enabled: true, installPath: { dir: "/cache" } }])
+    })
+    const check = line(diagnose({ root: ROOT, home: HOME, probe: fake(odd), config: CONFIG }), "plugin")
+    assert.equal(check.level, "PASS")
+    assert.match(check.detail, /installed at \?; a change reaches it through claude plugin update/)
+  })
+
   it("rtk: wired by hand is a FAIL, no rtk at all a PASS", () => {
     const shim = JSON.stringify({
       hooks: {

@@ -141,6 +141,7 @@ function checkPlugin(probe: Probe, claude: string): Check {
     }
   }
   const version = typeof entry.version === "string" ? entry.version : "?"
+  const installPath = typeof entry.installPath === "string" ? entry.installPath : "?"
   if (entry.enabled !== true) {
     return {
       name: "plugin",
@@ -151,7 +152,7 @@ function checkPlugin(probe: Probe, claude: string): Check {
   return {
     name: "plugin",
     level: "PASS",
-    detail: `${version} enabled; ${pluginOrigin(probe, claude, String(entry.installPath ?? ""))}`
+    detail: `${version} enabled; ${pluginOrigin(probe, claude, installPath)}`
   }
 }
 
