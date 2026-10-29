@@ -1,9 +1,6 @@
 ---
 name: sdlc-doctor
-description: >-
-  Check this machine and repository for the sdlc plugin: one PASS / WARN / FAIL line each for jq,
-  the plugin enabled, the plugin's dw-sdlc package against the one the repository pins, rtk, Safe
-  Chain, pnpm's release age, commit signing and the resolved config. Read-only.
+description: Check this machine and repository for the sdlc plugin. Read-only.
 argument-hint: "[repository path]"
 disable-model-invocation: true
 ---

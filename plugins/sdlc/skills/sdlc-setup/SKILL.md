@@ -1,11 +1,6 @@
 ---
 name: sdlc-setup
-description: >-
-  Set a repository and this machine up for the sdlc plugin: the Gate where the repository has a
-  `package.json` (the pinned `dw-sdlc` devDependency, asked for first, and the `gate` key of the
-  committed config), then the guards' files: the machine's `.ai/agentic.config.local.json` from
-  inference, its git exclude entry, the repository's `permissions.deny` backstop, and the lease-push
-  exception in `~/.claude/settings.json`. Safe to repeat; a run with nothing changed writes nothing.
+description: Set a repository and this machine up for the sdlc plugin. Safe to repeat.
 disable-model-invocation: true
 ---
 
