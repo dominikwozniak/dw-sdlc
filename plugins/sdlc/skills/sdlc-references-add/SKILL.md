@@ -1,12 +1,6 @@
 ---
 name: sdlc-references-add
-description: >-
-  Add a Reference to this repository from a repository or a link to a folder on GitHub: name its
-  licence, pick its ref, the part of it its clone holds and the paths it skips, write what it is and
-  when to reach for it, append the entry to the `references` key of `.ai/agentic.config.json`,
-  rewrite the Router's table from the key and sync it; then propose a row for the root agent
-  instructions when none points at the Router. The first run sets the repository up: the Router, the
-  exclusion of the clones' agent files, the ignore lines and the key. Safe to repeat.
+description: Add a Reference to this repository and clone it.
 argument-hint: <repository | folder link>
 disable-model-invocation: true
 ---
