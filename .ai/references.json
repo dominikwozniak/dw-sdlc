@@ -35,7 +35,7 @@
       "repository": "https://github.com/dominikwozniak/dw-mc",
       "ref": "main",
       "skip": ["repos/"],
-      "what": "a local CLI that tracks your open PRs: reads GitHub through `gh`, runs reviews with Claude Code and puts each PR in one bucket; TypeScript on Effect 4, published to npm. The clone leaves out `repos/`, where it vendors Effect: 4044 of its 4298 files",
+      "what": "a local CLI that tracks your open PRs: reads GitHub through `gh`, runs reviews with Claude Code and puts each PR in one bucket; TypeScript on Effect 4, published to npm and frozen: prior art for `gh` adapters and PR buckets, never a home for new work. The clone leaves out `repos/`, where it vendors Effect: 4044 of its 4298 files",
       "when": "a CLI over `gh` and Claude Code, or Effect in a real tool"
     },
     {
