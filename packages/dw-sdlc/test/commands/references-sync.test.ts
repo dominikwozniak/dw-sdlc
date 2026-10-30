@@ -24,6 +24,7 @@ import {
 } from "../references-harness.ts"
 
 const CONFIG = ".ai/agentic.config.json"
+const FILE = ".ai/references.json"
 
 /** A repository to clone from: its directory, and the file:// URL a Reference names it by. */
 type Upstream = { dir: string; url: string }
@@ -93,13 +94,13 @@ function entry(dir: string, url: string, fields: Record<string, unknown> = {}): 
   return { dir, repository: url, ref: "main", what: `the ${dir} clone`, when: "a test reads it", ...fields }
 }
 
-function declare(root: string, references: unknown, file = CONFIG): void {
+function declare(root: string, references: unknown, file = FILE): void {
   writeJson(join(root, file), { version: 1, references })
 }
 
 /**
- * A repository whose committed config declares `references`, set up by the setup so its Router's table
- * is in step with the key, beside `files` when given.
+ * A repository whose `.ai/references.json` declares `references`, set up by the setup so its Router's
+ * table is in step with the file, beside `files` when given.
  */
 function consumer(references: unknown, files: Record<string, string> = {}): string {
   const root = initRepo(scratch("consumer"))
@@ -435,7 +436,7 @@ describe("what the Sync leaves alone", () => {
     write(join(clone(root, "old"), "x.txt"), "")
     const run = sync(root)
     expectStatus(run, 0)
-    assert.match(run.stdout, /^Not listed in \.ai\/agentic\.config\.json, left alone: references\/old$/m)
+    assert.match(run.stdout, /^Not listed in \.ai\/references\.json, left alone: references\/old$/m)
     assert.ok(existsSync(join(clone(root, "old"), "x.txt")))
   })
 
@@ -518,7 +519,7 @@ describe("how the Sync fails", () => {
     expectStatus(run, 2)
     assert.equal(run.stdout, "")
     assert.deepEqual(lines(run.stderr), [
-      'references:sync: .ai/agentic.config.json: references[1].skip[0]: "../x" must be relative to the clone and stay inside it; nothing synced'
+      'references:sync: .ai/references.json: references[1].skip[0]: "../x" must be relative to the clone and stay inside it; nothing synced'
     ])
     assert.equal(head(clone(root, "full")), before)
     assert.ok(!existsSync(clone(root, "new")))
@@ -541,7 +542,7 @@ describe("how the Sync fails", () => {
       const run = sync(root)
       expectStatus(run, 2)
       assert.equal(run.stdout, "")
-      assert.deepEqual(lines(run.stderr), [`references:sync: .ai/agentic.config.json: ${problem}; nothing synced`])
+      assert.deepEqual(lines(run.stderr), [`references:sync: .ai/references.json: ${problem}; nothing synced`])
       assert.ok(!existsSync(clone(root, "full")))
     }
   })
@@ -562,16 +563,53 @@ describe("how the Sync fails", () => {
     const root = consumer([entry("full", source.url)])
     const run = sync(root, "full", "nope")
     expectStatus(run, 2)
-    assert.match(run.stderr, /^references:sync: not in the references of \.ai\/agentic\.config\.json: nope$/m)
+    assert.match(run.stderr, /^references:sync: not in \.ai\/references\.json: nope$/m)
     assert.ok(!existsSync(clone(root, "full")))
   })
 
-  it("exits 2 on a config that is not JSON", () => {
+  it("exits 2 on a references file that is not JSON", () => {
     const root = consumer([])
-    write(join(root, CONFIG), "{ not json")
+    write(join(root, FILE), "{ not json")
     const run = sync(root)
     expectStatus(run, 2)
-    assert.match(run.stderr, /^references:sync: \.ai\/agentic\.config\.json: not JSON: .*; nothing synced$/m)
+    assert.match(run.stderr, /^references:sync: \.ai\/references\.json: not JSON: .*; nothing synced$/m)
+  })
+
+  it("syncs as before on an agentic config that is not JSON, which is the guards' to report", () => {
+    const source = upstream()
+    const root = consumer([entry("full", source.url)])
+    write(join(root, CONFIG), "{ not json")
+    expectStatus(sync(root), 0)
+    assert.ok(has(root, "full", "README.md"))
+  })
+
+  it("exits 2 on a references key left in the agentic config, naming the setup that moves it, and syncs nothing", () => {
+    const source = upstream()
+    const root = consumer([entry("full", source.url)])
+    rmSync(join(root, FILE))
+    writeJson(join(root, CONFIG), { version: 1, references: [entry("full", source.url)] })
+    const run = sync(root)
+    expectStatus(run, 2)
+    assert.equal(run.stdout, "")
+    assert.match(
+      run.stderr,
+      /^references:sync: \.ai\/agentic\.config\.json: .*`dw-sdlc references setup`.*; nothing synced$/m
+    )
+    assert.ok(!existsSync(clone(root, "full")))
+  })
+
+  it("exits 2 on a references key beside the file, asking for a merge by hand, since the setup refuses both", () => {
+    const source = upstream()
+    const root = consumer([entry("full", source.url)])
+    writeJson(join(root, CONFIG), { version: 1, references: [entry("full", source.url)] })
+    const run = sync(root)
+    expectStatus(run, 2)
+    assert.equal(run.stdout, "")
+    assert.equal(
+      run.stderr,
+      "references:sync: .ai/agentic.config.json has a references key beside .ai/references.json; merge it into the file and remove the key by hand; nothing synced\n"
+    )
+    assert.ok(!existsSync(clone(root, "full")))
   })
 })
 
@@ -673,7 +711,7 @@ describe("a repository that declares no References", () => {
     assert.deepEqual(run, { status: 0, stdout: "", stderr: "" })
   })
 
-  it("prints nothing and exits 0 without the key, a references/ directory beside it", () => {
+  it("prints nothing and exits 0 without the file, a references/ directory beside it", () => {
     const root = initRepo(scratch("keyless"))
     writeJson(join(root, CONFIG), { version: 1 })
     write(join(root, "references", "mine", "x.txt"), "")
@@ -691,6 +729,6 @@ describe("a repository that declares no References", () => {
   it("exits 2 on a named dir", () => {
     const run = sync(initRepo(scratch("bare")), "kody")
     expectStatus(run, 2)
-    assert.match(run.stderr, /not in the references of \.ai\/agentic\.config\.json: kody/)
+    assert.match(run.stderr, /not in \.ai\/references\.json: kody/)
   })
 })

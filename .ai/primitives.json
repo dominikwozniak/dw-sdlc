@@ -110,7 +110,7 @@
       "id": "hooks.references-sync",
       "name": "Sync hook",
       "group": "hooks",
-      "summary": "Runs the Sync at startup and prints its lines; a repository without the references key gets no output.",
+      "summary": "Runs the Sync at startup and prints its lines; a repository without .ai/references.json gets no output.",
       "code": ["plugins/sdlc/hooks/references-sync.sh"],
       "docs": [
         "plugins/sdlc/README.md#the-sync-at-session-start",
@@ -197,11 +197,15 @@
     },
     {
       "id": "config.references",
-      "name": "references key",
+      "name": "references file",
       "group": "config",
-      "summary": "The References a repository reads: dir, repository, ref, skipped paths, what and when; its schema stands apart.",
-      "code": ["packages/dw-sdlc/config/references.schema.json", "packages/dw-sdlc/src/references-key.ts"],
-      "docs": ["plugins/sdlc/README.md#the-key", "docs/adr/0007-references-are-a-key-the-references-plugin-owns.md"]
+      "summary": "The References a repository reads, in .ai/references.json: dir, repository, ref, kept and skipped paths, what and when.",
+      "code": [
+        ".ai/references.json",
+        "packages/dw-sdlc/config/references.schema.json",
+        "packages/dw-sdlc/src/references-key.ts"
+      ],
+      "docs": ["plugins/sdlc/README.md#the-file", "docs/adr/0011-references-are-a-catalogue-file-beside-the-config.md"]
     },
     {
       "id": "tools.setup",
@@ -236,7 +240,7 @@
       "id": "tools.references-setup",
       "name": "References setup",
       "group": "tools",
-      "summary": "Makes a repository ready for References: the Router with its table from the key, the excludes, the ignore rules.",
+      "summary": "Makes a repository ready for References: the Router with its table from the file, the excludes, the ignore rules.",
       "code": [
         "packages/dw-sdlc/src/commands/references-setup.ts",
         "packages/dw-sdlc/src/json-text.ts",
@@ -273,7 +277,7 @@
       "id": "skills.references-add",
       "name": "sdlc-references-add",
       "group": "skills",
-      "summary": "The user-invoked skill that runs the setup, writes one Reference's entry into the key and syncs its dir.",
+      "summary": "The user-invoked skill that runs the setup, writes one Reference's entry into .ai/references.json and syncs its dir.",
       "code": ["plugins/sdlc/skills/sdlc-references-add/SKILL.md"],
       "docs": ["plugins/sdlc/README.md#adding-a-reference"]
     },

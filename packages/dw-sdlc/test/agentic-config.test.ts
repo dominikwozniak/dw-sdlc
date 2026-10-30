@@ -22,7 +22,7 @@ const DEFAULT_ENV_FILES = {
   allow: ["**/.env.example", "**/.env.sample", "**/.env.template"],
   deny: []
 }
-/** A `references` key the references plugin refuses, which the guardrails schema never names (ADR 0007). */
+/** A `references` key the Sync refuses, which the guardrails schema never names (ADR 0002). */
 const MALFORMED_REFERENCES = {
   guardrails: { protectedBranches: ["main"] },
   references: [{ dir: "../x", branch: "main" }, "kody"]
@@ -154,7 +154,7 @@ describe("the committed file", () => {
     assert.deepEqual(config.guardrails, STRICTEST_GUARDRAILS)
   })
 
-  it("leaves the references key to its plugin: a malformed one keeps the guards off the strictest set", () => {
+  it("leaves a references key to the Sync: a malformed one keeps the guards off the strictest set", () => {
     const root = repo({ files: { [COMMITTED_FILE]: MALFORMED_REFERENCES } })
     const { config, problems, layers } = resolveConfig(root)
     assert.deepEqual(problems, [])

@@ -11,7 +11,7 @@ import { commit, git, REPO_ROOT, repo, runBin, scratch, write } from "../harness
 
 /** A document no layer may carry: `forcePush` knows `deny`, `ask` and `lease`, never `allow`. */
 const FORCE_PUSH_ALLOWED = { version: 1, guardrails: { forcePush: "allow" } }
-/** This repository's committed config, its `references` key included. */
+/** This repository's committed config. */
 const OWN_CONFIG = readFileSync(join(REPO_ROOT, COMMITTED_FILE), "utf8")
 
 /**
@@ -59,8 +59,7 @@ describe("the agentic:check command", () => {
     assert.equal(verdict.stdout, `${COMMITTED_FILE}: valid\n`)
   })
 
-  it("resolves a repository holding this one's config and its references key off the strictest set, exit 0", () => {
-    assert.ok(Array.isArray(JSON.parse(OWN_CONFIG).references), "the committed config declares References")
+  it("resolves a repository holding this one's config off the strictest set, exit 0", () => {
     const root = repo({ files: { [COMMITTED_FILE]: OWN_CONFIG } })
     const verdict = runBin(["config", "--root", root], REPO_ROOT)
     assert.equal(verdict.status, 0, verdict.stderr)

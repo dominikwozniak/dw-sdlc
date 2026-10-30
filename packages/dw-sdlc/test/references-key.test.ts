@@ -1,6 +1,6 @@
-// The contract of the `references` key: one case list through the parser the Sync runs and through
+// The contract of `.ai/references.json`: one case list through the parser the Sync runs and through
 // the schema the package ships beside it, so the two never drift apart. The schema side runs on the
-// package's validator here only; the Sync reads the key through the parser alone.
+// package's validator here only; the Sync reads the file through the parser alone.
 
 import assert from "node:assert/strict"
 import { readFileSync } from "node:fs"
@@ -8,7 +8,7 @@ import { join } from "node:path"
 import { describe, it } from "node:test"
 
 import { validate } from "../src/json-schema.ts"
-import { parseReferences } from "../src/references-key.ts"
+import { parseFile, parseReferences } from "../src/references-key.ts"
 
 const SCHEMA: unknown = JSON.parse(
   readFileSync(join(import.meta.dirname, "..", "config", "references.schema.json"), "utf8")
@@ -37,7 +37,12 @@ function problemOf(value: unknown): unknown {
   return "problem" in parsed ? parsed.problem : parsed
 }
 
-/** A value of the key, and the path of its one problem; none when it is valid. */
+/** The file holding `references`. */
+function file(references: unknown): Record<string, unknown> {
+  return { $schema: "../node_modules/dw-sdlc/config/references.schema.json", version: 1, references }
+}
+
+/** A value of the file's `references` key, and the path of its one problem; none when it is valid. */
 type Case = { name: string; value: unknown; path?: string }
 
 const CASES: Case[] = [
@@ -108,9 +113,9 @@ const CASES: Case[] = [
 describe("the parser and the schema agree on one case list", () => {
   for (const { name, value, path } of CASES) {
     it(name, () => {
-      const schemaPaths = validate(SCHEMA, value).map((problem) => `references${problem.path}`)
+      const schemaPaths = validate(SCHEMA, file(value)).map((problem) => problem.path)
       assert.deepEqual(schemaPaths, path === undefined ? [] : [path], "the schema")
-      const parsed = parseReferences(value)
+      const parsed = parseFile(file(value))
       assert.equal("problem" in parsed ? parsed.problem.path : undefined, path, JSON.stringify(parsed))
     })
   }
@@ -158,7 +163,7 @@ describe("parseReferences", () => {
 
   it("refuses a dir another entry holds, which the schema cannot say", () => {
     const value = [entry(), entry({ dir: "kody" })]
-    assert.deepEqual(validate(SCHEMA, value), [])
+    assert.deepEqual(validate(SCHEMA, file(value)), [])
     assert.deepEqual(parseReferences(value), {
       problem: { path: "references[1].dir", message: '"kody" is the dir of references[0] too' }
     })
@@ -167,7 +172,7 @@ describe("parseReferences", () => {
   it("refuses a skip path outside every only path, which the schema cannot say", () => {
     for (const outside of ["docs/", "pstack", "pstack/", "pstackish/x", "harness/x"]) {
       const value = [entry({ only: ["pstack/", "harness/pstack"], skip: ["pstack/vendor/", outside] })]
-      assert.deepEqual(validate(SCHEMA, value), [], outside)
+      assert.deepEqual(validate(SCHEMA, file(value)), [], outside)
       assert.deepEqual(parseReferences(value), {
         problem: {
           path: "references[0].skip[1]",
@@ -191,4 +196,26 @@ describe("parseReferences", () => {
     })
     assert.deepEqual(problemOf({}), { path: "references", message: "must be a list of entries, not an object" })
   })
+})
+
+/** A whole file, and the path of its one problem, `""` for its root. */
+const FILE_CASES: { name: string; value: unknown; path?: string }[] = [
+  { name: "a file without $schema", value: { version: 1, references: [] } },
+  { name: "a file that is not an object", value: [], path: "" },
+  { name: "an unknown key", value: { ...file([]), extra: true }, path: "" },
+  { name: "a missing version", value: { references: [] }, path: "" },
+  { name: "a missing references key", value: { version: 1 }, path: "" },
+  { name: "a version other than 1", value: { ...file([]), version: 2 }, path: "version" },
+  { name: "a $schema that is not a string", value: { ...file([]), $schema: 1 }, path: "$schema" }
+]
+
+describe("the parser and the schema agree on the file around the key", () => {
+  for (const { name, value, path } of FILE_CASES) {
+    it(name, () => {
+      const schemaPaths = validate(SCHEMA, value).map((problem) => problem.path)
+      assert.deepEqual(schemaPaths, path === undefined ? [] : [path], "the schema")
+      const parsed = parseFile(value)
+      assert.equal("problem" in parsed ? parsed.problem.path : undefined, path, JSON.stringify(parsed))
+    })
+  }
 })

@@ -11,9 +11,9 @@ import { commit, git, initRepo, REPO_ROOT, runBash, scratch, write } from "../ha
 
 const LIB = join(import.meta.dirname, "..", "..", "hooks", "lib.sh")
 const ORG_REMOTE = "git@github.com:acme/app.git"
-/** This repository's committed config, its `references` key included. */
+/** This repository's committed config. */
 const OWN_CONFIG = readFileSync(join(REPO_ROOT, COMMITTED_FILE), "utf8")
-/** A `references` key the references plugin refuses, which the guardrails schema never names (ADR 0007). */
+/** A `references` key the Sync refuses, which the guardrails schema never names (ADR 0002). */
 const MALFORMED_REFERENCES = {
   guardrails: { protectedBranches: ["main"] },
   references: [{ dir: "../x", branch: "main" }, "kody"]
@@ -116,10 +116,7 @@ describe("hooks/lib.sh agrees with resolveConfig", () => {
       "on a malformed references key, left to its plugin",
       () => repo({ files: { [COMMITTED_FILE]: MALFORMED_REFERENCES } })
     ],
-    [
-      "on this repository's committed file and its references key",
-      () => repo({ files: { [COMMITTED_FILE]: OWN_CONFIG } })
-    ],
+    ["on this repository's committed file", () => repo({ files: { [COMMITTED_FILE]: OWN_CONFIG } })],
     [
       "on a committed file with schema violations",
       () => repo({ files: { [COMMITTED_FILE]: { version: 2, guardrails: { forcePush: "allow", extra: 1 } } } })

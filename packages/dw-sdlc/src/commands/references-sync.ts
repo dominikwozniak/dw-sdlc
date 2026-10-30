@@ -1,4 +1,4 @@
-// `dw-sdlc references sync`, the Sync: every Reference the committed config declares brought to its ref
+// `dw-sdlc references sync`, the Sync: every Reference `.ai/references.json` declares brought to its ref
 // under references/<dir>, each clone shallow, blobless, detached and sparse where its entry says. An
 // entry that fails fails alone, and a repository that declares no References gets no output at all.
 
@@ -9,7 +9,7 @@ import { setTimeout as sleep } from "node:timers/promises"
 import { parseArgs } from "node:util"
 
 import { readPins, resolveRef, type Pins } from "../pins.ts"
-import { CONFIG, readReferences, type Reference } from "../references-key.ts"
+import { REFERENCES_FILE, readReferences, type Reference } from "../references-key.ts"
 import { renderBlock, withBlock } from "../router-block.ts"
 
 const CLONES = "references"
@@ -27,7 +27,7 @@ export const summary = "bring every declared Reference to its ref under referenc
 const USAGE = `Usage: dw-sdlc references sync [dir...]
   or:  pnpm references:sync [dir...], in a checkout of dw-sdlc
 
-Brings every Reference the references key of ${CONFIG} declares to its ref under ${CLONES}/<dir>, or
+Brings every Reference ${REFERENCES_FILE} declares to its ref under ${CLONES}/<dir>, or
 only the given dirs: a missing one cloned shallow, an existing one moved to its branch's head or its
 tag, holding the top-level files and the paths its only names when it has one, without the paths
 its skip names. Prints one line per Reference. Exit 1 when any Reference fails, 2 on a bad key,
@@ -324,7 +324,7 @@ export async function run(argv: string[]): Promise<number> {
 
   const unknown = cli.dirs.filter((dir) => !references.some((reference) => reference.dir === dir))
   if (unknown.length > 0) {
-    fail(`not in the references of ${CONFIG}: ${unknown.join(", ")}`)
+    fail(`not in ${REFERENCES_FILE}: ${unknown.join(", ")}`)
   }
   if (reading.references === undefined) {
     return 0
@@ -361,7 +361,7 @@ export async function run(argv: string[]): Promise<number> {
         .map((entry) => `${CLONES}/${entry.name}`)
     : []
   if (stray.length > 0) {
-    console.log(`Not listed in ${CONFIG}, left alone: ${stray.join(", ")}`)
+    console.log(`Not listed in ${REFERENCES_FILE}, left alone: ${stray.join(", ")}`)
   }
   return failed ? 1 : 0
 }

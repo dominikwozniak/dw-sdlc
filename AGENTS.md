@@ -13,19 +13,20 @@ is its long form: how a guard works, why the design, adopting and releasing.
   subcommand, each a module under `commands/` (`gate`, `check`, `primitives`, `setup`, `doctor`,
   `config`, `references sync`, `references setup`), and one module per Check it ships under
   `checks/`, beside the modules they share; `config/` the JSON Schema for `.ai/agentic.config.json`,
-  which declares how this repo works for an agent, and the `references` key's own, which that schema leaves
-  unnamed; `templates/` the Router the setup writes; `test/` their tests, the bin spawned on a
-  throwaway repo, from the source and from the packed tarball; `dist/` the JavaScript `pnpm pack`
-  emits for npm, ignored
+  which declares how this repo works for an agent, and the one for `.ai/references.json`;
+  `templates/` the Router the setup writes; `test/` their tests, the bin spawned on a throwaway repo,
+  from the source and from the packed tarball; `dist/` the JavaScript `pnpm pack` emits for npm,
+  ignored
 - `plugins/sdlc/` — the one plugin `.claude-plugin/marketplace.json` publishes, enabled at user
   scope: `hooks/` the bash guards on a shared `lib.sh` plus the jq config contract, and the session
   hooks, the report and the Sync; `skills/` the user-invoked `sdlc-setup`, `sdlc-doctor` and
   `sdlc-references-add`; `dw-sdlc` a link to the package, whose bin the hooks and skills run; `test/`
   the hook tests, mirroring `hooks/`, each spawning a hook on the real stdin payload, and the
   manifest test
-- `.ai/` — `agentic.config.json`, this repo's agent rules against the package's schema, its References
-  under the `references` key; `primitives.json`, the catalogue of what this repo exposes to an agent,
-  per Primitive its code and the doc that explains it, held to the tree by the `primitives` Check;
+- `.ai/` — `agentic.config.json`, this repo's agent rules against the package's schema;
+  `references.json`, the References this repo reads; `primitives.json`, the catalogue of what this
+  repo exposes to an agent, per Primitive its code and the doc that explains it, held to the tree by
+  the `primitives` Check;
   `file-size-ratchet.baseline.json`, the files the Ratchet lets stay over their limit
   (`agentic.config.local.json` is one machine's layer, kept out of git through `.git/info/exclude`)
 - `.claude/settings.json` — tracked; turns the dw-solo plugins off in this repo and keeps the clones'
@@ -44,9 +45,9 @@ is its long form: how a guard works, why the design, adopting and releasing.
   dated by when they were read. New work is specified in GitHub Issues, not here
 - `GLOSSARY.md` — what a word means in this repo
 - `references/` — repositories cloned on each machine for reading, never tracked; the Router is
-  `references/AGENTS.md`, the list the `references` key of `.ai/agentic.config.json`, and the
-  Router's table of each Reference's `when` is written from the list by `pnpm references:setup`; the
-  plugin's Sync hook or `pnpm references:sync` fetches them
+  `references/AGENTS.md`, the list `.ai/references.json`, and the Router's table of each
+  Reference's `when` is written from the list by `pnpm references:setup`; the plugin's Sync hook or
+  `pnpm references:sync` fetches them
 - `ideas/` — local-only notes; everything but `.gitkeep` is gitignored, so nothing in it reaches a clone
 - `.github/` — CI: `workflows/quality-gate.yaml` runs `pnpm check` on every pull request and on `main`;
   `workflows/release.yaml` turns the changesets under `.changeset/` into a version pull request and,
@@ -96,7 +97,7 @@ pnpm agentic:check [file]       # resolve .ai/agentic.config.json (+ .local) or 
 pnpm guardrails:setup [--dry-run] # write this machine's local config, excludes, deny rules, lease exception
 pnpm guardrails:doctor          # one PASS / WARN / FAIL line per machine check; exit 1 on a FAIL
 pnpm references:sync [dir...]   # clone or update each reference repository on this machine
-pnpm references:setup [--check] # the Router's table from the references key; --check exits 1 when it is behind
+pnpm references:setup [--check] # the Router's table from .ai/references.json; --check exits 1 when it is behind
 pnpm changeset                  # record a change to the dw-sdlc package for its next release
 ```
 

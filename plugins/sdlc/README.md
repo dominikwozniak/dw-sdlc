@@ -53,9 +53,9 @@ disk is in the next session, a broken edit included.
   (`node <plugin root>/dw-sdlc/src/cli.ts config` from a repository runs it), and its `setup`,
   `doctor`, `references sync` and `references setup` are the Setup, the Doctor, the Sync and the
   References setup below, one module each under `src/commands/`. Beside them,
-  `src/references-key.ts` parses the `references` key and reads the config that holds it,
+  `src/references-key.ts` parses and reads `.ai/references.json`,
   `src/pins.ts` resolves a ref's `{name}`, `src/router-block.ts` writes the Router's block,
-  `config/references.schema.json` is the key's JSON Schema, and `templates/router.md` is the Router
+  `config/references.schema.json` is that file's JSON Schema, and `templates/router.md` is the Router
   the setup writes. `claude plugin install` copies the link as a real directory, so the installed
   plugin carries the package's code.
 - `skills/sdlc-setup/`, `skills/sdlc-doctor/`, `skills/sdlc-references-add/` — the skills: the
@@ -415,9 +415,8 @@ dropped and the guards run strictest.
 ## References
 
 The Sync for a repository's References: the repositories an agent reads to see how a problem was
-solved before, declared as the `references` key of `.ai/agentic.config.json` and cloned under
-`references/`. Only the committed file is read; the local layer adds no References. A repository
-without the key gets no output at all.
+solved before, declared in `.ai/references.json` and cloned under `references/`. Only the committed
+file is read; no local layer adds References. A repository without the file gets no output at all.
 
 Enabled at user scope, the plugin syncs a repository's References when a local Claude Code session
 starts, a new worktree's session included. A cloud session, Codex and a plain terminal load no
@@ -432,9 +431,11 @@ Sync fails, one line more says the clones stay where they were and names the com
 always exits 0, so being offline never blocks a session. The Sync is the package's
 `dw-sdlc references sync`, which the hook runs through the plugin's `dw-sdlc` link.
 
-### The key
+### The file
 
-An array of entries, each with:
+`.ai/references.json` is an object: `$schema`, optional, pointing at the package's
+`config/references.schema.json` so an editor completes the entries; `version`, `1`; and
+`references`, an array of entries, each with:
 
 - `dir` — the one directory under `references/` the clone lives in, unique in the list;
 - `repository` — a URL `git` can fetch; a `https://github.com/` one fetches with the GitHub CLI's
@@ -464,11 +465,11 @@ alone:
 }
 ```
 
-An unknown field is refused. The package's `config/references.schema.json` documents the contract;
-at runtime its `src/references-key.ts` is the authority, and one case list holds the two in
-agreement. The
-guardrails schema never names the key, so a mistake in it never moves the guards to the strictest
-set (ADR 0007).
+An unknown field or key is refused. The package's `config/references.schema.json` documents the
+contract; at runtime its `src/references-key.ts` is the authority, and one case list holds the two
+in agreement. A mistake in the file never touches the guards, which read only the agentic config.
+A `references` key in `.ai/agentic.config.json` is refused, so the file stays the one list; the
+setup moves such a key into the file (ADR 0011).
 
 ### The Sync
 
@@ -486,7 +487,7 @@ variables `git rev-parse --local-env-vars` lists are dropped, so a run from a gi
 touches the repository that hook points at, and the terminal prompt is off.
 
 A directory under `references/` the list does not name is reported and never deleted. When the
-Router or its table is missing or behind the key, one line more names the setup to run, and when
+Router or its table is missing or behind the file, one line more names the setup to run, and when
 the Router has one marker without the other, the line says so instead; neither changes the exit
 code.
 
@@ -500,8 +501,11 @@ on each other.
 
 ### Failures
 
-- **Exit 2**: a key the parser refuses, a config that is not JSON, or a named dir the list lacks.
-  Nothing is synced, and one line names the entry, the field and the reason.
+- **Exit 2**: a file the parser refuses or that is not JSON, a `references` key left in the
+  agentic config, or a named dir the list lacks. Nothing is synced, and one line names the entry,
+  the field and the reason, or the setup that moves the key; with the file there too, the merge to
+  make by hand. An agentic config that is not JSON is
+  the guards' to report and never stops the Sync.
 - **Exit 1**: an entry that fails to resolve fails alone, and the rest proceed. That covers an
   unreachable repository, a missing or inexact pin, an `only` path the fetched tree lacks, a clone
   with local edits the update would overwrite, and a directory that is not a clone of its
@@ -535,23 +539,24 @@ pnpm references:setup [--root <dir>] [--dry-run | --check]   # in a checkout of 
 
 - `references/AGENTS.md`, the Router, from the package's `templates/router.md` when nothing sits at
   its path, with its `CLAUDE.md` symlink, written once too. On every run, the block between the
-  Router's two markers: a table of each Reference's `dir` and `when`, one row per entry in the key's
-  order with `|` escaped, or one line saying `/sdlc-references-add <repository>` adds one when the
-  key is empty.
+  Router's two markers: a table of each Reference's `dir` and `when`, one row per entry in the
+  file's order with `|` escaped, or one line saying `/sdlc-references-add <repository>` adds one when
+  the list is empty.
   The text around the block stays as it is, and a Router without the markers gets the block at its
   end. A formatter may pad the table and space the block, so the block is in step when its rows say
-  what the key says, not when its bytes match;
+  what the file says, not when its bytes match;
 - `claudeMdExcludes` in `.claude/settings.json`: the clones' own `CLAUDE.md` and `AGENTS.md`;
 - `.gitignore`: `references/*`, then the two exceptions that keep the Router tracked;
-- `.ai/agentic.config.json`: an empty `references` key when the config has none, inserted so the
-  file keeps its layout.
+- `.ai/references.json` with no References when it is missing. A `references` key in
+  `.ai/agentic.config.json` moves into it instead, and leaves the config with the rest of its
+  layout as it was; with both there, both stay and the run is refused.
 
 A list gains only the entries it lacks, and nothing is removed, so a repeat writes nothing. Each
 file prints one line: `wrote`, `unchanged` or `refused`, and `would write` on a dry run. `--check`
 writes nothing and exits 1 when any file would change, so a repository's check can run it. A
-settings file or a config that is not a JSON object is refused and left as it is, and so is a
-`.gitignore` that ignores `references/` itself, since git then tracks nothing under it, and a Router
-with one marker and not the other, or whose key fails the parser; the run then exits 1.
+settings file that is not a JSON object is refused and left as it is, and so is a `.gitignore`
+that ignores `references/` itself, since git then tracks nothing under it, and a Router with one
+marker and not the other, or whose file or leftover key fails the parser; the run then exits 1.
 
 ## Tests
 
@@ -576,4 +581,4 @@ at the manifest's version.
 The commands' tests sit beside the package's code, in its `test/commands/`: `setup`, `doctor` and
 `config`, `references-sync.test.ts`, which drives the Sync against upstreams served over `file://`,
 and `references-setup.test.ts`, the setup with `--root`; `test/references-key.test.ts` runs one case
-list through the key's parser and its schema.
+list through the file's parser and its schema.

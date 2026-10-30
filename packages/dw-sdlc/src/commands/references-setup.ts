@@ -1,14 +1,22 @@
-// `dw-sdlc references setup` sets a repository up to declare References: the five files its USAGE names,
-// each written only when it would change. Existing content stays: a list gains the entries it lacks at
-// its end, nothing is removed or reordered, and a file the step cannot read as it expects is refused.
+// `dw-sdlc references setup` sets a repository up to declare References: the files its USAGE names,
+// each written only when it would change. A list gains the entries it lacks at its end; the one removal
+// is a `references` key moving out of the agentic config. A file it cannot read as expected is refused.
 
 import { spawnSync } from "node:child_process"
 import { existsSync, lstatSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { parseArgs } from "node:util"
 
-import { appendKey, parseObject, render } from "../json-text.ts"
-import { CONFIG, readReferences } from "../references-key.ts"
+import { parseObject, removeKey, render } from "../json-text.ts"
+import {
+  CONFIG,
+  REFERENCES_FILE,
+  leftoverKey,
+  leftoverProblem,
+  parseReferences,
+  readFile,
+  type Reference
+} from "../references-key.ts"
 import { renderBlock, withBlock } from "../router-block.ts"
 
 const ROUTER = "references/AGENTS.md"
@@ -17,6 +25,8 @@ const ROUTER_LINK = "references/CLAUDE.md"
 const SETTINGS = ".claude/settings.json"
 const IGNORE = ".gitignore"
 const TEMPLATE = join(import.meta.dirname, "..", "..", "templates", "router.md")
+/** Where a file the setup creates points `$schema`: the schema the pinned package installs. */
+const SCHEMA = "../node_modules/dw-sdlc/config/references.schema.json"
 
 /** A clone's own agent files at any depth; Claude Code matches the globs against absolute paths. */
 const EXCLUDES = [
@@ -40,12 +50,13 @@ const USAGE = `Usage: dw-sdlc references setup [--root <dir>] [--dry-run | --che
 
 Sets the repository at --root, or the one the current directory sits in, up to declare References:
 the Router in ${ROUTER} with its CLAUDE.md symlink and, between its two markers, the table of each
-Reference's dir and when from the references key, claudeMdExcludes in ${SETTINGS} for the clones'
-own agent files, the ${IGNORE} lines that keep every clone out of git but the Router, and an empty
-references key in ${CONFIG}. Every file is written only when it would change, and the text around
-the Router's table never; --dry-run reports without writing, and --check does the same and exits 1
-when a file would change. Prints one line per file. Exit 1 when a file is refused, 2 on a bad
-argument.`
+Reference's dir and when from ${REFERENCES_FILE}, claudeMdExcludes in ${SETTINGS} for the clones' own agent
+files, the ${IGNORE} lines that keep every clone out of git but the Router, and ${REFERENCES_FILE} itself
+with no References when it is missing. A references key in ${CONFIG} moves into a missing ${REFERENCES_FILE}
+and leaves the config; with the file there too, both stay and the step is refused. Every file is
+written only when it would change, and the text around the Router's table never; --dry-run reports
+without writing, and --check does the same and exits 1 when a file would change. Prints one line
+per file. Exit 1 when a file is refused, 2 on a bad argument.`
 
 type Outcome = "wrote" | "unchanged" | "refused"
 type Step = { file: string; outcome: Outcome; detail?: string }
@@ -137,16 +148,52 @@ function withIgnoreLines(current: string | undefined): Change {
   return { text: `${head}${gap}${missing.join("\n")}\n` }
 }
 
-/** The config with an empty `references` key when it has none, inserted so its own layout stays. */
-function withEmptyKey(current: string | undefined): Change {
-  if (current === undefined) {
-    return { text: render({ references: [] }) }
+/** The text of a References file the setup creates, declaring `references`. */
+function fileOf(references: unknown): string {
+  return render({ $schema: SCHEMA, version: 1, references })
+}
+
+/** The References the Router's table comes from, the text of the file, and the config's when the key moves. */
+type Source = {
+  references: Reference[] | undefined
+  file: Change
+  config?: (current: string | undefined) => Change
+}
+
+/**
+ * Where the References come from: a `references` key left in the config moves into a missing file,
+ * and a repository with neither gets the file with no References; the file and the key both there
+ * are refused, and so is a key the parser refuses.
+ */
+function source(root: string): Source | { problem: string; file?: Change } {
+  const key = leftoverKey(root)
+  const path = join(root, REFERENCES_FILE)
+  if (key === undefined) {
+    const reading = readFile(root)
+    if ("problem" in reading) {
+      // The problem is the file's own, and the Router's line names it; the file stays as it is.
+      return { problem: reading.problem, file: { text: readFileSync(path, "utf8") } }
+    }
+    return {
+      references: reading.references,
+      file: { text: existsSync(path) ? readFileSync(path, "utf8") : fileOf([]) }
+    }
   }
-  const config = parseObject(current)
-  if (config === undefined) {
-    return { refusal: "is not a JSON object; fix it by hand first" }
+  if (existsSync(path)) {
+    return { problem: leftoverProblem(true) }
   }
-  return { text: Object.hasOwn(config, "references") ? current : appendKey(current, "references", []) }
+  const parsed = parseReferences(key)
+  if ("problem" in parsed) {
+    return { problem: `${CONFIG}: ${parsed.problem.path}: ${parsed.problem.message}; fix it by hand first` }
+  }
+  return {
+    references: parsed.references,
+    file: { text: fileOf(key) },
+    config: (current) =>
+      current === undefined || parseObject(current) === undefined
+        ? { refusal: "is not a JSON object; fix it by hand first" }
+        : { text: removeKey(current, "references") }
+  }
 }
 
 /** The repository `dir` sits in, or `dir` itself outside one. */
@@ -158,12 +205,12 @@ function toplevel(dir: string): string {
 function setup(root: string, dryRun: boolean): Step[] {
   const writer = new Writer(root, dryRun)
   const template = readFileSync(TEMPLATE, "utf8")
-  const reading = readReferences(root)
+  const from = source(root)
   writer.put(ROUTER, (current) => {
-    if ("problem" in reading) {
-      return { refusal: `${reading.problem}; the table comes from the key, so fix it first` }
+    if ("problem" in from) {
+      return { refusal: `${from.problem}; the table comes from ${REFERENCES_FILE}, so fix it first` }
     }
-    const next = withBlock(current ?? template, renderBlock(reading.references ?? []))
+    const next = withBlock(current ?? template, renderBlock(from.references ?? []))
     return "problem" in next ? { refusal: next.problem } : next
   })
   writer.create(ROUTER_LINK, (path) => {
@@ -171,7 +218,10 @@ function setup(root: string, dryRun: boolean): Step[] {
   })
   writer.put(SETTINGS, withExcludes)
   writer.put(IGNORE, withIgnoreLines)
-  writer.put(CONFIG, withEmptyKey)
+  writer.put(REFERENCES_FILE, () => ("problem" in from ? (from.file ?? { refusal: from.problem }) : from.file))
+  if (!("problem" in from) && from.config !== undefined) {
+    writer.put(CONFIG, from.config)
+  }
   return writer.steps
 }
 

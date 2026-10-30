@@ -1,5 +1,5 @@
 // The text of a JSON object file as the setup commands read and write it: parsed only when it holds an
-// object, rendered two spaces in, and a key appended so a hand-formatted file keeps its layout.
+// object, rendered two spaces in, and a key appended or removed so a hand-formatted file keeps its layout.
 
 export type JsonObject = Record<string, unknown>
 
@@ -28,4 +28,79 @@ export function appendKey(text: string, key: string, value: unknown): string {
   const comma = body.endsWith("{") ? "" : ","
   const rendered = JSON.stringify(value, null, 2).replaceAll("\n", "\n  ")
   return `${body}${comma}\n  ${JSON.stringify(key)}: ${rendered}\n${text.slice(close)}`
+}
+
+/** The index just past the JSON string that opens at `start`, or the text's end when it never closes. */
+function stringEnd(text: string, start: number): number {
+  let index = start + 1
+  while (index < text.length && text[index] !== '"') {
+    index += text[index] === "\\" ? 2 : 1
+  }
+  return Math.min(index + 1, text.length)
+}
+
+/** The start and end of the top-level member `key` in `text`, a JSON object, from its name to its value's end. */
+function memberSpan(text: string, key: string): { start: number; end: number } | undefined {
+  let depth = 0
+  let expectKey = false
+  let start: number | undefined
+  // Just past the last character that is not whitespace: where the member's value ends once a `,` or `}` follows.
+  let lastValue = 0
+  for (let index = 0; index < text.length;) {
+    const char = text.charAt(index)
+    if (char === '"') {
+      const end = stringEnd(text, index)
+      if (depth === 1 && expectKey) {
+        expectKey = false
+        if (start === undefined && JSON.parse(text.slice(index, end)) === key) {
+          start = index
+        }
+      }
+      lastValue = end
+      index = end
+      continue
+    }
+    if (char === "{" || char === "[") {
+      depth += 1
+      expectKey = char === "{" && depth === 1
+    } else if (char === "}" || char === "]") {
+      depth -= 1
+      if (depth === 0 && start !== undefined) {
+        return { start, end: lastValue }
+      }
+    } else if (char === "," && depth === 1) {
+      if (start !== undefined) {
+        return { start, end: lastValue }
+      }
+      expectKey = true
+    }
+    if (!/\s/.test(char)) {
+      lastValue = index + 1
+    }
+    index += 1
+  }
+  return undefined
+}
+
+/**
+ * `text`, a JSON object, without its top-level `key`, every copy of it when the key repeats; the
+ * members around it keep their layout.
+ */
+export function removeKey(text: string, key: string): string {
+  const span = memberSpan(text, key)
+  if (span === undefined) {
+    return text
+  }
+  return removeKey(withoutSpan(text, span), key)
+}
+
+/** `text` without the member at `span` and the comma that joins it to its neighbour. */
+function withoutSpan(text: string, span: { start: number; end: number }): string {
+  const after = text.slice(span.end).match(/^\s*,\s*/)
+  if (after !== null) {
+    return text.slice(0, span.start) + text.slice(span.end + after[0].length)
+  }
+  const before = text.slice(0, span.start).match(/,?\s*$/)
+  const cut = span.start - (before?.[0].length ?? 0)
+  return text.slice(0, cut) + text.slice(span.end)
 }
