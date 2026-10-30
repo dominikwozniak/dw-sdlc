@@ -59,8 +59,7 @@ describe("the agentic:check command", () => {
     assert.equal(verdict.stdout, `${COMMITTED_FILE}: valid\n`)
   })
 
-  it("resolves a repository holding this one's config and its references key off the strictest set, exit 0", () => {
-    assert.ok(Array.isArray(JSON.parse(OWN_CONFIG).references), "the committed config declares References")
+  it("resolves a repository holding this one's config off the strictest set, exit 0", () => {
     const root = repo({ files: { [COMMITTED_FILE]: OWN_CONFIG } })
     const verdict = runBin(["config", "--root", root], REPO_ROOT)
     assert.equal(verdict.status, 0, verdict.stderr)

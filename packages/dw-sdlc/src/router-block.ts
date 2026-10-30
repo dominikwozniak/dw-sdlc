@@ -1,16 +1,16 @@
-// The Router's block: a table of each Reference's `dir` and `when`, written from the `references` key
+// The Router's block: a table of each Reference's `dir` and `when`, written from `.ai/references.json`
 // between two markers. The setup writes it and the Sync checks it; the rest of the Router is the
-// author's. A block is in step when its rows say what the key says, not its bytes, which a formatter pads.
+// author's. A block is in step when its rows say what the file says, not its bytes, which a formatter pads.
 
 import type { Reference } from "./references-key.ts"
 
-const START = "<!-- references:start — written from .ai/agentic.config.json by the setup; edit the key -->"
+const START = "<!-- references:start — written from .ai/references.json by the setup; edit the file -->"
 const END = "<!-- references:end -->"
 const START_LINE = /^<!-- references:start\b.*-->\s*$/
 const END_LINE = /^<!-- references:end -->\s*$/
 const NONE = "No Reference is declared yet: `/sdlc-references-add <repository>` adds one."
 
-/** The block the key gives: one row per Reference in the key's order, or one line when it has none. */
+/** The block the file gives: one row per Reference in the file's order, or one line when it has none. */
 export function renderBlock(references: Reference[]): string {
   const body =
     references.length === 0

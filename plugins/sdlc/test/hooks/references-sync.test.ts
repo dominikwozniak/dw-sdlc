@@ -21,6 +21,7 @@ import {
 } from "../references-harness.ts"
 
 const CONFIG = ".ai/agentic.config.json"
+const FILE = ".ai/references.json"
 
 /** The hook's run for a session starting in `project`, spawned from elsewhere. */
 function start(project: string): Run {
@@ -42,7 +43,7 @@ function entry(dir: string, url: string): Record<string, unknown> {
 }
 
 describe("references-sync.sh", () => {
-  it("prints nothing and exits 0 in a repository without the key", () => {
+  it("prints nothing and exits 0 in a repository without References", () => {
     const project = initRepo(scratch("keyless"))
     writeJson(join(project, CONFIG), { version: 1 })
     assert.deepEqual(start(project), { status: 0, stdout: "", stderr: "" })
@@ -52,8 +53,9 @@ describe("references-sync.sh", () => {
     const fine = upstream()
     const gone = pathToFileURL(join(scratch("gone"), "nothing")).href
     const project = initRepo(scratch("project"))
-    writeJson(join(project, CONFIG), { version: 1, references: [entry("fine", fine), entry("gone", gone)] })
-    // The Router in step with the key, so the Sync has nothing to say about it.
+    writeJson(join(project, CONFIG), { version: 1 })
+    writeJson(join(project, FILE), { version: 1, references: [entry("fine", fine), entry("gone", gone)] })
+    // The Router in step with the file, so the Sync has nothing to say about it.
     assert.equal(runReferences("setup", [], project).status, 0)
 
     const run = start(project)

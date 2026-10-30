@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded by ADR 0011
 ---
 
 # A repository's References are a key of its agentic config that the references plugin owns

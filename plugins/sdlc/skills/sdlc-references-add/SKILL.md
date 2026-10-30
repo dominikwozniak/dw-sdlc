@@ -25,7 +25,7 @@ show it and stop.
 
 ## 2. A look at the repository
 
-When the key already lists the repository, name its `dir` and stop. Otherwise make a directory with
+When `.ai/references.json` already lists the repository, name its `dir` and stop. Otherwise make a directory with
 `mktemp -d`, the scout, and clone the repository into it, shallow and without blobs, so the steps
 below read its tree without a checkout. Each Bash call starts a new shell, so write the scout's path
 out in every command where `<scout>` stands:
@@ -139,13 +139,13 @@ them. Nothing like that: no `skip`.
 
 ## 7. The entry
 
-Read the entries the key holds and write in their style. Read the repository's README
+Read the entries `.ai/references.json` holds and write in their style. Read the repository's README
 (`git -C <scout> show <at>:README.md`) for what it is, and with `only`, the README of each of its
 paths.
 
 - `dir`: the repository's name, or the part's when the link names one (`pstack` for
   `cursor/plugins/tree/main/pstack`), its owner's in front when the name alone says little
-  (`mattpocock-skills` for `mattpocock/skills`); unique in the key, and not a directory under
+  (`mattpocock-skills` for `mattpocock/skills`); unique in the file, and not a directory under
   `references/` that is a clone of another repository.
 - `repository`: the URL, as the argument gives it, or `https://github.com/owner/repo` for
   `owner/repo` and for any link with `tree/` in it.
@@ -159,7 +159,7 @@ paths.
   the paths: "less `pstack/assets/`".
 - `when`: the tasks an agent opens this clone for, as a phrase; several joined by "or".
 
-Append the entry as the last item of the key in `.ai/agentic.config.json`, in the file's own layout.
+Append the entry as the last item of `references` in `.ai/references.json`, in the file's own layout.
 
 ## 8. The table
 
@@ -167,7 +167,7 @@ Append the entry as the last item of the key in `.ai/agentic.config.json`, in th
 node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" references setup
 ```
 
-The setup again: it rewrites the Router's table from the key, the new entry's row included, and
+The setup again: it rewrites the Router's table from the file, the new entry's row included, and
 touches nothing else in the Router. Show its line for `references/AGENTS.md`. A `refused` line
 there names the field of the entry the parser refuses: fix the entry and run again.
 
@@ -185,7 +185,7 @@ an `only` path the fetched tree lacks. Show it, leave the entry and stop.
 Read the repository's root agent instructions: `AGENTS.md`, or `CLAUDE.md` when there is no
 `AGENTS.md`. When no line in them points at `references/AGENTS.md`, propose one: a row for their task
 table, or one line when they have no table, with the tasks on the left phrased from the `when` of
-every entry the key holds and the Router on the right, as
+every entry the file holds and the Router on the right, as
 `| how others built a skill, hook or plugin, before designing one | references/AGENTS.md |`. Write
 it only after a yes, and never rewrite a row or a line that is already there.
 

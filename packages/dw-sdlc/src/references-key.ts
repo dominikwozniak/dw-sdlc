@@ -1,11 +1,13 @@
-// The strict parser of the `references` key, the authority at runtime, and the reader of the committed
-// config that holds it. `config/references.schema.json` documents the same contract, and
-// `test/references-key.test.ts` runs one case list through both. The first problem stops the parse.
+// The strict parser of `.ai/references.json`, the authority at runtime, and its reader. The file's
+// `references` key holds the entries. `config/references.schema.json` documents the same contract,
+// and `test/references-key.test.ts` runs one case list through both. The first problem stops the parse.
 
 import { existsSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 
-/** The committed config, the only file the key is read from. */
+/** The committed file the References are read from; no local layer adds to it. */
+export const FILE = ".ai/references.json"
+/** The committed agentic config: a `references` key in it is refused, so the file stays the one list. */
 export const CONFIG = ".ai/agentic.config.json"
 
 export type Reference = {
@@ -20,6 +22,7 @@ export type Reference = {
 
 export type KeyProblem = { path: string; message: string }
 
+const FILE_FIELDS = ["$schema", "version", "references"]
 const FIELDS = ["dir", "repository", "ref", "only", "skip", "what", "when"]
 const REQUIRED = ["dir", "repository", "ref", "what", "when"]
 
@@ -163,30 +166,72 @@ export function parseReferences(value: unknown): { references: Reference[] } | {
   }
 }
 
+/** The References the file's parsed `value` declares, or the first problem in it; `""` names its root. */
+export function parseFile(value: unknown): { references: Reference[] } | { problem: KeyProblem } {
+  if (!isObject(value)) {
+    return { problem: { path: "", message: `must be an object, not ${kind(value)}` } }
+  }
+  const unknown = Object.keys(value).find((field) => !FILE_FIELDS.includes(field))
+  if (unknown !== undefined) {
+    return { problem: { path: "", message: `unknown key ${JSON.stringify(unknown)}` } }
+  }
+  const missing = ["version", "references"].find((field) => !Object.hasOwn(value, field))
+  if (missing !== undefined) {
+    return { problem: { path: "", message: `missing key ${JSON.stringify(missing)}` } }
+  }
+  if (value.$schema !== undefined && typeof value.$schema !== "string") {
+    return { problem: { path: "$schema", message: `must be a string, not ${kind(value.$schema)}` } }
+  }
+  if (value.version !== 1) {
+    return { problem: { path: "version", message: `must be 1, not ${JSON.stringify(value.version)}` } }
+  }
+  return parseReferences(value.references)
+}
+
+/** The JSON object at `path`, `undefined` without the file, or why it is not one. */
+function readObject(path: string, name: string): { value: Record<string, unknown> | undefined } | { problem: string } {
+  if (!existsSync(path)) {
+    return { value: undefined }
+  }
+  let value: unknown
+  try {
+    value = JSON.parse(readFileSync(path, "utf8"))
+  } catch (error) {
+    return { problem: `${name}: not JSON: ${error instanceof Error ? error.message : String(error)}` }
+  }
+  return isObject(value) ? { value } : { problem: `${name}: not a JSON object` }
+}
+
+/** The `references` key the agentic config at `root` still holds, `undefined` without one or the config. */
+export function leftoverKey(root: string): unknown {
+  const read = readObject(join(root, CONFIG), CONFIG)
+  return "value" in read && read.value !== undefined && Object.hasOwn(read.value, "references")
+    ? read.value.references
+    : undefined
+}
+
 /**
- * The References the committed config at `root` declares, `undefined` without the file or the key,
- * or the problem that stops the read: the file is not a JSON object, or the key fails the parser.
+ * The References the file at `root` declares, `undefined` without the file, or the problem that stops
+ * the read: a `references` key left in the agentic config, a file that is not JSON, or one the parser
+ * refuses. A config that is not JSON is the guards' to report, not the read's.
  */
 export function readReferences(root: string): { references: Reference[] | undefined } | { problem: string } {
-  const path = join(root, CONFIG)
-  if (!existsSync(path)) {
+  if (leftoverKey(root) !== undefined) {
+    return {
+      problem: `${CONFIG}: the references key belongs in ${FILE}; move it there with \`dw-sdlc references setup\``
+    }
+  }
+  const read = readObject(join(root, FILE), FILE)
+  if ("problem" in read) {
+    return read
+  }
+  if (read.value === undefined) {
     return { references: undefined }
   }
-  let config: unknown
-  try {
-    config = JSON.parse(readFileSync(path, "utf8"))
-  } catch (error) {
-    return { problem: `${CONFIG}: not JSON: ${error instanceof Error ? error.message : String(error)}` }
-  }
-  if (!isObject(config)) {
-    return { problem: `${CONFIG}: not a JSON object` }
-  }
-  if (!Object.hasOwn(config, "references")) {
-    return { references: undefined }
-  }
-  const parsed = parseReferences(config.references)
+  const parsed = parseFile(read.value)
   if ("problem" in parsed) {
-    return { problem: `${CONFIG}: ${parsed.problem.path}: ${parsed.problem.message}` }
+    const where = parsed.problem.path === "" ? "" : `${parsed.problem.path}: `
+    return { problem: `${FILE}: ${where}${parsed.problem.message}` }
   }
   return { references: parsed.references }
 }

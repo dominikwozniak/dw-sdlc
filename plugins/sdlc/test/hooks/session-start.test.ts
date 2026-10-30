@@ -236,11 +236,11 @@ describe("a references key is its plugin's, never a config problem", () => {
   after(() => {
     git(MAIN, "checkout", "-q", "--", ".ai/agentic.config.json")
   })
-  it("silent on this repository's own config, its key included", () => {
+  it("silent on this repository's own config", () => {
     copyFileSync(join(REPO_ROOT, ".ai", "agentic.config.json"), join(MAIN, ".ai", "agentic.config.json"))
     assert.equal(report(MAIN), "")
   })
-  it("silent on a key the references plugin refuses", () => {
+  it("silent on a references key the Sync refuses", () => {
     writeJson(join(MAIN, ".ai", "agentic.config.json"), { references: [{ dir: "../x", branch: "main" }, "kody"] })
     assert.equal(report(MAIN), "")
   })

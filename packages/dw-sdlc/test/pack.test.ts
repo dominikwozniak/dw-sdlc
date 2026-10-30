@@ -146,7 +146,8 @@ console.log(JSON.stringify(resolveConfig(process.cwd()).config.gate.steps))`
         what: "a clone",
         when: "a test"
       }
-      writeJson(join(consumer, CONFIG), { version: 1, gate: { steps: ["true"] }, references: [reference] })
+      writeJson(join(consumer, CONFIG), { version: 1, gate: { steps: ["true"] } })
+      writeJson(join(consumer, ".ai/references.json"), { version: 1, references: [reference] })
 
       const sync = succeeded(
         "references sync",

@@ -39,35 +39,43 @@ function json(root: string, file: string): unknown {
   return JSON.parse(read(root, file))
 }
 
-/** An entry of the key for a GitHub repository named `dir`. */
+const SCHEMA = "../node_modules/dw-sdlc/config/references.schema.json"
+
+/** An entry of the file for a GitHub repository named `dir`. */
 function reference(dir: string, when: string): Record<string, unknown> {
   return { dir, repository: `https://github.com/o/${dir}`, ref: "main", what: `the ${dir} repository`, when }
+}
+
+/** `.ai/references.json` at `root`, declaring `references`. */
+function declare(root: string, ...references: Record<string, unknown>[]): void {
+  writeJson(join(root, ".ai/references.json"), { version: 1, references })
 }
 
 describe("a first run", () => {
   const root = initRepo(scratch("repo"))
   const run = setup(root)
 
-  it("writes the Router and its symlink, the exclusion globs, the ignore lines and an empty key", () => {
+  it("writes the Router and its symlink, the exclusion globs, the ignore lines and a file with no References", () => {
     expectStatus(run, 0)
     assert.deepEqual(lines(run.stdout), [
       "wrote       references/AGENTS.md",
       "wrote       references/CLAUDE.md",
       "wrote       .claude/settings.json",
       "wrote       .gitignore",
-      "wrote       .ai/agentic.config.json"
+      "wrote       .ai/references.json"
     ])
     assert.equal(run.stderr, "")
     assert.equal(read(root, "references/AGENTS.md"), ROUTER)
     assert.equal(readlinkSync(join(root, "references/CLAUDE.md")), "AGENTS.md")
     assert.deepEqual(json(root, ".claude/settings.json"), { claudeMdExcludes: EXCLUDES })
-    assert.deepEqual(json(root, ".ai/agentic.config.json"), { references: [] })
+    assert.deepEqual(json(root, ".ai/references.json"), { $schema: SCHEMA, version: 1, references: [] })
+    assert.ok(!existsSync(join(root, ".ai/agentic.config.json")), "the setup wrote the agentic config")
   })
 
   it("gives the Router a block under The list that says how the first Reference is added", () => {
     const router = read(root, "references/AGENTS.md")
     const block = router.indexOf(
-      "<!-- references:start — written from .ai/agentic.config.json by the setup; edit the key -->"
+      "<!-- references:start — written from .ai/references.json by the setup; edit the file -->"
     )
     assert.ok(block > router.indexOf("## The list"), "the block sits under The list")
     assert.ok(block < router.indexOf("## Rules"), "the block sits above Rules")
@@ -75,7 +83,7 @@ describe("a first run", () => {
     assert.match(router, /^<!-- references:end -->$/m)
   })
 
-  it("leaves a key the Sync reads as no References", () => {
+  it("leaves a file the Sync reads as no References", () => {
     const sync = runReferences("sync", [], root)
     expectStatus(sync, 0)
     assert.equal(sync.stdout, "")
@@ -95,7 +103,7 @@ describe("a repeat", () => {
   it("writes nothing on a second run", () => {
     const root = initRepo(scratch("repo"))
     expectStatus(setup(root), 0)
-    const files = ["references/AGENTS.md", ".claude/settings.json", ".gitignore", ".ai/agentic.config.json"]
+    const files = ["references/AGENTS.md", ".claude/settings.json", ".gitignore", ".ai/references.json"]
     const before = files.map((file) => read(root, file))
     const run = setup(root)
     expectStatus(run, 0)
@@ -104,7 +112,7 @@ describe("a repeat", () => {
       "unchanged   references/CLAUDE.md",
       "unchanged   .claude/settings.json",
       "unchanged   .gitignore",
-      "unchanged   .ai/agentic.config.json"
+      "unchanged   .ai/references.json"
     ])
     assert.deepEqual(
       files.map((file) => read(root, file)),
@@ -116,7 +124,7 @@ describe("a repeat", () => {
 describe("what the setup never overwrites or removes", () => {
   it("the text of an existing Router, which gains the block at its end when it has no markers, and a CLAUDE.md of its own", () => {
     const block =
-      "<!-- references:start — written from .ai/agentic.config.json by the setup; edit the key -->\n" +
+      "<!-- references:start — written from .ai/references.json by the setup; edit the file -->\n" +
       "No Reference is declared yet: `/sdlc-references-add <repository>` adds one.\n" +
       "<!-- references:end -->\n"
     for (const router of ["# my router\n", "# my router"]) {
@@ -172,30 +180,92 @@ describe("what the setup never overwrites or removes", () => {
     assert.equal(read(partial, ".gitignore"), "dist/\nreferences/*\n!references/AGENTS.md\n!references/CLAUDE.md\n")
   })
 
-  it("a config's other keys and their layout, the empty key added at its end", () => {
+  it("an agentic config without a references key, never touched", () => {
     const root = initRepo(scratch("repo"))
-    write(join(root, ".ai/agentic.config.json"), '{\n  "version": 1,\n  "packageManagers": { "node": "pnpm" }\n}\n')
-    expectStatus(setup(root), 0)
-    assert.equal(
-      read(root, ".ai/agentic.config.json"),
-      '{\n  "version": 1,\n  "packageManagers": { "node": "pnpm" },\n  "references": []\n}\n'
-    )
-  })
-
-  it("a key the config already has, entries and all", () => {
-    const root = initRepo(scratch("repo"))
-    const config =
-      '{ "references": [{ "dir": "kody", "repository": "https://github.com/kody-hq/kody", "ref": "main", "what": "Kody", "when": "a test" }] }\n'
+    const config = '{\n  "version": 1,\n  "packageManagers": { "node": "pnpm" }\n}\n'
     write(join(root, ".ai/agentic.config.json"), config)
     const run = setup(root)
     expectStatus(run, 0)
-    assert.ok(lines(run.stdout).includes("unchanged   .ai/agentic.config.json"), run.stdout)
+    assert.ok(!run.stdout.includes(".ai/agentic.config.json"), run.stdout)
     assert.equal(read(root, ".ai/agentic.config.json"), config)
+  })
+
+  it("a file the repository already has, entries, layout and all", () => {
+    const root = initRepo(scratch("repo"))
+    const file =
+      '{ "version": 1, "references": [{ "dir": "kody", "repository": "https://github.com/kody-hq/kody", "ref": "main", "what": "Kody", "when": "a test" }] }\n'
+    write(join(root, ".ai/references.json"), file)
+    const run = setup(root)
+    expectStatus(run, 0)
+    assert.ok(lines(run.stdout).includes("unchanged   .ai/references.json"), run.stdout)
+    assert.equal(read(root, ".ai/references.json"), file)
+  })
+})
+
+describe("a references key left in the agentic config", () => {
+  it("moves into a new file and leaves the config, its other keys and their layout kept", () => {
+    const root = initRepo(scratch("repo"))
+    const kody = reference("kody", "a large repo")
+    write(
+      join(root, ".ai/agentic.config.json"),
+      `{\n  "version": 1,\n  "references": [${JSON.stringify(kody)}],\n  "packageManagers": { "node": "pnpm" }\n}\n`
+    )
+    const run = setup(root)
+    expectStatus(run, 0)
+    assert.deepEqual(lines(run.stdout).slice(-2), [
+      "wrote       .ai/references.json",
+      "wrote       .ai/agentic.config.json"
+    ])
+    assert.equal(
+      read(root, ".ai/agentic.config.json"),
+      '{\n  "version": 1,\n  "packageManagers": { "node": "pnpm" }\n}\n'
+    )
+    assert.deepEqual(json(root, ".ai/references.json"), { $schema: SCHEMA, version: 1, references: [kody] })
+    assert.match(read(root, "references/AGENTS.md"), /^\| `kody` \| a large repo \|$/m)
+
+    const again = setup(root)
+    expectStatus(again, 0)
+    assert.ok(
+      lines(again.stdout).every((line) => line.startsWith("unchanged   ")),
+      again.stdout
+    )
+  })
+
+  it("is refused beside a file, both left as they are; exit 1", () => {
+    const root = initRepo(scratch("repo"))
+    const config = `${JSON.stringify({ version: 1, references: [reference("kody", "a large repo")] })}\n`
+    write(join(root, ".ai/agentic.config.json"), config)
+    declare(root, reference("dw-mc", "a CLI"))
+    const file = read(root, ".ai/references.json")
+    const run = setup(root)
+    expectStatus(run, 1)
+    const problem =
+      ".ai/agentic.config.json has a references key beside .ai/references.json; merge it into the file and remove the key by hand"
+    assert.ok(lines(run.stdout).includes(`refused     .ai/references.json — ${problem}`), run.stdout)
+    assert.ok(!run.stdout.includes("wrote       .ai/agentic.config.json"), run.stdout)
+    assert.equal(read(root, ".ai/agentic.config.json"), config)
+    assert.equal(read(root, ".ai/references.json"), file)
+  })
+
+  it("is refused when the parser refuses it, naming the entry, the field and the reason; nothing moves", () => {
+    const root = initRepo(scratch("repo"))
+    const config = `${JSON.stringify({ references: [{ ...reference("kody", "a test"), ref: "" }] })}\n`
+    write(join(root, ".ai/agentic.config.json"), config)
+    const run = setup(root)
+    expectStatus(run, 1)
+    assert.ok(
+      lines(run.stdout).includes(
+        "refused     .ai/references.json — .ai/agentic.config.json: references[0].ref: must not be empty; fix it by hand first"
+      ),
+      run.stdout
+    )
+    assert.equal(read(root, ".ai/agentic.config.json"), config)
+    assert.ok(!existsSync(join(root, ".ai/references.json")))
   })
 })
 
 describe("the Router's table", () => {
-  const START = "<!-- references:start — written from .ai/agentic.config.json by the setup; edit the key -->"
+  const START = "<!-- references:start — written from .ai/references.json by the setup; edit the file -->"
   const END = "<!-- references:end -->"
 
   /** `text` with its block, the markers included, replaced by `block`. */
@@ -207,14 +277,13 @@ describe("the Router's table", () => {
     return [START, "| dir | reach for it when |", "| --- | --- |", ...rows, END].join("\n")
   }
 
-  it("writes one row per entry in the key's order, when verbatim with | escaped", () => {
+  it("writes one row per entry in the file's order, when verbatim with | escaped", () => {
     const root = initRepo(scratch("repo"))
-    writeJson(join(root, ".ai/agentic.config.json"), {
-      references: [
-        reference("kody", "agent instructions for a large repo, or `a | b` in a code span"),
-        reference("dw-mc", "a CLI over `gh`")
-      ]
-    })
+    declare(
+      root,
+      reference("kody", "agent instructions for a large repo, or `a | b` in a code span"),
+      reference("dw-mc", "a CLI over `gh`")
+    )
     const run = setup(root)
     expectStatus(run, 0)
     assert.ok(lines(run.stdout).includes("wrote       references/AGENTS.md"), run.stdout)
@@ -232,12 +301,11 @@ describe("the Router's table", () => {
 
   it("writes nothing on a second run, and nothing when a formatter padded the table and spaced the block", () => {
     const root = initRepo(scratch("repo"))
-    writeJson(join(root, ".ai/agentic.config.json"), {
-      references: [
-        reference("kody", "agent instructions for a large repo, or `a | b` in a code span"),
-        reference("dw-mc", "a CLI over `gh`")
-      ]
-    })
+    declare(
+      root,
+      reference("kody", "agent instructions for a large repo, or `a | b` in a code span"),
+      reference("dw-mc", "a CLI over `gh`")
+    )
     expectStatus(setup(root), 0)
     const written = read(root, "references/AGENTS.md")
     const again = setup(root)
@@ -267,11 +335,9 @@ describe("the Router's table", () => {
     assert.equal(read(root, "references/AGENTS.md"), padded)
   })
 
-  it("rewrites only the block when the table falls behind the key, the text around it byte for byte", () => {
+  it("rewrites only the block when the table falls behind the file, the text around it byte for byte", () => {
     const root = initRepo(scratch("repo"))
-    writeJson(join(root, ".ai/agentic.config.json"), {
-      references: [reference("kody", "a large repo"), reference("dw-mc", "a CLI over `gh`")]
-    })
+    declare(root, reference("kody", "a large repo"), reference("dw-mc", "a CLI over `gh`"))
     const before = "# mine\n\nMy own words, kept as they are.\n\n"
     const after = "\n\n## My rules\n\n- mine too\n"
     write(join(root, "references/AGENTS.md"), `${before}${table("| `kody` | a large repo |")}${after}`)
@@ -284,9 +350,9 @@ describe("the Router's table", () => {
     )
   })
 
-  it("sees a when that changed inside its cell as behind the key, the spaces at the cell's edges aside", () => {
+  it("sees a when that changed inside its cell as behind the file, the spaces at the cell's edges aside", () => {
     const root = initRepo(scratch("repo"))
-    writeJson(join(root, ".ai/agentic.config.json"), { references: [reference("kody", "a large repo")] })
+    declare(root, reference("kody", "a large repo"))
     write(join(root, "references/AGENTS.md"), routerWith(ROUTER, table("| `kody`    | a  large repo   |")))
     const run = setup(root)
     expectStatus(run, 0)
@@ -294,17 +360,17 @@ describe("the Router's table", () => {
     assert.equal(read(root, "references/AGENTS.md"), routerWith(ROUTER, table("| `kody` | a large repo |")))
   })
 
-  it("refuses the Router when the key fails the parser, naming the entry, the field and the reason; exit 1", () => {
+  it("refuses the Router when the file fails the parser, naming the entry, the field and the reason; exit 1", () => {
     const root = initRepo(scratch("repo"))
-    writeJson(join(root, ".ai/agentic.config.json"), { references: [{ ...reference("kody", "a test"), ref: "" }] })
+    declare(root, { ...reference("kody", "a test"), ref: "" })
     const run = setup(root)
     expectStatus(run, 1)
     assert.deepEqual(lines(run.stdout), [
-      "refused     references/AGENTS.md — .ai/agentic.config.json: references[0].ref: must not be empty; the table comes from the key, so fix it first",
+      "refused     references/AGENTS.md — .ai/references.json: references[0].ref: must not be empty; the table comes from .ai/references.json, so fix it first",
       "wrote       references/CLAUDE.md",
       "wrote       .claude/settings.json",
       "wrote       .gitignore",
-      "unchanged   .ai/agentic.config.json"
+      "unchanged   .ai/references.json"
     ])
     assert.ok(!existsSync(join(root, "references/AGENTS.md")))
   })
@@ -320,7 +386,7 @@ describe("a dry run", () => {
       "would write references/CLAUDE.md",
       "would write .claude/settings.json",
       "would write .gitignore",
-      "would write .ai/agentic.config.json"
+      "would write .ai/references.json"
     ])
     for (const file of ["references", ".claude", ".gitignore", ".ai"]) {
       assert.ok(!existsSync(join(root, file)), `${file} written by a dry run`)
@@ -329,7 +395,7 @@ describe("a dry run", () => {
 })
 
 describe("--check", () => {
-  it("writes nothing, and exits 1 when any file would change: a missing Router, a block behind the key, one without markers", () => {
+  it("writes nothing, and exits 1 when any file would change: a missing Router, a block behind the file, one without markers", () => {
     const root = initRepo(scratch("repo"))
     const fresh = setup(root, "--check")
     expectStatus(fresh, 1)
@@ -338,7 +404,7 @@ describe("--check", () => {
       "would write references/CLAUDE.md",
       "would write .claude/settings.json",
       "would write .gitignore",
-      "would write .ai/agentic.config.json"
+      "would write .ai/references.json"
     ])
     assert.ok(!existsSync(join(root, "references")), "a check wrote the Router")
 
@@ -350,17 +416,24 @@ describe("--check", () => {
       inStep.stdout
     )
 
-    const config = {
-      references: [
-        { dir: "kody", repository: "https://github.com/kody-hq/kody", ref: "main", what: "Kody", when: "a test" }
-      ]
-    }
-    writeJson(join(root, ".ai/agentic.config.json"), config)
+    declare(root, reference("kody", "a test"))
     const router = read(root, "references/AGENTS.md")
     const behind = setup(root, "--check")
     expectStatus(behind, 1)
     assert.ok(lines(behind.stdout).includes("would write references/AGENTS.md"), behind.stdout)
-    assert.ok(lines(behind.stdout).includes("unchanged   .ai/agentic.config.json"), behind.stdout)
+    assert.ok(lines(behind.stdout).includes("unchanged   .ai/references.json"), behind.stdout)
+
+    const moved = initRepo(scratch("repo"))
+    const config = `${JSON.stringify({ references: [reference("kody", "a test")] })}\n`
+    write(join(moved, ".ai/agentic.config.json"), config)
+    const pending = setup(moved, "--check")
+    expectStatus(pending, 1)
+    assert.deepEqual(lines(pending.stdout).slice(-2), [
+      "would write .ai/references.json",
+      "would write .ai/agentic.config.json"
+    ])
+    assert.equal(read(moved, ".ai/agentic.config.json"), config, "a check moved the key")
+    assert.ok(!existsSync(join(moved, ".ai/references.json")), "a check wrote the file")
     assert.equal(read(root, "references/AGENTS.md"), router, "a check rewrote the table")
 
     write(join(root, "references/AGENTS.md"), "# mine\n")
@@ -382,22 +455,22 @@ describe("the root", () => {
 })
 
 describe("what the setup refuses", () => {
-  it("a settings file or a config that is not a JSON object, left as it is while the rest is written; exit 1", () => {
+  it("a settings file or a References file that is not a JSON object, left as it is while the rest is written; exit 1", () => {
     const root = initRepo(scratch("repo"))
     write(join(root, ".claude/settings.json"), "{ not json")
-    write(join(root, ".ai/agentic.config.json"), "[]\n")
+    write(join(root, ".ai/references.json"), "[]\n")
     const run = setup(root)
     expectStatus(run, 1)
     assert.deepEqual(lines(run.stdout), [
-      "refused     references/AGENTS.md — .ai/agentic.config.json: not a JSON object; the table comes from the key, so fix it first",
+      "refused     references/AGENTS.md — .ai/references.json: not a JSON object; the table comes from .ai/references.json, so fix it first",
       "wrote       references/CLAUDE.md",
       "refused     .claude/settings.json — is not a JSON object; fix it by hand first",
       "wrote       .gitignore",
-      "refused     .ai/agentic.config.json — is not a JSON object; fix it by hand first"
+      "unchanged   .ai/references.json"
     ])
-    assert.ok(!existsSync(join(root, "references/AGENTS.md")), "a Router whose table has no key to come from")
+    assert.ok(!existsSync(join(root, "references/AGENTS.md")), "a Router whose table has no file to come from")
     assert.equal(read(root, ".claude/settings.json"), "{ not json")
-    assert.equal(read(root, ".ai/agentic.config.json"), "[]\n")
+    assert.equal(read(root, ".ai/references.json"), "[]\n")
   })
 
   it("an ignore file that ignores references/ itself, where no exception can track the Router", () => {
@@ -419,7 +492,7 @@ describe("what the setup refuses", () => {
   })
 
   it("a Router with one marker and not the other, left as it is", () => {
-    const start = "<!-- references:start — written from .ai/agentic.config.json by the setup; edit the key -->"
+    const start = "<!-- references:start — written from .ai/references.json by the setup; edit the file -->"
     const cases: [router: string, problem: string][] = [
       [`# mine\n\n${start}\n| dir | reach for it when |\n`, "has a references:start marker without a references:end"],
       ["# mine\n\n<!-- references:end -->\n", "has a references:end marker without a references:start"],

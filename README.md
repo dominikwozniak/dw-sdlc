@@ -89,10 +89,10 @@ Every key: [schema](packages/dw-sdlc/config/agentic.config.schema.json).
 ## References
 
 A Reference is a repository cloned under `references/` so an agent reads how a problem was solved
-before. A repository declares its References as the `references` key of `.ai/agentic.config.json`,
-and the plugin brings each one to its ref when a local Claude Code session starts: one line per
-Reference, and nothing at all in a repository without the key. Offline, a clone stays where it was
-and the session starts anyway. The key and the Sync in full: [plugin README](plugins/sdlc/README.md#references).
+before. A repository declares its References in `.ai/references.json`, and the plugin brings each
+one to its ref when a local Claude Code session starts: one line per Reference, and nothing at all
+in a repository without the file. Offline, a clone stays where it was and the session starts
+anyway. The file and the Sync in full: [plugin README](plugins/sdlc/README.md#references).
 
 ## Docs
 
