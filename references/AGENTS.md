@@ -9,12 +9,12 @@ reference material only.
 
 ## The list
 
-The table below is written from the `references` key of `.ai/agentic.config.json` by
-`pnpm references:setup`, so edit the key, never the table; the key also holds `what` each Reference
-is, its repository, its ref and the paths its clone skips. Before you research, open the clones whose
+The table below is written from `.ai/references.json` by `pnpm references:setup`, so edit the
+file, never the table; the file also holds `what` each Reference is, its repository, its ref and the
+paths its clone skips. Before you research, open the clones whose
 `when` matches the task.
 
-<!-- references:start — written from .ai/agentic.config.json by the setup; edit the key -->
+<!-- references:start — written from .ai/references.json by the setup; edit the file -->
 
 | dir                       | reach for it when                                                                                                                                                                    |
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
