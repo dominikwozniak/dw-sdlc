@@ -11,7 +11,7 @@ import { commit, git, REPO_ROOT, repo, runBin, scratch, write } from "../harness
 
 /** A document no layer may carry: `forcePush` knows `deny`, `ask` and `lease`, never `allow`. */
 const FORCE_PUSH_ALLOWED = { version: 1, guardrails: { forcePush: "allow" } }
-/** This repository's committed config, its `references` key included. */
+/** This repository's committed config. */
 const OWN_CONFIG = readFileSync(join(REPO_ROOT, COMMITTED_FILE), "utf8")
 
 /**

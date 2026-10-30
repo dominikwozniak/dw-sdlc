@@ -503,7 +503,8 @@ on each other.
 
 - **Exit 2**: a file the parser refuses or that is not JSON, a `references` key left in the
   agentic config, or a named dir the list lacks. Nothing is synced, and one line names the entry,
-  the field and the reason, or the setup that moves the key. An agentic config that is not JSON is
+  the field and the reason, or the setup that moves the key; with the file there too, the merge to
+  make by hand. An agentic config that is not JSON is
   the guards' to report and never stops the Sync.
 - **Exit 1**: an entry that fails to resolve fails alone, and the rest proceed. That covers an
   unreachable repository, a missing or inexact pin, an `only` path the fetched tree lacks, a clone

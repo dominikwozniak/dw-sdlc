@@ -20,5 +20,5 @@ A repository's agent setup spans two committed files, each validated against its
 `references` key left in the agentic config is refused by the Sync and the setup alike, so the file
 stays the only list; `dw-sdlc references setup` moves such a key into a missing file and drops it
 from the config, and refuses when both hold References. A config the guards cannot read never stops
-the Sync, since the Sync reads the config only to find that key. The Router's table is written from
-the file between its two markers, the same as it was written from the key.
+the Sync, since the Sync reads the config only to find that key. The setup writes the Router's
+table from the file, between its two markers.

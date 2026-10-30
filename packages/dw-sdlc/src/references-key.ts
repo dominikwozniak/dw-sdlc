@@ -6,7 +6,7 @@ import { existsSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 
 /** The committed file the References are read from; no local layer adds to it. */
-export const FILE = ".ai/references.json"
+export const REFERENCES_FILE = ".ai/references.json"
 /** The committed agentic config: a `references` key in it is refused, so the file stays the one list. */
 export const CONFIG = ".ai/agentic.config.json"
 
@@ -210,6 +210,13 @@ export function leftoverKey(root: string): unknown {
     : undefined
 }
 
+/** Why a `references` key left in the config stops a read, by whether the file is there beside it. */
+export function leftoverProblem(fileExists: boolean): string {
+  return fileExists
+    ? `${CONFIG} has a references key beside ${REFERENCES_FILE}; merge it into the file and remove the key by hand`
+    : `${CONFIG}: the references key belongs in ${REFERENCES_FILE}; move it there with \`dw-sdlc references setup\``
+}
+
 /**
  * The References the file at `root` declares, `undefined` without the file, or the problem that stops
  * the read: a `references` key left in the agentic config, a file that is not JSON, or one the parser
@@ -217,11 +224,14 @@ export function leftoverKey(root: string): unknown {
  */
 export function readReferences(root: string): { references: Reference[] | undefined } | { problem: string } {
   if (leftoverKey(root) !== undefined) {
-    return {
-      problem: `${CONFIG}: the references key belongs in ${FILE}; move it there with \`dw-sdlc references setup\``
-    }
+    return { problem: leftoverProblem(existsSync(join(root, REFERENCES_FILE))) }
   }
-  const read = readObject(join(root, FILE), FILE)
+  return readFile(root)
+}
+
+/** The References the file at `root` declares, `undefined` without it, the agentic config unread. */
+export function readFile(root: string): { references: Reference[] | undefined } | { problem: string } {
+  const read = readObject(join(root, REFERENCES_FILE), REFERENCES_FILE)
   if ("problem" in read) {
     return read
   }
@@ -231,7 +241,7 @@ export function readReferences(root: string): { references: Reference[] | undefi
   const parsed = parseFile(read.value)
   if ("problem" in parsed) {
     const where = parsed.problem.path === "" ? "" : `${parsed.problem.path}: `
-    return { problem: `${FILE}: ${where}${parsed.problem.message}` }
+    return { problem: `${REFERENCES_FILE}: ${where}${parsed.problem.message}` }
   }
   return { references: parsed.references }
 }

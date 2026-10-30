@@ -586,6 +586,7 @@ describe("how the Sync fails", () => {
   it("exits 2 on a references key left in the agentic config, naming the setup that moves it, and syncs nothing", () => {
     const source = upstream()
     const root = consumer([entry("full", source.url)])
+    rmSync(join(root, FILE))
     writeJson(join(root, CONFIG), { version: 1, references: [entry("full", source.url)] })
     const run = sync(root)
     expectStatus(run, 2)
@@ -593,6 +594,20 @@ describe("how the Sync fails", () => {
     assert.match(
       run.stderr,
       /^references:sync: \.ai\/agentic\.config\.json: .*`dw-sdlc references setup`.*; nothing synced$/m
+    )
+    assert.ok(!existsSync(clone(root, "full")))
+  })
+
+  it("exits 2 on a references key beside the file, asking for a merge by hand, since the setup refuses both", () => {
+    const source = upstream()
+    const root = consumer([entry("full", source.url)])
+    writeJson(join(root, CONFIG), { version: 1, references: [entry("full", source.url)] })
+    const run = sync(root)
+    expectStatus(run, 2)
+    assert.equal(run.stdout, "")
+    assert.equal(
+      run.stderr,
+      "references:sync: .ai/agentic.config.json has a references key beside .ai/references.json; merge it into the file and remove the key by hand; nothing synced\n"
     )
     assert.ok(!existsSync(clone(root, "full")))
   })
