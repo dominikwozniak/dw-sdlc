@@ -1,7 +1,6 @@
 # dw-sdlc
 
-The software delivery process Dominik works by, and the Claude Code tooling that carries it. It is proven in
-this repository before it goes wider.
+The software delivery process Dominik works by, and the Claude Code tooling that carries it.
 
 ## Language
 
@@ -51,8 +50,7 @@ The fixed guardrails in force while any layer is invalid: every force push, ever
 commit on a protected branch refused, and master, main and production protected.
 
 **Convention**:
-The preset a commit subject must follow: `ticket-key` (`[KEY-123] type: subject`) or `conventional`
-(Conventional Commits). An explicit pattern wins over it.
+The preset a commit subject follows: `ticket-key` (`[KEY-123] type: subject`) or `conventional`; a pattern wins.
 _Avoid_: commit format, commit style
 
 ### Git
@@ -79,8 +77,7 @@ One unit that judges the state of the working tree and answers with an exit code
 remedy and, on request, machine-readable output: a module the package ships, or a repository's own
 script under `gate.checks.run`. It runs the same in CI, in a commit hook, in an agent hook and in a
 terminal.
-_Avoid_: Step (a toolchain command the Gate runs first), rule, validator, test (which proves behaviour,
-not the tree)
+_Avoid_: Step (a toolchain command the Gate runs first), rule, validator, test (proves behaviour, not the tree)
 
 **Step**:
 One toolchain command the Gate runs before its Checks, such as lint, format, typecheck or the tests.
@@ -115,11 +112,14 @@ The catalogue Claude Code installs plugins from. This repository is one.
 **Plugin**:
 One installable unit the marketplace lists: hooks and skills under one version.
 
+**Proving ground**:
+A repository other than this one that adopts each release as it ships and judges it on real work.
+_Avoid_: playground, pilot, sandbox
+
 ### Research
 
 **Reference**:
-A repository cloned on one machine so an agent can read how a problem was solved before. Read-only, and never
-part of this repository's history.
+A repository cloned on one machine so an agent reads how a problem was solved before. Read-only, never in history.
 _Avoid_: vendored repo, subtree
 
 **Router**:
