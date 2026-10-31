@@ -261,8 +261,12 @@
       "id": "tools.ship",
       "name": "Ship script",
       "group": "tools",
-      "summary": "dw-sdlc pr ship: reads one pull request through gh and answers the Action it needs next, with an exit code by actor.",
-      "code": ["packages/dw-sdlc/src/commands/pr-ship.ts", "packages/dw-sdlc/src/pr/"],
+      "summary": "dw-sdlc pr ship answers the Action a pull request needs next, by exit code; pr reviewed pins a clean review to its head.",
+      "code": [
+        "packages/dw-sdlc/src/commands/pr-ship.ts",
+        "packages/dw-sdlc/src/commands/pr-reviewed.ts",
+        "packages/dw-sdlc/src/pr/"
+      ],
       "docs": ["GLOSSARY.md", "AGENTS.md#commands"]
     },
     {
