@@ -55,6 +55,8 @@ export type Thread = {
   body: string
   resolved?: boolean
   outdated?: boolean
+  /** Whether the viewer wrote the thread's last comment. */
+  lastByViewer?: boolean
 }
 /** A pull request as a test states it; `checks` empty is a head no check reported on. */
 export type Pr = {
@@ -118,9 +120,18 @@ function contextOf({ kind, name, state, link = null, startedAt = null, required 
   }
 }
 
-function threadOf({ id, path, line, author, body, resolved = false, outdated = false }: Thread): object {
+function threadOf(thread: Thread): object {
+  const { id, path, line, author, body, resolved = false, outdated = false, lastByViewer = false } = thread
   const comment = { author: author === null ? null : { login: author }, body }
-  return { id, isResolved: resolved, isOutdated: outdated, path, line, comments: { nodes: [comment] } }
+  return {
+    id,
+    isResolved: resolved,
+    isOutdated: outdated,
+    path,
+    line,
+    comments: { nodes: [comment] },
+    latest: { nodes: [{ viewerDidAuthor: lastByViewer }] }
+  }
 }
 
 /** The `pullRequest` node of the reply, an object a test may break before serving it. */
