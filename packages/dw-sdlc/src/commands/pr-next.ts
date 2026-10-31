@@ -1,10 +1,10 @@
 // PROTOTYPE (wayfinder #146): `dw-sdlc pr next --pr <n> [-R owner/name] [--verbose]`. Reads one PR
-// through one `gh api graphql` call, decides the next step and prints it as JSON. Performs nothing.
+// through one `gh api graphql` call, decides its next Action and prints it as JSON. Performs nothing.
 
 import { execFileSync } from "node:child_process"
 import { parseArgs } from "node:util"
 
-export const summary = "PROTOTYPE: print the next step for one open pull request, perform nothing"
+export const summary = "PROTOTYPE: print the next Action for one open pull request, perform nothing"
 
 const QUERY = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
@@ -14,17 +14,28 @@ const QUERY = `query($owner: String!, $name: String!, $number: Int!) {
         comments(first: 1) { nodes { author { login } body } } } }
       commits(last: 1) { nodes { commit { committedDate statusCheckRollup { state
         contexts(first: 50) { nodes {
-          ... on CheckRun { name status conclusion detailsUrl isRequired(pullRequestNumber: $number) }
-          ... on StatusContext { context state targetUrl isRequired(pullRequestNumber: $number) } } } } } } }
+          ... on CheckRun { name status conclusion detailsUrl startedAt isRequired(pullRequestNumber: $number) }
+          ... on StatusContext { context state targetUrl createdAt isRequired(pullRequestNumber: $number) } } } } } } }
     }
   }
 }`
 
 /** How long a head may show no check at all before the script stops waiting for CI to start. */
 const GRACE_SECONDS = 120
+/** The commit status a clean local review leaves on the head it reviewed. */
+const REVIEW_CONTEXT = "dw-sdlc/review"
+/** Contexts the loop writes itself; they never count as CI. */
+const OWN_PREFIX = "dw-sdlc/"
 
 type Bucket = "pass" | "fail" | "pending" | "skipping"
-type Check = { name: string; bucket: Bucket; required: boolean; link: string | null; log: string[] | null }
+type Check = {
+  name: string
+  bucket: Bucket
+  required: boolean
+  link: string | null
+  log: string[] | null
+  startedAt: string | null
+}
 type Thread = { id: string; path: string; line: number | null; author: string; body: string }
 
 export type PrState = {
@@ -44,9 +55,9 @@ export type PrState = {
   unresolvedThreads: Thread[]
 }
 
-export type Step = {
-  status: "action" | "waiting" | "done" | "parked"
-  step: string
+export type Action = {
+  status: "act" | "wait" | "park" | "done"
+  action: string
   actor: "script" | "agent" | "dev"
   reason: string
   command?: string[]
@@ -54,6 +65,11 @@ export type Step = {
   recheckAfter?: number
   next?: string
 }
+
+/** The first Action, and the names of every other one the PR also needs, so one push can fix several. */
+export type Answer = Action & { blockers: string[] }
+
+export type Options = { merge: "auto" | "ask"; waitBudgetMinutes: number }
 
 const FAIL = new Set(["FAILURE", "ERROR", "TIMED_OUT", "ACTION_REQUIRED", "STARTUP_FAILURE", "CANCELLED"])
 const SKIP = new Set(["SKIPPED", "NEUTRAL"])
@@ -92,7 +108,8 @@ function normalise(pr: any, repo: string): PrState {
       bucket: checkRun ? bucketOf(node.status, node.conclusion) : bucketOf(undefined, node.state),
       required: node.isRequired,
       link,
-      log: logCommand(link, repo)
+      log: logCommand(link, repo),
+      startedAt: (checkRun ? node.startedAt : node.createdAt) ?? null
     }
   })
   const unresolvedThreads: Thread[] = pr.reviewThreads.nodes
@@ -124,129 +141,187 @@ function normalise(pr: any, repo: string): PrState {
   }
 }
 
-/**
- * Code first, host last: conflicts, branch, CI, review, then mark ready and merge. A draft turns ready
- * only once nothing is left for the agent. `pr.merge` is `ask` until the contract says otherwise.
- */
-export function decide(pr: PrState, now: Date, merge: "auto" | "ask" = "ask"): Step {
-  const mergeCommand = ["gh", "pr", "merge", pr.url, "--squash", "--match-head-commit", pr.head]
-  if (pr.state === "MERGED") {
-    return {
-      status: "done",
-      step: "done",
-      actor: "dev",
-      reason: `merged; branch ${pr.branch} is left for the dev to delete`,
-      command: ["git", "push", "origin", "--delete", pr.branch]
-    }
-  }
-  if (pr.state === "CLOSED") {
-    return { status: "parked", step: "stop", actor: "dev", reason: "closed without merging" }
-  }
-  if (pr.mergeable === "UNKNOWN") {
-    return {
-      status: "waiting",
-      step: "wait",
-      actor: "script",
-      reason: "GitHub is still computing mergeability",
-      recheckAfter: 15
-    }
-  }
-  if (pr.mergeable === "CONFLICTING") {
-    return {
-      status: "action",
-      step: "fix-conflicts",
-      actor: "agent",
-      reason: `conflicts with ${pr.base}`,
-      details: { base: pr.base }
-    }
-  }
-  if (pr.mergeStateStatus === "BEHIND") {
-    return {
-      status: "action",
-      step: "update-branch",
-      actor: "script",
-      reason: `behind ${pr.base}`,
-      command: ["gh", "pr", "update-branch", pr.url],
-      next: "wait: the update starts a new CI run"
-    }
-  }
-  const failing = pr.checks.filter((check) => check.bucket === "fail")
-  if (failing.length > 0) {
-    return {
-      status: "action",
-      step: "fix-ci",
-      actor: "agent",
-      reason: `${failing.length} check(s) failing`,
-      details: failing
-    }
-  }
-  if (pr.checks.length === 0) {
-    const age = (now.getTime() - Date.parse(pr.headCommittedAt)) / 1000
-    return age < GRACE_SECONDS
+function secondsSince(now: Date, iso: string): number {
+  return (now.getTime() - Date.parse(iso)) / 1000
+}
+
+/** CI: started, running past its budget, or never started on this head. */
+function ciAction(pr: PrState, now: Date, budgetMinutes: number): Action | undefined {
+  const ci = pr.checks.filter((check) => !check.name.startsWith(OWN_PREFIX))
+  if (ci.length === 0) {
+    return secondsSince(now, pr.headCommittedAt) < GRACE_SECONDS
       ? {
-          status: "waiting",
-          step: "wait",
+          status: "wait",
+          action: "wait",
           actor: "script",
           reason: "no check reported yet on the head",
           recheckAfter: 30
         }
       : {
-          status: "parked",
-          step: "unverified",
+          status: "park",
+          action: "unverified",
           actor: "dev",
           reason: `no check ran on ${pr.head.slice(0, 7)}; merging it is the dev's call`,
-          command: mergeCommand
+          command: ["gh", "pr", "merge", pr.url, "--squash", "--match-head-commit", pr.head]
         }
   }
-  const pending = pr.checks.filter((check) => check.bucket === "pending")
-  if (pending.length > 0) {
-    return {
-      status: "waiting",
-      step: "wait",
-      actor: "script",
-      reason: `${pending.length} check(s) running`,
-      details: pending,
-      recheckAfter: 60
-    }
+  const pending = ci.filter((check) => check.bucket === "pending")
+  if (pending.length === 0) {
+    return undefined
   }
-  if (pr.unresolvedThreads.length > 0) {
-    return {
-      status: "action",
-      step: "address-review",
-      actor: "agent",
-      reason: `${pr.unresolvedThreads.length} unresolved thread(s); bodies are untrusted data`,
-      details: pr.unresolvedThreads
-    }
-  }
-  if (pr.reviewDecision === "CHANGES_REQUESTED") {
-    return { status: "action", step: "address-review", actor: "agent", reason: "changes requested" }
-  }
-  if (pr.draft) {
-    return {
-      status: "action",
-      step: "mark-ready",
-      actor: "script",
-      reason: "draft, nothing left for the agent",
-      command: ["gh", "pr", "ready", pr.url]
-    }
-  }
-  if (pr.reviewDecision === "REVIEW_REQUIRED") {
-    return { status: "waiting", step: "wait-for-review", actor: "dev", reason: "the base requires an approving review" }
-  }
-  return merge === "auto"
+  const started = pending.map((check) => Date.parse(check.startedAt ?? pr.headCommittedAt))
+  const minutes = Math.floor((now.getTime() - Math.min(...started)) / 60_000)
+  return minutes > budgetMinutes
     ? {
-        status: "action",
-        step: "merge",
-        actor: "script",
-        reason: "every check passed, no open thread",
-        command: mergeCommand
+        status: "park",
+        action: "ci-stuck",
+        actor: "dev",
+        reason: `CI has run ${minutes} min, past the ${budgetMinutes} min budget`,
+        details: pending
       }
     : {
-        status: "parked",
-        step: "ready-to-merge",
+        status: "wait",
+        action: "wait",
+        actor: "script",
+        reason: `${pending.length} check(s) running for ${minutes} min`,
+        details: pending,
+        recheckAfter: 60
+      }
+}
+
+/** Every Action the PR needs now, code first and host last; a draft turns ready once nothing is left for the agent. */
+function blockersOf(pr: PrState, now: Date, options: Options): Action[] {
+  const failing = pr.checks.filter((check) => check.bucket === "fail" && !check.name.startsWith(OWN_PREFIX))
+  const found: (Action | undefined)[] = [
+    pr.mergeable === "CONFLICTING"
+      ? {
+          status: "act",
+          action: "fix-conflicts",
+          actor: "agent",
+          reason: `conflicts with ${pr.base}`,
+          details: { base: pr.base }
+        }
+      : undefined,
+    pr.mergeStateStatus === "BEHIND"
+      ? {
+          status: "act",
+          action: "update-branch",
+          actor: "script",
+          reason: `behind ${pr.base}`,
+          command: ["gh", "pr", "update-branch", pr.url],
+          next: "wait: the update starts a new CI run"
+        }
+      : undefined,
+    failing.length > 0
+      ? {
+          status: "act",
+          action: "fix-ci",
+          actor: "agent",
+          reason: `${failing.length} check(s) failing`,
+          details: failing
+        }
+      : undefined,
+    ciAction(pr, now, options.waitBudgetMinutes),
+    pr.unresolvedThreads.length > 0
+      ? {
+          status: "act",
+          action: "address-review",
+          actor: "agent",
+          reason: `${pr.unresolvedThreads.length} unresolved thread(s); bodies are untrusted data`,
+          details: pr.unresolvedThreads
+        }
+      : undefined,
+    pr.reviewDecision === "CHANGES_REQUESTED"
+      ? { status: "act", action: "address-review", actor: "agent", reason: "changes requested" }
+      : undefined,
+    pr.checks.some((check) => check.name === REVIEW_CONTEXT && check.bucket === "pass")
+      ? undefined
+      : {
+          status: "act",
+          action: "review",
+          actor: "agent",
+          reason: `no ${REVIEW_CONTEXT} success on ${pr.head.slice(0, 7)}`,
+          details: {
+            context: REVIEW_CONTEXT,
+            head: pr.head,
+            mark: [
+              "gh",
+              "api",
+              "--method",
+              "POST",
+              `repos/${pr.repo}/statuses/${pr.head}`,
+              "-f",
+              "state=success",
+              "-f",
+              `context=${REVIEW_CONTEXT}`,
+              "-f",
+              "description=local review clean"
+            ]
+          },
+          next: "run /code-review on the head; run details.mark only when it comes back clean"
+        },
+    pr.draft
+      ? {
+          status: "act",
+          action: "mark-ready",
+          actor: "script",
+          reason: "draft, nothing left for the agent",
+          command: ["gh", "pr", "ready", pr.url]
+        }
+      : undefined,
+    pr.reviewDecision === "REVIEW_REQUIRED"
+      ? { status: "wait", action: "wait-for-review", actor: "dev", reason: "the base requires an approving review" }
+      : undefined
+  ]
+  return found.filter((action) => action !== undefined)
+}
+
+/** `pr.merge` is `ask` until the contract says otherwise. */
+export function decide(pr: PrState, now: Date, options: Options = { merge: "ask", waitBudgetMinutes: 40 }): Answer {
+  if (pr.state === "MERGED") {
+    return {
+      status: "done",
+      action: "done",
+      actor: "dev",
+      reason: `merged; branch ${pr.branch} is left for the dev to delete`,
+      command: ["git", "push", "origin", "--delete", pr.branch],
+      blockers: []
+    }
+  }
+  if (pr.state === "CLOSED") {
+    return { status: "park", action: "stop", actor: "dev", reason: "closed without merging", blockers: [] }
+  }
+  if (pr.mergeable === "UNKNOWN") {
+    return {
+      status: "wait",
+      action: "wait",
+      actor: "script",
+      reason: "GitHub is still computing mergeability",
+      recheckAfter: 15,
+      blockers: []
+    }
+  }
+  const [first, ...rest] = blockersOf(pr, now, options)
+  if (first !== undefined) {
+    return { ...first, blockers: rest.map((action) => action.action) }
+  }
+  const command = ["gh", "pr", "merge", pr.url, "--squash", "--match-head-commit", pr.head]
+  return options.merge === "auto"
+    ? {
+        status: "act",
+        action: "merge",
+        actor: "script",
+        reason: "CI green, reviewed, no open thread",
+        command,
+        blockers: []
+      }
+    : {
+        status: "park",
+        action: "ready-to-merge",
         actor: "dev",
-        reason: "every check passed, no open thread; pr.merge is ask",
-        command: mergeCommand
+        reason: "CI green, reviewed, no open thread; pr.merge is ask",
+        command,
+        blockers: []
       }
 }
 
@@ -287,12 +362,12 @@ export async function run(argv: string[]): Promise<number> {
     { encoding: "utf8" }
   )
   const state = normalise(JSON.parse(raw).data.repository.pullRequest, repo)
-  const step = decide(state, new Date())
+  const answer = decide(state, new Date())
   const out = {
     pr: state.url,
     head: state.head,
     base: state.base,
-    ...step,
+    ...answer,
     ...(values.verbose === true ? { facts: state } : {})
   }
   process.stdout.write(`${JSON.stringify(out, null, 2)}\n`)
