@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: proposed
 ---
 
 # The Loop ships as a second plugin, `sdlc-loop`, that depends on `sdlc`
