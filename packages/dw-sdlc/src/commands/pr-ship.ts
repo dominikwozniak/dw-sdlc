@@ -177,7 +177,7 @@ function lineOf({ status, action, reason, command, recheckAfter }: Answer): stri
 
 function documentOf(pr: PrState, answer: Answer, verbose: boolean): Record<string, unknown> {
   const facts = verbose ? { facts: pr } : {}
-  return { pr: pr.url, head: pr.head, base: pr.base, ...answer, blockers: [], performed: [], ...facts }
+  return { pr: pr.url, head: pr.head, base: pr.base, ...answer, performed: [], ...facts }
 }
 
 export function run(argv: string[]): number {

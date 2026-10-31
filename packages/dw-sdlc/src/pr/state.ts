@@ -7,7 +7,8 @@ export const QUERY = `query($owner: String!, $name: String!, $number: Int!) {
       url number state isDraft mergeable mergeStateStatus reviewDecision headRefOid headRefName baseRefName
       viewerDidAuthor mergeCommit { oid }
       reviewThreads(first: 100) { nodes { id isResolved isOutdated path line
-        comments(first: 1) { nodes { author { login } body } } } }
+        comments(first: 1) { nodes { author { login } body } }
+        latest: comments(last: 1) { nodes { viewerDidAuthor } } } }
       commits(last: 1) { nodes { commit { committedDate statusCheckRollup {
         contexts(first: 50) { nodes {
           ... on CheckRun { name status conclusion detailsUrl startedAt isRequired(pullRequestNumber: $number) }
@@ -26,7 +27,15 @@ export type CiCheck = {
   log: string[] | null
   startedAt: string | null
 }
-export type Thread = { id: string; path: string; line: number | null; author: string; body: string }
+export type Thread = {
+  id: string
+  path: string
+  line: number | null
+  author: string
+  body: string
+  /** Whether the viewer, the account gh reads as, wrote the thread's last comment. */
+  lastByViewer: boolean
+}
 
 const STATES = ["OPEN", "CLOSED", "MERGED"] as const
 const MERGEABLE = ["MERGEABLE", "CONFLICTING", "UNKNOWN"] as const
@@ -172,6 +181,15 @@ function nodes(node: Node, key: string): Node[] {
   return value.map((item: unknown, index) => object(item, `${at}[${index}]`))
 }
 
+/** The first object of a connection's `nodes`; an empty connection does not parse. */
+function firstNode(node: Node, key: string): Node {
+  const [first] = nodes(node, key)
+  if (first === undefined) {
+    throw new ReplyError(`${node.at}.${key}.nodes is empty`)
+  }
+  return first
+}
+
 const FAIL = new Set(["ERROR", "FAILURE", "TIMED_OUT", "ACTION_REQUIRED", "CANCELLED", "STARTUP_FAILURE"])
 const SKIPPING = new Set(["SKIPPED", "NEUTRAL"])
 
@@ -221,17 +239,15 @@ function checkOf(context: Node, repo: string): CiCheck {
 
 /** A thread by its opening comment; a deleted account's comment has no author and reads as GitHub's ghost. */
 function threadOf(thread: Node): Thread {
-  const [first] = nodes(thread, "comments")
-  if (first === undefined) {
-    throw new ReplyError(`${thread.at}.comments.nodes is empty`)
-  }
+  const first = firstNode(thread, "comments")
   const author = childOrNull(first, "author")
   return {
     id: string(thread, "id"),
     path: string(thread, "path"),
     line: integerOrNull(thread, "line"),
     author: author === null ? "ghost" : string(author, "login"),
-    body: string(first, "body")
+    body: string(first, "body"),
+    lastByViewer: boolean(firstNode(thread, "latest"), "viewerDidAuthor")
   }
 }
 
@@ -248,11 +264,7 @@ export function parseView(reply: string): { repo: string; number: number } {
 /** The state of the pull request in `reply`, the text `gh api graphql` printed for QUERY on `repo`. */
 export function parsePr(reply: string, repo: string): PrState {
   const pr = child(child(child(rootOf(reply, "the reply"), "data"), "repository"), "pullRequest")
-  const [last] = nodes(pr, "commits")
-  if (last === undefined) {
-    throw new ReplyError(`${pr.at}.commits.nodes is empty`)
-  }
-  const commit = child(last, "commit")
+  const commit = child(firstNode(pr, "commits"), "commit")
   const rollup = childOrNull(commit, "statusCheckRollup")
   const mergeCommit = childOrNull(pr, "mergeCommit")
   return {

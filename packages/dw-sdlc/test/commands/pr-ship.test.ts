@@ -16,7 +16,8 @@ import {
   type Response,
   RUN,
   type Scenario,
-  served
+  served,
+  type Thread
 } from "../pr-harness.ts"
 
 const MERGE_COMMIT = "b04365ad73c61edcf175d9c5632740eb13fd2e4d"
@@ -45,6 +46,20 @@ const MERGED: Pr = {
   mergeCommit: MERGE_COMMIT
 }
 
+const LOG = "gh run view --job 124272841543 -R byarcadia-app/foundation --log-failed"
+const CIRCLE = "https://app.circleci.com/pipelines/github/byarcadia-app/foundation/7"
+const PASSING: Context = { kind: "run", name: "Check", state: "SUCCESS", link: RUN, startedAt: "2026-10-31T11:01:00Z" }
+const FAILING: Context = { ...PASSING, state: "FAILURE" }
+const THREAD: Thread = {
+  id: "PRRT_kwDOexample",
+  path: "packages/payments/src/paywall.tsx",
+  line: 42,
+  author: "dominikwozniak",
+  body: "This hook re-renders on every purchase event; memoise the offerings."
+}
+/** THREAD as `details` lists it. */
+const LISTED = { id: THREAD.id, path: THREAD.path, line: THREAD.line, author: THREAD.author, body: THREAD.body }
+
 /** Every kind of check and thread a reply carries, on a draft another author opened. */
 const MIXED: Pr = {
   ...GREEN,
@@ -68,7 +83,14 @@ const MIXED: Pr = {
     { kind: "status", name: "dw-sdlc/review", state: "SUCCESS", startedAt: "2026-10-31T11:05:00Z" }
   ],
   threads: [
-    { id: "PRRT_open", path: "src/a.ts", line: 42, author: "dominikwozniak", body: "Memoise the offerings." },
+    {
+      id: "PRRT_open",
+      path: "src/a.ts",
+      line: 42,
+      author: "dominikwozniak",
+      body: "Memoise the offerings.",
+      lastByViewer: true
+    },
     { id: "PRRT_ghost", path: "src/b.ts", line: null, author: null, body: "A file-level note." },
     { id: "PRRT_resolved", path: "src/c.ts", line: 1, author: "dominikwozniak", body: "Done.", resolved: true },
     { id: "PRRT_outdated", path: "src/d.ts", line: 2, author: "dominikwozniak", body: "Moved.", outdated: true }
@@ -231,8 +253,22 @@ describe("dw-sdlc pr ship", () => {
         }
       ],
       unresolvedThreads: [
-        { id: "PRRT_open", path: "src/a.ts", line: 42, author: "dominikwozniak", body: "Memoise the offerings." },
-        { id: "PRRT_ghost", path: "src/b.ts", line: null, author: "ghost", body: "A file-level note." }
+        {
+          id: "PRRT_open",
+          path: "src/a.ts",
+          line: 42,
+          author: "dominikwozniak",
+          body: "Memoise the offerings.",
+          lastByViewer: true
+        },
+        {
+          id: "PRRT_ghost",
+          path: "src/b.ts",
+          line: null,
+          author: "ghost",
+          body: "A file-level note.",
+          lastByViewer: false
+        }
       ]
     })
     const bare = json({ ...GREEN, checks: [] }, ["--verbose"]).document
@@ -415,6 +451,213 @@ describe("dw-sdlc pr ship while no check has answered", () => {
   })
 })
 
+/** The actions of the document's blockers, in order. */
+function blockersOf(document: unknown): unknown[] {
+  assert.ok(typeof document === "object" && document !== null && "blockers" in document)
+  assert.ok(Array.isArray(document.blockers))
+  return document.blockers.map((blocker: unknown) =>
+    typeof blocker === "object" && blocker !== null && "action" in blocker ? blocker.action : blocker
+  )
+}
+
+describe("dw-sdlc pr ship hands the pull request to the agent", () => {
+  it("answers each of the prototype's states for the agent's rows, as a line, an exit code and blockers", () => {
+    const cases: [string, Pr, number, string, string[]][] = [
+      [
+        "draft, CI failing",
+        { ...GREEN, draft: true, checks: [FAILING] },
+        10,
+        "act fix-ci: 1 check(s) failing",
+        ["review"]
+      ],
+      [
+        "conflicts, CI failing",
+        { ...GREEN, mergeable: "CONFLICTING", mergeStateStatus: "DIRTY", checks: [FAILING] },
+        10,
+        "act fix-conflicts: conflicts with main",
+        ["fix-ci", "review"]
+      ],
+      [
+        "CI failing",
+        { ...GREEN, mergeStateStatus: "UNSTABLE", checks: [FAILING] },
+        10,
+        "act fix-ci: 1 check(s) failing",
+        ["review"]
+      ],
+      [
+        "open thread, not reviewed",
+        { ...GREEN, checks: [PASSING], threads: [THREAD] },
+        10,
+        "act address-review: 1 unresolved thread(s)",
+        ["review"]
+      ],
+      [
+        "changes requested",
+        { ...GREEN, reviewDecision: "CHANGES_REQUESTED" },
+        10,
+        "act address-review: changes requested",
+        []
+      ],
+      [
+        "green, not reviewed",
+        { ...GREEN, checks: [PASSING] },
+        10,
+        "act review: no dw-sdlc/review success on e36732e",
+        []
+      ],
+      [
+        "thread answered last by the viewer",
+        { ...GREEN, threads: [{ ...THREAD, lastByViewer: true }] },
+        30,
+        "park awaiting-reply: 1 thread(s) await a reply",
+        []
+      ]
+    ]
+    for (const [name, pr, status, line, blockers] of cases) {
+      const run = ship(TARGET, { graphql: [served(pr)] })
+      assert.deepEqual([run.status, run.stdout], [status, `${line}\n`], `${name}: ${run.stderr}`)
+      assert.deepEqual(blockersOf(json(pr).document), blockers, name)
+    }
+  })
+
+  it("asks for the review while CI runs, the wait for CI riding in blockers", () => {
+    const running: Context = { kind: "run", name: "Check", state: "IN_PROGRESS", link: RUN, startedAt: STARTED }
+    const run = json({ ...GREEN, checks: [running] }, [], clockAt(STARTED, 9 * 60))
+    assert.equal(run.status, 10, run.stderr)
+    assert.ok(typeof run.document === "object" && run.document !== null && "action" in run.document)
+    assert.deepEqual([run.document.action, blockersOf(run.document)], ["review", ["wait"]], run.stdout)
+  })
+
+  it("answers fix-conflicts for conflicts and a failing check, the check riding in blockers for the same push", () => {
+    const run = json({ ...GREEN, mergeable: "CONFLICTING", mergeStateStatus: "DIRTY", checks: [FAILING] })
+    assert.equal(run.status, 10, run.stderr)
+    assert.deepEqual(run.document, {
+      pr: URL,
+      head: HEAD,
+      base: "main",
+      status: "act",
+      action: "fix-conflicts",
+      actor: "agent",
+      reason: "conflicts with main",
+      details: { base: "main" },
+      blockers: [
+        {
+          action: "fix-ci",
+          actor: "agent",
+          reason: "1 check(s) failing",
+          details: { checks: [{ name: "Check", link: RUN, log: LOG }] }
+        },
+        { action: "review", actor: "agent", reason: "no dw-sdlc/review success on e36732e" }
+      ],
+      performed: []
+    })
+    assert.deepEqual(run.calls, [AUTH, READ])
+  })
+
+  it("lists each failing check with its link, and the command that prints its log only for an Actions job", () => {
+    const circle: Context = { kind: "status", name: "ci/circleci", state: "ERROR", link: CIRCLE }
+    const skipped: Context = { kind: "run", name: "Docs", state: "SKIPPED" }
+    const run = json({ ...GREEN, mergeStateStatus: "UNSTABLE", checks: [FAILING, circle, skipped, REVIEWED] })
+    assert.equal(run.status, 10, run.stderr)
+    assert.deepEqual(run.document, {
+      pr: URL,
+      head: HEAD,
+      base: "main",
+      status: "act",
+      action: "fix-ci",
+      actor: "agent",
+      reason: "2 check(s) failing",
+      details: {
+        checks: [
+          { name: "Check", link: RUN, log: LOG },
+          { name: "ci/circleci", link: CIRCLE }
+        ]
+      },
+      blockers: [],
+      performed: []
+    })
+  })
+
+  it("takes a dw-sdlc/review success on the head as its review, and a dw-sdlc/ failure as neither CI nor a review", () => {
+    const reviewed = json({ ...GREEN, checks: [FAILING, REVIEWED] })
+    assert.deepEqual([reviewed.status, blockersOf(reviewed.document)], [10, []], reviewed.stdout)
+    const failed = json({ ...GREEN, checks: [PASSING, { ...REVIEWED, state: "FAILURE" }] })
+    assert.equal(failed.status, 10, failed.stderr)
+    assert.ok(typeof failed.document === "object" && failed.document !== null && "action" in failed.document)
+    assert.deepEqual([failed.document.action, blockersOf(failed.document)], ["review", []], failed.stdout)
+  })
+
+  it("hands the agent the threads someone else spoke last on; resolved and outdated threads do not count", () => {
+    const ghost: Thread = { id: "PRRT_ghost", path: "src/b.ts", line: null, author: null, body: "A file-level note." }
+    const run = json({
+      ...GREEN,
+      threads: [
+        THREAD,
+        ghost,
+        { ...THREAD, id: "PRRT_replied", lastByViewer: true },
+        { ...THREAD, id: "PRRT_outdated", outdated: true },
+        { ...THREAD, id: "PRRT_resolved", resolved: true }
+      ]
+    })
+    assert.equal(run.status, 10, run.stderr)
+    assert.deepEqual(run.document, {
+      pr: URL,
+      head: HEAD,
+      base: "main",
+      status: "act",
+      action: "address-review",
+      actor: "agent",
+      reason: "2 unresolved thread(s)",
+      details: { threads: [LISTED, { ...ghost, author: "ghost" }] },
+      blockers: [
+        {
+          action: "awaiting-reply",
+          actor: "dev",
+          reason: "1 thread(s) await a reply",
+          details: { threads: [{ ...LISTED, id: "PRRT_replied" }] }
+        }
+      ],
+      performed: []
+    })
+  })
+
+  it("parks a pull request whose open threads the viewer answered last, the reply the dev's to await", () => {
+    const run = json({
+      ...GREEN,
+      threads: [
+        { ...THREAD, lastByViewer: true },
+        { ...THREAD, outdated: true }
+      ]
+    })
+    assert.equal(run.status, 30, run.stderr)
+    assert.deepEqual(run.document, {
+      pr: URL,
+      head: HEAD,
+      base: "main",
+      status: "park",
+      action: "awaiting-reply",
+      actor: "dev",
+      reason: "1 thread(s) await a reply",
+      details: { threads: [LISTED] },
+      blockers: [],
+      performed: []
+    })
+  })
+
+  it("answers a merged, closed or still-computing pull request alone, whatever else it needs", () => {
+    const busy = { checks: [FAILING], threads: [THREAD], reviewDecision: "CHANGES_REQUESTED" }
+    const cases: Pr[] = [
+      { ...MERGED, ...busy },
+      { ...GREEN, ...busy, state: "CLOSED" },
+      { ...GREEN, ...busy, mergeable: "UNKNOWN" }
+    ]
+    for (const pr of cases) {
+      const run = json(pr)
+      assert.deepEqual(blockersOf(run.document), [], run.stdout)
+    }
+  })
+})
+
 /** The reply for GREEN with `edit` applied to its pull request. */
 function broken(edit: (pr: Record<string, unknown>) => void): Response {
   const node = pullRequestOf(GREEN)
@@ -547,6 +790,26 @@ describe("dw-sdlc pr ship when it cannot run", () => {
           )
         ],
         `${at}.commits.nodes[0].commit.statusCheckRollup.contexts.nodes[0] is neither a CheckRun nor a StatusContext`
+      ],
+      [
+        [
+          broken(
+            (pr) =>
+              (pr.reviewThreads = {
+                nodes: [
+                  {
+                    id: "PRRT_kwDOexample",
+                    isResolved: false,
+                    isOutdated: false,
+                    path: "src/a.ts",
+                    line: 1,
+                    comments: { nodes: [{ author: null, body: "A note." }] }
+                  }
+                ]
+              })
+          )
+        ],
+        `${at}.reviewThreads.nodes[0].latest is missing, not an object`
       ],
       [[{ stdout: "<html>" }], "the reply is not JSON"]
     ]
