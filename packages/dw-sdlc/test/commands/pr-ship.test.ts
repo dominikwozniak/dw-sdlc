@@ -484,7 +484,7 @@ describe("dw-sdlc pr ship hands the pull request to the agent", () => {
         { ...GREEN, draft: true, checks: [FAILING] },
         10,
         "act fix-ci: 1 check(s) failing",
-        ["review"]
+        ["review", "mark-ready"]
       ],
       [
         "conflicts, CI failing",
@@ -844,9 +844,19 @@ function fieldsOf(document: unknown, keys: string[]): Record<string, unknown> {
   return Object.fromEntries(Object.entries(document).filter(([key]) => keys.includes(key)))
 }
 
+/** The update and the mark-ready the script runs, the repository named. */
+const UPDATE = ["pr", "update-branch", "40", "-R", "byarcadia-app/foundation"]
+const READY = ["pr", "ready", "40", "-R", "byarcadia-app/foundation"]
+const RUNS = { "update-branch": UPDATE, "mark-ready": READY, merge: MERGE }
+
+/** A script Action under `performed`, `ok` as gh answered; null under --dry-run. */
+function ran(action: keyof typeof RUNS, ok: boolean | null): unknown {
+  return { action, command: `gh ${RUNS[action].join(" ")}`, ok }
+}
+
 /** `performed` once the call ran the merge, `ok` as gh answered; null under --dry-run. */
 function performedMerge(ok: boolean | null): unknown[] {
-  return [{ action: "merge", command: `gh ${MERGE.join(" ")}`, ok }]
+  return [ran("merge", ok)]
 }
 
 describe("dw-sdlc pr ship ends a pull request", () => {
@@ -1007,14 +1017,14 @@ describe("dw-sdlc pr ship ends a pull request", () => {
   })
 
   it("hands the merge to the dev when the read after it still shows it ready, never merging twice", () => {
-    // gh's own refusal of a BLOCKED pull request, the first line its stderr carries.
+    // gh's own refusal of a BLOCKED pull request, the first line its stderr carries, without its icon.
     const blocked =
-      "X Pull request byarcadia-app/foundation#40 is not mergeable: the base branch policy prohibits the merge."
+      "Pull request byarcadia-app/foundation#40 is not mergeable: the base branch policy prohibits the merge."
     const cases: [Response, string][] = [
       [
         {
           exit: 1,
-          stderr: `${blocked}\nTo have the pull request merged after all the requirements have been met, add the \`--auto\` flag.\n`
+          stderr: `X ${blocked}\nTo have the pull request merged after all the requirements have been met, add the \`--auto\` flag.\n`
         },
         `gh refused the merge: ${blocked}`
       ],
@@ -1034,6 +1044,175 @@ describe("dw-sdlc pr ship ends a pull request", () => {
         performed: performedMerge(merged.exit === undefined)
       })
       assert.deepEqual(run.calls, [AUTH, READ, MERGE, READ], reason)
+    }
+  })
+})
+
+/** Green, reviewed and the viewer's own, behind its base under a rule that wants it up to date. */
+const BEHIND: Pr = { ...GREEN, mergeStateStatus: "BEHIND" }
+/** Green, reviewed and the viewer's own, still a draft. */
+const DRAFT: Pr = { ...GREEN, draft: true }
+
+describe("dw-sdlc pr ship updates a branch and marks a draft ready", () => {
+  it("updates a branch behind its base, reads the new head again and answers it, never merging in that call", () => {
+    const updated = "5f0c2a7e9d4b1c3a6e8f0d2b4a6c8e0f1a3b5c7d"
+    const running: Context = { kind: "run", name: "Check", state: "IN_PROGRESS", link: RUN, startedAt: STARTED }
+    const after: Pr = { ...GREEN, head: updated, mergeStateStatus: "BLOCKED", checks: [running] }
+    const run = ship([...TARGET, "--json"], { graphql: [served(BEHIND), served(after)] }, clockAt(STARTED, 60), AUTO)
+    assert.equal(run.status, 10, run.stderr)
+    assert.deepEqual(JSON.parse(run.stdout), {
+      pr: URL,
+      head: updated,
+      base: "main",
+      status: "act",
+      action: "review",
+      actor: "agent",
+      reason: "no dw-sdlc/review success on 5f0c2a7",
+      blockers: [{ action: "wait", actor: "script", reason: "ci-pending" }],
+      performed: [ran("update-branch", true)]
+    })
+    assert.deepEqual(run.calls, [AUTH, READ, UPDATE, READ])
+  })
+
+  it("marks a green, reviewed draft ready, then merges it under pr.merge auto, both under performed in order", () => {
+    const run = ship([...TARGET, "--json"], { graphql: [served(DRAFT), served(GREEN), served(MERGED)] }, {}, AUTO)
+    assert.equal(run.status, 0, run.stderr)
+    assert.deepEqual(JSON.parse(run.stdout), {
+      pr: URL,
+      head: HEAD,
+      base: "main",
+      status: "done",
+      action: "done",
+      actor: "dev",
+      reason: "merged as b04365a",
+      command: "git push origin --delete feat/example",
+      details: { mergeCommit: MERGE_COMMIT },
+      blockers: [],
+      performed: [ran("mark-ready", true), ran("merge", true)]
+    })
+    assert.deepEqual(run.calls, [AUTH, READ, READY, READ, MERGE, READ])
+  })
+
+  it("marks a draft ready under ask and parks it ready-to-merge; gh's warning that it is ready already is no refusal", () => {
+    const warned = { stderr: '! Pull request byarcadia-app/foundation#40 is already "ready for review"\n' }
+    const run = ship([...TARGET, "--json"], {
+      graphql: [served(DRAFT), served(GREEN)],
+      commands: { "pr ready": warned }
+    })
+    assert.equal(run.status, 30, run.stderr)
+    assert.deepEqual(JSON.parse(run.stdout), {
+      pr: URL,
+      head: HEAD,
+      base: "main",
+      status: "park",
+      action: "ready-to-merge",
+      actor: "dev",
+      reason: "pr.merge is ask: the merge is the dev's",
+      command: DEV_MERGE,
+      blockers: [],
+      performed: [ran("mark-ready", true)]
+    })
+    assert.deepEqual(run.calls, [AUTH, READ, READY, READ])
+  })
+
+  it("marks a draft ready last: never while CI fails or runs, the head is unreviewed or a thread awaits a reply", () => {
+    const cases: [string, Pr, NodeJS.ProcessEnv, string][] = [
+      ["CI failing", { ...DRAFT, checks: [FAILING, REVIEWED] }, {}, "fix-ci"],
+      ["not reviewed", { ...DRAFT, checks: [PASSING] }, {}, "review"],
+      ["CI pending", { ...PENDING, draft: true }, clockAt(STARTED, 10 * 60), "wait"],
+      ["awaiting a reply", { ...DRAFT, threads: [{ ...THREAD, lastByViewer: true }] }, {}, "awaiting-reply"]
+    ]
+    for (const [name, pr, env, action] of cases) {
+      const run = json(pr, [], env, AUTO)
+      assert.deepEqual(
+        fieldsOf(run.document, ["action", "blockers", "performed"]),
+        { action, blockers: [{ action: "mark-ready", actor: "script", reason: "still a draft" }], performed: [] },
+        name
+      )
+      assert.deepEqual(run.calls, [AUTH, READ], name)
+    }
+  })
+
+  it("reads again after gh refuses the update for a conflict and answers the conflict that read shows", () => {
+    const conflicting: Pr = { ...GREEN, mergeable: "CONFLICTING", mergeStateStatus: "DIRTY" }
+    const refused = { exit: 1, stderr: "X Cannot update PR branch due to conflicts\n" }
+    const scenario = { graphql: [served(BEHIND), served(conflicting)], commands: { "pr update-branch": refused } }
+    const run = ship([...TARGET, "--json"], scenario, {}, AUTO)
+    assert.equal(run.status, 10, run.stderr)
+    assert.deepEqual(fieldsOf(JSON.parse(run.stdout), ["action", "actor", "reason", "performed"]), {
+      action: "fix-conflicts",
+      actor: "agent",
+      reason: "conflicts with main",
+      performed: [ran("update-branch", false)]
+    })
+    assert.deepEqual(run.calls, [AUTH, READ, UPDATE, READ])
+  })
+
+  it("hands an update or a mark-ready to the dev when the read after it still calls for it, never running it twice", () => {
+    const cases: [Pr, "update-branch" | "mark-ready", Response, string, string][] = [
+      [
+        BEHIND,
+        "update-branch",
+        { exit: 1, stderr: "X Cannot update PR branch due to conflicts\n" },
+        "gh refused the update: Cannot update PR branch due to conflicts",
+        "gh pr update-branch 40"
+      ],
+      [
+        BEHIND,
+        "update-branch",
+        {},
+        "the update ran, and the branch still reads behind its base",
+        "gh pr update-branch 40"
+      ],
+      [
+        DRAFT,
+        "mark-ready",
+        { exit: 1, stderr: "GraphQL: Resource not accessible by integration (markPullRequestReadyForReview)\n" },
+        "gh refused the mark-ready: GraphQL: Resource not accessible by integration (markPullRequestReadyForReview)",
+        "gh pr ready 40"
+      ],
+      [DRAFT, "mark-ready", {}, "the mark-ready ran, and the pull request still reads as a draft", "gh pr ready 40"]
+    ]
+    for (const [pr, action, response, reason, command] of cases) {
+      const key = action === "update-branch" ? "pr update-branch" : "pr ready"
+      const scenario = { graphql: [served(pr), served(pr)], commands: { [key]: response } }
+      const run = ship([...TARGET, "--json"], scenario, {}, AUTO)
+      assert.equal(run.status, 30, run.stderr)
+      assert.deepEqual(
+        fieldsOf(JSON.parse(run.stdout), ["status", "action", "actor", "reason", "command", "performed"]),
+        {
+          status: "park",
+          action,
+          actor: "dev",
+          reason,
+          command,
+          performed: [ran(action, response.exit === undefined)]
+        }
+      )
+      assert.deepEqual(run.calls, [AUTH, READ, RUNS[action], READ], reason)
+    }
+  })
+
+  it("stops at the first script Action with --dry-run and parks it for the dev with its command, running nothing", () => {
+    const cases: [Pr, "update-branch" | "mark-ready", string, string][] = [
+      [{ ...BEHIND, draft: true }, "update-branch", "update the branch", "gh pr update-branch 40"],
+      [DRAFT, "mark-ready", "mark it ready", "gh pr ready 40"]
+    ]
+    for (const [pr, action, would, command] of cases) {
+      const reason = `the script would ${would}; --dry-run performs nothing`
+      const run = json(pr, ["--dry-run"], {}, AUTO)
+      assert.equal(run.status, 30, run.stderr)
+      assert.deepEqual(fieldsOf(run.document, ["status", "action", "actor", "reason", "command", "performed"]), {
+        status: "park",
+        action,
+        actor: "dev",
+        reason,
+        command,
+        performed: [ran(action, null)]
+      })
+      assert.deepEqual(run.calls, [AUTH, READ], action)
+      const line = ship([...TARGET, "--dry-run"], { graphql: [served(pr)] }, {}, AUTO)
+      assert.deepEqual([line.status, line.stdout], [30, `park ${action}: ${reason} — ${command}\n`], line.stderr)
     }
   })
 })

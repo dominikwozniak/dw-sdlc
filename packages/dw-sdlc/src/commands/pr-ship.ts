@@ -5,7 +5,17 @@
 import { parseArgs } from "node:util"
 
 import { type PrMerge, repositoryRoot, resolveConfig } from "../agentic-config.ts"
-import { type Action, type Answer, decide, readyToMerge, shellLine, type Status } from "../pr/decide.ts"
+import {
+  type Answer,
+  decide,
+  devCommand,
+  hostArgs,
+  isScriptAction,
+  readyToMerge,
+  type ScriptAction,
+  shellLine,
+  type Status
+} from "../pr/decide.ts"
 import { CannotRun, gh, namedProblem, read, readAgain, said } from "../pr/read.ts"
 import type { PrState } from "../pr/state.ts"
 
@@ -15,11 +25,12 @@ const USAGE = `Usage: dw-sdlc pr ship [<n>] [-R owner/name] [--merge] [--dry-run
 
 Reads pull request <n> through gh, the one of the current branch as gh pr view resolves it when <n>
 is omitted, and answers the Action it needs next: the status, the action, whose turn it is and why.
-A pull request ready to merge is squash merged by the script, then read again, under pr.merge auto
-in .ai/agentic.config.json or with --merge for this call; under ask, the default, it parks with the
-merge command. --dry-run performs nothing and lists what it would have run under performed. One
-line, or one document with --json; --verbose adds the state as read to the document under facts.
-Needs an authenticated gh.
+The script performs its own Actions, each at most once and then reads again: it updates a branch
+behind its base, marks a draft ready once nothing else holds it back, and squash merges a pull
+request ready to merge under pr.merge auto in .ai/agentic.config.json or with --merge for this call;
+under ask, the default, it parks with the merge command. --dry-run performs nothing: it parks at the
+first Action the script would perform, listed under performed. One line, or one document with
+--json; --verbose adds the state as read to the document under facts. Needs an authenticated gh.
 
 Exit 0 done, 10 the agent's turn, 20 wait, 30 the dev's turn, 2 when it cannot run.`
 
@@ -38,7 +49,7 @@ type Cli = {
 }
 
 /** A host action the call ran, `ok` whether gh succeeded; null under --dry-run, which runs nothing. */
-type Performed = { action: Action; command: string; ok: boolean | null }
+type Performed = { action: ScriptAction; command: string; ok: boolean | null }
 
 function parseCli(argv: string[]): Cli | { error: string } {
   try {
@@ -92,47 +103,57 @@ function now(): number {
   return time
 }
 
-/**
- * The squash merge as the script runs it, on the head it read and never with --delete-branch; -R names
- * the repository, so the checkout it runs in plays no part.
- */
-function mergeArgs(pr: PrState): string[] {
-  return ["pr", "merge", String(pr.number), "-R", pr.repo, "--squash", "--match-head-commit", pr.head]
+/** How a reason names each script Action: what the script would do, the act, and the state it acts on. */
+const NAMED: Record<ScriptAction, { would: string; act: string; still: string }> = {
+  "update-branch": { would: "update the branch", act: "the update", still: "the branch still reads behind its base" },
+  "mark-ready": { would: "mark it ready", act: "the mark-ready", still: "the pull request still reads as a draft" },
+  merge: { would: "merge it", act: "the merge", still: "the pull request still reads open" }
 }
 
-function handedOver(pr: PrState, reason: string): Answer {
-  return { ...readyToMerge(pr, reason), blockers: [] }
+/** A script Action the call leaves to the dev, `reason` saying why; a merge parks as ready-to-merge. */
+function handedOver(pr: PrState, answer: Answer, action: ScriptAction, reason: string): Answer {
+  if (action === "merge") {
+    return { ...readyToMerge(pr, reason), blockers: answer.blockers }
+  }
+  return { ...answer, status: "park", actor: "dev", reason, command: devCommand(pr, action) }
 }
 
 /**
- * Reads and decides until the Action is not the script's. The merge runs at most once, then the pull
- * request is read again; under --dry-run, or when the merge comes round again, it is the dev's.
+ * Reads and decides until the Action is not the script's. Each script Action runs at most once, then the
+ * pull request is read again; under --dry-run, or when an Action comes round again, it is the dev's.
  */
 function ship(cli: Cli, merge: PrMerge): { pr: PrState; answer: Answer; performed: Performed[] } {
   let pr = read(cli, "pr ship")
   const performed: Performed[] = []
-  let refusal: string | undefined
+  const refusals: Partial<Record<ScriptAction, string>> = {}
   for (;;) {
     const answer = decide(pr, now(), merge)
-    if (answer.action !== "merge") {
+    const { action } = answer
+    if (!isScriptAction(action)) {
       return { pr, answer, performed }
     }
-    const args = mergeArgs(pr)
+    // -R names the repository, so the checkout the script runs in plays no part.
+    const args = hostArgs(pr, action, true)
     const command = shellLine(["gh", ...args])
+    const { would, act, still } = NAMED[action]
     if (cli.dryRun) {
-      performed.push({ action: "merge", command, ok: null })
-      return { pr, answer: handedOver(pr, "the script would merge it; --dry-run performs nothing"), performed }
+      performed.push({ action, command, ok: null })
+      return {
+        pr,
+        answer: handedOver(pr, answer, action, `the script would ${would}; --dry-run performs nothing`),
+        performed
+      }
     }
-    if (performed.some(({ action }) => action === "merge")) {
-      const reason =
-        refusal === undefined
-          ? "the merge ran, and the pull request still reads open"
-          : `gh refused the merge: ${refusal}`
-      return { pr, answer: handedOver(pr, reason), performed }
+    if (performed.some((done) => done.action === action)) {
+      const refusal = refusals[action]
+      const reason = refusal === undefined ? `${act} ran, and ${still}` : `gh refused ${act}: ${refusal}`
+      return { pr, answer: handedOver(pr, answer, action, reason), performed }
     }
     const result = gh(args)
-    performed.push({ action: "merge", command, ok: result.status === 0 })
-    refusal = result.status === 0 ? undefined : said(result.stderr) || `gh exited ${result.status}`
+    performed.push({ action, command, ok: result.status === 0 })
+    if (result.status !== 0) {
+      refusals[action] = said(result.stderr) || `gh exited ${result.status}`
+    }
     pr = readAgain(pr)
   }
 }

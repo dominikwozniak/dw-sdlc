@@ -12,15 +12,19 @@ export type Action =
   | "stop"
   | "wait"
   | "fix-conflicts"
+  | "update-branch"
   | "fix-ci"
   | "address-review"
   | "review"
   | "unverified"
   | "ci-stuck"
   | "awaiting-reply"
+  | "mark-ready"
   | "awaiting-approval"
   | "ready-to-merge"
   | "merge"
+/** The Actions the script performs itself, each one gh command. */
+export type ScriptAction = "update-branch" | "mark-ready" | "merge"
 /** An Action the pull request needs beside the one its answer names, so one push can fix several. */
 export type Blocker = { action: Action; actor: Actor; reason: string; details?: Record<string, unknown> }
 export type Answer = Blocker & {
@@ -81,13 +85,33 @@ function listed({ id, path, line, author, body }: Thread): Record<string, unknow
   return { id, path, line, author, body }
 }
 
-function mergeCommand(pr: PrState): string {
-  return shellLine(["gh", "pr", "merge", String(pr.number), "--squash", "--match-head-commit", pr.head])
+const HOST: Record<ScriptAction, { verb: string; flags: (pr: PrState) => string[] }> = {
+  "update-branch": { verb: "update-branch", flags: () => [] },
+  "mark-ready": { verb: "ready", flags: () => [] },
+  merge: { verb: "merge", flags: (pr) => ["--squash", "--match-head-commit", pr.head] }
+}
+
+export function isScriptAction(action: Action): action is ScriptAction {
+  return Object.hasOwn(HOST, action)
+}
+
+/**
+ * The gh arguments of a script Action, `-R` naming the repository when `named`. The update merges the
+ * base in, never --rebase, which rewrites the branch on GitHub; the merge names the head it read.
+ */
+export function hostArgs(pr: PrState, action: ScriptAction, named: boolean): string[] {
+  const { verb, flags } = HOST[action]
+  return ["pr", verb, String(pr.number), ...(named ? ["-R", pr.repo] : []), ...flags(pr)]
+}
+
+/** The command a script Action leaves the dev to run, from a checkout of the repository. */
+export function devCommand(pr: PrState, action: ScriptAction): string {
+  return shellLine(["gh", ...hostArgs(pr, action, false)])
 }
 
 /** The merge left to the dev, `reason` saying why it is theirs. */
 export function readyToMerge(pr: PrState, reason: string): Omit<Answer, "blockers"> {
-  return { status: "park", action: "ready-to-merge", actor: "dev", reason, command: mergeCommand(pr) }
+  return { status: "park", action: "ready-to-merge", actor: "dev", reason, command: devCommand(pr, "merge") }
 }
 
 const ROWS: Row[] = [
@@ -128,6 +152,10 @@ const ROWS: Row[] = [
       reason: `conflicts with ${pr.base}`,
       details: { base: pr.base }
     })
+  },
+  {
+    when: (pr) => pr.mergeStateStatus === "BEHIND",
+    answer: (pr) => ({ status: "act", action: "update-branch", actor: "script", reason: `behind ${pr.base}` })
   },
   {
     when: (pr) => failingOf(pr).length > 0,
@@ -172,7 +200,7 @@ const ROWS: Row[] = [
             action: "unverified",
             actor: "dev",
             reason: `no check reported on ${pr.head.slice(0, 7)} within ${GRACE_SECONDS} s of its commit`,
-            command: mergeCommand(pr)
+            command: devCommand(pr, "merge")
           }
   },
   {
@@ -201,6 +229,10 @@ const ROWS: Row[] = [
       reason: `${threads(pr, true).length} thread(s) await a reply`,
       details: { threads: threads(pr, true).map(listed) }
     })
+  },
+  {
+    when: (pr) => pr.draft,
+    answer: () => ({ status: "act", action: "mark-ready", actor: "script", reason: "still a draft" })
   },
   {
     when: (pr) => pr.reviewDecision === "REVIEW_REQUIRED",

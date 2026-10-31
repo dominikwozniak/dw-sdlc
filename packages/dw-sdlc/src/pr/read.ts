@@ -40,9 +40,9 @@ function firstLine(text: string): string {
   return text.trim().split("\n")[0] ?? ""
 }
 
-/** What gh said went wrong: the first line of its stderr, without its `gh: ` prefix. */
+/** What gh said went wrong: the first line of its stderr, without its `gh: ` prefix or its `X` icon. */
 export function said(stderr: string): string {
-  return firstLine(stderr).replace(/^gh: /, "")
+  return firstLine(stderr).replace(/^(?:gh: |X )/, "")
 }
 
 /** The problem `gh auth status` reports: its line marked `X` under the host, else its first line. */
