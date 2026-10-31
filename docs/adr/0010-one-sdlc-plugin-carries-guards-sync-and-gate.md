@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded by ADR 0012
 ---
 
 # One `sdlc` plugin carries the guards, the Sync and the agent side of the Gate
