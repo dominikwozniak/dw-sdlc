@@ -4,6 +4,7 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 
+import { COMMITTED_FILE, LOCAL_FILE } from "../../src/agentic-config.ts"
 import { lines, repo, runBin, scratch } from "../harness.ts"
 import {
   type Context,
@@ -36,6 +37,14 @@ const READ = [
   "-F",
   "number=40"
 ]
+/** The merge the script runs, the repository named. */
+const MERGE = ["pr", "merge", "40", "-R", "byarcadia-app/foundation", "--squash", "--match-head-commit", HEAD]
+/** The merge command an answer hands the dev. */
+const DEV_MERGE = `gh pr merge 40 --squash --match-head-commit ${HEAD}`
+
+/** The files of a test's checkout: a relative path and its text, an object written as JSON. */
+type Files = Record<string, string | object>
+const AUTO: Files = { [COMMITTED_FILE]: { pr: { merge: "auto" } } }
 
 /** As GitHub reports a merged pull request: mergeability no longer computed. */
 const MERGED: Pr = {
@@ -97,15 +106,18 @@ const MIXED: Pr = {
   ]
 }
 
-/** `dw-sdlc pr ship <args>` against a fake gh playing `scenario`, from a repository with no pull request. */
-function ship(args: string[], scenario: Scenario, env: NodeJS.ProcessEnv = {}) {
+/**
+ * `dw-sdlc pr ship <args>` against a fake gh playing `scenario`, from a repository with no pull request
+ * whose checkout holds `files`, its agentic config among them.
+ */
+function ship(args: string[], scenario: Scenario, env: NodeJS.ProcessEnv = {}, files: Files = {}) {
   const gh = fakeGh(scenario)
-  const run = runBin(["pr", "ship", ...args], repo(), { ...gh.env, ...env })
+  const run = runBin(["pr", "ship", ...args], repo({ files }), { ...gh.env, ...env })
   return { ...run, calls: gh.calls() }
 }
 
-function json(pr: Pr, flags: string[] = [], env: NodeJS.ProcessEnv = {}) {
-  const run = ship([...TARGET, "--json", ...flags], { graphql: [served(pr)] }, env)
+function json(pr: Pr, flags: string[] = [], env: NodeJS.ProcessEnv = {}, files: Files = {}) {
+  const run = ship([...TARGET, "--json", ...flags], { graphql: [served(pr)] }, env, files)
   assert.notEqual(run.stdout, "", `no document; exit ${run.status}: ${run.stderr}`)
   return { ...run, document: JSON.parse(run.stdout) as unknown }
 }
@@ -180,21 +192,24 @@ describe("dw-sdlc pr ship", () => {
     assert.deepEqual(run.calls, [AUTH, READ])
   })
 
-  it("parks any other open pull request as undecided, the dev's to read, rather than pretend", () => {
-    const run = json(GREEN)
-    assert.equal(run.status, 30, run.stderr)
-    assert.deepEqual(run.document, {
-      pr: URL,
-      head: HEAD,
-      base: "main",
-      status: "park",
-      action: "undecided",
-      actor: "dev",
-      reason: "no row of the decision matches this pull request",
-      blockers: [],
-      performed: []
-    })
-    assert.deepEqual(run.calls, [AUTH, READ])
+  it("parks a ready pull request with the merge command under pr.merge ask, the default", () => {
+    for (const files of [{}, { [COMMITTED_FILE]: { pr: { merge: "ask" } } }]) {
+      const run = json(GREEN, [], {}, files)
+      assert.equal(run.status, 30, run.stderr)
+      assert.deepEqual(run.document, {
+        pr: URL,
+        head: HEAD,
+        base: "main",
+        status: "park",
+        action: "ready-to-merge",
+        actor: "dev",
+        reason: "pr.merge is ask: the merge is the dev's",
+        command: DEV_MERGE,
+        blockers: [],
+        performed: []
+      })
+      assert.deepEqual(run.calls, [AUTH, READ])
+    }
   })
 
   it("adds the state as read under facts with --verbose: buckets as gh pr checks sorts them, open threads only", () => {
@@ -292,7 +307,8 @@ describe("dw-sdlc pr ship", () => {
   it("prints its usage with --help", () => {
     const run = ship(["--help"], {})
     assert.equal(run.status, 0, run.stderr)
-    assert.ok(run.stdout.startsWith("Usage: dw-sdlc pr ship [<n>] [-R owner/name] [--json] [--verbose]\n"), run.stdout)
+    const usage = "Usage: dw-sdlc pr ship [<n>] [-R owner/name] [--merge] [--dry-run] [--json] [--verbose]\n"
+    assert.ok(run.stdout.startsWith(usage), run.stdout)
     assert.deepEqual(run.calls, [])
   })
 
@@ -301,7 +317,7 @@ describe("dw-sdlc pr ship", () => {
       [MERGED, 0, "done: merged as b04365a — git push origin --delete feat/example"],
       [{ ...GREEN, state: "CLOSED" }, 30, "park stop: closed without merging"],
       [{ ...GREEN, mergeable: "UNKNOWN" }, 20, "wait: mergeability-unknown, recheck in 15 s"],
-      [GREEN, 30, "park undecided: no row of the decision matches this pull request"]
+      [GREEN, 30, `park ready-to-merge: pr.merge is ask: the merge is the dev's — ${DEV_MERGE}`]
     ]
     for (const [pr, status, line] of cases) {
       const run = ship(TARGET, { graphql: [served(pr)] })
@@ -818,6 +834,206 @@ describe("dw-sdlc pr ship when it cannot run", () => {
       assert.equal(run.status, 2, problem)
       assert.deepEqual(lines(run.stderr), [`dw-sdlc pr ship: the reply does not parse: ${problem} — ${REMEDY.reply}`])
       assert.equal(run.stdout, "")
+    }
+  })
+})
+
+/** The fields of a document a test names, those it carries. */
+function fieldsOf(document: unknown, keys: string[]): Record<string, unknown> {
+  assert.ok(typeof document === "object" && document !== null)
+  return Object.fromEntries(Object.entries(document).filter(([key]) => keys.includes(key)))
+}
+
+/** `performed` once the call ran the merge, `ok` as gh answered; null under --dry-run. */
+function performedMerge(ok: boolean | null): unknown[] {
+  return [{ action: "merge", command: `gh ${MERGE.join(" ")}`, ok }]
+}
+
+describe("dw-sdlc pr ship ends a pull request", () => {
+  it("merges a ready pull request under pr.merge auto with the head it read, reads it again and answers done", () => {
+    const run = ship([...TARGET, "--json"], { graphql: [served(GREEN), served(MERGED)] }, {}, AUTO)
+    assert.equal(run.status, 0, run.stderr)
+    assert.deepEqual(JSON.parse(run.stdout), {
+      pr: URL,
+      head: HEAD,
+      base: "main",
+      status: "done",
+      action: "done",
+      actor: "dev",
+      reason: "merged as b04365a",
+      command: "git push origin --delete feat/example",
+      details: { mergeCommit: MERGE_COMMIT },
+      blockers: [],
+      performed: performedMerge(true)
+    })
+    assert.deepEqual(run.calls, [AUTH, READ, MERGE, READ])
+  })
+
+  it("merges under pr.merge ask when --merge is given for the call", () => {
+    const ask = { [COMMITTED_FILE]: { pr: { merge: "ask" } } }
+    const run = ship([...TARGET, "--json", "--merge"], { graphql: [served(GREEN), served(MERGED)] }, {}, ask)
+    assert.equal(run.status, 0, run.stderr)
+    assert.deepEqual(fieldsOf(JSON.parse(run.stdout), ["status", "performed"]), {
+      status: "done",
+      performed: performedMerge(true)
+    })
+    assert.deepEqual(run.calls, [AUTH, READ, MERGE, READ])
+  })
+
+  it("parks under ask while a config layer is invalid, whatever the committed file sets", () => {
+    const cases: Files[] = [
+      { ...AUTO, [LOCAL_FILE]: "{ not json" },
+      { ...AUTO, [LOCAL_FILE]: { pr: { merge: "always" } } },
+      { [COMMITTED_FILE]: { pr: { merge: "ask" } }, [LOCAL_FILE]: { pr: { merge: "auto" } } }
+    ]
+    for (const files of cases) {
+      const run = json(GREEN, [], {}, files)
+      assert.equal(run.status, 30, run.stderr)
+      assert.deepEqual(fieldsOf(run.document, ["action", "reason", "command", "performed"]), {
+        action: "ready-to-merge",
+        reason: "pr.merge is ask: the merge is the dev's",
+        command: DEV_MERGE,
+        performed: []
+      })
+      assert.deepEqual(run.calls, [AUTH, READ], JSON.stringify(files))
+    }
+  })
+
+  it("parks a pull request that needs an approving review as awaiting-approval, under auto too", () => {
+    const run = json({ ...GREEN, mergeStateStatus: "BLOCKED", reviewDecision: "REVIEW_REQUIRED" }, [], {}, AUTO)
+    assert.equal(run.status, 30, run.stderr)
+    assert.deepEqual(run.document, {
+      pr: URL,
+      head: HEAD,
+      base: "main",
+      status: "park",
+      action: "awaiting-approval",
+      actor: "dev",
+      reason: "an approving review is required",
+      blockers: [],
+      performed: []
+    })
+    assert.deepEqual(run.calls, [AUTH, READ])
+  })
+
+  it("lists awaiting-approval among the blockers, and who merges never", () => {
+    const unreviewed = json({ ...GREEN, checks: [PASSING], reviewDecision: "REVIEW_REQUIRED" }, [], {}, AUTO)
+    assert.deepEqual(blockersOf(unreviewed.document), ["awaiting-approval"], unreviewed.stdout)
+    const failing = json({ ...GREEN, checks: [FAILING, REVIEWED], viewerDidAuthor: false }, [], {}, AUTO)
+    assert.deepEqual(blockersOf(failing.document), [], failing.stdout)
+  })
+
+  it("parks another author's pull request as ready-to-merge, under auto and with --merge, and merges nothing", () => {
+    for (const [flags, files] of [
+      [[], AUTO],
+      [["--merge"], {}]
+    ] satisfies [string[], Files][]) {
+      const run = json({ ...GREEN, viewerDidAuthor: false }, flags, {}, files)
+      assert.equal(run.status, 30, run.stderr)
+      assert.deepEqual(run.document, {
+        pr: URL,
+        head: HEAD,
+        base: "main",
+        status: "park",
+        action: "ready-to-merge",
+        actor: "dev",
+        reason: "another author's pull request: the merge is the dev's",
+        command: DEV_MERGE,
+        blockers: [],
+        performed: []
+      })
+      assert.deepEqual(run.calls, [AUTH, READ])
+    }
+  })
+
+  it("performs nothing with --dry-run: the merge it would run is under performed with ok null, and the dev's", () => {
+    for (const [flags, files] of [
+      [["--dry-run"], AUTO],
+      [["--dry-run", "--merge"], {}]
+    ] satisfies [string[], Files][]) {
+      const run = json(GREEN, flags, {}, files)
+      assert.equal(run.status, 30, run.stderr)
+      assert.deepEqual(run.document, {
+        pr: URL,
+        head: HEAD,
+        base: "main",
+        status: "park",
+        action: "ready-to-merge",
+        actor: "dev",
+        reason: "the script would merge it; --dry-run performs nothing",
+        command: DEV_MERGE,
+        blockers: [],
+        performed: performedMerge(null)
+      })
+      assert.deepEqual(run.calls, [AUTH, READ], flags.join(" "))
+    }
+    const failing = json({ ...GREEN, checks: [FAILING, REVIEWED] }, ["--dry-run"], {}, AUTO)
+    assert.deepEqual(fieldsOf(failing.document, ["action", "performed"]), { action: "fix-ci", performed: [] })
+  })
+
+  it("ends the line of a ready-to-merge with the merge command", () => {
+    const cases: [Files, string[], string][] = [
+      [{}, [], "pr.merge is ask: the merge is the dev's"],
+      [AUTO, ["--dry-run"], "the script would merge it; --dry-run performs nothing"]
+    ]
+    for (const [files, flags, reason] of cases) {
+      const run = ship([...TARGET, ...flags], { graphql: [served(GREEN)] }, {}, files)
+      assert.deepEqual([run.status, run.stdout], [30, `park ready-to-merge: ${reason} — ${DEV_MERGE}\n`], run.stderr)
+    }
+  })
+
+  it("reads again after a merge refused for a moved head and answers what that read gives", () => {
+    const moved = "0d6c3f4a1b2e5d7c9f8a6b4c2e0d1f3a5b7c9e8d"
+    const running: Context = { kind: "run", name: "Check", state: "IN_PROGRESS", link: RUN, startedAt: STARTED }
+    const stderr = "GraphQL: Head branch was modified. Review and try the merge again. (mergePullRequest)\n"
+    const run = ship(
+      [...TARGET, "--json"],
+      {
+        graphql: [served(GREEN), served({ ...GREEN, head: moved, checks: [running] })],
+        commands: { "pr merge": { exit: 1, stderr } }
+      },
+      clockAt(STARTED, 60),
+      AUTO
+    )
+    assert.equal(run.status, 10, run.stderr)
+    assert.deepEqual(fieldsOf(JSON.parse(run.stdout), ["head", "status", "action", "reason", "performed"]), {
+      head: moved,
+      status: "act",
+      action: "review",
+      reason: "no dw-sdlc/review success on 0d6c3f4",
+      performed: performedMerge(false)
+    })
+    assert.deepEqual(run.calls, [AUTH, READ, MERGE, READ])
+  })
+
+  it("hands the merge to the dev when the read after it still shows it ready, never merging twice", () => {
+    // gh's own refusal of a BLOCKED pull request, the first line its stderr carries.
+    const blocked =
+      "X Pull request byarcadia-app/foundation#40 is not mergeable: the base branch policy prohibits the merge."
+    const cases: [Response, string][] = [
+      [
+        {
+          exit: 1,
+          stderr: `${blocked}\nTo have the pull request merged after all the requirements have been met, add the \`--auto\` flag.\n`
+        },
+        `gh refused the merge: ${blocked}`
+      ],
+      [{ exit: 1 }, "gh refused the merge: gh exited 1"],
+      [{}, "the merge ran, and the pull request still reads open"]
+    ]
+    const ready: Pr = { ...GREEN, mergeStateStatus: "BLOCKED" }
+    for (const [merged, reason] of cases) {
+      const scenario = { graphql: [served(ready), served(ready)], commands: { "pr merge": merged } }
+      const run = ship([...TARGET, "--json"], scenario, {}, AUTO)
+      assert.equal(run.status, 30, run.stderr)
+      assert.deepEqual(fieldsOf(JSON.parse(run.stdout), ["action", "actor", "reason", "command", "performed"]), {
+        action: "ready-to-merge",
+        actor: "dev",
+        reason,
+        command: DEV_MERGE,
+        performed: performedMerge(merged.exit === undefined)
+      })
+      assert.deepEqual(run.calls, [AUTH, READ, MERGE, READ], reason)
     }
   })
 })
