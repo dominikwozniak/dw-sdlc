@@ -26,7 +26,8 @@ const REMEDIES = {
   target: "check the number, or name the repository with -R owner/name",
   view: "name it: dw-sdlc pr ship <n> -R owner/name",
   read: "check gh auth status and the network, then call again",
-  reply: "gh answered a shape dw-sdlc does not read; report it with the output of gh --version"
+  reply: "gh answered a shape dw-sdlc does not read; report it with the output of gh --version",
+  clock: "unset it: it stands in for the clock in tests"
 }
 
 /** What stops the script before it decides anything: exit 2, the problem and its remedy on one line. */
@@ -154,6 +155,19 @@ function read(cli: Cli): PrState {
   return parseOrCannotShip(() => parsePr(query.stdout, repo))
 }
 
+/** The time the decision reads: DW_SDLC_NOW, an ISO 8601 time a test sets, else the system clock. */
+function now(): number {
+  const given = process.env.DW_SDLC_NOW?.trim()
+  if (given === undefined || given === "") {
+    return Date.now()
+  }
+  const time = Date.parse(given)
+  if (Number.isNaN(time)) {
+    throw new CannotShip(`DW_SDLC_NOW is ${JSON.stringify(given)}, not an ISO 8601 time`, REMEDIES.clock)
+  }
+  return time
+}
+
 /** `<status> <action>: <reason>`, the action dropped when it repeats the status, then the recheck and the command. */
 function lineOf({ status, action, reason, command, recheckAfter }: Answer): string {
   const label = status === action ? status : `${status} ${action}`
@@ -177,8 +191,10 @@ export function run(argv: string[]): number {
     return 0
   }
   let pr: PrState
+  let time: number
   try {
     pr = read(cli)
+    time = now()
   } catch (error) {
     if (error instanceof CannotShip) {
       process.stderr.write(`dw-sdlc pr ship: ${error.message} — ${error.remedy}\n`)
@@ -186,7 +202,7 @@ export function run(argv: string[]): number {
     }
     throw error
   }
-  const answer = decide(pr)
+  const answer = decide(pr, time)
   process.stdout.write(`${cli.json ? JSON.stringify(documentOf(pr, answer, cli.verbose), null, 2) : lineOf(answer)}\n`)
   return EXIT[answer.status]
 }

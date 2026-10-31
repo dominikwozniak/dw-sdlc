@@ -4,7 +4,7 @@
 export const QUERY = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
     pullRequest(number: $number) {
-      url state isDraft mergeable mergeStateStatus reviewDecision headRefOid headRefName baseRefName
+      url number state isDraft mergeable mergeStateStatus reviewDecision headRefOid headRefName baseRefName
       viewerDidAuthor mergeCommit { oid }
       reviewThreads(first: 100) { nodes { id isResolved isOutdated path line
         comments(first: 1) { nodes { author { login } body } } } }
@@ -35,6 +35,7 @@ const REVIEW_DECISIONS = ["APPROVED", "CHANGES_REQUESTED", "REVIEW_REQUIRED"] as
 export type PrState = {
   url: string
   repo: string
+  number: number
   state: (typeof STATES)[number]
   draft: boolean
   mergeable: (typeof MERGEABLE)[number]
@@ -121,12 +122,33 @@ function boolean(node: Node, key: string): boolean {
   return value
 }
 
+function integer(node: Node, key: string): number {
+  const { value, at } = fieldOf(node, key)
+  if (typeof value !== "number" || !Number.isInteger(value)) {
+    throw new ReplyError(`${at} is ${shown(value)}, not an integer`)
+  }
+  return value
+}
+
 function integerOrNull(node: Node, key: string): number | null {
   const { value, at } = fieldOf(node, key)
   if (value !== null && !Number.isInteger(value)) {
     throw new ReplyError(`${at} is ${shown(value)}, not an integer or null`)
   }
   return typeof value === "number" ? value : null
+}
+
+/** A time as GitHub writes it, ISO 8601; the decision reads it as one. */
+function time(node: Node, key: string): string {
+  const value = string(node, key)
+  if (Number.isNaN(Date.parse(value))) {
+    throw new ReplyError(`${fieldOf(node, key).at} is ${shown(value)}, not a time`)
+  }
+  return value
+}
+
+function timeOrNull(node: Node, key: string): string | null {
+  return node.value[key] === null ? null : time(node, key)
 }
 
 function isOneOf<T extends string>(values: readonly T[], value: unknown): value is T {
@@ -180,7 +202,7 @@ function checkOf(context: Node, repo: string): CiCheck {
       required: boolean(context, "isRequired"),
       link,
       log: logCommand(link, repo),
-      startedAt: stringOrNull(context, "startedAt")
+      startedAt: timeOrNull(context, "startedAt")
     }
   }
   if ("context" in context.value) {
@@ -191,7 +213,7 @@ function checkOf(context: Node, repo: string): CiCheck {
       required: boolean(context, "isRequired"),
       link,
       log: logCommand(link, repo),
-      startedAt: string(context, "createdAt")
+      startedAt: time(context, "createdAt")
     }
   }
   throw new ReplyError(`${context.at} is neither a CheckRun nor a StatusContext`)
@@ -236,6 +258,7 @@ export function parsePr(reply: string, repo: string): PrState {
   return {
     url: string(pr, "url"),
     repo,
+    number: integer(pr, "number"),
     state: oneOf(pr, "state", STATES),
     draft: boolean(pr, "isDraft"),
     mergeable: oneOf(pr, "mergeable", MERGEABLE),
@@ -243,7 +266,7 @@ export function parsePr(reply: string, repo: string): PrState {
     reviewDecision: pr.value.reviewDecision === null ? null : oneOf(pr, "reviewDecision", REVIEW_DECISIONS),
     viewerDidAuthor: boolean(pr, "viewerDidAuthor"),
     head: string(pr, "headRefOid"),
-    headCommittedAt: string(commit, "committedDate"),
+    headCommittedAt: time(commit, "committedDate"),
     branch: string(pr, "headRefName"),
     base: string(pr, "baseRefName"),
     mergeCommit: mergeCommit === null ? null : string(mergeCommit, "oid"),

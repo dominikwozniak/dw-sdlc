@@ -14,7 +14,7 @@ export type Response = { stdout?: string; stderr?: string; exit?: number }
 export type Scenario = { graphql?: Response[]; commands?: Record<string, Response> }
 
 export type FakeGh = {
-  /** The environment that puts this gh first on PATH, with no GH_HOST from the machine running the test. */
+  /** The environment that puts this gh first on PATH, with no GH_HOST or DW_SDLC_NOW from the machine. */
   env: NodeJS.ProcessEnv
   /** Every call's arguments in order, the GraphQL query's text elided to `query=…`. */
   calls: () => string[][]
@@ -28,7 +28,7 @@ export function fakeGh(scenario: Scenario): FakeGh {
   chmodSync(bin, 0o755)
   const log = join(dir, "calls.jsonl")
   return {
-    env: { PATH: `${dir}${delimiter}${process.env.PATH ?? ""}`, GH_HOST: "" },
+    env: { PATH: `${dir}${delimiter}${process.env.PATH ?? ""}`, GH_HOST: "", DW_SDLC_NOW: "" },
     calls: () =>
       existsSync(log)
         ? lines(readFileSync(log, "utf8")).map((line) =>
@@ -128,6 +128,7 @@ export function pullRequestOf(pr: Pr): Record<string, unknown> {
   const rollup = pr.checks.length === 0 ? null : { contexts: { nodes: pr.checks.map(contextOf) } }
   return {
     url: `https://github.com/${pr.repo}/pull/${pr.number}`,
+    number: pr.number,
     state: pr.state,
     isDraft: pr.draft,
     mergeable: pr.mergeable,
