@@ -26,9 +26,8 @@ Where the shell reads a command, not an argument: a line start, indented or not,
 in a subshell or a substitution, or behind a launcher. A guard judges a command only there.
 
 **Launcher**:
-A word that runs the command after it: `sudo`, `env`, `xargs`, `timeout`, `find -exec`, `bash -c`, a
-shell keyword such as `then` or `do`. Its options are read with it, so the command behind stays in
-command position.
+A word that runs the command after it: `sudo`, `env`, `xargs`, `timeout`, `find -exec`, `bash -c`, a shell keyword
+such as `then` or `do`. Its options are read with it, so the command behind stays in command position.
 
 **Plain words**:
 A command segment's shell words with the quotes gone and quoted prose dropped.
@@ -58,19 +57,21 @@ through, and only to a branch that is not protected.
 _Avoid_: safe force push
 
 **Protected branch**:
-A branch the agent never pushes to, plainly or by force, and never commits on where the repository
-says so; it changes only through a pull request.
+A branch the agent never pushes to, forced or not, nor commits on if the repo says so; only a pull request changes it.
 
 **Landed branch**:
-A local branch whose work is on origin's base branch: its tip is there, or it changes something
-and a base commit since it forked holds its tree or the patch-id of its whole diff, as a squash
-merge leaves them. The one branch a forced delete may remove.
+A local branch whose work is on origin's base: its tip is there, or it changes something and a base commit since it
+forked holds its tree or its whole diff's patch-id, as a squash merge leaves them. The one a forced delete may remove.
 _Avoid_: merged branch, which git's `--merged` keeps for a tip the base contains
 
 **Action**:
 The one thing a pull request needs next, as the ship script decides it: performed by the script, handed
 to the agent or left to the dev. Waiting and parking are Actions too.
 _Avoid_: Step, Verdict, move, GitHub Actions (the CI)
+
+**Ship script**:
+The command that drives one pull request to merged: it decides each Action and performs the ones it owns.
+_Avoid_: autopilot, babysitter, land (a Landed branch is a local one)
 
 ### Gate
 
@@ -90,8 +91,7 @@ The Steps and then the Checks a change must pass, run by one command, the same l
 _Avoid_: quality gate, CI (which runs it), lint (one part of a Step)
 
 **Ratchet**:
-A Check with a recorded baseline whose limit may only tighten: a number that must not grow, or a list
-of exceptions that may only shrink.
+A Check whose recorded baseline may only tighten: a number that never grows or a list of exceptions that only shrinks.
 _Avoid_: threshold, budget (a fixed limit with no baseline)
 
 **Primitive**:
