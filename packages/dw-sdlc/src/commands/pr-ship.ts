@@ -83,6 +83,12 @@ function firstLine(text: string): string {
   return text.trim().split("\n")[0] ?? ""
 }
 
+/** The problem `gh auth status` reports: its line marked `X` under the host, else its first line. */
+function authProblem(stderr: string): string {
+  const marked = stderr.split("\n").find((line) => line.trimStart().startsWith("X "))
+  return marked === undefined ? firstLine(stderr) : marked.trim().slice(2)
+}
+
 function gh(args: string[]): { status: number; stdout: string; stderr: string } {
   const result = spawnSync("gh", args, { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 })
   if (result.error !== undefined) {
@@ -120,9 +126,11 @@ function targetOf({ number, repo }: Cli): Target {
 }
 
 function read(cli: Cli): PrState {
-  const auth = gh(["auth", "status", "--active"])
+  // The host gh api reads from: an account on any other host has no say in this call.
+  const host = process.env.GH_HOST?.trim() || "github.com"
+  const auth = gh(["auth", "status", "--active", "--hostname", host])
   if (auth.status !== 0) {
-    throw new CannotShip(`gh auth status failed: ${firstLine(auth.stderr)}`, REMEDIES.auth)
+    throw new CannotShip(`gh auth status failed: ${authProblem(auth.stderr)}`, REMEDIES.auth)
   }
   const { repo, number } = targetOf(cli)
   const [owner = "", name = ""] = repo.split("/")

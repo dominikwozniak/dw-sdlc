@@ -14,7 +14,7 @@ export type Response = { stdout?: string; stderr?: string; exit?: number }
 export type Scenario = { graphql?: Response[]; commands?: Record<string, Response> }
 
 export type FakeGh = {
-  /** The environment that puts this gh first on PATH. */
+  /** The environment that puts this gh first on PATH, with no GH_HOST from the machine running the test. */
   env: NodeJS.ProcessEnv
   /** Every call's arguments in order, the GraphQL query's text elided to `query=…`. */
   calls: () => string[][]
@@ -28,7 +28,7 @@ export function fakeGh(scenario: Scenario): FakeGh {
   chmodSync(bin, 0o755)
   const log = join(dir, "calls.jsonl")
   return {
-    env: { PATH: `${dir}${delimiter}${process.env.PATH ?? ""}` },
+    env: { PATH: `${dir}${delimiter}${process.env.PATH ?? ""}`, GH_HOST: "" },
     calls: () =>
       existsSync(log)
         ? lines(readFileSync(log, "utf8")).map((line) =>

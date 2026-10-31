@@ -21,7 +21,7 @@ import {
 const MERGE_COMMIT = "b04365ad73c61edcf175d9c5632740eb13fd2e4d"
 const URL = "https://github.com/byarcadia-app/foundation/pull/40"
 const TARGET = ["40", "-R", "byarcadia-app/foundation"]
-const AUTH = ["auth", "status", "--active"]
+const AUTH = ["auth", "status", "--active", "--hostname", "github.com"]
 const READ = [
   "api",
   "graphql",
@@ -75,9 +75,9 @@ const MIXED: Pr = {
 }
 
 /** `dw-sdlc pr ship <args>` against a fake gh playing `scenario`, from a repository with no pull request. */
-function ship(args: string[], scenario: Scenario) {
+function ship(args: string[], scenario: Scenario, env: NodeJS.ProcessEnv = {}) {
   const gh = fakeGh(scenario)
-  const run = runBin(["pr", "ship", ...args], repo(), gh.env)
+  const run = runBin(["pr", "ship", ...args], repo(), { ...gh.env, ...env })
   return { ...run, calls: gh.calls() }
 }
 
@@ -301,6 +301,21 @@ describe("dw-sdlc pr ship when it cannot run", () => {
       "dw-sdlc pr ship: gh auth status failed: You are not logged into any GitHub hosts. To log in, run: gh auth login — run gh auth login, or set GH_TOKEN"
     ])
     assert.deepEqual(run.calls, [AUTH])
+  })
+
+  it("names the failure gh auth status marks under the host, not the host line above it", () => {
+    const stderr = "github.com\n  X Failed to log in to github.com using token (GH_TOKEN)\n  - Active account: true\n"
+    const run = ship(TARGET, { commands: { "auth status": { exit: 1, stderr } } })
+    assert.equal(run.status, 2)
+    assert.deepEqual(lines(run.stderr), [
+      "dw-sdlc pr ship: gh auth status failed: Failed to log in to github.com using token (GH_TOKEN) — run gh auth login, or set GH_TOKEN"
+    ])
+  })
+
+  it("checks gh's auth on the host gh api reads from alone, so a broken account elsewhere never stops it", () => {
+    const run = ship(TARGET, { graphql: [served(GREEN)] }, { GH_HOST: "ghe.example.com" })
+    assert.equal(run.status, 30, run.stderr)
+    assert.deepEqual(run.calls[0], ["auth", "status", "--active", "--hostname", "ghe.example.com"])
   })
 
   it("exits 2 naming the pull request when GitHub has no such pull request", () => {
