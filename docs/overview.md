@@ -4,10 +4,11 @@ The repository holds the software delivery process Dominik works by and the Clau
 carries it: a plugin marketplace and the code behind it. Its one plugin, `sdlc`, carries a set of
 deterministic hooks that stop an agent session from doing the damage a human would not: rewriting
 history, reading a secret, installing through the wrong package manager, committing sloppily. Beside
-them it carries the Sync of a repository's References and the skills that set a repository up and
-check a machine. This page is the long version of the README: how a guard judges a call, where its
-rules come from, how the Gate runs, why the design is shaped this way, and how the plugin is adopted
-and released. Every guard in full is in the [plugin README](../plugins/sdlc/README.md).
+them it carries the Sync of a repository's References and the skills that set a repository up,
+check a machine and ship a pull request. This page is the long version of the README: how a guard
+judges a call, where its rules come from, how the Gate runs, why the design is shaped this way, how
+the plugin is adopted and released, and how a pull request lands. Every guard in full is in the
+[plugin README](../plugins/sdlc/README.md).
 
 ## How a guard judges a call
 
@@ -240,6 +241,37 @@ a real payload.
 `quality-gate.yaml` runs `pnpm check` on it first. For a small fix the agent commits on `main` and the
 push comes from Dominik's own terminal: the guards judge only the agent's tool calls. GitHub branch
 protection is not available on this private repository, so the guard is the only check.
+
+## How a pull request lands
+
+The Ship script, `dw-sdlc pr ship [<n>]`, drives one pull request to merged. A call reads the pull
+request through `gh`, one GraphQL query, and decides the one Action it needs next. When that Action
+is the script's own, the call performs it, reads again and decides again; it answers the first
+Action that is not, as one line or, with `--json`, one document. The exit code says whose turn it
+is: 0 done, 10 the agent's, 20 wait, 30 the dev's, 2 it cannot run. The script holds no state
+between calls and never sleeps: a `wait` carries `recheckAfter`, the seconds until the next call.
+
+The script owns three Actions, one `gh` command each. It updates a branch behind its base by
+merging the base in, marks a draft ready once CI is green, no thread is open and the head is
+reviewed, and squash merges with `--match-head-commit`, so a push during the decision never merges
+blind. Each runs at most once per call; one that comes round again, and every one under
+`--dry-run`, parks with its command for the dev. The agent owns four: `fix-conflicts`, `fix-ci`,
+`address-review` and `review`, each with what it needs under `details`. Every later Action that
+holds the pull request back rides in `blockers`, so one push can fix several. The dev owns the
+rest: a closed pull request, a head no check reported on within 120 s of its commit, CI pending
+past its 40-minute budget, a thread awaiting the dev's reply, a required approval, and the merge
+when it is not the script's.
+
+Who merges follows `pr.merge`: the script under `auto`, the dev under `ask`, and the script for one
+call under `--merge`. A pull request another author opened parks for the dev under either. A clean
+review is a commit status: `dw-sdlc pr reviewed <n> --head <sha>` posts `dw-sdlc/review` in state
+`success` on the head the review read and refuses once a push moved it, so a new head waits for a
+fresh review. Contexts under `dw-sdlc/` never count as CI. The script never deletes a branch: a
+merged pull request answers `done` with the deletion command for the dev.
+
+The `sdlc-pr-ship` skill is the agent's side: it calls the script, does the agent's Action, calls
+again, and stops at a wait, a park or done, as the
+[plugin README](../plugins/sdlc/README.md#shipping-a-pull-request) describes.
 
 ## Releasing the plugin
 

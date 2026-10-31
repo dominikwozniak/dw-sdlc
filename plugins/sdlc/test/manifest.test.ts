@@ -32,7 +32,7 @@ const DISPATCHED = [
 ]
 /** A git hook a repository wires itself, never Claude Code. */
 const GIT_HOOKS = ["commit-msg.sh"]
-const SKILLS = ["sdlc-doctor", "sdlc-references-add", "sdlc-setup"]
+const SKILLS = ["sdlc-doctor", "sdlc-pr-ship", "sdlc-references-add", "sdlc-setup"]
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)

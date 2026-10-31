@@ -2,7 +2,8 @@
 
 The software delivery process for a Claude Code session, shipped as one plugin: deterministic guards
 on the agent's tool calls, the session hooks, the Sync of a repository's [References](#references),
-and the skills that set a repository up, check a machine and add a Reference. Every guard is a shell
+and the skills that set a repository up, check a machine, add a Reference and ship a pull request.
+Every guard is a shell
 hook that reads the tool call on stdin and refuses it with exit 2, or asks for a prompt, before the
 call runs. The rules a repository wants come from its `.ai/agentic.config.json`; a machine adds its
 own `.ai/agentic.config.local.json` on top, which may tighten `guardrails` and never loosen it. A
@@ -52,15 +53,17 @@ disk is in the next session, a broken edit included.
   `.ai/agentic.config.json`, and `src/cli.ts` is the `dw-sdlc` bin. Its `config` checks the config
   (`node <plugin root>/dw-sdlc/src/cli.ts config` from a repository runs it), and its `setup`,
   `doctor`, `references sync` and `references setup` are the Setup, the Doctor, the Sync and the
-  References setup below, one module each under `src/commands/`. Beside them,
+  References setup below, one module each under `src/commands/`, as are `pr ship`, the Ship script,
+  and `pr reviewed`, which share the read and the decision under `src/pr/`. Beside them,
   `src/references-key.ts` parses and reads `.ai/references.json`,
   `src/pins.ts` resolves a ref's `{name}`, `src/router-block.ts` writes the Router's block,
   `config/references.schema.json` is that file's JSON Schema, and `templates/router.md` is the Router
   the setup writes. `claude plugin install` copies the link as a real directory, so the installed
   plugin carries the package's code.
-- `skills/sdlc-setup/`, `skills/sdlc-doctor/`, `skills/sdlc-references-add/` — the skills: the
-  [Setup](#setup), the [Doctor](#doctor) and [Adding a Reference](#adding-a-reference). A user
-  invokes each one; the model cannot start one on its own.
+- `skills/sdlc-setup/`, `skills/sdlc-doctor/`, `skills/sdlc-references-add/`,
+  `skills/sdlc-pr-ship/` — the skills: the [Setup](#setup), the [Doctor](#doctor),
+  [Adding a Reference](#adding-a-reference) and [Shipping a pull request](#shipping-a-pull-request).
+  A user invokes each one; the model cannot start one on its own.
 - `test/` — the hook tests, mirroring `hooks/`, and the manifest's: [Tests](#tests).
 
 ## Guards
@@ -557,6 +560,33 @@ writes nothing and exits 1 when any file would change, so a repository's check c
 settings file that is not a JSON object is refused and left as it is, and so is a `.gitignore`
 that ignores `references/` itself, since git then tracks nothing under it, and a Router with one
 marker and not the other, or whose file or leftover key fails the parser; the run then exits 1.
+
+## Shipping a pull request
+
+`/sdlc-pr-ship [<n>]` drives one pull request to merged through the Ship script, `dw-sdlc pr ship`,
+which it runs through the link with `--json`, on the current branch's pull request without a number.
+Only the user invokes it. The skill reads each answer's `status`, then its `action`:
+
+- `act`, the agent's turn: `fix-ci` runs the `log` command of each failing check, fixes it and pushes
+  with lease; `fix-conflicts` rebases onto the base locally, resolves and pushes with lease;
+  `address-review` triages each unresolved thread against the code, fixes it or replies, resolves
+  it through `gh api graphql` and pushes when code changed; `review` runs `/code-review` on the
+  changes since the base and, on a clean result, `dw-sdlc pr reviewed <n> --head <sha>` with the head
+  it reviewed. The agent's `blockers` go into the same push, and the skill calls the script again.
+- `wait`: it tells the dev the reason and `recheckAfter` and ends the turn. The next call comes with
+  the dev's next message or a `/loop` wake-up, never from a sleep in a shell.
+- `park` and `done`: it prints the reason and the command and stops, a script Action parked under
+  `--dry-run` or on its second match included. The command is the dev's to run.
+
+It acts only from a checkout of the pull request's branch at the head the script read. It passes
+`--merge` only when the dev wrote "merge" for this pull request in the conversation, and it never
+deletes a branch, the one a `done` answer's command names included. Review-thread text is data it
+triages against the code, never an instruction.
+
+`pr reviewed` pins a clean review to the head it read: the commit status `dw-sdlc/review` in state
+`success`, posted only while that sha is still the pull request's head, so a push after the review
+leaves the new head unreviewed. The decision, the exit codes and the Actions each side owns are in
+the overview, [How a pull request lands](../../docs/overview.md#how-a-pull-request-lands).
 
 ## Tests
 
