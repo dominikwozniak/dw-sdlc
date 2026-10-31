@@ -188,6 +188,14 @@
       "docs": ["docs/overview.md#how-the-gate-runs", "docs/adr/0009-checks-are-named-units-turned-on-in-the-config.md"]
     },
     {
+      "id": "config.pr",
+      "name": "pr key",
+      "group": "config",
+      "summary": "pr.merge: auto, the Ship script merges a ready pull request; ask, the dev does. A local layer may only tighten it.",
+      "code": ["packages/dw-sdlc/config/agentic.config.schema.json"],
+      "docs": ["docs/overview.md#where-the-rules-come-from", "docs/adr/0003-invalid-config-layer-runs-strictest.md"]
+    },
+    {
       "id": "config.worktree",
       "name": "worktree key",
       "group": "config",

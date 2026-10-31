@@ -7,10 +7,10 @@ status: accepted
 A layer can be malformed, fail the schema, or, the local one, loosen a guardrail the committed file
 set; the guards must answer something while it is broken, and a partial read of a failed file is the
 one answer nobody can predict. A layer with any problem is not applied at all, a local file that
-loosens `guardrails.*` counts as invalid, and while any problem exists the guardrails are one fixed
-strictest set: `forcePush: deny`, `commitOnProtected: deny`, `envFiles: deny`, `protectedBranches`
-master, main, production. The session-start report and the doctor name every problem by file, path
-and message.
+loosens `guardrails.*` or `pr.merge` counts as invalid, and while any problem exists the guardrails
+are one fixed strictest set: `forcePush: deny`, `commitOnProtected: deny`, `envFiles: deny`,
+`protectedBranches` master, main, production, and the Ship script runs `pr.merge: ask`. The
+session-start report and the doctor name every problem by file, path and message.
 
 ## Consequences
 

@@ -96,9 +96,18 @@ export function read(named: Named, command: string): PrState {
   if (auth.status !== 0) {
     throw new CannotRun(`gh auth status failed: ${authProblem(auth.stderr)}`, REMEDIES.auth)
   }
-  const { repo, number } = targetOf(named, command)
+  return query(targetOf(named, command))
+}
+
+/** The state of `pr` once more, after an action the script performed on it: the same pull request. */
+export function readAgain(pr: PrState): PrState {
+  return query(pr)
+}
+
+/** The state of pull request `number` of `repo`, from one GraphQL request. */
+function query({ repo, number }: { repo: string; number: number }): PrState {
   const [owner = "", name = ""] = repo.split("/")
-  const query = gh([
+  const reply = gh([
     "api",
     "graphql",
     "-f",
@@ -110,10 +119,10 @@ export function read(named: Named, command: string): PrState {
     "-F",
     `number=${number}`
   ])
-  if (query.status !== 0) {
-    const problem = said(query.stderr)
+  if (reply.status !== 0) {
+    const problem = said(reply.stderr)
     const remedy = problem.startsWith("Could not resolve to a") ? REMEDIES.target : REMEDIES.read
     throw new CannotRun(`${repo}#${number}: ${problem}`, remedy)
   }
-  return parseOrCannotRun(() => parsePr(query.stdout, repo))
+  return parseOrCannotRun(() => parsePr(reply.stdout, repo))
 }

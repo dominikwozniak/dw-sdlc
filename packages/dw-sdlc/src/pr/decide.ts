@@ -1,7 +1,8 @@
 // The decision of the Ship script: one ordered list of rows, and the first row whose `when` holds for
 // the pull request answers its Action at the time given; every later row that holds rides in its
-// blockers. A state no row matches parks as undecided.
+// blockers. The last rows say who merges what no row before them holds back.
 
+import type { PrMerge } from "../agentic-config.ts"
 import type { CiCheck, PrState, Thread } from "./state.ts"
 
 export type Status = "act" | "wait" | "park" | "done"
@@ -17,7 +18,9 @@ export type Action =
   | "unverified"
   | "ci-stuck"
   | "awaiting-reply"
-  | "undecided"
+  | "awaiting-approval"
+  | "ready-to-merge"
+  | "merge"
 /** An Action the pull request needs beside the one its answer names, so one push can fix several. */
 export type Blocker = { action: Action; actor: Actor; reason: string; details?: Record<string, unknown> }
 export type Answer = Blocker & {
@@ -30,10 +33,12 @@ export type Answer = Blocker & {
 }
 
 type Row = {
-  when: (pr: PrState) => boolean
+  when: (pr: PrState, merge: PrMerge) => boolean
   answer: (pr: PrState, now: number) => Omit<Answer, "blockers">
   /** A row that wins answers with no blockers: a merged, closed or still-computing pull request. */
   alone?: true
+  /** A row that never rides in blockers: who merges is no blocker. */
+  merging?: true
 }
 
 /** How long a head may carry no check before it parks as unverified, from its commit. */
@@ -46,7 +51,7 @@ const OWN_PREFIX = "dw-sdlc/"
 const REVIEW = "dw-sdlc/review"
 
 /** The words as one POSIX shell command line, each word that needs it single-quoted. */
-function shellLine(words: string[]): string {
+export function shellLine(words: string[]): string {
   return words.map((word) => (/^[\w./:=@%+,-]+$/.test(word) ? word : `'${word.replaceAll("'", `'\\''`)}'`)).join(" ")
 }
 
@@ -78,6 +83,11 @@ function listed({ id, path, line, author, body }: Thread): Record<string, unknow
 
 function mergeCommand(pr: PrState): string {
   return shellLine(["gh", "pr", "merge", String(pr.number), "--squash", "--match-head-commit", pr.head])
+}
+
+/** The merge left to the dev, `reason` saying why it is theirs. */
+export function readyToMerge(pr: PrState, reason: string): Omit<Answer, "blockers"> {
+  return { status: "park", action: "ready-to-merge", actor: "dev", reason, command: mergeCommand(pr) }
 }
 
 const ROWS: Row[] = [
@@ -191,28 +201,45 @@ const ROWS: Row[] = [
       reason: `${threads(pr, true).length} thread(s) await a reply`,
       details: { threads: threads(pr, true).map(listed) }
     })
+  },
+  {
+    when: (pr) => pr.reviewDecision === "REVIEW_REQUIRED",
+    answer: () => ({
+      status: "park",
+      action: "awaiting-approval",
+      actor: "dev",
+      reason: "an approving review is required"
+    })
+  },
+  {
+    when: (pr) => !pr.viewerDidAuthor,
+    answer: (pr) => readyToMerge(pr, "another author's pull request: the merge is the dev's"),
+    merging: true
+  },
+  {
+    when: (_, merge) => merge === "auto",
+    answer: () => ({ status: "act", action: "merge", actor: "script", reason: "green, reviewed and the viewer's own" }),
+    merging: true
+  },
+  {
+    when: (_, merge) => merge === "ask",
+    answer: (pr) => readyToMerge(pr, "pr.merge is ask: the merge is the dev's"),
+    merging: true
   }
 ]
-
-const UNDECIDED: Answer = {
-  status: "park",
-  action: "undecided",
-  actor: "dev",
-  reason: "no row of the decision matches this pull request",
-  blockers: []
-}
 
 function blockerOf({ action, actor, reason, details }: Omit<Answer, "blockers">): Blocker {
   return { action, actor, reason, ...(details === undefined ? {} : { details }) }
 }
 
-/** The Action `pr` needs at `now`, milliseconds since the epoch. */
-export function decide(pr: PrState, now: number): Answer {
-  const index = ROWS.findIndex((row) => row.when(pr))
+/** The Action `pr` needs at `now`, milliseconds since the epoch, when `merge` says who merges it. */
+export function decide(pr: PrState, now: number, merge: PrMerge): Answer {
+  const index = ROWS.findIndex((row) => row.when(pr, merge))
   const row = ROWS[index]
   if (row === undefined) {
-    return UNDECIDED
+    throw new Error(`no row of the decision matches ${pr.url} under pr.merge ${merge}`)
   }
-  const later = row.alone === true ? [] : ROWS.slice(index + 1).filter((other) => other.when(pr))
+  const later =
+    row.alone === true ? [] : ROWS.slice(index + 1).filter((other) => !other.merging && other.when(pr, merge))
   return { ...row.answer(pr, now), blockers: later.map((other) => blockerOf(other.answer(pr, now))) }
 }

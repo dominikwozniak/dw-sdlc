@@ -7,7 +7,7 @@ import { join } from "node:path"
 import { describe, it } from "node:test"
 
 import { COMMITTED_FILE, LOCAL_FILE } from "../../src/agentic-config.ts"
-import { commit, git, REPO_ROOT, repo, runBin, scratch, write } from "../harness.ts"
+import { commit, git, lines, REPO_ROOT, repo, runBin, scratch, write } from "../harness.ts"
 
 /** A document no layer may carry: `forcePush` knows `deny`, `ask` and `lease`, never `allow`. */
 const FORCE_PUSH_ALLOWED = { version: 1, guardrails: { forcePush: "allow" } }
@@ -81,6 +81,20 @@ describe("the agentic:check command", () => {
     assert.equal(verdict.status, 1)
     assert.match(verdict.stdout, /"forcePush": "deny"/)
     assert.match(verdict.stderr, /the guards run on the strictest defaults/)
+  })
+
+  it("reports a local pr.merge auto over a committed ask as loosening, and prints ask", () => {
+    const root = repo({
+      files: { [COMMITTED_FILE]: { pr: { merge: "ask" } }, [LOCAL_FILE]: { pr: { merge: "auto" } } }
+    })
+    const verdict = runBin(["config", "--root", root], REPO_ROOT)
+    assert.equal(verdict.status, 1)
+    assert.match(verdict.stdout, /^local {6}\.ai\/agentic\.config\.local\.json {2}invalid$/m)
+    assert.match(verdict.stdout, /"merge": "ask"/)
+    assert.equal(
+      lines(verdict.stderr)[0],
+      `${LOCAL_FILE}: pr.merge: "auto" loosens "ask"; the local file may tighten pr.merge, never loosen it`
+    )
   })
 
   it("--root inside a repository resolves the repository's top level", () => {

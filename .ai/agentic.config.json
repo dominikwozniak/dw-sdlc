@@ -24,5 +24,6 @@
       "comment-budget": true
     }
   },
+  "pr": { "merge": "auto" },
   "worktree": { "setup": ["pnpm install"] }
 }

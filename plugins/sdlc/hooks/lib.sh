@@ -257,7 +257,7 @@ guard_config_load() {
   loosened=$(jq -r '.problems[] | "\(.file): \(.path): \(.message)"' <<<"$resolved")
   [[ -n "$loosened" ]] && GUARD_CONFIG_PROBLEMS+="${GUARD_CONFIG_PROBLEMS:+$'\n'}$loosened"
   if [[ -n "$GUARD_CONFIG_PROBLEMS" ]]; then
-    GUARD_CONFIG=$(jq -c -L "$GUARD_LIB_DIR" 'include "config"; .config | .guardrails = strictest' <<<"$resolved")
+    GUARD_CONFIG=$(jq -c -L "$GUARD_LIB_DIR" 'include "config"; .config | on_strictest' <<<"$resolved")
   else
     GUARD_CONFIG=$(jq -c '.config' <<<"$resolved")
   fi

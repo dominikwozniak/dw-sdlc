@@ -55,6 +55,7 @@ describe("inference, with no config file", () => {
       protectedBranches: ["master", "main", "production"]
     })
     assert.deepEqual(config.gate, { steps: [], checks: { run: [] } })
+    assert.deepEqual(config.pr, { merge: "ask" })
     assert.deepEqual(config.worktree, { setup: [] })
     assert.equal(config.baseBranch, "auto")
   })
@@ -388,6 +389,57 @@ describe("the local file", () => {
     assert.equal(problems.length, 1)
     assert.equal(problems[0]?.path, "guardrails.protectedBranches")
     assert.match(problems[0]?.message ?? "", /drops "main", "production"/)
+  })
+})
+
+describe("pr.merge", () => {
+  it("takes auto from the committed file, and a local ask over it", () => {
+    const committed = repo({ files: { [COMMITTED_FILE]: { pr: { merge: "auto" } } } })
+    assert.deepEqual(resolveConfig(committed).problems, [])
+    assert.equal(resolveConfig(committed).config.pr.merge, "auto")
+
+    const tighter = repo({
+      files: { [COMMITTED_FILE]: { pr: { merge: "auto" } }, [LOCAL_FILE]: { pr: { merge: "ask" } } }
+    })
+    assert.deepEqual(resolveConfig(tighter).problems, [])
+    assert.equal(resolveConfig(tighter).config.pr.merge, "ask")
+  })
+
+  it("may not be loosened by the local file: auto over a committed or a default ask drops the file and runs ask", () => {
+    const message = '"auto" loosens "ask"; the local file may tighten pr.merge, never loosen it'
+    for (const committed of [{ pr: { merge: "ask" } }, {}]) {
+      const root = repo({
+        files: { [COMMITTED_FILE]: committed, [LOCAL_FILE]: { baseBranch: "develop", pr: { merge: "auto" } } }
+      })
+      const { config, problems, layers } = resolveConfig(root)
+      assert.deepEqual(problems, [{ file: LOCAL_FILE, path: "pr.merge", message }])
+      assert.deepEqual(layers, { committed: "valid", local: "invalid" })
+      assert.equal(config.pr.merge, "ask")
+      assert.equal(config.baseBranch, "auto")
+      assert.deepEqual(config.guardrails, STRICTEST_GUARDRAILS)
+    }
+  })
+
+  it("runs ask while any layer is invalid, whatever the committed file sets", () => {
+    const cases: Record<string, string | object>[] = [
+      { [COMMITTED_FILE]: { pr: { merge: "auto" } }, [LOCAL_FILE]: "{ not json" },
+      { [COMMITTED_FILE]: { pr: { merge: "auto" } }, [LOCAL_FILE]: { guardrails: { forcePush: "allow" } } },
+      { [COMMITTED_FILE]: { pr: { merge: "auto" }, guardrails: { extra: 1 } } }
+    ]
+    for (const files of cases) {
+      const { config, problems } = resolveConfig(repo({ files }))
+      assert.notDeepEqual(problems, [])
+      assert.equal(config.pr.merge, "ask", JSON.stringify(files))
+    }
+  })
+
+  it("is auto or ask, nothing else, and pr names no other key", () => {
+    const result = validateDocument("agentic.config.json", JSON.stringify({ pr: { merge: "always", draft: true } }))
+    assert.ok("problems" in result)
+    assert.deepEqual(result.problems, [
+      { file: "agentic.config.json", path: "pr.merge", message: '"always" is not one of "ask", "auto"' },
+      { file: "agentic.config.json", path: "pr", message: 'unknown key "draft"' }
+    ])
   })
 })
 

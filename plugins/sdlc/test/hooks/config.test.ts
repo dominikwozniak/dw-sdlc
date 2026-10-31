@@ -194,6 +194,25 @@ describe("hooks/lib.sh agrees with resolveConfig", () => {
             [LOCAL_FILE]: { guardrails: { envFiles: { policy: "git", allow: ["**/.env.example", ".env"], deny: [] } } }
           }
         })
+    ],
+    [
+      "on a committed pr.merge auto, and a local ask over it",
+      () => repo({ files: { [COMMITTED_FILE]: { pr: { merge: "auto" } }, [LOCAL_FILE]: { pr: { merge: "ask" } } } })
+    ],
+    [
+      "on a local pr.merge auto over a committed ask",
+      () => repo({ files: { [COMMITTED_FILE]: { pr: { merge: "ask" } }, [LOCAL_FILE]: { pr: { merge: "auto" } } } })
+    ],
+    [
+      "on a local file loosening a guardrail and pr.merge at once, over the defaults",
+      () => repo({ files: { [LOCAL_FILE]: { guardrails: { protectedBranches: ["main"] }, pr: { merge: "auto" } } } })
+    ],
+    [
+      "on a committed pr.merge auto beside an invalid local file",
+      () =>
+        repo({
+          files: { [COMMITTED_FILE]: { pr: { merge: "auto" } }, [LOCAL_FILE]: { pr: { merge: "always" } } }
+        })
     ]
   ]
   for (const [name, make] of cases) {
