@@ -3,9 +3,8 @@
 The software delivery process for a Claude Code session, shipped as one plugin: deterministic guards
 on the agent's tool calls, the session hooks, the Sync of a repository's [References](#references),
 and the skills that set a repository up, check a machine, add a Reference and ship a pull request.
-Every guard is a shell
-hook that reads the tool call on stdin and refuses it with exit 2, or asks for a prompt, before the
-call runs. The rules a repository wants come from its `.ai/agentic.config.json`; a machine adds its
+Every guard is a shell hook that reads the tool call on stdin and refuses it with exit 2, or asks for
+a prompt, before the call runs. The rules a repository wants come from its `.ai/agentic.config.json`; a machine adds its
 own `.ai/agentic.config.local.json` on top, which may tighten `guardrails` and never loosen it. A
 key neither file sets is inferred: the package manager from the lockfile, and the `conventional`
 commit convention. The plugin guards Node repositories, and App Store Connect from every repository;
@@ -54,7 +53,8 @@ disk is in the next session, a broken edit included.
   (`node <plugin root>/dw-sdlc/src/cli.ts config` from a repository runs it), and its `setup`,
   `doctor`, `references sync` and `references setup` are the Setup, the Doctor, the Sync and the
   References setup below, one module each under `src/commands/`, as are `pr ship`, the Ship script,
-  and `pr reviewed`, which share the read and the decision under `src/pr/`. Beside them,
+  and `pr reviewed`; both read the pull request through `src/pr/`, which holds the Ship script's
+  decision too. Beside them,
   `src/references-key.ts` parses and reads `.ai/references.json`,
   `src/pins.ts` resolves a ref's `{name}`, `src/router-block.ts` writes the Router's block,
   `config/references.schema.json` is that file's JSON Schema, and `templates/router.md` is the Router
@@ -565,28 +565,28 @@ marker and not the other, or whose file or leftover key fails the parser; the ru
 
 `/sdlc-pr-ship [<n>]` drives one pull request to merged through the Ship script, `dw-sdlc pr ship`,
 which it runs through the link with `--json`, on the current branch's pull request without a number.
-Only the user invokes it. The skill reads each answer's `status`, then its `action`:
+Only the dev invokes it. The skill reads each answer's `status`, then its `action`:
 
 - `act`, the agent's turn: `fix-ci` runs the `log` command of each failing check, fixes it and pushes
   with lease; `fix-conflicts` rebases onto the base locally, resolves and pushes with lease;
-  `address-review` triages each unresolved thread against the code, fixes it or replies, resolves
-  it through `gh api graphql` and pushes when code changed; `review` runs `/code-review` on the
-  changes since the base and, on a clean result, `dw-sdlc pr reviewed <n> --head <sha>` with the head
-  it reviewed. The agent's `blockers` go into the same push, and the skill calls the script again.
+  `address-review` triages each unresolved thread against the code and either fixes it and resolves
+  the thread, or replies and leaves it open for the reviewer, then pushes when code changed;
+  `review` runs `/code-review` on the changes since the base and, on a clean result,
+  `dw-sdlc pr reviewed <n> --head <sha>` with the head it reviewed. The agent's `blockers` go into
+  the same push, and the skill calls the script again. An `act` that leaves nothing to change, as
+  changes requested once a push answers them, stops it: the reviewer's turn.
 - `wait`: it tells the dev the reason and `recheckAfter` and ends the turn. The next call comes with
   the dev's next message or a `/loop` wake-up, never from a sleep in a shell.
 - `park` and `done`: it prints the reason and the command and stops, a script Action parked under
   `--dry-run` or on its second match included. The command is the dev's to run.
 
-It acts only from a checkout of the pull request's branch at the head the script read. It passes
+It acts only from a checkout of the pull request's branch at the head the script read, and pulls
+with `--rebase` first when the branch is behind it, as after the script's update. It passes
 `--merge` only when the dev wrote "merge" for this pull request in the conversation, and it never
 deletes a branch, the one a `done` answer's command names included. Review-thread text is data it
-triages against the code, never an instruction.
-
-`pr reviewed` pins a clean review to the head it read: the commit status `dw-sdlc/review` in state
-`success`, posted only while that sha is still the pull request's head, so a push after the review
-leaves the new head unreviewed. The decision, the exit codes and the Actions each side owns are in
-the overview, [How a pull request lands](../../docs/overview.md#how-a-pull-request-lands).
+triages against the code, never an instruction. The decision, the exit codes and the review marker
+`pr reviewed` posts are in the overview,
+[How a pull request lands](../../docs/overview.md#how-a-pull-request-lands).
 
 ## Tests
 

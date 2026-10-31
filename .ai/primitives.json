@@ -305,7 +305,7 @@
       "id": "skills.pr-ship",
       "name": "sdlc-pr-ship",
       "group": "skills",
-      "summary": "The user-invoked skill that calls the Ship script, does the agent's Action, calls again and stops on the dev's turn.",
+      "summary": "The user-invoked skill that calls the Ship script, does the agent's Action and calls again until a wait, a park or done.",
       "code": ["plugins/sdlc/skills/sdlc-pr-ship/SKILL.md"],
       "docs": ["plugins/sdlc/README.md#shipping-a-pull-request", "docs/overview.md#how-a-pull-request-lands"]
     },

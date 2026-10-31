@@ -255,12 +255,15 @@ The script owns three Actions, one `gh` command each. It updates a branch behind
 merging the base in, marks a draft ready once CI is green, no thread is open and the head is
 reviewed, and squash merges with `--match-head-commit`, so a push during the decision never merges
 blind. Each runs at most once per call; one that comes round again, and every one under
-`--dry-run`, parks with its command for the dev. The agent owns four: `fix-conflicts`, `fix-ci`,
-`address-review` and `review`, each with what it needs under `details`. Every later Action that
-holds the pull request back rides in `blockers`, so one push can fix several. The dev owns the
-rest: a closed pull request, a head no check reported on within 120 s of its commit, CI pending
-past its 40-minute budget, a thread awaiting the dev's reply, a required approval, and the merge
-when it is not the script's.
+`--dry-run`, parks with its command for the dev.
+
+The agent owns four: `fix-conflicts`, `fix-ci`, `address-review` and `review`. Under `details`,
+`fix-ci` lists each failing check with its link and, for a GitHub Actions job, the command that
+prints its log; `address-review` lists each unresolved thread. Every later Action that holds the
+pull request back rides in `blockers`, so one push can fix several. The dev owns the rest: a closed
+pull request, a head no check reported on within 120 s of its commit, CI pending past its 40-minute
+budget, a thread whose last comment is the viewer's, awaiting the reviewer, a required approval, and
+the merge when it is not the script's.
 
 Who merges follows `pr.merge`: the script under `auto`, the dev under `ask`, and the script for one
 call under `--merge`. A pull request another author opened parks for the dev under either. A clean
