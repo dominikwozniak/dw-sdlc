@@ -7,13 +7,11 @@ The software delivery process Dominik works by, and the Claude Code tooling that
 ### Guards
 
 **Guard**:
-One hook that judges a tool call before it runs and answers with a verdict. A Guard judges a call, a
-Check judges the tree.
+One hook that judges a tool call before it runs and answers with a verdict. A Check judges the tree.
 _Avoid_: rule
 
 **Dispatcher**:
-The guard that reads a shell command once and runs the other guards in order; the first refusal or ask
-ends the chain.
+The guard that reads a shell command once and runs the others in order; the first deny or ask ends it.
 
 **Verdict**:
 A guard's answer to a tool call: deny, ask or pass.
@@ -38,8 +36,7 @@ A command segment's shell words with the quotes gone and quoted prose dropped.
 ### Config
 
 **Layer**:
-One source of a repository's agent rules: inferred, committed or local. Local wins over committed,
-committed over inferred.
+One source of a repository's agent rules: inferred, committed or local, each winning over the one before.
 
 **Inferred layer**:
 The values read from the repository itself when no file sets them: the package manager from the lockfile,
@@ -53,7 +50,7 @@ commit on a protected branch refused, and master, main and production protected.
 The preset a commit subject follows: `ticket-key` (`[KEY-123] type: subject`) or `conventional`; a pattern wins.
 _Avoid_: commit format, commit style
 
-### Git
+### Git and pull requests
 
 **Lease push**:
 A force push that names `--force-with-lease` or `--force-if-includes`; the one force form a guard lets
@@ -70,13 +67,17 @@ and a base commit since it forked holds its tree or the patch-id of its whole di
 merge leaves them. The one branch a forced delete may remove.
 _Avoid_: merged branch, which git's `--merged` keeps for a tip the base contains
 
+**Action**:
+The one thing a pull request needs next, as the ship script decides it: performed by the script, handed
+to the agent or left to the dev. Waiting and parking are Actions too.
+_Avoid_: Step, Verdict, move, GitHub Actions (the CI)
+
 ### Gate
 
 **Check**:
 One unit that judges the state of the working tree and answers with an exit code, a line naming the
 remedy and, on request, machine-readable output: a module the package ships, or a repository's own
-script under `gate.checks.run`. It runs the same in CI, in a commit hook, in an agent hook and in a
-terminal.
+script under `gate.checks.run`, run the same in CI, a commit hook, an agent hook and a terminal.
 _Avoid_: Step (a toolchain command the Gate runs first), rule, validator, test (proves behaviour, not the tree)
 
 **Step**:
@@ -85,8 +86,7 @@ Steps run in order and the first that fails ends the Gate, its output passed thr
 _Avoid_: Check (which judges the tree and runs on after another fails), stage, job
 
 **Gate**:
-The Steps and then the Checks a change must pass, run by one command that is the same locally and in
-CI.
+The Steps and then the Checks a change must pass, run by one command, the same locally and in CI.
 _Avoid_: quality gate, CI (which runs it), lint (one part of a Step)
 
 **Ratchet**:
