@@ -6,6 +6,7 @@ import { describe, it } from "node:test"
 
 import { lines, repo, runBin, scratch } from "../harness.ts"
 import {
+  type Context,
   fakeGh,
   GREEN,
   HEAD,
@@ -81,8 +82,8 @@ function ship(args: string[], scenario: Scenario, env: NodeJS.ProcessEnv = {}) {
   return { ...run, calls: gh.calls() }
 }
 
-function json(pr: Pr, ...flags: string[]) {
-  const run = ship([...TARGET, "--json", ...flags], { graphql: [served(pr)] })
+function json(pr: Pr, flags: string[] = [], env: NodeJS.ProcessEnv = {}) {
+  const run = ship([...TARGET, "--json", ...flags], { graphql: [served(pr)] }, env)
   assert.notEqual(run.stdout, "", `no document; exit ${run.status}: ${run.stderr}`)
   return { ...run, document: JSON.parse(run.stdout) as unknown }
 }
@@ -175,12 +176,13 @@ describe("dw-sdlc pr ship", () => {
   })
 
   it("adds the state as read under facts with --verbose: buckets as gh pr checks sorts them, open threads only", () => {
-    const run = json(MIXED, "--verbose")
+    const run = json(MIXED, ["--verbose"])
     assert.equal(run.status, 20, run.stderr)
     assert.ok(typeof run.document === "object" && run.document !== null && "facts" in run.document, run.stdout)
     assert.deepEqual(run.document.facts, {
       url: URL,
       repo: "byarcadia-app/foundation",
+      number: 40,
       state: "OPEN",
       draft: true,
       mergeable: "UNKNOWN",
@@ -233,7 +235,7 @@ describe("dw-sdlc pr ship", () => {
         { id: "PRRT_ghost", path: "src/b.ts", line: null, author: "ghost", body: "A file-level note." }
       ]
     })
-    const bare = json({ ...GREEN, checks: [] }, "--verbose").document
+    const bare = json({ ...GREEN, checks: [] }, ["--verbose"]).document
     assert.ok(typeof bare === "object" && bare !== null && "facts" in bare)
     assert.deepEqual((bare.facts as { checks: unknown }).checks, [], "a head with no rollup reads as no check")
   })
@@ -267,6 +269,147 @@ describe("dw-sdlc pr ship", () => {
     ]
     for (const [pr, status, line] of cases) {
       const run = ship(TARGET, { graphql: [served(pr)] })
+      assert.deepEqual([run.status, run.stdout], [status, `${line}\n`], run.stderr)
+    }
+  })
+})
+
+/** The script's own review marker on the head: a context, never a check. */
+const REVIEWED: Context = {
+  kind: "status",
+  name: "dw-sdlc/review",
+  state: "SUCCESS",
+  startedAt: "2026-10-31T11:05:00Z"
+}
+/** Reviewed, and no check reported on the head, committed at 11:00. */
+const UNCHECKED: Pr = { ...GREEN, checks: [REVIEWED] }
+const STARTED = "2026-10-31T11:01:00Z"
+/** Reviewed, its one required check running since STARTED. */
+const PENDING: Pr = {
+  ...GREEN,
+  mergeStateStatus: "BLOCKED",
+  checks: [
+    { kind: "run", name: "Check", state: "IN_PROGRESS", link: RUN, startedAt: STARTED, required: true },
+    REVIEWED
+  ]
+}
+
+/** The environment that sets the script's clock `seconds` after `time`. */
+function clockAt(time: string, seconds: number): NodeJS.ProcessEnv {
+  return { DW_SDLC_NOW: new Date(Date.parse(time) + seconds * 1000).toISOString() }
+}
+
+describe("dw-sdlc pr ship while no check has answered", () => {
+  const merge = `gh pr merge 40 --squash --match-head-commit ${HEAD}`
+
+  it("waits 15 s on a head whose only context is dw-sdlc/review, 60 s after its commit", () => {
+    const run = json(UNCHECKED, [], clockAt(GREEN.committedAt, 60))
+    assert.equal(run.status, 20, run.stderr)
+    assert.deepEqual(run.document, {
+      pr: URL,
+      head: HEAD,
+      base: "main",
+      status: "wait",
+      action: "wait",
+      actor: "script",
+      reason: "unverified",
+      recheckAfter: 15,
+      blockers: [],
+      performed: []
+    })
+    assert.deepEqual(run.calls, [AUTH, READ])
+  })
+
+  it("parks the same head 121 s after its commit as unverified, with the merge command for the dev", () => {
+    const run = json(UNCHECKED, [], clockAt(GREEN.committedAt, 121))
+    assert.equal(run.status, 30, run.stderr)
+    assert.deepEqual(run.document, {
+      pr: URL,
+      head: HEAD,
+      base: "main",
+      status: "park",
+      action: "unverified",
+      actor: "dev",
+      reason: "no check reported on e36732e within 120 s of its commit",
+      command: merge,
+      blockers: [],
+      performed: []
+    })
+  })
+
+  it("waits 60 s on a check pending 10 min", () => {
+    const run = json(PENDING, [], clockAt(STARTED, 10 * 60))
+    assert.equal(run.status, 20, run.stderr)
+    assert.deepEqual(run.document, {
+      pr: URL,
+      head: HEAD,
+      base: "main",
+      status: "wait",
+      action: "wait",
+      actor: "script",
+      reason: "ci-pending",
+      recheckAfter: 60,
+      blockers: [],
+      performed: []
+    })
+  })
+
+  it("parks a check pending 41 min as ci-stuck, the dev's to look at", () => {
+    const run = json(PENDING, [], clockAt(STARTED, 41 * 60))
+    assert.equal(run.status, 30, run.stderr)
+    assert.deepEqual(run.document, {
+      pr: URL,
+      head: HEAD,
+      base: "main",
+      status: "park",
+      action: "ci-stuck",
+      actor: "dev",
+      reason: "1 check(s) pending for 41 min, past the 40 min budget",
+      blockers: [],
+      performed: []
+    })
+  })
+
+  it("counts the budget from the first start among the pending checks, one not yet started from the commit", () => {
+    const passed: Context = { kind: "status", name: "ci/legacy", state: "SUCCESS", startedAt: "2026-10-31T11:00:30Z" }
+    const lint: Context = { kind: "run", name: "Lint", state: "IN_PROGRESS", startedAt: "2026-10-31T11:20:00Z" }
+    const queued: Context = { kind: "run", name: "Docs", state: "QUEUED", startedAt: null }
+    const minute41 = clockAt(GREEN.committedAt, 41 * 60)
+    const cases: [Context[], number][] = [
+      [[...PENDING.checks, passed, lint], 20],
+      [[...PENDING.checks, passed, lint, queued], 30]
+    ]
+    for (const [checks, status] of cases) {
+      const run = json({ ...PENDING, checks }, [], minute41)
+      assert.equal(run.status, status, run.stdout)
+    }
+  })
+
+  it("reads the system clock when DW_SDLC_NOW is not set", () => {
+    const cases: [string, number][] = [
+      ["2000-01-01T00:00:00Z", 30],
+      ["2999-01-01T00:00:00Z", 20]
+    ]
+    for (const [committedAt, status] of cases) {
+      const run = json({ ...UNCHECKED, committedAt }, [], { DW_SDLC_NOW: undefined })
+      assert.equal(run.status, status, `${committedAt}: ${run.stdout}`)
+    }
+  })
+
+  it("prints each wait and park as one line", () => {
+    const cases: [Pr, NodeJS.ProcessEnv, number, string][] = [
+      [UNCHECKED, clockAt(GREEN.committedAt, 60), 20, "wait: unverified, recheck in 15 s"],
+      [
+        UNCHECKED,
+        clockAt(GREEN.committedAt, 121),
+        30,
+        `park unverified: no check reported on e36732e within 120 s of its commit — ${merge}`
+      ],
+      [PENDING, clockAt(STARTED, 10 * 60), 20, "wait: ci-pending, recheck in 60 s"],
+      [PENDING, clockAt(STARTED, 41 * 60), 30, "park ci-stuck: 1 check(s) pending for 41 min, past the 40 min budget"]
+    ]
+    for (const [pr, env, status, line] of cases) {
+      const run = ship(TARGET, { graphql: [served(pr)] }, env)
       assert.deepEqual([run.status, run.stdout], [status, `${line}\n`], run.stderr)
     }
   })
@@ -316,6 +459,15 @@ describe("dw-sdlc pr ship when it cannot run", () => {
     const run = ship(TARGET, { graphql: [served(GREEN)] }, { GH_HOST: "ghe.example.com" })
     assert.equal(run.status, 30, run.stderr)
     assert.deepEqual(run.calls[0], ["auth", "status", "--active", "--hostname", "ghe.example.com"])
+  })
+
+  it("exits 2 with a remedy when DW_SDLC_NOW is not a time", () => {
+    const run = ship([...TARGET, "--json"], { graphql: [served(GREEN)] }, { DW_SDLC_NOW: "yesterday" })
+    assert.equal(run.status, 2)
+    assert.deepEqual(lines(run.stderr), [
+      `dw-sdlc pr ship: DW_SDLC_NOW is "yesterday", not an ISO 8601 time — unset it: it stands in for the clock in tests`
+    ])
+    assert.equal(run.stdout, "")
   })
 
   it("exits 2 naming the pull request when GitHub has no such pull request", () => {
@@ -372,6 +524,15 @@ describe("dw-sdlc pr ship when it cannot run", () => {
       [[broken((pr) => delete pr.mergeable)], `${at}.mergeable is missing, not one of MERGEABLE, CONFLICTING, UNKNOWN`],
       [[broken((pr) => (pr.state = "DRAFT"))], `${at}.state is "DRAFT", not one of OPEN, CLOSED, MERGED`],
       [[broken((pr) => (pr.headRefOid = 7))], `${at}.headRefOid is 7, not a string`],
+      [[broken((pr) => delete pr.number)], `${at}.number is missing, not an integer`],
+      [
+        [
+          broken(
+            (pr) => (pr.commits = { nodes: [{ commit: { committedDate: "yesterday", statusCheckRollup: null } }] })
+          )
+        ],
+        `${at}.commits.nodes[0].commit.committedDate is "yesterday", not a time`
+      ],
       [
         [
           broken(
