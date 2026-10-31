@@ -170,6 +170,21 @@ export const CASES: Case[] = [
     problems: []
   },
   {
+    name: "the agentic schema takes pr.merge auto or ask",
+    schema: AGENTIC_SCHEMA,
+    value: { pr: { merge: "auto" } },
+    problems: []
+  },
+  {
+    name: "the agentic schema refuses any other pr.merge and any other key under pr",
+    schema: AGENTIC_SCHEMA,
+    value: { pr: { merge: "yes", method: "squash" } },
+    problems: [
+      { path: "pr.merge", message: '"yes" is not one of "ask", "auto"' },
+      { path: "pr", message: 'unknown key "method"' }
+    ]
+  },
+  {
     name: "the agentic schema refuses a Check name the package does not ship",
     schema: AGENTIC_SCHEMA,
     value: { gate: { checks: { "no-such-check": true } } },
