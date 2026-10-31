@@ -258,6 +258,14 @@
       "docs": ["docs/overview.md#the-checks-the-package-ships", "AGENTS.md#commands"]
     },
     {
+      "id": "tools.ship",
+      "name": "Ship script",
+      "group": "tools",
+      "summary": "dw-sdlc pr ship: reads one pull request through gh and answers the Action it needs next, with an exit code by actor.",
+      "code": ["packages/dw-sdlc/src/commands/pr-ship.ts", "packages/dw-sdlc/src/pr/"],
+      "docs": ["GLOSSARY.md", "AGENTS.md#commands"]
+    },
+    {
       "id": "skills.setup",
       "name": "sdlc-setup",
       "group": "skills",

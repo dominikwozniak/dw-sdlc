@@ -8,15 +8,15 @@ is its long form: how a guard works, why the design, adopting and releasing.
 
 ## Project map
 
-- `packages/dw-sdlc/` — the `dw-sdlc` package, a workspace member: `src/` the resolver of the
-  config's layers, the JSON Schema validator and the `dw-sdlc` bin, `cli.ts`, one row per
-  subcommand, each a module under `commands/` (`gate`, `check`, `primitives`, `setup`, `doctor`,
-  `config`, `references sync`, `references setup`), and one module per Check it ships under
-  `checks/`, beside the modules they share; `config/` the JSON Schema for `.ai/agentic.config.json`,
-  which declares how this repo works for an agent, and the one for `.ai/references.json`;
-  `templates/` the Router the setup writes; `test/` their tests, the bin spawned on a throwaway repo,
-  from the source and from the packed tarball; `dist/` the JavaScript `pnpm pack` emits for npm,
-  ignored
+- `packages/dw-sdlc/` — the `dw-sdlc` package, a workspace member: `src/` the resolver of the config's
+  layers, the JSON Schema validator and the `dw-sdlc` bin, `cli.ts`, one row per subcommand, each a
+  module under `commands/` (`gate`, `check`, `primitives`, `setup`, `doctor`, `config`,
+  `references sync`, `references setup`, `pr ship`), one module per Check it ships under `checks/`
+  beside the modules they share, and the Ship script's read and decision under `pr/`; `config/` the
+  JSON Schema for `.ai/agentic.config.json`, which declares how this repo works for an agent, and the
+  one for `.ai/references.json`; `templates/` the Router the setup writes; `test/` their tests, the
+  bin spawned on a throwaway repo, from the source and from the packed tarball; `dist/` the JavaScript
+  `pnpm pack` emits for npm, ignored
 - `plugins/sdlc/` — the one plugin `.claude-plugin/marketplace.json` publishes, enabled at user
   scope: `hooks/` the bash guards on a shared `lib.sh` plus the jq config contract, and the session
   hooks, the report and the Sync; `skills/` the user-invoked `sdlc-setup`, `sdlc-doctor` and
@@ -91,6 +91,7 @@ pnpm check                      # dw-sdlc gate: the gate.steps of .ai/agentic.co
 pnpm exec dw-sdlc gate [--json] [--update-baseline] # exit 0 green, 1 failed, 2 cannot run; the flag tightens baselines
 pnpm exec dw-sdlc check <name> [--json] # one Check of the Gate by name, no Step; off in the config, it runs on its defaults
 pnpm exec dw-sdlc primitives --paths <files> [--json] # the Primitives that own each path: summary, docs to read
+pnpm exec dw-sdlc pr ship [<n>] [-R owner/name] [--json] [--verbose] # the Action one pull request needs next; exit 0 done, 10 act, 20 wait, 30 park, 2 cannot run
 pnpm exec vp check [--fix]      # Vite+: oxfmt, oxlint and the type check from vite.config.ts; --fix writes
 pnpm test                       # node --test over every *.test.ts under packages/*/test/ and plugins/*/test/, in one run
 pnpm agentic:check [file]       # resolve .ai/agentic.config.json (+ .local) or validate one file
