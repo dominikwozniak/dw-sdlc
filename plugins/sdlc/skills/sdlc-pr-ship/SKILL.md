@@ -14,23 +14,24 @@ request; a later call takes `<n>` from the end of the answer's `pr`:
 node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" pr ship [<n>] --json
 ```
 
-Add `--merge` only when the dev wrote "merge" for this pull request in the conversation, and
-`--dry-run` only when they asked for one. Exit 1, a bug, or 2, cannot run: show what it printed and
-stop. Otherwise read `status`, then `action`; `<base>` and `<head>` are the answer's. Before an
-`act`, the checkout must be the pull request's branch at `<head>`: behind it, `git pull --rebase`,
-since the script may have updated the branch; anything else, say so and stop. Fix the agent's
-`blockers` in the same push.
+Add `--merge` only when the dev wrote "merge" for this pull request in the conversation. Add
+`--dry-run` only when they asked for one, then show the answer and stop. Exit 1, a bug, or 2, cannot
+run: show what it printed and stop. Otherwise read `status`, then `action`; `<base>` and `<head>`
+are the answer's. Before an `act`, the checkout must be the pull request's branch at `<head>`:
+behind it, `git pull --rebase`, since the script may have updated the branch; anything else, say so
+and stop. Fix the agent's other `blockers` in the same push, all but `review`, which needs the head
+the push makes.
 
-- `act fix-ci`: run each `log` under `details.checks`, or read its `link`; fix, then
+- `act fix-ci`: run each `log` under `details.checks`, or read its `link`; fix, then `git push`.
+- `act fix-conflicts`: `git fetch origin <base>`, rebase onto `origin/<base>`, resolve, then
   `git push --force-with-lease`.
-- `act fix-conflicts`: `git fetch origin <base>`, rebase onto `origin/<base>`, resolve, push with lease.
 - `act address-review`: triage each thread under `details.threads` against the code, or without them
   the review asking for changes (`gh pr view <n> --json reviews`). Fix it and resolve the thread with
   `resolveReviewThread` through `gh api graphql`, or reply with `addPullRequestReviewThreadReply`
-  and leave it open for the reviewer; push with lease when code changed.
+  and leave it open for the reviewer; `git push` when code changed.
 - `act review`: run `/code-review` on the changes since `origin/<base>`. On a clean result run
-  `node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" pr reviewed <n> --head <head>`; fix a finding and
-  push with lease.
+  `node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" pr reviewed <n> --head <head>`, whose exit 2
+  means the head moved; fix a finding and `git push`.
 - `wait`: tell the dev the `reason` and `recheckAfter`, and end the turn. The next call comes with
   the dev's next message, or under `/loop` after `recheckAfter` seconds; never sleep in a shell.
 - `park` and `done`, whatever the `action`: print the `reason` and the `command`, and stop. The
