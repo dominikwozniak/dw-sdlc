@@ -275,7 +275,7 @@
         "packages/dw-sdlc/src/commands/pr-reviewed.ts",
         "packages/dw-sdlc/src/pr/"
       ],
-      "docs": ["GLOSSARY.md", "AGENTS.md#commands"]
+      "docs": ["docs/overview.md#how-a-pull-request-lands", "GLOSSARY.md", "AGENTS.md#commands"]
     },
     {
       "id": "skills.setup",
@@ -300,6 +300,14 @@
       "summary": "The user-invoked skill that runs the setup, writes one Reference's entry into .ai/references.json and syncs its dir.",
       "code": ["plugins/sdlc/skills/sdlc-references-add/SKILL.md"],
       "docs": ["plugins/sdlc/README.md#adding-a-reference"]
+    },
+    {
+      "id": "skills.pr-ship",
+      "name": "sdlc-pr-ship",
+      "group": "skills",
+      "summary": "The user-invoked skill that calls the Ship script, does the agent's Action and calls again until a wait, a park or done.",
+      "code": ["plugins/sdlc/skills/sdlc-pr-ship/SKILL.md"],
+      "docs": ["plugins/sdlc/README.md#shipping-a-pull-request", "docs/overview.md#how-a-pull-request-lands"]
     },
     {
       "id": "distribution.marketplace",
