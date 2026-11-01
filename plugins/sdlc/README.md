@@ -567,19 +567,21 @@ marker and not the other, or whose file or leftover key fails the parser; the ru
 which it runs through the link with `--json`, on the current branch's pull request without a number.
 Only the dev invokes it. The skill reads each answer's `status`, then its `action`:
 
-- `act`, the agent's turn: `fix-ci` runs the `log` command of each failing check, fixes it and
-  pushes; `fix-conflicts` rebases onto the base locally, resolves and pushes with lease, the one
-  push that rewrites the branch; `address-review` triages each unresolved thread against the code
-  and either fixes it and resolves the thread, or replies and leaves it open for the reviewer, then
-  pushes when code changed; `review` runs `/code-review` on the changes since the base and, on a
+- `act`, the agent's turn: `fix-ci` runs each failing check's `log`, or reads its `link`, fixes it
+  and pushes; `fix-conflicts` rebases onto the base locally, resolves and pushes with lease, the one
+  push that rewrites the branch, which a repository under `guardrails.forcePush: deny` refuses;
+  `address-review` triages each open thread someone else commented on last against the code, or
+  with none the review that requests changes, and either fixes it and resolves the thread, or
+  replies and leaves it open for the reviewer, then pushes when code changed; `review` runs `/code-review` on the changes since the base and, on a
   clean result, `dw-sdlc pr reviewed <n> --head <sha>` with the head it reviewed. The agent's other
   `blockers` go into the same push, all but `review`, which needs the head the push makes, and the
   skill calls the script again. An `act` that leaves nothing to change, as changes requested once
   a push answers them, stops it: the reviewer's turn.
 - `wait`: it tells the dev the reason and `recheckAfter` and ends the turn. The next call comes with
   the dev's next message or a `/loop` wake-up, never from a sleep in a shell.
-- `park` and `done`: it prints the reason and the command and stops, a script Action parked under
-  `--dry-run` or on its second match included. The command is the dev's to run.
+- `park` and `done`: it prints the reason, and the command when there is one, and stops, a script
+  Action parked under `--dry-run` or on its second match included. The command is the dev's to run.
+  A guard that refuses one of its commands stops it too.
 
 It acts only from a checkout of the pull request's branch at the head the script read, and pulls
 with `--rebase` first when the branch is behind it, as after the script's update. A dry run the dev

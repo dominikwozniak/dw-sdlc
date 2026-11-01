@@ -245,7 +245,7 @@ protection is not available on this private repository, so the guard is the only
 ## How a pull request lands
 
 The Ship script, `dw-sdlc pr ship [<n>]`, drives one pull request to merged. A call reads the pull
-request through `gh`, one GraphQL query, and decides the one Action it needs next. When that Action
+request's state through `gh` in one GraphQL query and decides the one Action it needs next. When that Action
 is the script's own, the call performs it, reads again and decides again; it answers the first
 Action that is not, as one line or, with `--json`, one document. The exit code says whose turn it
 is: 0 done, 10 the agent's, 20 wait, 30 the dev's, 2 it cannot run. The script holds no state
@@ -259,17 +259,18 @@ blind. Each runs at most once per call; one that comes round again, and every on
 
 The agent owns four: `fix-conflicts`, `fix-ci`, `address-review` and `review`. Under `details`,
 `fix-ci` lists each failing check with its link and, for a GitHub Actions job, the command that
-prints its log; `address-review` lists each unresolved thread. Every later Action that holds the
-pull request back rides in `blockers`, so one push can fix several. The dev owns the rest: a closed
-pull request, a head no check reported on within 120 s of its commit, CI pending past its 40-minute
-budget, a thread whose last comment is the viewer's, awaiting the reviewer, a required approval, and
-the merge when it is not the script's.
+prints its log; `address-review` lists each open thread someone else commented on last, and with
+none answers a review that requests changes. Every later Action that holds the pull request back
+rides in `blockers`, so one push can fix several. The dev owns the rest: a closed pull request, a
+head no check reported on within 120 s of its commit date, CI pending past its 40-minute budget, a
+thread whose last comment is the viewer's and so awaits the reviewer, a required approval, and the
+merge when it is not the script's.
 
 Who merges follows `pr.merge`: the script under `auto`, the dev under `ask`, and the script for one
 call under `--merge`. A pull request another author opened parks for the dev under either. A clean
 review is a commit status: `dw-sdlc pr reviewed <n> --head <sha>` posts `dw-sdlc/review` in state
-`success` on the head the review read and refuses once a push moved it, so a new head waits for a
-fresh review. Contexts under `dw-sdlc/` never count as CI. The script never deletes a branch: a
+`success` on the head the review read and refuses once a push moved it, so a new head needs a fresh
+review. Contexts under `dw-sdlc/` never count as CI. The script never deletes a branch: a
 merged pull request answers `done` with the deletion command for the dev.
 
 The `sdlc-pr-ship` skill is the agent's side: it calls the script, does the agent's Action, calls
