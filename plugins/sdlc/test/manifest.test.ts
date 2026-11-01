@@ -1,6 +1,6 @@
 // The plugin as Claude Code loads it: each hook script wired to its event and matcher or run by
-// another hook, each skill present under its name, the package linked, and the marketplace listing
-// this plugin alone at the manifest's version.
+// another hook, each skill present under its name and user-invoked, the package linked, and the
+// marketplace listing this plugin alone at the manifest's version.
 
 import assert from "node:assert/strict"
 import { readdirSync, readFileSync, realpathSync, statSync } from "node:fs"
@@ -94,6 +94,14 @@ describe("the sdlc plugin", () => {
       for (const [, path] of text.matchAll(/\$\{CLAUDE_PLUGIN_ROOT\}\/([\w./-]+)/g)) {
         assert.ok(path !== undefined && statSync(join(PLUGIN_ROOT, path)).isFile(), `${name} runs ${path}`)
       }
+    }
+  })
+
+  it("leaves each skill for the user to invoke, never the model", () => {
+    for (const name of SKILLS) {
+      const text = readFileSync(join(PLUGIN_ROOT, "skills", name, "SKILL.md"), "utf8")
+      const frontmatter = /^---\n([\s\S]*?)\n---\n/.exec(text)?.[1] ?? ""
+      assert.match(frontmatter, /^disable-model-invocation: true$/m, `${name} is user-invoked`)
     }
   })
 

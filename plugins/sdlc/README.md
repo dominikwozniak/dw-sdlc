@@ -607,9 +607,9 @@ empty.
 `test/references-harness.ts` spawns the hook the way Claude Code does, on the package's
 `test/references-harness.ts` through the link, which builds throwaway repositories apart from the
 machine's git config. `test/manifest.test.ts` holds the manifest to the tree: each hook script wired
-to its event and matcher, run by the dispatcher or left to git, each skill under its name and every
-plugin path it runs on disk, the link to the package, and the marketplace listing this plugin alone
-at the manifest's version.
+to its event and matcher, run by the dispatcher or left to git, each skill under its name, with
+every plugin path it runs on disk and left for the user to invoke, the link to the package, and the
+marketplace listing this plugin alone at the manifest's version.
 
 The commands' tests sit beside the package's code, in its `test/commands/`: `setup`, `doctor` and
 `config`, `references-sync.test.ts`, which drives the Sync against upstreams served over `file://`,
