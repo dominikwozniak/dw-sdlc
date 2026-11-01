@@ -1,8 +1,8 @@
 # dw-sdlc
 
 The Gate and the agentic config of a repository. `.ai/agentic.config.json` declares how a repository
-works for an agent: its package manager, protected branches, env-file policy, commit convention and
-the Gate. The package ships the `dw-sdlc` bin that runs on that file, its JSON Schema, and the
+works for an agent: its package manager, protected branches, env-file policy, commit convention, the
+Gate and who merges a pull request. The package ships the `dw-sdlc` bin that runs on that file, its JSON Schema, and the
 resolver of its layers.
 
 ## Install
@@ -38,6 +38,29 @@ Under `gate.checks`, a Check the package ships is `true` for its defaults or an 
 `comment-budget` holds each comment block in the JavaScript, TypeScript and shell (`.sh`) files under
 its `roots` to `maxProseLines` lines of prose, 3 by default.
 
+## The Ship script
+
+`dw-sdlc pr ship [<n>] [-R owner/name]` reads one pull request through an authenticated `gh` and
+answers the one Action it needs next, as a line or, with `--json`, one document. The exit code says
+whose turn it is: 0 done, 10 the agent's, 20 wait, 30 the dev's, 2 it cannot run. The script
+performs its own Actions: it updates a branch behind its base, marks a draft ready once nothing else
+holds it back, and squash merges a pull request that is green, reviewed and opened by the `gh`
+account, when the merge is its own. `--dry-run` performs nothing: it answers the first Action the
+script would perform as the dev's. It never deletes a branch; a merged pull request answers with
+the delete command for the dev.
+
+`pr.merge` in the committed `.ai/agentic.config.json` says who merges: the script under `auto`, the
+dev under `ask`, the default. The local layer may tighten it and never loosen it, and `--merge` acts
+as `auto` for one call. A pull request the `gh` account did not open is always the dev's to merge.
+
+```json
+{ "pr": { "merge": "auto" } }
+```
+
+`pr ship` answers `review` until the head carries the commit status `dw-sdlc/review`, which
+`dw-sdlc pr reviewed <n> --head <sha>` posts after a clean review. It posts nothing and exits 2 once
+a push moved the head, so a new head needs a fresh review.
+
 ## Commands
 
 | command            | what it does                                                                        |
@@ -50,6 +73,8 @@ its `roots` to `maxProseLines` lines of prose, 3 by default.
 | `config`           | the resolved agentic config, or one file validated against the schema               |
 | `references sync`  | every declared Reference brought to its ref under `references/`                     |
 | `references setup` | the Router, its table and the ignore rules a repository needs to declare References |
+| `pr ship [<n>]`    | the Action one pull request needs next, performing the script's own                 |
+| `pr reviewed <n>`  | a clean review pinned to the head it read, as a commit status                       |
 
 `dw-sdlc <command> --help` gives each one's options.
 
