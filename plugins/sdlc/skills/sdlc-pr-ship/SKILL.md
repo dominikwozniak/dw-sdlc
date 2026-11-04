@@ -30,7 +30,13 @@ the push makes.
   for changes (`gh pr view <n> --json reviews`). Fix it and resolve the thread with
   `resolveReviewThread` through `gh api graphql`, or reply with `addPullRequestReviewThreadReply`
   and leave it open for the reviewer; `git push` when code changed.
-- `act review`: run `/code-review` on the changes since `origin/<base>`. On a clean result run
+- `act review`: run `/code-review` on the changes since `origin/<base>`. Skip it when a Review
+  earlier in this conversation read the changes since `origin/<base>` at `<head>`, found nothing,
+  and nothing changed after it: no edit, no commit, no pull. Only a clean run of the review command
+  this step runs, `/code-review`, whose range ended at `<head>` counts as that earlier Review; an
+  informal read of the diff never counts. A Review whose head the conversation does not show, or
+  one with a finding, even one fixed since, needs a fresh Review. After the skip, or a fresh Review
+  that finds nothing, run
   `node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" pr reviewed <n> --head <head>`; its exit 2 says
   whether the head moved or it cannot run. Fix a finding and `git push`.
 - `wait`: tell the dev the `reason` and `recheckAfter`, and end the turn. The next call comes with

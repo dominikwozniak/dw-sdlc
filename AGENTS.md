@@ -82,6 +82,7 @@ is its long form: how a guard works, why the design, adopting and releasing.
   in CI. For a small fix the agent commits on `main` and the push comes from Dominik's own terminal;
   the guards judge only the agent's tool calls. GitHub branch protection is not available on this private
   repository, so the guard is the only check.
+- Commit before `/code-review`: it reads committed work only, the diff from its fixed point to `HEAD`.
 
 ## Commands
 
