@@ -46,7 +46,8 @@ function scratchEnv(over: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
 
 /** Runs `command <args>` from `cwd` under `scratchEnv()`, `env` over it. */
 export function runCommand(command: string, args: string[], cwd: string, env: NodeJS.ProcessEnv = {}): Run {
-  const result = spawnSync(command, args, { cwd, env: scratchEnv(env), encoding: "utf8" })
+  // A Gate that names thousands of files prints past spawnSync's default buffer of 1 MiB.
+  const result = spawnSync(command, args, { cwd, env: scratchEnv(env), encoding: "utf8", maxBuffer: 64 * 1024 * 1024 })
   if (result.error !== undefined) {
     throw result.error
   }

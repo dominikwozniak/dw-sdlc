@@ -230,6 +230,15 @@ describe("dw-sdlc gate, Drift", () => {
     assert.equal(runs(root), 2)
   })
 
+  it("names every file of a Step that writes more paths than fit in 1 MiB", () => {
+    // 5000 paths of some 250 bytes each: more than spawnSync's default buffer holds.
+    const many = "dir=out/$(printf 'd%.0s' $(seq 240)); mkdir -p $dir && cd $dir && seq 5000 | xargs touch"
+    const run = runBin(["gate"], committedRepo({ steps: [many] }))
+    assert.equal(run.status, 1, lines(run.stdout).slice(-2).join("\n"))
+    assert.equal(lines(run.stdout).filter((line) => line.includes(": drift: ")).length, 5000)
+    assert.equal(lines(run.stdout).at(-1), "gate: failed — 5000 failures")
+  })
+
   it('exits 2 when it cannot record the tree, outside a git checkout, naming gate.drift "allow"', () => {
     const root = repo({ git: false, files: { [CONFIG]: { version: 1, gate: { steps: ["true"] } } } })
     const run = runBin(["gate"], root)

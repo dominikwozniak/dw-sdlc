@@ -13,7 +13,9 @@ export function git(root: string, args: string[], index?: string): { out: string
   const env = repositoryFreeEnv()
   const result = spawnSync("git", ["-C", root, ...args], {
     encoding: "utf8",
-    env: index === undefined ? env : { ...env, GIT_INDEX_FILE: index }
+    env: index === undefined ? env : { ...env, GIT_INDEX_FILE: index },
+    // A Step that writes thousands of files makes a diff-tree past the default 1 MiB.
+    maxBuffer: Infinity
   })
   if (result.status === 0) {
     return { out: result.stdout.trim() }
