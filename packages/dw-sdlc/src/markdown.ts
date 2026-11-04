@@ -1,6 +1,6 @@
 // The parts of a markdown file the Checks read: its ATX headings with the anchors GitHub gives them,
-// the rows of a table under a heading, its links, and its prose with the code masked; and the anchors
-// of a file on disk. A line inside a fenced code block is never any of them.
+// the rows of a table under a heading, its links, its prose with the code masked and the keys of its
+// frontmatter; and the anchors of a file on disk. A line inside a fenced code block is never any of them.
 
 import { readFileSync, statSync } from "node:fs"
 import { join } from "node:path"
@@ -120,6 +120,59 @@ export function links(text: string): Link[] {
       ]
       return targets.map((target) => ({ target: target.replace(/^<(.*)>$/, "$1"), line: index + 1 }))
     })
+}
+
+/** A value of a frontmatter, with its 1-based line. */
+export type FrontmatterValue = { value: string; line: number }
+
+/** A top-level key of a frontmatter: the value after its colon, and the items of the block list under it. */
+export type FrontmatterEntry = FrontmatterValue & { items: FrontmatterValue[] }
+
+/** A scalar as YAML reads it: the text between its quotes, or else the text before a ` #` comment. */
+function scalar(text: string): string {
+  const quoted = /^\s*(["'])(.*?)\1\s*(#.*)?$/.exec(text)
+  return quoted?.[2] ?? text.replace(/(^|\s)#.*$/, "").trim()
+}
+
+/**
+ * The top-level keys of the frontmatter `text` opens with, none when it opens with none. A key written
+ * twice is read where it first appears.
+ */
+export function frontmatter(text: string): Map<string, FrontmatterEntry> {
+  const keys = new Map<string, FrontmatterEntry>()
+  const lines = text.split("\n")
+  if (lines[0]?.trim() !== "---") {
+    return keys
+  }
+  let current: FrontmatterEntry | undefined
+  for (let index = 1; index < lines.length && lines[index]?.trim() !== "---"; index++) {
+    const line = lines[index] ?? ""
+    const [, name, rest = ""] = /^([\w-]+):(.*)$/.exec(line) ?? []
+    const item = /^\s*-(?:\s+(.*))?$/.exec(line)
+    if (name !== undefined) {
+      current = keys.has(name) ? undefined : { value: scalar(rest), line: index + 1, items: [] }
+      if (current !== undefined) {
+        keys.set(name, current)
+      }
+    } else if (item !== null) {
+      current?.items.push({ value: scalar(item[1] ?? ""), line: index + 1 })
+    }
+  }
+  return keys
+}
+
+/**
+ * The values a list key names: comma-separated after its colon, in `[…]` or not, or else its items. A comma
+ * inside a glob's `{…}` separates none, and an empty value is dropped.
+ */
+export function frontmatterList(key: FrontmatterEntry | undefined): FrontmatterValue[] {
+  if (key === undefined) {
+    return []
+  }
+  const inline = key.value.replace(/^\[(.*)\]$/, "$1")
+  const values =
+    inline === "" ? key.items : inline.split(/,(?![^{]*\})/).map((value) => ({ value: scalar(value), line: key.line }))
+  return values.filter(({ value }) => value !== "")
 }
 
 /** The anchors of each markdown file read so far, by path. */

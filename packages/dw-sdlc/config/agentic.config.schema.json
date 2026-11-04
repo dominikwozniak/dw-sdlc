@@ -289,6 +289,14 @@
                     "minLength": 1
                   },
                   "uniqueItems": true
+                },
+                "fields": {
+                  "description": "The frontmatter fields each record is held to beyond `status`; none by default. `date`: every record carries the day it was decided, `YYYY-MM-DD`. `touches`: a record in force, its status `accepted` or `active`, names the paths it governs. Each is a file or directory git tracks or would track, or a glob that matches such a file. A `superseded` record names none. `superseded-by`: a `superseded` record names the number of each record that replaces it. `amended-by`: each number it names is the number of a record. A number names a record in the same directory. A list is comma-separated after its key, or one `- ` item a line under it.",
+                  "type": "array",
+                  "items": {
+                    "enum": ["date", "touches", "superseded-by", "amended-by"]
+                  },
+                  "uniqueItems": true
                 }
               },
               "additionalProperties": false

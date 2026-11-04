@@ -453,7 +453,7 @@
       "id": "gate.decision-records",
       "name": "decision-records Check",
       "group": "gate",
-      "summary": "Holds the decision records to numbers without a gap, a title each and a status from the allowed set.",
+      "summary": "Holds the decision records to numbers without a gap, a title each, an allowed status and the fields the config turns on.",
       "code": ["packages/dw-sdlc/src/checks/decision-records.ts"],
       "docs": ["docs/overview.md#the-checks-the-package-ships", "docs/agents/domain.md"]
     },
