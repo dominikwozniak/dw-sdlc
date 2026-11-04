@@ -20,6 +20,7 @@ export type Action =
   | "ci-stuck"
   | "awaiting-reply"
   | "mark-ready"
+  | "awaiting-author"
   | "awaiting-approval"
   | "ready-to-merge"
   | "merge"
@@ -182,7 +183,8 @@ const ROWS: Row[] = [
     answer: () => ({ status: "act", action: "address-review", actor: "agent", reason: "changes requested" })
   },
   {
-    when: (pr) => !pr.checks.some((check) => check.name === REVIEW && check.bucket === "pass"),
+    // The dev merges another author's pull request, so it needs no Review.
+    when: (pr) => pr.viewerDidAuthor && !pr.checks.some((check) => check.name === REVIEW && check.bucket === "pass"),
     answer: (pr) => ({
       status: "act",
       action: "review",
@@ -231,8 +233,17 @@ const ROWS: Row[] = [
     })
   },
   {
-    when: (pr) => pr.draft,
+    when: (pr) => pr.draft && pr.viewerDidAuthor,
     answer: () => ({ status: "act", action: "mark-ready", actor: "script", reason: "still a draft" })
+  },
+  {
+    when: (pr) => pr.draft && !pr.viewerDidAuthor,
+    answer: () => ({
+      status: "park",
+      action: "awaiting-author",
+      actor: "dev",
+      reason: "another author's draft: marking it ready is the author's"
+    })
   },
   {
     when: (pr) => pr.reviewDecision === "REVIEW_REQUIRED",

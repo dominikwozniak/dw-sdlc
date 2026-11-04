@@ -933,26 +933,49 @@ describe("dw-sdlc pr ship ends a pull request", () => {
     assert.deepEqual(blockersOf(failing.document), [], failing.stdout)
   })
 
-  it("parks another author's pull request as ready-to-merge, under auto and with --merge, and merges nothing", () => {
+  it("parks another author's pull request as ready-to-merge, reviewed or not, under ask, auto and --merge", () => {
     for (const [flags, files] of [
+      [[], {}],
       [[], AUTO],
       [["--merge"], {}]
     ] satisfies [string[], Files][]) {
-      const run = json({ ...GREEN, viewerDidAuthor: false }, flags, {}, files)
-      assert.equal(run.status, 30, run.stderr)
-      assert.deepEqual(run.document, {
-        pr: URL,
-        head: HEAD,
-        base: "main",
-        status: "park",
-        action: "ready-to-merge",
-        actor: "dev",
-        reason: "another author's pull request: the merge is the dev's",
-        command: DEV_MERGE,
-        blockers: [],
-        performed: []
-      })
-      assert.deepEqual(run.calls, [AUTH, READ])
+      for (const [reviewed, checks] of [
+        ["reviewed", GREEN.checks],
+        ["not reviewed", [PASSING]]
+      ] satisfies [string, Context[]][]) {
+        const name = `${reviewed}, flags [${flags.join(" ")}], config ${JSON.stringify(files)}`
+        const run = json({ ...GREEN, viewerDidAuthor: false, checks }, flags, {}, files)
+        assert.equal(run.status, 30, `${name}: ${run.stderr}`)
+        assert.deepEqual(
+          run.document,
+          {
+            pr: URL,
+            head: HEAD,
+            base: "main",
+            status: "park",
+            action: "ready-to-merge",
+            actor: "dev",
+            reason: "another author's pull request: the merge is the dev's",
+            command: DEV_MERGE,
+            blockers: [],
+            performed: []
+          },
+          name
+        )
+        assert.deepEqual(run.calls, [AUTH, READ], name)
+      }
+    }
+  })
+
+  it("lists no review among the blockers of another author's pull request, only of the viewer's own", () => {
+    for (const [viewerDidAuthor, blockers] of [
+      [true, ["review"]],
+      [false, []]
+    ] satisfies [boolean, string[]][]) {
+      const run = json({ ...GREEN, viewerDidAuthor, mergeStateStatus: "UNSTABLE", checks: [FAILING] }, [], {}, AUTO)
+      assert.equal(run.status, 10, run.stderr)
+      assert.deepEqual(fieldsOf(run.document, ["action"]), { action: "fix-ci" })
+      assert.deepEqual(blockersOf(run.document), blockers, run.stdout)
     }
   })
 
@@ -1113,6 +1136,34 @@ describe("dw-sdlc pr ship updates a branch and marks a draft ready", () => {
       performed: [ran("mark-ready", true)]
     })
     assert.deepEqual(run.calls, [AUTH, READ, READY, READ])
+  })
+
+  it("parks another author's draft for the dev with no command, reviewed or not: marking it ready is the author's", () => {
+    const awaiting = {
+      action: "awaiting-author",
+      actor: "dev",
+      reason: "another author's draft: marking it ready is the author's"
+    }
+    for (const [flags, files] of [
+      [[], {}],
+      [[], AUTO],
+      [["--merge"], {}],
+      [["--dry-run"], AUTO]
+    ] satisfies [string[], Files][]) {
+      for (const checks of [GREEN.checks, [PASSING]]) {
+        const run = json({ ...DRAFT, viewerDidAuthor: false, checks }, flags, {}, files)
+        const name = `flags [${flags.join(" ")}], ${checks.length} check(s)`
+        assert.equal(run.status, 30, `${name}: ${run.stderr}`)
+        assert.deepEqual(
+          run.document,
+          { pr: URL, head: HEAD, base: "main", status: "park", ...awaiting, blockers: [], performed: [] },
+          name
+        )
+        assert.deepEqual(run.calls, [AUTH, READ], name)
+      }
+    }
+    const failing = json({ ...DRAFT, viewerDidAuthor: false, checks: [FAILING] }, [], {}, AUTO)
+    assert.deepEqual(fieldsOf(failing.document, ["action", "blockers"]), { action: "fix-ci", blockers: [awaiting] })
   })
 
   it("marks a draft ready last: never while CI fails or runs, the head is unreviewed or a thread awaits a reply", () => {
