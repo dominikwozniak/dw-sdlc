@@ -115,7 +115,7 @@ describe("the routed-docs Check", () => {
     assert.deepEqual(routed(invalid), { status: 1, failures: [`docs/agents/domain.md: routed-docs: ${UNREACHED}`] })
   })
 
-  it("reads a row's path and a Primitive's docs from the root, ./ or / before them, ; a Primitive reaches only the docs it names", () => {
+  it("reads a row's path and a Primitive's docs from the root, ./ or / before them; a Primitive reaches only the docs it names", () => {
     const map = MAP.replace("`docs/guide.md`", "`/docs/guide.md`").replace(
       "`docs/adr`, `docs/specs/*.md`",
       "`./docs/adr/`"
