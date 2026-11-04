@@ -939,22 +939,30 @@ describe("dw-sdlc pr ship ends a pull request", () => {
       [[], AUTO],
       [["--merge"], {}]
     ] satisfies [string[], Files][]) {
-      for (const checks of [GREEN.checks, [PASSING]]) {
+      for (const [reviewed, checks] of [
+        ["reviewed", GREEN.checks],
+        ["not reviewed", [PASSING]]
+      ] satisfies [string, Context[]][]) {
+        const name = `${reviewed}, flags [${flags.join(" ")}], config ${JSON.stringify(files)}`
         const run = json({ ...GREEN, viewerDidAuthor: false, checks }, flags, {}, files)
-        assert.equal(run.status, 30, run.stderr)
-        assert.deepEqual(run.document, {
-          pr: URL,
-          head: HEAD,
-          base: "main",
-          status: "park",
-          action: "ready-to-merge",
-          actor: "dev",
-          reason: "another author's pull request: the merge is the dev's",
-          command: DEV_MERGE,
-          blockers: [],
-          performed: []
-        })
-        assert.deepEqual(run.calls, [AUTH, READ])
+        assert.equal(run.status, 30, `${name}: ${run.stderr}`)
+        assert.deepEqual(
+          run.document,
+          {
+            pr: URL,
+            head: HEAD,
+            base: "main",
+            status: "park",
+            action: "ready-to-merge",
+            actor: "dev",
+            reason: "another author's pull request: the merge is the dev's",
+            command: DEV_MERGE,
+            blockers: [],
+            performed: []
+          },
+          name
+        )
+        assert.deepEqual(run.calls, [AUTH, READ], name)
       }
     }
   })
@@ -1211,7 +1219,8 @@ describe("dw-sdlc pr ship updates a branch and marks a draft ready", () => {
   it("stops at the first script Action with --dry-run and parks it for the dev with its command, running nothing", () => {
     const cases: [Pr, "update-branch" | "mark-ready", string, string][] = [
       [{ ...BEHIND, draft: true }, "update-branch", "update the branch", "gh pr update-branch 40"],
-      [DRAFT, "mark-ready", "mark it ready", "gh pr ready 40"]
+      [DRAFT, "mark-ready", "mark it ready", "gh pr ready 40"],
+      [{ ...DRAFT, viewerDidAuthor: false, checks: [PASSING] }, "mark-ready", "mark it ready", "gh pr ready 40"]
     ]
     for (const [pr, action, would, command] of cases) {
       const reason = `the script would ${would}; --dry-run performs nothing`
