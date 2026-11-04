@@ -41,10 +41,12 @@ export type RunCheck = { name: string; command: string }
  * its options. `src/checks/` reads the setting of each.
  */
 export type GateChecks = { run: RunCheck[]; [check: string]: unknown }
-/** The Gate: its command, the steps run in order, the Checks run after them. */
-export type Gate = { command?: string; steps: string[]; checks: GateChecks }
+/** `gate.drift`: whether a Step may write the tree; `src/drift.ts` reads it. */
+export type DriftSetting = "fail" | "allow"
+/** The Gate: its command, the steps run in order, whether they may write the tree, the Checks run after them. */
+export type Gate = { command?: string; steps: string[]; drift: DriftSetting; checks: GateChecks }
 /** `gate` as one layer writes it: every key optional, `checks` Check by Check. */
-export type GateLayer = { command?: string; steps?: string[]; checks?: Partial<GateChecks> }
+export type GateLayer = { command?: string; steps?: string[]; drift?: DriftSetting; checks?: Partial<GateChecks> }
 
 /** One layer as written in a file: every key optional, unknown top-level keys tolerated. */
 export type AgenticConfig = {
@@ -272,9 +274,12 @@ function hasCheckScript(root: string): boolean {
   return typeof scripts === "object" && scripts !== null && "check" in scripts && typeof scripts.check === "string"
 }
 
-/** The Gate with nothing declared: `pnpm check` where the manifest has a `check` script, else no command. */
+/**
+ * The Gate with nothing declared: `pnpm check` where the manifest has a `check` script, else no command;
+ * no Step, no Check, and the watch for Drift on.
+ */
 function inferGate(root: string): Gate {
-  const gate: Gate = { steps: [], checks: { run: [] } }
+  const gate: Gate = { steps: [], drift: "fail", checks: { run: [] } }
   if (hasCheckScript(root)) {
     gate.command = "pnpm check"
   }

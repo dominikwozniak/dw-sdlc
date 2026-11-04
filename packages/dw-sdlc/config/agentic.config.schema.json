@@ -121,6 +121,11 @@
             "minLength": 1
           }
         },
+        "drift": {
+          "description": "Whether a Step may write the tree. `fail`, the default, watches every Step for Drift: before and after each Step the Gate records the content of every file git tracks or would track, and each file the Step created, changed or deleted is one failure, `\"<step>\" changed it`, without stopping the Steps after it. Ignored files and edits made before the run never drift. A tree the Gate cannot record, outside a git checkout, means the Gate cannot run. `allow` turns the watch off.",
+          "enum": ["fail", "allow"],
+          "default": "fail"
+        },
         "checks": {
           "description": "The Checks the Gate runs after its steps, every one even when another fails: the `run` scripts first, then the Checks the package ships, in the order listed here. A Check the package ships is `true` for its defaults, an options object over them, or `false` to stay off. A key names a Check the package ships, and a name it does not ship is refused.",
           "type": "object",

@@ -100,6 +100,19 @@ lines, its failure line, `"<command>" was stopped by SIGINT`, and the last line.
 the Gate at once, for a command that ignores the first. The Checks the package ships run inside the
 bin, where a signal ends the Gate at once.
 
+Every Step runs under watch for Drift. Before and after each Step the Gate records the content of
+every file git tracks or would track, hashed with `git write-tree` over a copy of the index, and
+each file the Step created, changed or deleted is one failure:
+`packages/x/package.json: drift: "pnpm build" changed it — commit the change, or make the Step only read`.
+The records are taken around each Step, never against `HEAD`, so an edit made before the run never
+drifts, and an ignored file, such as build output under `dist/`, is never recorded. Nor is a tracked
+file marked `--assume-unchanged` or `--skip-worktree`, which `git add` passes over. Drift does not
+stop the Steps after it or the Checks, so one run names every Step that writes. A Step a signal
+stopped is not compared. A stale generated file then fails a local `pnpm check` as it fails a
+`git diff --exit-code` in CI. A tree the Gate cannot record, such as a directory outside git, means
+the Gate cannot run. `gate.drift: "allow"` turns the watch off, for a repository whose Steps must write
+while it fixes them.
+
 An invalid config layer runs nothing and fails as
 `.ai/agentic.config.json: config: gate.checks: unknown key "nope" — fix the file; the Gate runs once every layer is valid`.
 
@@ -108,10 +121,11 @@ document alone on stdout: the status, the resolved command, each Step and Check 
 its `tail`, and the failures. `tail` is the last 50 lines of a Step or run script that did not pass,
 and null otherwise. A Check the package ships runs inside the bin, so its `command` and its `tail`
 are null. With `--verbose` the commands' output goes to stderr and every `tail` is null. The exit
-code is 0 when everything passes, 1 when a Step or a Check fails, and 2 when the Gate cannot run: an
-invalid config layer, a Step or Check whose command the shell cannot find or execute, or a Check
-missing an input it reads, such as a Ratchet's baseline. Why a Check is a named unit turned on in
-the config is [ADR 0009](adr/0009-checks-are-named-units-turned-on-in-the-config.md).
+code is 0 when everything passes, 1 when a Step or a Check fails or a Step drifts, and 2 when the
+Gate cannot run: an invalid config layer, a Step or Check whose command the shell cannot find or
+execute, a Check missing an input it reads, such as a Ratchet's baseline, or a tree it cannot record
+for Drift. Why a Check is a named unit turned on in the config is
+[ADR 0009](adr/0009-checks-are-named-units-turned-on-in-the-config.md).
 
 ### The Checks the package ships
 
@@ -180,11 +194,12 @@ link to an ignored file, or to another case of a file's name, fails on a Mac as 
 glob's `*` and `**` skip a name that starts with a dot, as a shell does: `**/*.md` leaves the
 vendored skills under `.agents/` out.
 
-`dw-sdlc gate --update-baseline` runs the Gate, then rewrites the baseline of each Ratchet, only when
-every Step and every other Check passed. It only tightens: a file within its limit leaves the list, a
-count that shrank is lowered, and no file joins. Where there is no baseline it records one, every
-file over its limit at its count, unless HEAD holds one the tree lost: that one is restored with git,
-never recorded again. A refused refresh leaves the file byte for byte as it was.
+`dw-sdlc gate --update-baseline` runs the Gate, then rewrites the baseline of each Ratchet, only
+when every Step and every other Check passed and no Step drifted. It only tightens: a file within
+its limit leaves the list, a count that shrank is lowered, and no file joins. Where there is no
+baseline it records one, every file over its limit at its count, unless HEAD holds one the tree
+lost: that one is restored with git, never recorded again. A refused refresh leaves the file byte
+for byte as it was.
 
 `dw-sdlc gate --cache` skips the run when the working tree holds what it held at the last green run
 in this checkout, and the same version of dw-sdlc runs the same resolved Gate. A pre-push hook that

@@ -42,7 +42,7 @@ def defaults($inferred): {
     protectedBranches: ["master", "main", "production"]
   },
   commit: {convention: $inferred.commit.convention},
-  gate: ({steps: [], checks: {run: []}} + ($inferred.gate // {})),
+  gate: ({steps: [], drift: "fail", checks: {run: []}} + ($inferred.gate // {})),
   pr: {merge: strictest_pr_merge},
   worktree: {setup: []}
 };

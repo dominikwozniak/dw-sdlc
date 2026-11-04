@@ -89,7 +89,7 @@ describe("hooks/lib.sh agrees with resolveConfig", () => {
             [COMMITTED_FILE]: {
               gate: { steps: ["pnpm lint", "pnpm test"], checks: { run: [{ name: "docs", command: "node docs.ts" }] } }
             },
-            [LOCAL_FILE]: { gate: { command: "pnpm verify", steps: ["pnpm test"] } }
+            [LOCAL_FILE]: { gate: { command: "pnpm verify", steps: ["pnpm test"], drift: "allow" } }
           }
         })
     ],

@@ -191,6 +191,24 @@ export const CASES: Case[] = [
     problems: [{ path: "gate.checks", message: 'unknown key "no-such-check"' }]
   },
   {
+    name: "the agentic schema takes gate.drift fail",
+    schema: AGENTIC_SCHEMA,
+    value: { gate: { drift: "fail" } },
+    problems: []
+  },
+  {
+    name: "the agentic schema takes gate.drift allow",
+    schema: AGENTIC_SCHEMA,
+    value: { gate: { drift: "allow" } },
+    problems: []
+  },
+  {
+    name: "the agentic schema refuses any other gate.drift",
+    schema: AGENTIC_SCHEMA,
+    value: { gate: { drift: false } },
+    problems: [{ path: "gate.drift", message: 'false is not one of "fail", "allow"' }]
+  },
+  {
     name: "the agentic schema refuses an unknown key under gate and in a run entry",
     schema: AGENTIC_SCHEMA,
     value: { gate: { parallel: true, checks: { run: [{ ...RUN_CHECK, timeout: 60 }] } } },
