@@ -15,7 +15,8 @@ export type Change = { text: string; detail?: string } | { refusal: string }
 /**
  * The Checks a new `gate` key turns on: each judges a tree as it is, the agent map aside, which the
  * setup never writes and the first Gate names. The rest read an input a repository adds first, a
- * catalogue, a records directory, docs a glob matches or a Ratchet's baseline, so they start `false`.
+ * catalogue, a records directory, docs a glob matches, a route to each doc or a Ratchet's baseline, so
+ * they start `false`.
  */
 const ON_BY_DEFAULT = new Set(["agents-map", "markdown-refs", "temporal-language", "comment-budget"])
 

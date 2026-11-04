@@ -80,11 +80,14 @@ describe("the routed-docs Check", () => {
   })
 
   it("fails a map with no Task Router table once on the map, before each doc only the table reached", () => {
-    const root = withDocs({ "AGENTS.md": "# demo — agent rules\n\n## Commands\n" })
+    const root = withDocs(
+      { "notes/map.md": "# demo — agent rules\n\n## Commands\n" },
+      { "routed-docs": true, "agents-map": { file: "notes/map.md" } }
+    )
     assert.deepEqual(routed(root), {
       status: 1,
       failures: [
-        "AGENTS.md: routed-docs: has no Task Router table to reach a doc from — add a Task Router section whose table names the docs",
+        "notes/map.md: routed-docs: has no Task Router table to reach a doc from — add a Task Router section whose table names the docs",
         `docs/adr/0001-first.md: routed-docs: ${UNREACHED}`,
         `docs/adr/old/0002-second.md: routed-docs: ${UNREACHED}`,
         `docs/guide.md: routed-docs: ${UNREACHED}`,
@@ -104,10 +107,23 @@ describe("the routed-docs Check", () => {
     })
   })
 
-  it("reaches nothing through a catalogue that does not exist, and fails nothing on it", () => {
-    const root = withDocs()
-    rmSync(join(root, ".ai/primitives.json"))
-    assert.deepEqual(routed(root), { status: 1, failures: [`docs/agents/domain.md: routed-docs: ${UNREACHED}`] })
+  it("reaches nothing through a catalogue that does not exist or is not valid, and fails nothing on it", () => {
+    const missing = withDocs()
+    rmSync(join(missing, ".ai/primitives.json"))
+    assert.deepEqual(routed(missing), { status: 1, failures: [`docs/agents/domain.md: routed-docs: ${UNREACHED}`] })
+    const invalid = withDocs({ ".ai/primitives.json": { ...CATALOGUE, version: 2 } })
+    assert.deepEqual(routed(invalid), { status: 1, failures: [`docs/agents/domain.md: routed-docs: ${UNREACHED}`] })
+  })
+
+  it("reads a row's path and a Primitive's docs from the root, ./ or / before them, and a Primitive's directory as a row's", () => {
+    const map = MAP.replace("`docs/guide.md`", "`/docs/guide.md`").replace(
+      "`docs/adr`, `docs/specs/*.md`",
+      "`./docs/adr/`"
+    )
+    const docs = ["./docs/agents/domain.md#the-glossary", "docs/specs/"]
+    const catalogue = { ...CATALOGUE, primitives: [{ ...CATALOGUE.primitives[0], docs }] }
+    const root = withDocs({ "AGENTS.md": map, ".ai/primitives.json": catalogue })
+    assert.deepEqual(routed(root), { status: 0, failures: [] })
   })
 
   it("runs after agents-map in the Gate", () => {

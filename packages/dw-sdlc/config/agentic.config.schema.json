@@ -184,7 +184,7 @@
               "additionalProperties": false
             },
             "routed-docs": {
-              "description": "Every document a task leads to: each file `files` matches and `exempt` does not is reached by a Task Router row of the agent map, through a code span in a cell after the first naming it, a directory above it or a glob that matches it, or by the `docs` of a Primitive in the catalogue, its heading anchor dropped. The map is the file `agents-map` reads and the catalogue the one `primitives` reads, each Check on or off; a catalogue that is missing or invalid reaches nothing. A map with no Task Router table fails once on the map, and a missing map leaves the Gate unable to run. Off unless a repository turns it on.",
+              "description": "Every document a task leads to: each file `files` matches and `exempt` does not is reached by a Task Router row of the agent map, through a code span in a cell after the first naming it, a directory above it or a glob that matches it, or by the `docs` of a Primitive in the catalogue naming it or a directory above it, its heading anchor dropped; a path reads from the root, `./` or `/` before it or not. The map is the file `agents-map` reads and the catalogue the one `primitives` reads, each Check on or off; a catalogue that is missing or invalid reaches nothing. A map with no Task Router table fails once on the map, and a missing map leaves the Gate unable to run.",
               "type": ["boolean", "object"],
               "properties": {
                 "files": {

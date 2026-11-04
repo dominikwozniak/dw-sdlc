@@ -55,11 +55,8 @@ function escape(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 }
 
-/** A row of the map's Task Router: its line and the paths its cells after the first point at. */
-export type Route = { line: number; paths: string[] }
-
-/** The rows of the Task Router in `text`, none when it has no such table. */
-export function routes(text: string): Route[] {
+/** The rows of the Task Router in `text`, each its line and the paths it points at; none when it has no such table. */
+export function routes(text: string): { line: number; paths: string[] }[] {
   // The first column says when a row applies; the others say what to read.
   return tableRows(text, ROUTER).map(({ cells, line }) => ({
     line,
@@ -204,13 +201,18 @@ function linksTo(link: string, target: string): boolean {
   }
 }
 
-function run(root: string, options: AgentsMapOptions): Finding[] {
-  const path = join(root, options.file)
+/** The text of the map at `file`; throws `CannotRun` when it does not exist. */
+export function readMap(root: string, file: string): string {
+  const path = join(root, file)
   if (!existsSync(path)) {
-    throw new CannotRun({ file: options.file, message: "the map does not exist", remedy: REMEDIES.missing })
+    throw new CannotRun({ file, message: "the map does not exist", remedy: REMEDIES.missing })
   }
+  return readFileSync(path, "utf8")
+}
+
+function run(root: string, options: AgentsMapOptions): Finding[] {
   return [
-    ...judgeMap(root, options, readFileSync(path, "utf8")),
+    ...judgeMap(root, options, readMap(root, options.file)),
     ...judgeLink(root, options.file),
     ...judgeSkills(root)
   ]
