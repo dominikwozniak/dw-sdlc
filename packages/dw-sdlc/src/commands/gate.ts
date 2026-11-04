@@ -349,7 +349,12 @@ export async function runGate(root: string, options: RunOptions): Promise<GateRe
     return { steps, checks, halted: halted() }
   })
   const { steps, checks } = commands
-  const stopped = commands.halted || stoppedBy() !== undefined
+  const late = commands.halted ? undefined : stoppedBy()
+  if (late !== undefined) {
+    // It landed after the last command, which it could not stop: it ends the Gate as in the shipped Checks.
+    process.kill(process.pid, late)
+  }
+  const stopped = commands.halted
   const judged = selected.shipped.map((check): Judged => {
     if (stopped) {
       return { check, outcome: SKIPPED, failures: [] }
