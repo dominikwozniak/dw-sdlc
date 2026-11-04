@@ -101,12 +101,12 @@ schema.
 - `routed-docs` fails each document under `docs/` that no Task Router row and no Primitive's docs
   reach, so a task leads an agent to every document that explains it. A row reaches a document
   through a code span in a cell after the first that names it, a directory above it or a glob that
-  matches it; a Primitive reaches the documents its `docs` name, itself or a directory above it, the
-  heading anchor dropped. Research notes, `docs/research/**`, are exempt by default: they are read
-  through the spec they back. It reads the map `agents-map` reads and the catalogue `primitives`
-  reads, each Check on or off, and never a document's prose. A map with no Task Router table fails
-  once on the map, a missing map leaves the Gate unable to run, and a catalogue that is missing or
-  invalid reaches nothing.
+  matches it; a Primitive reaches the documents its `docs` name, the heading anchor dropped.
+  Research notes, `docs/research/**`, are exempt by default: they are read through the spec they
+  back. It reads the map `agents-map` reads and the catalogue `primitives` reads, each Check on or
+  off, and never a document's prose. A map with no Task Router table fails once on the map, a
+  missing map leaves the Gate unable to run, and a catalogue that is missing or invalid reaches
+  nothing.
 - `markdown-budget` holds each file a glob matches to that glob's byte budget, by default the agent
   docs, `docs/agents/*.md`, to 6144 bytes. A list of budgets replaces the default, such as one that
   adds `GLOSSARY.md` at a budget of its own; no default names a glossary, since a glob that matches
@@ -213,10 +213,10 @@ and stops on a no. On a yes it pins the package and runs the install. The commit
 has stays. The key turns on `markdown-refs`, `temporal-language` and `comment-budget`, which judge
 the tree as it is, and `agents-map`, which reads the map the user writes. Every other Check is
 `false`, since each reads an input the repository adds first: a catalogue, a records directory, the
-docs a glob matches, a route to each doc, a Ratchet's baseline. The setup never writes `AGENTS.md`: the first
-`dw-sdlc gate` names what the map lacks through `agents-map`. The Ratchet joins once the Gate is
-green: `file-size-ratchet` set to `true`, then `dw-sdlc gate --update-baseline` records the
-baseline to commit.
+docs a glob matches, a Task Router row or Primitive for each doc, a Ratchet's baseline. The setup
+never writes `AGENTS.md`: the first `dw-sdlc gate` names what the map lacks through `agents-map`.
+The Ratchet joins once the Gate is green: `file-size-ratchet` set to `true`, then
+`dw-sdlc gate --update-baseline` records the baseline to commit.
 
 For the machine, the setup writes the local config layer from what it infers, plus the commit
 convention when asked for one, excludes it from git, and adds a permission backstop to

@@ -115,15 +115,15 @@ describe("the routed-docs Check", () => {
     assert.deepEqual(routed(invalid), { status: 1, failures: [`docs/agents/domain.md: routed-docs: ${UNREACHED}`] })
   })
 
-  it("reads a row's path and a Primitive's docs from the root, ./ or / before them, and a Primitive's directory as a row's", () => {
+  it("reads a row's path and a Primitive's docs from the root, ./ or / before them, ; a Primitive reaches only the docs it names", () => {
     const map = MAP.replace("`docs/guide.md`", "`/docs/guide.md`").replace(
       "`docs/adr`, `docs/specs/*.md`",
       "`./docs/adr/`"
     )
-    const docs = ["./docs/agents/domain.md#the-glossary", "docs/specs/"]
+    const docs = ["./docs/agents/domain.md#the-glossary", "docs/specs/", "docs/**/*.md"]
     const catalogue = { ...CATALOGUE, primitives: [{ ...CATALOGUE.primitives[0], docs }] }
     const root = withDocs({ "AGENTS.md": map, ".ai/primitives.json": catalogue })
-    assert.deepEqual(routed(root), { status: 0, failures: [] })
+    assert.deepEqual(routed(root), { status: 1, failures: [`docs/specs/gate.md: routed-docs: ${UNREACHED}`] })
   })
 
   it("runs after agents-map in the Gate", () => {

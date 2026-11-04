@@ -24,7 +24,7 @@ function fromRoot(entry: string): string {
   return posix.join(".", path).replace(/\/+$/, "")
 }
 
-/** Whether `target`, a path from the root, names `doc`, a directory above it or a glob that matches it. */
+/** Whether `target`, a path a row points at, names `doc`, a directory above it or a glob that matches it. */
 function reaches(target: string, doc: string): boolean {
   return target.includes("*") ? matchesGlob(doc, target) : doc === target || doc.startsWith(`${target}/`)
 }
@@ -43,9 +43,10 @@ function run(root: string, { files, exempt }: RoutedDocsOptions): Finding[] {
   if (rows.length === 0) {
     findings.push({ file: map, message: "has no Task Router table to reach a doc from", remedy: REMEDIES.table })
   }
-  const targets = [...rows.flatMap(({ paths }) => paths), ...catalogueDocs(root, catalogueFile(checks))].map(fromRoot)
+  const targets = rows.flatMap(({ paths }) => paths).map(fromRoot)
+  const catalogued = new Set(catalogueDocs(root, catalogueFile(checks)).map(fromRoot))
   for (const doc of matching(root, treeFiles(root), files, exempt)) {
-    if (!targets.some((target) => reaches(target, doc))) {
+    if (!catalogued.has(doc) && !targets.some((target) => reaches(target, doc))) {
       findings.push({ file: doc, message: "no Task Router row or Primitive reaches it", remedy: REMEDIES.unreached })
     }
   }
