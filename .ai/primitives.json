@@ -224,7 +224,8 @@
         "packages/dw-sdlc/src/commands/setup.ts",
         "packages/dw-sdlc/src/setup-gate.ts",
         "packages/dw-sdlc/src/setup-rules.ts",
-        "packages/dw-sdlc/src/json-text.ts"
+        "packages/dw-sdlc/src/json-text.ts",
+        "packages/dw-sdlc/src/package-version.ts"
       ],
       "docs": ["plugins/sdlc/README.md#setup", "plugins/sdlc/README.md#adopting-the-gate"]
     },
@@ -389,7 +390,8 @@
         "packages/dw-sdlc/src/commands/gate.ts",
         "packages/dw-sdlc/src/report.ts",
         "packages/dw-sdlc/src/gate-cache.ts",
-        "packages/dw-sdlc/src/git-env.ts"
+        "packages/dw-sdlc/src/git-env.ts",
+        "packages/dw-sdlc/src/package-version.ts"
       ],
       "docs": ["docs/overview.md#how-the-gate-runs", "GLOSSARY.md"]
     },

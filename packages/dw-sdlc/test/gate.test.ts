@@ -207,7 +207,7 @@ describe("dw-sdlc gate --json", () => {
 })
 
 describe("dw-sdlc gate --cache", () => {
-  const SKIPPED_LINE = "gate: green — skipped, the tree matches the last green run"
+  const CACHED_LINE = "gate: green — cached, the tree matches the last green run"
   const GREEN_LINE = "gate: green — 1 step, 0 checks"
 
   it("skips a run whose tree matches the last green one, says so and exits 0", () => {
@@ -215,7 +215,7 @@ describe("dw-sdlc gate --cache", () => {
     assert.equal(runBin(["gate", "--cache"], root).status, 0)
     const run = runBin(["gate", "--cache"], root)
     assert.equal(run.status, 0, run.stdout)
-    assert.deepEqual(lines(run.stdout), [SKIPPED_LINE])
+    assert.deepEqual(lines(run.stdout), [CACHED_LINE])
     assert.equal(runs(root), 1)
   })
 
@@ -229,7 +229,7 @@ describe("dw-sdlc gate --cache", () => {
     write(join(root, "new.md"), "new\n")
     assert.deepEqual(lines(runBin(["gate", "--cache"], root).stdout), ["gate: step echo ran >> ran", GREEN_LINE])
     write(join(root, "ran"), "an ignored file changed\n")
-    assert.deepEqual(lines(runBin(["gate", "--cache"], root).stdout), [SKIPPED_LINE])
+    assert.deepEqual(lines(runBin(["gate", "--cache"], root).stdout), [CACHED_LINE])
   })
 
   it("runs the Gate again on an edit the stat cache cannot see, made in the second the index was written", () => {
@@ -251,7 +251,7 @@ describe("dw-sdlc gate --cache", () => {
     runBin(["gate", "--cache"], root)
     git(root, "add", "-A")
     commit(root, "-m", "notes")
-    assert.deepEqual(lines(runBin(["gate", "--cache"], root).stdout), [SKIPPED_LINE])
+    assert.deepEqual(lines(runBin(["gate", "--cache"], root).stdout), [CACHED_LINE])
     write(join(root, "new.md"), "new\n")
     runBin(["gate", "--cache"], root)
     assert.equal(git(root, "status", "--porcelain"), "?? new.md\n")
@@ -271,7 +271,7 @@ describe("dw-sdlc gate --cache", () => {
     commit(root, "-m", "notes")
     runBin(["gate", "--cache"], root)
     runBin(["gate", "--cache"], root)
-    assert.deepEqual(lines(runBin(["gate", "--cache"], root).stdout), [SKIPPED_LINE])
+    assert.deepEqual(lines(runBin(["gate", "--cache"], root).stdout), [CACHED_LINE])
     assert.equal(runs(root), 2)
   })
 
@@ -316,8 +316,8 @@ describe("dw-sdlc gate --cache", () => {
     git(main, "worktree", "add", "-q", linked)
     runBin(["gate", "--cache"], main)
     assert.deepEqual(lines(runBin(["gate", "--cache"], linked).stdout), ["gate: step echo ran >> ran", GREEN_LINE])
-    assert.deepEqual(lines(runBin(["gate", "--cache"], linked).stdout), [SKIPPED_LINE])
-    assert.deepEqual(lines(runBin(["gate", "--cache"], main).stdout), [SKIPPED_LINE])
+    assert.deepEqual(lines(runBin(["gate", "--cache"], linked).stdout), [CACHED_LINE])
+    assert.deepEqual(lines(runBin(["gate", "--cache"], main).stdout), [CACHED_LINE])
   })
 
   it("prints a skipped run under --json as a green document marked cached, with nothing run", () => {

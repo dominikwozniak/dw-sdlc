@@ -53,8 +53,8 @@ type Judged = { check: EnabledCheck; outcome: Outcome; failures: Failure[] }
 type Log = { write: (text: string) => unknown }
 /** The Steps and Checks one run judges. */
 type Selection = { steps: string[]; run: RunCheck[]; shipped: EnabledCheck[] }
-/** What a run of the whole Gate does besides: nothing, refresh each Ratchet's baseline, or skip a tree already green. */
-type Mode = "run" | "update-baseline" | "cache"
+/** How a run of the whole Gate goes: plain, refreshing each Ratchet's baseline, or cached on a green tree. */
+type Mode = "plain" | "update-baseline" | "cache"
 /** A run of the whole Gate, or of the Checks named `only` alone: no Step, no progress line, no refresh. */
 type RunOptions = { json: boolean } & ({ mode: Mode } | { only: string })
 
@@ -96,7 +96,7 @@ function parseCli(argv: string[]): Cli | { error: string } {
     if (refresh && cache) {
       return { error: "--cache and --update-baseline do not combine: a refresh needs the Gate to run" }
     }
-    const mode = refresh ? "update-baseline" : cache ? "cache" : "run"
+    const mode = refresh ? "update-baseline" : cache ? "cache" : "plain"
     return { help: values.help === true, json: values.json === true, root: values.root, mode }
   } catch (error) {
     return { error: error instanceof Error ? error.message : String(error) }
@@ -295,7 +295,7 @@ export function runGate(root: string, options: RunOptions): GateReport {
 /** The last line, after `label`: green with what ran, or failed or cannot run with how many failures. */
 function verdict(label: string, report: GateReport): string {
   if (report.cached === true) {
-    return `${label}: green — skipped, the tree matches the last green run`
+    return `${label}: green — cached, the tree matches the last green run`
   }
   if (report.status === "pass") {
     return `${label}: green — ${plural(report.steps.length, "step")}, ${plural(report.checks.length, "check")}`

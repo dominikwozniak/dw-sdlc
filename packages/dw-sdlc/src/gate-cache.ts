@@ -1,6 +1,5 @@
-// The Gate's cache: a checkout's fingerprint, its working tree's content and the Gate that judges it,
-// against the stamp of its last green run, kept in the checkout's own git dir so each worktree has its
-// own. The real index is never touched.
+// The Gate's cache. A checkout's fingerprint is its working tree's content and the Gate that judges
+// it. A green run stamps it in the checkout's own git dir, so each worktree keeps its own stamp.
 
 import { spawnSync } from "node:child_process"
 import { createHash } from "node:crypto"
@@ -19,9 +18,9 @@ import { join } from "node:path"
 
 import type { Gate } from "./agentic-config.ts"
 import { repositoryFreeEnv } from "./git-env.ts"
+import { packageVersion } from "./package-version.ts"
 
 const STAMP_FILE = "dw-sdlc-gate.green"
-const MANIFEST = join(import.meta.dirname, "..", "package.json")
 
 /** A checkout's fingerprint and the file its last green run is stamped in. */
 export type Fingerprint = { key: string; stampFile: string }
@@ -64,15 +63,6 @@ function treeOf(root: string, gitDir: string): { out: string } | { error: string
   }
 }
 
-/** The version of this package, whose Checks the Gate runs, or undefined when its manifest names none. */
-function packageVersion(): string | undefined {
-  const manifest: unknown = JSON.parse(readFileSync(MANIFEST, "utf8"))
-  if (typeof manifest === "object" && manifest !== null && "version" in manifest) {
-    return typeof manifest.version === "string" ? manifest.version : undefined
-  }
-  return undefined
-}
-
 /** The fingerprint of the checkout at `root` judged by `gate`, or why it has none. */
 export function fingerprint(root: string, gate: Gate): Fingerprint | { error: string } {
   try {
@@ -100,7 +90,6 @@ export function isGreen({ key, stampFile }: Fingerprint): boolean {
   }
 }
 
-/** Stamps a green run. */
 export function stampGreen({ key, stampFile }: Fingerprint): void {
   try {
     writeFileSync(stampFile, `${key}\n`)
