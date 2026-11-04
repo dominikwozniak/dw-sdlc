@@ -182,7 +182,8 @@ const ROWS: Row[] = [
     answer: () => ({ status: "act", action: "address-review", actor: "agent", reason: "changes requested" })
   },
   {
-    when: (pr) => !pr.checks.some((check) => check.name === REVIEW && check.bucket === "pass"),
+    // Another author's pull request parks for the dev, who merges it either way: no Review before it.
+    when: (pr) => pr.viewerDidAuthor && !pr.checks.some((check) => check.name === REVIEW && check.bucket === "pass"),
     answer: (pr) => ({
       status: "act",
       action: "review",

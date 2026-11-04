@@ -933,26 +933,41 @@ describe("dw-sdlc pr ship ends a pull request", () => {
     assert.deepEqual(blockersOf(failing.document), [], failing.stdout)
   })
 
-  it("parks another author's pull request as ready-to-merge, under auto and with --merge, and merges nothing", () => {
+  it("parks another author's pull request as ready-to-merge, reviewed or not, under ask, auto and --merge", () => {
     for (const [flags, files] of [
+      [[], {}],
       [[], AUTO],
       [["--merge"], {}]
     ] satisfies [string[], Files][]) {
-      const run = json({ ...GREEN, viewerDidAuthor: false }, flags, {}, files)
-      assert.equal(run.status, 30, run.stderr)
-      assert.deepEqual(run.document, {
-        pr: URL,
-        head: HEAD,
-        base: "main",
-        status: "park",
-        action: "ready-to-merge",
-        actor: "dev",
-        reason: "another author's pull request: the merge is the dev's",
-        command: DEV_MERGE,
-        blockers: [],
-        performed: []
-      })
-      assert.deepEqual(run.calls, [AUTH, READ])
+      for (const checks of [GREEN.checks, [PASSING]]) {
+        const run = json({ ...GREEN, viewerDidAuthor: false, checks }, flags, {}, files)
+        assert.equal(run.status, 30, run.stderr)
+        assert.deepEqual(run.document, {
+          pr: URL,
+          head: HEAD,
+          base: "main",
+          status: "park",
+          action: "ready-to-merge",
+          actor: "dev",
+          reason: "another author's pull request: the merge is the dev's",
+          command: DEV_MERGE,
+          blockers: [],
+          performed: []
+        })
+        assert.deepEqual(run.calls, [AUTH, READ])
+      }
+    }
+  })
+
+  it("lists no review among the blockers of another author's pull request, only of the viewer's own", () => {
+    for (const [viewerDidAuthor, blockers] of [
+      [true, ["review"]],
+      [false, []]
+    ] satisfies [boolean, string[]][]) {
+      const run = json({ ...GREEN, viewerDidAuthor, mergeStateStatus: "UNSTABLE", checks: [FAILING] }, [], {}, AUTO)
+      assert.equal(run.status, 10, run.stderr)
+      assert.deepEqual(fieldsOf(run.document, ["action"]), { action: "fix-ci" })
+      assert.deepEqual(blockersOf(run.document), blockers, run.stdout)
     }
   })
 
