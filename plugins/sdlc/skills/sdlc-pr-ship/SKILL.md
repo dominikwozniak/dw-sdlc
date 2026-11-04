@@ -31,9 +31,9 @@ the push makes.
   `resolveReviewThread` through `gh api graphql`, or reply with `addPullRequestReviewThreadReply`
   and leave it open for the reviewer; `git push` when code changed.
 - `act review`: run `/code-review` on the changes since `origin/<base>`, unless a Review earlier in
-  this conversation already read them at `<head>`, found nothing, and no edit or commit came after
-  it; a finding in that Review, even one fixed since, needs the fresh one. On a clean result, the
-  earlier one or the fresh one, run
+  this conversation already read them with `<head>` checked out, found nothing, and no edit or
+  commit came after it. A finding in that Review, even one fixed since, needs a fresh one. When the
+  earlier Review or the fresh one is clean, run
   `node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" pr reviewed <n> --head <head>`; its exit 2 says
   whether the head moved or it cannot run. Fix a finding and `git push`.
 - `wait`: tell the dev the `reason` and `recheckAfter`, and end the turn. The next call comes with
