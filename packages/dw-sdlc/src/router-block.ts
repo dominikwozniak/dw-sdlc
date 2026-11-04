@@ -10,17 +10,46 @@ const START_LINE = /^<!-- references:start\b.*-->\s*$/
 const END_LINE = /^<!-- references:end -->\s*$/
 const NONE = "No Reference is declared yet: `/sdlc-references-add <repository>` adds one."
 
-/** The block the file gives: one row per Reference in the file's order, or one line when it has none. */
+const GRAPHEMES = new Intl.Segmenter("en", { granularity: "grapheme" })
+/** An emoji drawn as one, or a character of the East Asian wide and fullwidth ranges. */
+const WIDE =
+  /[\p{Emoji_Presentation}️ᄀ-ᅟ〈〉⺀-〾぀-꓏가-힣豈-﫿︐-︙︰-﹯＀-｠￠-￦\u{20000}-\u{2FFFD}\u{30000}-\u{3FFFD}]/u
+
+/** A cell's width in columns as oxfmt measures it: two for a wide grapheme, one for any other. */
+function width(cell: string): number {
+  let columns = 0
+  for (const { segment } of GRAPHEMES.segment(cell)) {
+    columns += WIDE.test(segment) ? 2 : 1
+  }
+  return columns
+}
+
+function tableLine(cells: string[]): string {
+  return `| ${cells.join(" | ")} |`
+}
+
+/** A Markdown table, each column padded to its widest cell and three at the least. */
+function table(header: string[], body: string[][]): string[] {
+  const rows = [header, ...body]
+  const widths = header.map((_, column) => Math.max(3, ...rows.map((row) => width(row[column] ?? ""))))
+  const padded = (row: string[]): string =>
+    tableLine(row.map((cell, column) => cell + " ".repeat((widths[column] ?? 0) - width(cell))))
+  return [padded(header), tableLine(widths.map((count) => "-".repeat(count))), ...body.map(padded)]
+}
+
+/**
+ * The block the file gives: one row per Reference in the file's order, or one line when it has none,
+ * with a blank line inside each marker, as oxfmt leaves it.
+ */
 export function renderBlock(references: Reference[]): string {
   const body =
     references.length === 0
       ? [NONE]
-      : [
-          "| dir | reach for it when |",
-          "| --- | --- |",
-          ...references.map((reference) => `| \`${reference.dir}\` | ${reference.when.replaceAll("|", "\\|")} |`)
-        ]
-  return `${[START, ...body, END].join("\n")}\n`
+      : table(
+          ["dir", "reach for it when"],
+          references.map((reference) => [`\`${reference.dir}\``, reference.when.replaceAll("|", "\\|")])
+        )
+  return `${[START, "", ...body, "", END].join("\n")}\n`
 }
 
 /** A table's delimiter row, dashes of any count. */

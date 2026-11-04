@@ -7,9 +7,21 @@ import { existsSync, readFileSync, readlinkSync } from "node:fs"
 import { join } from "node:path"
 import { describe, it } from "node:test"
 
-import { git, initRepo, runReferences, scratch, write, writeJson, type Run } from "../references-harness.ts"
+import { REPO_ROOT } from "../harness.ts"
+import {
+  git,
+  initRepo,
+  runReferences,
+  scratch,
+  spawnIsolated,
+  write,
+  writeJson,
+  type Run
+} from "../references-harness.ts"
 
 const ROUTER = readFileSync(join(import.meta.dirname, "..", "..", "templates", "router.md"), "utf8")
+/** The formatter this repository's Gate runs: oxfmt, through Vite+. */
+const VP = join(REPO_ROOT, "node_modules", ".bin", "vp")
 const EXCLUDES = [
   "**/references/*/CLAUDE.md",
   "**/references/*/**/CLAUDE.md",
@@ -124,8 +136,8 @@ describe("a repeat", () => {
 describe("what the setup never overwrites or removes", () => {
   it("the text of an existing Router, which gains the block at its end when it has no markers, and a CLAUDE.md of its own", () => {
     const block =
-      "<!-- references:start — written from .ai/references.json by the setup; edit the file -->\n" +
-      "No Reference is declared yet: `/sdlc-references-add <repository>` adds one.\n" +
+      "<!-- references:start — written from .ai/references.json by the setup; edit the file -->\n\n" +
+      "No Reference is declared yet: `/sdlc-references-add <repository>` adds one.\n\n" +
       "<!-- references:end -->\n"
     for (const router of ["# my router\n", "# my router"]) {
       const root = initRepo(scratch("repo"))
@@ -221,7 +233,7 @@ describe("a references key left in the agentic config", () => {
       '{\n  "version": 1,\n  "packageManagers": { "node": "pnpm" }\n}\n'
     )
     assert.deepEqual(json(root, ".ai/references.json"), { $schema: SCHEMA, version: 1, references: [kody] })
-    assert.match(read(root, "references/AGENTS.md"), /^\| `kody` \| a large repo \|$/m)
+    assert.match(read(root, "references/AGENTS.md"), /^\| `kody` \| a large repo {6}\|$/m)
 
     const again = setup(root)
     expectStatus(again, 0)
@@ -273,16 +285,22 @@ describe("the Router's table", () => {
     return text.slice(0, text.indexOf(START)) + block + text.slice(text.indexOf(END) + END.length)
   }
 
-  function table(...rows: string[]): string {
+  /** A block of `rows` unpadded, with no blank line inside its markers. */
+  function compact(...rows: string[]): string {
     return [START, "| dir | reach for it when |", "| --- | --- |", ...rows, END].join("\n")
   }
 
-  it("writes one row per entry in the file's order, when verbatim with | escaped", () => {
+  /** A block of `body` with a blank line inside each marker, the shape oxfmt leaves it in. */
+  function formatted(...body: string[]): string {
+    return [START, "", ...body, "", END].join("\n")
+  }
+
+  it("writes the block as a formatter leaves it: blank lines inside the markers, each column padded to its widest cell", () => {
     const root = initRepo(scratch("repo"))
     declare(
       root,
       reference("kody", "agent instructions for a large repo, or `a | b` in a code span"),
-      reference("dw-mc", "a CLI over `gh`")
+      reference("dw-mc", "a CLI over `gh` — and Effect")
     )
     const run = setup(root)
     expectStatus(run, 0)
@@ -291,15 +309,47 @@ describe("the Router's table", () => {
       read(root, "references/AGENTS.md"),
       routerWith(
         ROUTER,
-        table(
-          "| `kody` | agent instructions for a large repo, or `a \\| b` in a code span |",
-          "| `dw-mc` | a CLI over `gh` |"
+        formatted(
+          "| dir     | reach for it when                                               |",
+          "| ------- | --------------------------------------------------------------- |",
+          "| `kody`  | agent instructions for a large repo, or `a \\| b` in a code span |",
+          "| `dw-mc` | a CLI over `gh` — and Effect                                    |"
         )
       )
     )
+
+    declare(root, reference("ab", "a"))
+    expectStatus(setup(root), 0)
+    assert.equal(
+      read(root, "references/AGENTS.md"),
+      routerWith(
+        ROUTER,
+        formatted("| dir  | reach for it when |", "| ---- | ----------------- |", "| `ab` | a                 |")
+      )
+    )
+
+    declare(root)
+    expectStatus(setup(root), 0)
+    assert.equal(
+      read(root, "references/AGENTS.md"),
+      routerWith(ROUTER, formatted("No Reference is declared yet: `/sdlc-references-add <repository>` adds one."))
+    )
   })
 
-  it("writes nothing on a second run, and nothing when a formatter padded the table and spaced the block", () => {
+  it("leaves a Router oxfmt does not change, each cell padded by the columns oxfmt draws its graphemes in", () => {
+    const root = initRepo(scratch("repo"))
+    declare(
+      root,
+      reference("wide", "漢字 한국어 ＡＢ, an emoji 🚀 \u{1F468}‍\u{1F469}‍\u{1F467} 🇵🇱 ❤️"),
+      reference("narrow", "café, ｱｲ, © ❤ ↔ — and `a | b`")
+    )
+    expectStatus(setup(root), 0)
+    const formatter = spawnIsolated(VP, ["fmt", "--check", join(root, "references/AGENTS.md")], REPO_ROOT, {})
+    assert.equal(formatter.status, 0, `${formatter.stdout}${formatter.stderr}\n${read(root, "references/AGENTS.md")}`)
+    expectStatus(setup(root, "--check"), 0)
+  })
+
+  it("writes nothing on a second run, nor on a block in another shape that holds the same rows", () => {
     const root = initRepo(scratch("repo"))
     declare(
       root,
@@ -313,26 +363,18 @@ describe("the Router's table", () => {
     assert.ok(lines(again.stdout).includes("unchanged   references/AGENTS.md"), again.stdout)
     assert.equal(read(root, "references/AGENTS.md"), written)
 
-    // What oxfmt or Prettier makes of the block: columns padded to the widest cell, a blank line
-    // after the start marker and one before the end marker.
-    const padded = routerWith(
+    const unpadded = routerWith(
       ROUTER,
-      [
-        START,
-        "",
-        "| dir     | reach for it when                                                |",
-        "| ------- | ---------------------------------------------------------------- |",
-        "| `kody`  | agent instructions for a large repo, or `a \\| b` in a code span |",
-        "| `dw-mc` | a CLI over `gh`                                                  |",
-        "",
-        END
-      ].join("\n")
+      compact(
+        "| `kody` | agent instructions for a large repo, or `a \\| b` in a code span |",
+        "| `dw-mc` | a CLI over `gh` |"
+      )
     )
-    write(join(root, "references/AGENTS.md"), padded)
-    const formatted = setup(root)
-    expectStatus(formatted, 0)
-    assert.ok(lines(formatted.stdout).includes("unchanged   references/AGENTS.md"), formatted.stdout)
-    assert.equal(read(root, "references/AGENTS.md"), padded)
+    write(join(root, "references/AGENTS.md"), unpadded)
+    const reshaped = setup(root)
+    expectStatus(reshaped, 0)
+    assert.ok(lines(reshaped.stdout).includes("unchanged   references/AGENTS.md"), reshaped.stdout)
+    assert.equal(read(root, "references/AGENTS.md"), unpadded)
   })
 
   it("rewrites only the block when the table falls behind the file, the text around it byte for byte", () => {
@@ -340,24 +382,35 @@ describe("the Router's table", () => {
     declare(root, reference("kody", "a large repo"), reference("dw-mc", "a CLI over `gh`"))
     const before = "# mine\n\nMy own words, kept as they are.\n\n"
     const after = "\n\n## My rules\n\n- mine too\n"
-    write(join(root, "references/AGENTS.md"), `${before}${table("| `kody` | a large repo |")}${after}`)
+    write(join(root, "references/AGENTS.md"), `${before}${compact("| `kody` | a large repo |")}${after}`)
     const run = setup(root)
     expectStatus(run, 0)
     assert.ok(lines(run.stdout).includes("wrote       references/AGENTS.md"), run.stdout)
     assert.equal(
       read(root, "references/AGENTS.md"),
-      `${before}${table("| `kody` | a large repo |", "| `dw-mc` | a CLI over `gh` |")}${after}`
+      `${before}${formatted(
+        "| dir     | reach for it when |",
+        "| ------- | ----------------- |",
+        "| `kody`  | a large repo      |",
+        "| `dw-mc` | a CLI over `gh`   |"
+      )}${after}`
     )
   })
 
   it("sees a when that changed inside its cell as behind the file, the spaces at the cell's edges aside", () => {
     const root = initRepo(scratch("repo"))
     declare(root, reference("kody", "a large repo"))
-    write(join(root, "references/AGENTS.md"), routerWith(ROUTER, table("| `kody`    | a  large repo   |")))
+    write(join(root, "references/AGENTS.md"), routerWith(ROUTER, compact("| `kody`    | a  large repo   |")))
     const run = setup(root)
     expectStatus(run, 0)
     assert.ok(lines(run.stdout).includes("wrote       references/AGENTS.md"), run.stdout)
-    assert.equal(read(root, "references/AGENTS.md"), routerWith(ROUTER, table("| `kody` | a large repo |")))
+    assert.equal(
+      read(root, "references/AGENTS.md"),
+      routerWith(
+        ROUTER,
+        formatted("| dir    | reach for it when |", "| ------ | ----------------- |", "| `kody` | a large repo      |")
+      )
+    )
   })
 
   it("refuses the Router when the file fails the parser, naming the entry, the field and the reason; exit 1", () => {

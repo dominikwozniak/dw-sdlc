@@ -16,6 +16,7 @@ skips. Before you research, open the clones whose `when` matches the task.
 <!-- references:start — written from .ai/references.json by the setup; edit the file -->
 
 No Reference is declared yet: `/sdlc-references-add <repository>` adds one.
+
 <!-- references:end -->
 
 ## Rules
