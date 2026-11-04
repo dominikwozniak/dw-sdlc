@@ -8,18 +8,27 @@ import { CannotRun } from "../checks/check.ts"
 import { CHECK_NAMES, type EnabledCheck, enabledChecks, shippedCheck } from "../checks/index.ts"
 import { type Fingerprint, fingerprint, isGreen, stampGreen } from "../gate-cache.ts"
 import { annotation, type Failure, failureJson, failureLine } from "../report.ts"
-import { runCommand, type Status } from "../run-command.ts"
+import { type Output, type Ran, runCommand, type Status, TAIL_LINES } from "../run-command.ts"
 
 export const summary = "run the Gate: the Steps of gate.steps in order, then every Check under gate.checks"
 
-const USAGE = `Usage: dw-sdlc gate [--json] [--root <dir>] [--update-baseline | --cache]
+const USAGE = `Usage: dw-sdlc gate [--json] [--verbose] [--root <dir>] [--update-baseline | --cache]
 
 Runs the Gate of the repository holding --root (default: the current directory): each Step of
-gate.steps in order from the repository root, its output passed through, stopping at the first that
-fails; then every Check under gate.checks, the run scripts and then the Checks the package ships,
-none stopping the next. Prints one line per failure: the file where there is one, the rule, the
-remedy; under GitHub Actions each line is also a workflow annotation. --json prints one document
-instead and sends the commands' own output to stderr.
+gate.steps in order from the repository root, stopping at the first that fails; then every Check
+under gate.checks, the run scripts and then the Checks the package ships, none stopping the next.
+
+Prints one line per Step with its time, one per Check, one per failure and a last line, green or
+failed. A failure
+line names the file where there is one, the rule and the remedy; under GitHub Actions it is also a
+workflow annotation. A Step or run script prints nothing of its own unless it does not pass: then its
+last ${TAIL_LINES} lines, both streams in the order written, under its own line. In a terminal a Step's
+line shows when it starts and takes its result when it ends.
+
+--verbose passes each command's output through as it runs instead, under a line naming the command,
+and keeps no tail. --json prints the document alone; each Step and Check in it carries tail, the last
+${TAIL_LINES} lines of a command that did not pass, null otherwise. With --verbose, under --json, the
+commands' output goes to stderr and every tail is null.
 
 --update-baseline then rewrites the baseline of each Ratchet, only when every Step and every other
 Check passed, and only tighter: a file now within its limit leaves it and no file joins. Where there
@@ -33,7 +42,7 @@ Exit 0 when everything passes, 1 when a Step or a Check fails, 2 when the Gate c
 invalid config layer, a Step or Check whose command the shell cannot find or execute, or a Check
 missing an input it reads.`
 
-type Outcome = { status: Status | "skipped"; exitCode: number | null }
+type Outcome = { status: Status | "skipped"; exitCode: number | null; tail: string[] | null }
 type StepReport = Outcome & { command: string }
 /** A Check the package ships runs in this process: it has no command. */
 type CheckReport = Outcome & { name: string; command: string | null }
@@ -55,18 +64,31 @@ type Selection = { steps: string[]; run: RunCheck[]; shipped: EnabledCheck[] }
 /** How a run of the whole Gate goes: plain, refreshing each Ratchet's baseline, or cached on a green tree. */
 type Mode = "plain" | "update-baseline" | "cache"
 /** A run of the whole Gate, or of the Checks named `only` alone: no Step, no progress line, no refresh. */
-type RunOptions = { json: boolean } & ({ mode: Mode } | { only: string })
+type RunOptions = { json: boolean } & ({ mode: Mode; verbose: boolean } | { only: string })
+type Kind = "step" | "check"
+/** What a run prints around a Step or Check: before it runs, and once it has its result. */
+type Progress = {
+  start: (kind: Kind, subject: string) => void
+  end: (kind: Kind, subject: string, outcome: Outcome | Ran) => void
+}
 
 const EXIT_CODES: Record<Status, number> = { pass: 0, fail: 1, error: 2 }
-const SKIPPED: Outcome = { status: "skipped", exitCode: null }
-/** One Check run by name says nothing before its result. */
-const QUIET: Log = { write: () => true }
+const SKIPPED: Outcome = { status: "skipped", exitCode: null, tail: null }
+const SILENT: Log = { write: () => true }
+const STATUS_WORDS: Record<Outcome["status"], string> = {
+  pass: "pass",
+  fail: "failed",
+  error: "cannot run",
+  skipped: "skipped"
+}
 
 const REMEDIES = {
   invalidLayer: "fix the file; the Gate runs once every layer is valid",
-  failed: "fix what it printed above",
-  stepNotRunnable: "install the command or fix gate.steps in the agentic config",
-  checkNotRunnable: "install the command or fix gate.checks.run in the agentic config",
+  failed: "fix what it printed above; run it alone for the full output",
+  notRunnable: {
+    step: "install the command or fix gate.steps in the agentic config",
+    check: "install the command or fix gate.checks.run in the agentic config"
+  },
   checkStopped: "fix what stopped it, or report it to dw-sdlc"
 }
 
@@ -74,7 +96,7 @@ function plural(count: number, noun: string): string {
   return `${count} ${noun}${count === 1 ? "" : "s"}`
 }
 
-type Cli = { help: boolean; json: boolean; root: string | undefined; mode: Mode }
+type Cli = { help: boolean; json: boolean; verbose: boolean; root: string | undefined; mode: Mode }
 
 function parseCli(argv: string[]): Cli | { error: string } {
   try {
@@ -83,6 +105,7 @@ function parseCli(argv: string[]): Cli | { error: string } {
       options: {
         help: { type: "boolean", short: "h" },
         json: { type: "boolean" },
+        verbose: { type: "boolean" },
         root: { type: "string" },
         "update-baseline": { type: "boolean" },
         cache: { type: "boolean" }
@@ -94,7 +117,8 @@ function parseCli(argv: string[]): Cli | { error: string } {
       return { error: "--cache and --update-baseline do not combine: a refresh needs the Gate to run" }
     }
     const mode = refresh ? "update-baseline" : cache ? "cache" : "plain"
-    return { help: values.help === true, json: values.json === true, root: values.root, mode }
+    const flags = { help: values.help === true, json: values.json === true, verbose: values.verbose === true }
+    return { ...flags, root: values.root, mode }
   } catch (error) {
     return { error: error instanceof Error ? error.message : String(error) }
   }
@@ -105,6 +129,63 @@ function configFailure({ file, path, message }: Problem): Failure {
   return { file, rule: "config", message: where, remedy: REMEDIES.invalidLayer }
 }
 
+/**
+ * What follows a Step's or Check's name once it ran: pass, failed or cannot run, with a command's exit,
+ * a Step's time, and a captured tail indented under the line.
+ */
+function outcomeText(kind: Kind, outcome: Outcome | Ran): string {
+  const isCommand = "seconds" in outcome
+  const exit = isCommand && outcome.status !== "pass" && outcome.exitCode !== null ? `, exit ${outcome.exitCode}` : ""
+  const time = isCommand && kind === "step" ? ` (${Math.round(outcome.seconds)} s)` : ""
+  const head = `${STATUS_WORDS[outcome.status]}${exit}${time}`
+  if (outcome.tail === null) {
+    return head
+  }
+  if (outcome.tail.length === 0) {
+    return `${head}; it printed nothing`
+  }
+  const tail = outcome.tail.map((line) => (line === "" ? "" : `  ${line}`))
+  return [`${head}; its last ${TAIL_LINES} lines:`, ...tail].join("\n")
+}
+
+function none(): void {}
+
+/** Whether a Step's line goes out before it runs, to take its result in place: only in a terminal. */
+function live(kind: Kind): boolean {
+  return kind === "step" && process.stdout.isTTY
+}
+
+/**
+ * Quiet, the Gate prints each result, a Step's name first when stdout is a terminal; `--verbose` names
+ * each command before its output; `--json` prints neither. One Check run by name prints only a tail.
+ */
+function progressOf(options: RunOptions, log: Log): Progress {
+  if ("only" in options) {
+    const end = (kind: Kind, subject: string, outcome: Outcome | Ran): void => {
+      if (!options.json && outcome.tail !== null) {
+        process.stdout.write(`${kind} ${subject} — ${outcomeText(kind, outcome)}\n`)
+      }
+    }
+    return { start: none, end }
+  }
+  if (options.verbose) {
+    return { start: (kind, subject) => log.write(`gate: ${kind} ${subject}\n`), end: none }
+  }
+  if (options.json) {
+    return { start: none, end: none }
+  }
+  return {
+    start: (kind, subject) => {
+      if (live(kind)) {
+        process.stdout.write(`gate: ${kind} ${subject}`)
+      }
+    },
+    end: (kind, subject, outcome) => {
+      process.stdout.write(`${live(kind) ? "" : `gate: ${kind} ${subject}`} — ${outcomeText(kind, outcome)}\n`)
+    }
+  }
+}
+
 /** What a Check that threw reports: the input it lacks, or what stopped it. */
 function erred(check: EnabledCheck, error: unknown): Judged {
   const finding =
@@ -113,7 +194,7 @@ function erred(check: EnabledCheck, error: unknown): Judged {
       : { message: `stopped: ${error instanceof Error ? error.message : String(error)}`, remedy: REMEDIES.checkStopped }
   return {
     check,
-    outcome: { status: "error", exitCode: EXIT_CODES.error },
+    outcome: { status: "error", exitCode: EXIT_CODES.error, tail: null },
     failures: [{ rule: check.name, ...finding }]
   }
 }
@@ -123,7 +204,7 @@ function runShipped(check: EnabledCheck, root: string): Judged {
   try {
     const failures = check.run(root).map((finding) => ({ rule: check.name, ...finding }))
     const status = failures.length === 0 ? "pass" : "fail"
-    return { check, outcome: { status, exitCode: EXIT_CODES[status] }, failures }
+    return { check, outcome: { status, exitCode: EXIT_CODES[status], tail: null }, failures }
   } catch (error) {
     return erred(check, error)
   }
@@ -131,13 +212,13 @@ function runShipped(check: EnabledCheck, root: string): Judged {
 
 /**
  * Rewrites the baseline of each Ratchet while every Step, every run Check in `others` and every other
- * shipped Check passed, and judges the Ratchet again on what it wrote.
+ * shipped Check passed, and judges the Ratchet again on what it wrote. Returns a line on each.
  */
-function refreshBaselines(judged: Judged[], others: Outcome[], root: string, log: Log): void {
+function refreshBaselines(judged: Judged[], others: Outcome[], root: string): string[] {
   if (!judged.some(({ check }) => check.baseline !== undefined)) {
-    log.write("gate: no Ratchet is turned on, so no baseline to refresh\n")
-    return
+    return ["gate: no Ratchet is turned on, so no baseline to refresh"]
   }
+  const notes: string[] = []
   for (const [index, { check }] of judged.entries()) {
     if (check.baseline === undefined) {
       continue
@@ -145,20 +226,21 @@ function refreshBaselines(judged: Judged[], others: Outcome[], root: string, log
     const { file, refresh } = check.baseline
     const rest = [...others, ...judged.filter((_, at) => at !== index).map(({ outcome }) => outcome)]
     if (rest.some(({ status }) => status !== "pass")) {
-      log.write(`gate: baseline ${file} not refreshed — a Step or another Check did not pass\n`)
+      notes.push(`gate: baseline ${file} not refreshed — a Step or another Check did not pass`)
       continue
     }
     try {
-      log.write(`gate: baseline ${file} ${refresh(root)}\n`)
+      notes.push(`gate: baseline ${file} ${refresh(root)}`)
       judged[index] = runShipped(check, root)
     } catch (error) {
       if (error instanceof CannotRun) {
-        log.write(`gate: baseline ${file} not refreshed — ${error.finding.message}; ${error.finding.remedy}\n`)
+        notes.push(`gate: baseline ${file} not refreshed — ${error.finding.message}; ${error.finding.remedy}`)
       } else {
         judged[index] = erred(check, error)
       }
     }
   }
+  return notes
 }
 
 function worst(outcomes: Outcome[]): Status {
@@ -188,7 +270,9 @@ export function runGate(root: string, options: RunOptions): GateReport {
   const { json } = options
   const only = "only" in options ? options.only : undefined
   const mode = "mode" in options ? options.mode : undefined
-  const log: Log = only !== undefined ? QUIET : json ? process.stderr : process.stdout
+  const log: Log = only !== undefined ? SILENT : json ? process.stderr : process.stdout
+  const progress = progressOf(options, log)
+  const output: Output = "verbose" in options && options.verbose ? (json ? "stderr" : "stdout") : "capture"
   const { config, problems } = resolveConfig(root)
   const gateCommand = config.gate.command ?? null
   if (problems.length > 0) {
@@ -212,51 +296,52 @@ export function runGate(root: string, options: RunOptions): GateReport {
   }
 
   const failures: Failure[] = []
-  /** Runs one Step or Check and records its failure under `rule`, if it has one. */
-  const runOne = (command: string, rule: string, notRunnable: string): Outcome => {
-    const { detail, ...outcome } = runCommand(command, root, json)
-    if (detail !== undefined) {
-      const remedy = outcome.status === "error" ? notRunnable : REMEDIES.failed
-      failures.push({ rule, message: `${JSON.stringify(command)} ${detail}`, remedy })
+  /** Runs one Step or Check, prints its progress and records its failure under `rule`, if it has one. */
+  const runOne = (kind: Kind, subject: string, command: string): Outcome => {
+    progress.start(kind, subject)
+    const ran = runCommand(command, root, output)
+    progress.end(kind, subject, ran)
+    if (ran.detail !== undefined) {
+      const remedy = ran.status === "error" ? REMEDIES.notRunnable[kind] : REMEDIES.failed
+      failures.push({
+        rule: kind === "step" ? "step" : subject,
+        message: `${JSON.stringify(command)} ${ran.detail}`,
+        remedy
+      })
     }
-    return outcome
+    return { status: ran.status, exitCode: ran.exitCode, tail: ran.tail }
   }
 
   const steps: StepReport[] = []
   let stopped = false
   for (const step of selected.steps) {
-    if (stopped) {
-      steps.push({ command: step, ...SKIPPED })
-      continue
-    }
-    log.write(`gate: step ${step}\n`)
-    const outcome = runOne(step, "step", REMEDIES.stepNotRunnable)
+    const outcome: Outcome = stopped ? SKIPPED : runOne("step", step, step)
     steps.push({ command: step, ...outcome })
-    stopped = outcome.status !== "pass"
+    stopped ||= outcome.status !== "pass"
   }
 
-  const checks: CheckReport[] = []
-  for (const check of selected.run) {
-    if (stopped) {
-      checks.push({ ...check, ...SKIPPED })
-      continue
-    }
-    log.write(`gate: check ${check.name}\n`)
-    checks.push({ ...check, ...runOne(check.command, check.name, REMEDIES.checkNotRunnable) })
-  }
+  const checks: CheckReport[] = selected.run.map((check) => ({
+    ...check,
+    ...(stopped ? SKIPPED : runOne("check", check.name, check.command))
+  }))
   const judged = selected.shipped.map((check): Judged => {
     if (stopped) {
       return { check, outcome: SKIPPED, failures: [] }
     }
-    log.write(`gate: check ${check.name}\n`)
+    progress.start("check", check.name)
     return runShipped(check, root)
   })
-  if (mode === "update-baseline") {
-    refreshBaselines(judged, [...steps, ...checks], root, log)
-  }
+  const notes = mode === "update-baseline" ? refreshBaselines(judged, [...steps, ...checks], root) : []
+  // A Ratchet's result is printed after its refresh, which judges it again.
   for (const { check, outcome, failures: found } of judged) {
+    if (outcome.status !== "skipped") {
+      progress.end("check", check.name, outcome)
+    }
     failures.push(...found)
     checks.push({ name: check.name, command: null, ...outcome })
+  }
+  for (const note of notes) {
+    log.write(`${note}\n`)
   }
 
   const status = worst([...steps, ...checks])
@@ -312,6 +397,6 @@ export function run(argv: string[]): number {
     return 0
   }
 
-  const { json, mode } = cli
-  return printReport(runGate(repositoryRoot(cli.root ?? process.cwd()), { json, mode }), json, "gate")
+  const { json, verbose, mode } = cli
+  return printReport(runGate(repositoryRoot(cli.root ?? process.cwd()), { json, verbose, mode }), json, "gate")
 }

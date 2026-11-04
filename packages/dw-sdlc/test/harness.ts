@@ -63,6 +63,11 @@ export function lines(text: string): string[] {
   return text.split("\n").filter((line) => line !== "")
 }
 
+/** The lines of a quiet Gate run, each Step's time read as `N`. */
+export function timed(stdout: string): string[] {
+  return lines(stdout).map((line) => line.replace(/ \(\d+ s\)/, " (N s)"))
+}
+
 const made: string[] = []
 after(() => {
   for (const dir of made) {

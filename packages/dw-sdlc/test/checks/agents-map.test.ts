@@ -81,7 +81,7 @@ describe("the agents-map Check", () => {
   it("passes a map within budget that names the Gate, routes to the catalogue and to paths that exist", () => {
     const run = runBin(["gate"], withMap())
     assert.equal(run.status, 0, run.stdout)
-    assert.deepEqual(lines(run.stdout), ["gate: check agents-map", "gate: green — 0 steps, 1 check"])
+    assert.deepEqual(lines(run.stdout), ["gate: check agents-map — pass", "gate: green — 0 steps, 1 check"])
   })
 
   it("holds the map to 10240 bytes by default", () => {

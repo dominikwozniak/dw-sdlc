@@ -4,6 +4,7 @@ import { parseArgs } from "node:util"
 
 import { repositoryRoot } from "../agentic-config.ts"
 import { CHECK_NAMES } from "../checks/index.ts"
+import { TAIL_LINES } from "../run-command.ts"
 import { printReport, runGate } from "./gate.ts"
 
 export const summary = "run one Check of the Gate by its name, without the Steps and the other Checks"
@@ -14,8 +15,9 @@ Runs the Check named <name> in the Gate of the repository holding --root (defaul
 directory): a script under gate.checks.run, or a Check the package ships, one of
 ${CHECK_NAMES.join(", ")}. A name both carry runs both, as the Gate does. A
 shipped Check runs on the setting gate.checks gives it, and on its defaults where the config sets it
-false or leaves it out. No Step runs. Prints one line per failure, as the Gate does; --json prints
-the Gate's document, with no Step.
+false or leaves it out. No Step runs. A run script prints nothing of its own unless it does not
+pass: then its last ${TAIL_LINES} lines, both streams in the order written. Prints one line per failure,
+as the Gate does; --json prints the Gate's document alone, with no Step.
 
 A Ratchet's baseline is refreshed by dw-sdlc gate --update-baseline, which needs every other Check to
 pass.

@@ -2,11 +2,11 @@
 // code, the lines on stdout and the `--json` document, which `gate.golden.json` holds.
 
 import assert from "node:assert/strict"
-import { chmodSync, existsSync, mkdirSync, readFileSync, utimesSync } from "node:fs"
+import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, utimesSync } from "node:fs"
 import { join } from "node:path"
 import { describe, it } from "node:test"
 
-import { commit, git, lines, repo, runBin, scratch, write } from "./harness.ts"
+import { commit, git, lines, repo, runBin, scratch, timed, write } from "./harness.ts"
 
 const CONFIG = ".ai/agentic.config.json"
 const LOCAL = ".ai/agentic.config.local.json"
@@ -16,6 +16,11 @@ const CHECK_SCRIPT = JSON.stringify({ scripts: { check: "dw-sdlc gate" } })
 /** A layer the schema refuses: `gate.checks` names only the Checks the package ships. */
 const UNKNOWN_CHECK = { version: 1, gate: { steps: ["touch step-ran"], checks: { "no-such-check": true } } }
 const UNKNOWN_CHECK_LINE = `${CONFIG}: config: gate.checks: unknown key "no-such-check" — fix the file; the Gate runs once every layer is valid`
+const FAILED_REMEDY = "fix what it printed above; run it alone for the full output"
+/** A command printing `line 1` to `line 80`, the odd ones on stdout and the even ones on stderr, then exiting 3. */
+const NUMBERED =
+  'i=1; while [ $i -le 80 ]; do if [ $((i % 2)) -eq 0 ]; then echo "line $i" >&2; else echo "line $i"; fi; i=$((i + 1)); done; exit 3'
+const LAST_50 = Array.from({ length: 50 }, (_, index) => `line ${index + 31}`)
 
 /** A repository whose committed config declares `gate`, beside `files`. */
 function withGate(gate: unknown, files: Record<string, string | object> = {}): string {
@@ -39,44 +44,106 @@ describe("dw-sdlc gate, the steps", () => {
     const run = runBin(["gate"], join(root, "sub"))
     assert.equal(run.status, 0, run.stderr)
     assert.equal(readFileSync(join(root, "ran"), "utf8"), "lint\ntest\n")
-    assert.deepEqual(lines(run.stdout), [
-      "gate: step echo lint >> ran",
-      "gate: step echo test >> ran",
+    assert.deepEqual(timed(run.stdout), [
+      "gate: step echo lint >> ran — pass (N s)",
+      "gate: step echo test >> ran — pass (N s)",
       "gate: green — 2 steps, 0 checks"
     ])
   })
 
-  it("stops at the first failing step with its output passed through, runs nothing after it and exits 1", () => {
+  it("prints one line per Step and per Check and the verdict on a green run, and none of a Step's own output", () => {
     const root = withGate({
-      steps: ["echo lint found 3 problems; exit 3", "touch second-step-ran"],
+      steps: ["echo lint output", "echo test output >&2"],
+      checks: { run: [{ name: "docs", command: "echo docs output" }], "comment-budget": true }
+    })
+    const run = runBin(["gate"], root)
+    assert.equal(run.status, 0, run.stdout)
+    assert.deepEqual(timed(run.stdout), [
+      "gate: step echo lint output — pass (N s)",
+      "gate: step echo test output >&2 — pass (N s)",
+      "gate: check docs — pass",
+      "gate: check comment-budget — pass",
+      "gate: green — 2 steps, 2 checks"
+    ])
+    assert.equal(run.stderr, "")
+  })
+
+  it("stops at the first failing step, prints its last 50 lines of both streams in order, runs nothing after it and exits 1", () => {
+    const root = withGate({
+      steps: [NUMBERED, "touch second-step-ran"],
       checks: { run: [{ name: "docs", command: "touch check-ran" }] }
     })
     const run = runBin(["gate"], root)
     assert.equal(run.status, 1)
     assert.ok(!existsSync(join(root, "second-step-ran")), "the second step ran")
     assert.ok(!existsSync(join(root, "check-ran")), "a Check ran after a failed step")
-    assert.deepEqual(lines(run.stdout), [
-      "gate: step echo lint found 3 problems; exit 3",
-      "lint found 3 problems",
-      'step: "echo lint found 3 problems; exit 3" exited 3 — fix what it printed above',
+    assert.deepEqual(timed(run.stdout), [
+      `gate: step ${NUMBERED} — failed, exit 3 (N s); its last 50 lines:`,
+      ...LAST_50.map((line) => `  ${line}`),
+      `step: ${JSON.stringify(NUMBERED)} exited 3 — ${FAILED_REMEDY}`,
       "gate: failed — 1 failure"
     ])
+    assert.equal(run.stderr, "")
   })
 
-  it("exits 2 when the shell cannot find a step's command", () => {
+  it("exits 2 when the shell cannot find a step's command, with the shell's own words under its line", () => {
     const root = withGate({ steps: ["dw-sdlc-no-such-command", "touch second-step-ran"] })
     const run = runBin(["gate"], root)
     assert.equal(run.status, 2)
     assert.ok(!existsSync(join(root, "second-step-ran")), "the second step ran")
-    assert.deepEqual(lines(run.stdout).slice(1), [
+    const [head, said, ...rest] = timed(run.stdout)
+    assert.equal(head, "gate: step dw-sdlc-no-such-command — cannot run, exit 127 (N s); its last 50 lines:")
+    assert.match(said ?? "", /^ {2}\S.*dw-sdlc-no-such-command.*not found/)
+    assert.deepEqual(rest, [
       'step: "dw-sdlc-no-such-command" was not found (exit 127) — install the command or fix gate.steps in the agentic config',
       "gate: cannot run — 1 failure"
     ])
   })
 })
 
+describe("dw-sdlc gate --verbose", () => {
+  it("passes each command's output through as it runs, under a line naming it, and keeps no tail", () => {
+    const root = withGate({
+      steps: ["echo lint output", "echo lint found 3 problems >&2; exit 3"],
+      checks: { "comment-budget": true }
+    })
+    const run = runBin(["gate", "--verbose"], root)
+    assert.equal(run.status, 1)
+    assert.deepEqual(lines(run.stdout), [
+      "gate: step echo lint output",
+      "lint output",
+      "gate: step echo lint found 3 problems >&2; exit 3",
+      `step: "echo lint found 3 problems >&2; exit 3" exited 3 — ${FAILED_REMEDY}`,
+      "gate: failed — 1 failure"
+    ])
+    assert.deepEqual(lines(run.stderr), ["lint found 3 problems"])
+  })
+
+  it("names each Check before it runs", () => {
+    const root = withGate({ checks: { run: [{ name: "docs", command: "echo docs output" }], "comment-budget": true } })
+    const run = runBin(["gate", "--verbose"], root)
+    assert.equal(run.status, 0, run.stdout)
+    assert.deepEqual(lines(run.stdout), [
+      "gate: check docs",
+      "docs output",
+      "gate: check comment-budget",
+      "gate: green — 0 steps, 2 checks"
+    ])
+  })
+
+  it("sends the commands' output and its own lines to stderr under --json, each tail null", () => {
+    const root = withGate({ steps: ["echo step output; exit 1"] })
+    const run = runBin(["gate", "--verbose", "--json"], root)
+    assert.equal(run.status, 1)
+    assert.deepEqual(JSON.parse(run.stdout).steps, [
+      { command: "echo step output; exit 1", status: "fail", exitCode: 1, tail: null }
+    ])
+    assert.deepEqual(lines(run.stderr), ["gate: step echo step output; exit 1", "step output"])
+  })
+})
+
 describe("dw-sdlc gate, the Checks", () => {
-  it("runs every run Check even when one fails, names each failure by its Check and exits 1", () => {
+  it("runs every run Check even when one fails, prints what each failing one printed and exits 1", () => {
     const root = withGate({
       steps: ["true"],
       checks: {
@@ -90,10 +157,27 @@ describe("dw-sdlc gate, the Checks", () => {
     const run = runBin(["gate"], root)
     assert.equal(run.status, 1)
     assert.ok(existsSync(join(root, "second-ran")), "a failed Check stopped the next one")
-    assert.deepEqual(lines(run.stdout).slice(-3), [
-      'first: "echo first is stale; exit 1" exited 1 — fix what it printed above',
-      'third: "exit 4" exited 4 — fix what it printed above',
+    assert.deepEqual(timed(run.stdout), [
+      "gate: step true — pass (N s)",
+      "gate: check first — failed, exit 1; its last 50 lines:",
+      "  first is stale",
+      "gate: check second — pass",
+      "gate: check third — failed, exit 4; it printed nothing",
+      `first: "echo first is stale; exit 1" exited 1 — ${FAILED_REMEDY}`,
+      `third: "exit 4" exited 4 — ${FAILED_REMEDY}`,
       "gate: failed — 2 failures"
+    ])
+  })
+
+  it("prints the last 50 lines of a failing run script, both streams in order, under its own line", () => {
+    const root = withGate({ checks: { run: [{ name: "numbered", command: NUMBERED }] } })
+    const run = runBin(["gate"], root)
+    assert.equal(run.status, 1)
+    assert.deepEqual(lines(run.stdout), [
+      "gate: check numbered — failed, exit 3; its last 50 lines:",
+      ...LAST_50.map((line) => `  ${line}`),
+      `numbered: ${JSON.stringify(NUMBERED)} exited 3 — ${FAILED_REMEDY}`,
+      "gate: failed — 1 failure"
     ])
   })
 
@@ -108,9 +192,10 @@ describe("dw-sdlc gate, the Checks", () => {
     })
     const run = runBin(["gate"], root)
     assert.equal(run.status, 2)
+    assert.equal(lines(run.stdout)[0], "gate: check missing — cannot run, exit 127; its last 50 lines:")
     assert.deepEqual(lines(run.stdout).slice(-3), [
       'missing: "dw-sdlc-no-such-command" was not found (exit 127) — install the command or fix gate.checks.run in the agentic config',
-      'failing: "exit 1" exited 1 — fix what it printed above',
+      `failing: "exit 1" exited 1 — ${FAILED_REMEDY}`,
       "gate: cannot run — 2 failures"
     ])
   })
@@ -131,10 +216,25 @@ describe("dw-sdlc gate, the Checks the package ships", () => {
       checks.map(({ name, command }: { name: string; command: string | null }) => ({ name, command })),
       [{ name: "own", command: "exit 1" }, ...SHIPPED.map((name) => ({ name, command: null }))]
     )
-    for (const { name, status, exitCode } of checks.slice(1)) {
+    for (const { name, status, exitCode, tail } of checks.slice(1)) {
       assert.notEqual(status, "skipped", name)
       assert.equal(exitCode, { pass: 0, fail: 1, error: 2 }[status as string], name)
+      assert.equal(tail, null, name)
     }
+  })
+
+  it("prints one line per Check it ran: pass, failed or cannot run", () => {
+    const root = withGate(
+      { checks: { primitives: true, "markdown-refs": true, "comment-budget": true } },
+      { "src/a.ts": "// one\n// two\n// three\n// four\nexport const a = 1\n" }
+    )
+    const run = runBin(["gate"], root)
+    assert.equal(run.status, 2)
+    assert.deepEqual(lines(run.stdout).slice(0, 3), [
+      "gate: check primitives — cannot run",
+      "gate: check markdown-refs — pass",
+      "gate: check comment-budget — failed"
+    ])
   })
 
   it("skips them after a failed step", () => {
@@ -142,7 +242,7 @@ describe("dw-sdlc gate, the Checks the package ships", () => {
     const run = runBin(["gate", "--json"], root)
     assert.equal(run.status, 1)
     assert.deepEqual(JSON.parse(run.stdout).checks, [
-      { name: "primitives", command: null, status: "skipped", exitCode: null }
+      { name: "primitives", command: null, status: "skipped", exitCode: null, tail: null }
     ])
   })
 })
@@ -172,7 +272,7 @@ describe("dw-sdlc gate, the config", () => {
 })
 
 describe("dw-sdlc gate --json", () => {
-  it("prints one document on stdout, the one the golden file holds, and the commands' own output on stderr", () => {
+  it("prints one document on stdout alone, the one the golden file holds, and nothing on stderr", () => {
     const root = withGate(
       {
         steps: ["echo step output", "true"],
@@ -188,14 +288,29 @@ describe("dw-sdlc gate --json", () => {
     const run = runBin(["gate", "--json"], root)
     assert.equal(run.status, 1)
     assert.deepEqual(JSON.parse(run.stdout), JSON.parse(readFileSync(GOLDEN, "utf8")))
-    assert.deepEqual(lines(run.stderr), [
-      "gate: step echo step output",
-      "step output",
-      "gate: step true",
-      "gate: check fresh",
-      "gate: check stale",
-      "stale output"
+    assert.equal(run.stderr, "")
+  })
+
+  it("carries a failed Step's last 50 lines as its tail, and null on the Step it skipped", () => {
+    const run = runBin(["gate", "--json"], withGate({ steps: [NUMBERED, "true"] }))
+    assert.equal(run.status, 1)
+    assert.deepEqual(JSON.parse(run.stdout).steps, [
+      { command: NUMBERED, status: "fail", exitCode: 3, tail: LAST_50 },
+      { command: "true", status: "skipped", exitCode: null, tail: null }
     ])
+    assert.equal(run.stderr, "")
+  })
+
+  it("keeps a line a lone carriage return rewrote as a terminal shows it, the last text written over it", () => {
+    const run = runBin(["gate", "--json"], withGate({ steps: ["printf 'step 1\\rstep 2\\nlast\\n'; exit 1"] }))
+    assert.deepEqual(JSON.parse(run.stdout).steps[0].tail, ["step 2", "last"])
+  })
+
+  it("keeps no file of a Step's output on disk, not even while the Step runs", () => {
+    const tmp = scratch("tmp")
+    const run = runBin(["gate", "--json"], withGate({ steps: ['ls -A "$TMPDIR"; exit 1'] }), { TMPDIR: tmp })
+    assert.deepEqual(JSON.parse(run.stdout).steps[0].tail, [])
+    assert.deepEqual(readdirSync(tmp), [])
   })
 
   it("carries the command a layer sets over the inferred one, and null when there is none", () => {
@@ -209,6 +324,7 @@ describe("dw-sdlc gate --json", () => {
 describe("dw-sdlc gate --cache", () => {
   const CACHED_LINE = "gate: green — cached, the tree matches the last green run"
   const GREEN_LINE = "gate: green — 1 step, 0 checks"
+  const STEP_LINE = "gate: step echo ran >> ran — pass (N s)"
 
   it("skips a run whose tree matches the last green one, says so and exits 0", () => {
     const root = countingRepo()
@@ -225,9 +341,9 @@ describe("dw-sdlc gate --cache", () => {
     commit(root, "-m", "notes")
     runBin(["gate", "--cache"], root)
     write(join(root, "notes.md"), "two\n")
-    assert.deepEqual(lines(runBin(["gate", "--cache"], root).stdout), ["gate: step echo ran >> ran", GREEN_LINE])
+    assert.deepEqual(timed(runBin(["gate", "--cache"], root).stdout), [STEP_LINE, GREEN_LINE])
     write(join(root, "new.md"), "new\n")
-    assert.deepEqual(lines(runBin(["gate", "--cache"], root).stdout), ["gate: step echo ran >> ran", GREEN_LINE])
+    assert.deepEqual(timed(runBin(["gate", "--cache"], root).stdout), [STEP_LINE, GREEN_LINE])
     write(join(root, "ran"), "an ignored file changed\n")
     assert.deepEqual(lines(runBin(["gate", "--cache"], root).stdout), [CACHED_LINE])
   })
@@ -243,7 +359,7 @@ describe("dw-sdlc gate --cache", () => {
     runBin(["gate", "--cache"], root)
     write(notes, "two\n")
     utimesSync(notes, then, then)
-    assert.deepEqual(lines(runBin(["gate", "--cache"], root).stdout), ["gate: step echo ran >> ran", GREEN_LINE])
+    assert.deepEqual(timed(runBin(["gate", "--cache"], root).stdout), [STEP_LINE, GREEN_LINE])
   })
 
   it("skips after a commit of the same content and leaves the index as it found it", () => {
@@ -280,7 +396,10 @@ describe("dw-sdlc gate --cache", () => {
     write(join(root, ".git", "info", "exclude"), `${LOCAL}\n`)
     runBin(["gate", "--cache"], root)
     write(join(root, LOCAL), JSON.stringify({ version: 1, gate: { steps: ["echo local >> ran"] } }))
-    assert.deepEqual(lines(runBin(["gate", "--cache"], root).stdout), ["gate: step echo local >> ran", GREEN_LINE])
+    assert.deepEqual(timed(runBin(["gate", "--cache"], root).stdout), [
+      "gate: step echo local >> ran — pass (N s)",
+      GREEN_LINE
+    ])
   })
 
   it("runs the whole Gate when it cannot fingerprint the tree, saying why", () => {
@@ -288,9 +407,9 @@ describe("dw-sdlc gate --cache", () => {
     runBin(["gate", "--cache"], root)
     const run = runBin(["gate", "--cache"], root)
     assert.equal(run.status, 0, run.stdout)
-    const [note, ...rest] = lines(run.stdout)
+    const [note, ...rest] = timed(run.stdout)
     assert.match(note ?? "", /^gate: cannot fingerprint the tree, so the whole Gate runs — git rev-parse: fatal: /)
-    assert.deepEqual(rest, ["gate: step echo ran >> ran", GREEN_LINE])
+    assert.deepEqual(rest, [STEP_LINE, GREEN_LINE])
     assert.equal(runs(root), 2)
   })
 
@@ -302,9 +421,9 @@ describe("dw-sdlc gate --cache", () => {
     runBin(["gate", "--cache"], root)
     const run = runBin(["gate", "--cache"], root)
     chmodSync(index, 0o644)
-    const [note, ...rest] = lines(run.stdout)
+    const [note, ...rest] = timed(run.stdout)
     assert.match(note ?? "", /^gate: cannot fingerprint the tree, so the whole Gate runs — EACCES: /)
-    assert.deepEqual(rest, ["gate: step echo ran >> ran", GREEN_LINE])
+    assert.deepEqual(rest, [STEP_LINE, GREEN_LINE])
     assert.equal(runs(root), 2)
   })
 
@@ -315,7 +434,7 @@ describe("dw-sdlc gate --cache", () => {
     const linked = join(scratch("worktree"), "linked")
     git(main, "worktree", "add", "-q", linked)
     runBin(["gate", "--cache"], main)
-    assert.deepEqual(lines(runBin(["gate", "--cache"], linked).stdout), ["gate: step echo ran >> ran", GREEN_LINE])
+    assert.deepEqual(timed(runBin(["gate", "--cache"], linked).stdout), [STEP_LINE, GREEN_LINE])
     assert.deepEqual(lines(runBin(["gate", "--cache"], linked).stdout), [CACHED_LINE])
     assert.deepEqual(lines(runBin(["gate", "--cache"], main).stdout), [CACHED_LINE])
   })
@@ -377,10 +496,10 @@ describe("dw-sdlc gate under GitHub Actions", () => {
     const run = runBin(["gate"], root, ACTIONS)
     assert.equal(run.status, 1)
     assert.deepEqual(lines(run.stdout).slice(-5), [
-      'first: "exit 1" exited 1 — fix what it printed above',
-      '::error title=first::"exit 1" exited 1 — fix what it printed above',
-      'second: "exit 2" exited 2 — fix what it printed above',
-      '::error title=second::"exit 2" exited 2 — fix what it printed above',
+      `first: "exit 1" exited 1 — ${FAILED_REMEDY}`,
+      `::error title=first::"exit 1" exited 1 — ${FAILED_REMEDY}`,
+      `second: "exit 2" exited 2 — ${FAILED_REMEDY}`,
+      `::error title=second::"exit 2" exited 2 — ${FAILED_REMEDY}`,
       "gate: failed — 2 failures"
     ])
   })
@@ -388,7 +507,7 @@ describe("dw-sdlc gate under GitHub Actions", () => {
   it("keeps stdout one document under --json and prints the annotations on stderr", () => {
     const run = runBin(["gate", "--json"], withGate({ steps: ["exit 3"] }), ACTIONS)
     assert.equal(JSON.parse(run.stdout).status, "fail")
-    assert.ok(lines(run.stderr).includes('::error title=step::"exit 3" exited 3 — fix what it printed above'))
+    assert.deepEqual(lines(run.stderr), [`::error title=step::"exit 3" exited 3 — ${FAILED_REMEDY}`])
   })
 
   it("prints no annotation outside GitHub Actions", () => {

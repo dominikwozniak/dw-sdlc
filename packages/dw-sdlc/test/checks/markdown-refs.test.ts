@@ -49,7 +49,7 @@ describe("the markdown-refs Check", () => {
   it("passes relative links and anchors that resolve, and leaves links with a scheme and links in code alone", () => {
     const run = runBin(["gate"], withDocs())
     assert.equal(run.status, 0, run.stdout)
-    assert.deepEqual(lines(run.stdout), ["gate: check markdown-refs", "gate: green — 0 steps, 1 check"])
+    assert.deepEqual(lines(run.stdout), ["gate: check markdown-refs — pass", "gate: green — 0 steps, 1 check"])
   })
 
   it("fails a link to a path that does not exist, a reference definition included", () => {

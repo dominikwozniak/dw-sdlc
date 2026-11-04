@@ -47,7 +47,7 @@ describe("the comment-budget Check", () => {
   it("passes a block of three prose lines", () => {
     const run = runBin(["gate"], withBudget({ "src/a.ts": `${slashes(3)}export const a = 1\n` }))
     assert.equal(run.status, 0, run.stdout)
-    assert.deepEqual(lines(run.stdout), ["gate: check comment-budget", "gate: green — 0 steps, 1 check"])
+    assert.deepEqual(lines(run.stdout), ["gate: check comment-budget — pass", "gate: green — 0 steps, 1 check"])
   })
 
   it("fails a block of four prose lines with the file, the line it starts on and the count", () => {

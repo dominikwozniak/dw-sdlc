@@ -9,6 +9,10 @@ import { describe, it } from "node:test"
 import { lines, repo, runBin, scratch } from "../harness.ts"
 
 const CONFIG = ".ai/agentic.config.json"
+const FAILED_REMEDY = "fix what it printed above; run it alone for the full output"
+/** A command printing `line 1` to `line 80`, the odd ones on stdout and the even ones on stderr, then exiting 3. */
+const NUMBERED =
+  'i=1; while [ $i -le 80 ]; do if [ $((i % 2)) -eq 0 ]; then echo "line $i" >&2; else echo "line $i"; fi; i=$((i + 1)); done; exit 3'
 /** A run Check of each kind beside a Step, so a test sees what else ran by the files left behind. */
 const STEP_AND_RUNS = {
   steps: ["touch step-ran"],
@@ -16,7 +20,8 @@ const STEP_AND_RUNS = {
     { name: "own", command: "touch own-ran" },
     { name: "other", command: "touch other-ran" },
     { name: "stale", command: "echo stale output; exit 1" },
-    { name: "missing", command: "dw-sdlc-no-such-command" }
+    { name: "missing", command: "dw-sdlc-no-such-command" },
+    { name: "numbered", command: NUMBERED }
   ]
 }
 /** A comment block one line over the default budget of `comment-budget`. */
@@ -43,16 +48,37 @@ describe("dw-sdlc check, a run Check", () => {
     assert.deepEqual(lines(run.stdout), ["check own: green — 0 steps, 1 check"])
   })
 
-  it("passes its output through and exits 1 with its failure line when it fails", () => {
+  it("prints what it printed under its own line and exits 1 with its failure line when it fails", () => {
     const root = withChecks({})
     const run = runBin(["check", "stale"], root)
     assert.equal(run.status, 1)
     assert.deepEqual(ran(root), [])
     assert.deepEqual(lines(run.stdout), [
-      "stale output",
-      'stale: "echo stale output; exit 1" exited 1 — fix what it printed above',
+      "check stale — failed, exit 1; its last 50 lines:",
+      "  stale output",
+      `stale: "echo stale output; exit 1" exited 1 — ${FAILED_REMEDY}`,
       "check stale: failed — 1 failure"
     ])
+    assert.equal(run.stderr, "")
+  })
+
+  it("prints the last 50 lines of both streams in order when it fails", () => {
+    const run = runBin(["check", "numbered"], withChecks({}))
+    assert.equal(run.status, 1)
+    assert.deepEqual(lines(run.stdout), [
+      "check numbered — failed, exit 3; its last 50 lines:",
+      ...Array.from({ length: 50 }, (_, index) => `  line ${index + 31}`),
+      `numbered: ${JSON.stringify(NUMBERED)} exited 3 — ${FAILED_REMEDY}`,
+      "check numbered: failed — 1 failure"
+    ])
+  })
+
+  it("prints none of its output when it passes", () => {
+    const gate = { checks: { run: [{ name: "loud", command: "echo loud output; echo loud errors >&2" }] } }
+    const run = runBin(["check", "loud"], repo({ files: { [CONFIG]: { version: 1, gate } } }))
+    assert.equal(run.status, 0, run.stdout)
+    assert.deepEqual(lines(run.stdout), ["check loud: green — 0 steps, 1 check"])
+    assert.equal(run.stderr, "")
   })
 
   it("exits 2 when the shell cannot find its command", () => {
@@ -60,7 +86,8 @@ describe("dw-sdlc check, a run Check", () => {
     const run = runBin(["check", "missing"], root)
     assert.equal(run.status, 2)
     assert.deepEqual(ran(root), [])
-    assert.deepEqual(lines(run.stdout), [
+    assert.equal(lines(run.stdout)[0], "check missing — cannot run, exit 127; its last 50 lines:")
+    assert.deepEqual(lines(run.stdout).slice(-2), [
       'missing: "dw-sdlc-no-such-command" was not found (exit 127) — install the command or fix gate.checks.run in the agentic config',
       "check missing: cannot run — 1 failure"
     ])
@@ -108,7 +135,7 @@ describe("dw-sdlc check, what it cannot run", () => {
     assert.equal(run.status, 2)
     assert.deepEqual(ran(root), [])
     assert.deepEqual(lines(run.stdout), [
-      'check: no Check is named "nope" — name one of own, other, stale, missing, primitives, agents-map, routed-docs, markdown-budget, markdown-refs, temporal-language, decision-records, file-size-ratchet, comment-budget',
+      'check: no Check is named "nope" — name one of own, other, stale, missing, numbered, primitives, agents-map, routed-docs, markdown-budget, markdown-refs, temporal-language, decision-records, file-size-ratchet, comment-budget',
       "check nope: cannot run — 1 failure"
     ])
   })
@@ -139,7 +166,7 @@ describe("dw-sdlc check, what it cannot run", () => {
 })
 
 describe("dw-sdlc check --json", () => {
-  it("prints the Gate's document with no Step and the one Check, the script's own output on stderr", () => {
+  it("prints the Gate's document alone with no Step and the one Check, what the script printed as its tail", () => {
     const root = withChecks({}, { "package.json": JSON.stringify({ scripts: { check: "dw-sdlc gate" } }) })
     const run = runBin(["check", "stale", "--json", "--root", root], scratch("elsewhere"))
     assert.equal(run.status, 1)
@@ -147,18 +174,20 @@ describe("dw-sdlc check --json", () => {
       status: "fail",
       command: "pnpm check",
       steps: [],
-      checks: [{ name: "stale", command: "echo stale output; exit 1", status: "fail", exitCode: 1 }],
+      checks: [
+        { name: "stale", command: "echo stale output; exit 1", status: "fail", exitCode: 1, tail: ["stale output"] }
+      ],
       failures: [
         {
           file: null,
           line: null,
           rule: "stale",
           message: '"echo stale output; exit 1" exited 1',
-          remedy: "fix what it printed above"
+          remedy: FAILED_REMEDY
         }
       ]
     })
-    assert.deepEqual(lines(run.stderr), ["stale output"])
+    assert.equal(run.stderr, "")
   })
 
   it("runs a script and the shipped Check that share a name, as the Gate does, each its own entry", () => {
@@ -167,8 +196,8 @@ describe("dw-sdlc check --json", () => {
     const run = runBin(["check", "comment-budget", "--json"], root)
     assert.equal(run.status, 1)
     assert.deepEqual(JSON.parse(run.stdout).checks, [
-      { name: "comment-budget", command: "true", status: "pass", exitCode: 0 },
-      { name: "comment-budget", command: null, status: "fail", exitCode: 1 }
+      { name: "comment-budget", command: "true", status: "pass", exitCode: 0, tail: null },
+      { name: "comment-budget", command: null, status: "fail", exitCode: 1, tail: null }
     ])
   })
 })
