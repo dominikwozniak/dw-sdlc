@@ -16,7 +16,9 @@ import {
   repo,
   runBin,
   scratch,
+  startBin,
   timed,
+  until,
   write
 } from "./harness.ts"
 
@@ -105,6 +107,103 @@ describe("dw-sdlc gate, the steps", () => {
       'step: "dw-sdlc-no-such-command" was not found (exit 127) — install the command or fix gate.steps in the agentic config',
       "gate: cannot run — 1 failure"
     ])
+  })
+})
+
+describe("dw-sdlc gate, stopped by a signal", () => {
+  /** A command that marks it started and then waits, so a test signals it while it runs. */
+  const WAITING = "echo started; touch started; sleep 30"
+
+  for (const signal of ["SIGINT", "SIGTERM"] as const) {
+    it(`prints what a Step printed when ${signal} stops it, runs nothing after it and exits 1`, async () => {
+      const root = withGate({
+        steps: [WAITING, "touch second-ran"],
+        checks: { run: [{ name: "docs", command: "touch check-ran" }] }
+      })
+      const gate = startBin(["gate"], root)
+      await until(() => existsSync(join(root, "started")))
+      process.kill(-gate.group, signal)
+      const run = await gate.done
+      assert.equal(run.status, 1, run.stdout)
+      assert.ok(!existsSync(join(root, "second-ran")), "a Step ran after the stopped one")
+      assert.ok(!existsSync(join(root, "check-ran")), "a Check ran after the stopped Step")
+      assert.deepEqual(timed(run.stdout), [
+        `gate: step ${WAITING} — failed, stopped by ${signal} (N s); its last 50 lines:`,
+        "  started",
+        `step: ${JSON.stringify(WAITING)} was stopped by ${signal} — ${FAILED_REMEDY}`,
+        "gate: failed — 1 failure"
+      ])
+    })
+  }
+
+  it("carries the stopped Step with its tail in the --json document, stderr empty", async () => {
+    const root = withGate({ steps: [WAITING, "true"] })
+    const gate = startBin(["gate", "--json"], root)
+    await until(() => existsSync(join(root, "started")))
+    process.kill(-gate.group, "SIGINT")
+    const run = await gate.done
+    assert.equal(run.status, 1, run.stdout)
+    const { steps, failures } = JSON.parse(run.stdout)
+    assert.deepEqual(
+      steps.map(({ command, status, tail }: { command: string; status: string; tail: string[] | null }) => ({
+        command,
+        status,
+        tail
+      })),
+      [
+        { command: WAITING, status: "fail", tail: ["started"] },
+        { command: "true", status: "skipped", tail: null }
+      ]
+    )
+    assert.equal(failures[0].message, `${JSON.stringify(WAITING)} was stopped by SIGINT`)
+    assert.equal(run.stderr, "")
+  })
+
+  it("runs no Check after a run Check a signal stops", async () => {
+    const root = withGate({
+      checks: {
+        run: [
+          { name: "waiting", command: WAITING },
+          { name: "next", command: "touch next-ran" }
+        ]
+      }
+    })
+    const gate = startBin(["gate"], root)
+    await until(() => existsSync(join(root, "started")))
+    process.kill(-gate.group, "SIGINT")
+    const run = await gate.done
+    assert.equal(run.status, 1, run.stdout)
+    assert.ok(!existsSync(join(root, "next-ran")), "a Check ran after the stopped one")
+    assert.deepEqual(lines(run.stdout), [
+      "gate: check waiting — failed, stopped by SIGINT; its last 50 lines:",
+      "  started",
+      `waiting: ${JSON.stringify(WAITING)} was stopped by SIGINT — ${FAILED_REMEDY}`,
+      "gate: failed — 1 failure"
+    ])
+  })
+
+  it("stops at once on a second signal when the first does not stop the Step", async () => {
+    const root = withGate({ steps: ["trap '' INT; touch started; sleep 30"] })
+    const gate = startBin(["gate"], root)
+    let ended = false
+    void gate.done.then(() => {
+      ended = true
+    })
+    try {
+      await until(() => existsSync(join(root, "started")))
+      process.kill(-gate.group, "SIGINT")
+      await new Promise((resolve) => setTimeout(resolve, 200))
+      assert.ok(!ended, "the Gate ended on the first signal, which the Step ignored")
+      process.kill(-gate.group, "SIGINT")
+      const run = await gate.done
+      assert.equal(run.signal, "SIGINT", run.stdout)
+    } finally {
+      try {
+        process.kill(-gate.group, "SIGKILL")
+      } catch {
+        // The group has already exited.
+      }
+    }
   })
 })
 

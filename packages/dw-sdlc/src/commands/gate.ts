@@ -8,7 +8,15 @@ import { CannotRun } from "../checks/check.ts"
 import { CHECK_NAMES, type EnabledCheck, enabledChecks, shippedCheck } from "../checks/index.ts"
 import { type Fingerprint, fingerprint, isGreen, stampGreen } from "../gate-cache.ts"
 import { annotation, type Failure, failureJson, failureLine } from "../report.ts"
-import { type Output, type Ran, runCommand, type Status, TAIL_LINES } from "../run-command.ts"
+import {
+  holdingSignals,
+  type Output,
+  type Ran,
+  runCommand,
+  type Status,
+  stoppedBy,
+  TAIL_LINES
+} from "../run-command.ts"
 
 export const summary = "run the Gate: the Steps of gate.steps in order, then every Check under gate.checks"
 
@@ -23,6 +31,10 @@ failed. A failure line names the file where there is one, the rule and the remed
 Actions it is also a workflow annotation. A Step or run script prints nothing of its own unless it
 does not pass: then its last ${TAIL_LINES} lines, both streams in the order written, under its own
 line. In a terminal a Step's line shows when it starts and takes its result when it ends.
+
+SIGINT or SIGTERM stops the command running and every command after it, and the report still prints:
+the stopped command's last lines, its failure line and the last line. A second signal ends the Gate
+at once.
 
 --verbose passes each command's output through as it runs instead, under a line naming the command,
 and keeps no tail. --json prints the document alone; each Step and Check in it carries tail, the last
@@ -134,7 +146,7 @@ function configFailure({ file, path, message }: Problem): Failure {
  */
 function outcomeText(kind: Kind, outcome: Outcome | Ran): string {
   const isCommand = "seconds" in outcome
-  const exit = isCommand && outcome.status !== "pass" && outcome.exitCode !== null ? `, exit ${outcome.exitCode}` : ""
+  const exit = isCommand && outcome.status !== "pass" ? howItEnded(outcome) : ""
   const time = isCommand && kind === "step" ? ` (${Math.round(outcome.seconds)} s)` : ""
   const head = `${STATUS_WORDS[outcome.status]}${exit}${time}`
   if (outcome.tail === null) {
@@ -145,6 +157,14 @@ function outcomeText(kind: Kind, outcome: Outcome | Ran): string {
   }
   const tail = outcome.tail.map((line) => (line === "" ? "" : `  ${line}`))
   return [`${head}; its last ${TAIL_LINES} lines:`, ...tail].join("\n")
+}
+
+/** How a command that did not pass ended: the signal that stopped it, or its exit code. */
+function howItEnded({ signal, exitCode }: Ran): string {
+  if (signal !== null) {
+    return `, stopped by ${signal}`
+  }
+  return exitCode === null ? "" : `, exit ${exitCode}`
 }
 
 function none(): void {}
@@ -265,7 +285,12 @@ function select(gate: Gate, only: string | undefined): Selection | Failure {
   return { steps: [], run: scripts, shipped: shipped === undefined ? [] : [shipped] }
 }
 
-export function runGate(root: string, options: RunOptions): GateReport {
+/** Runs the Gate, or one Check of it, with SIGINT and SIGTERM stopping it and the report still printed. */
+export function runGate(root: string, options: RunOptions): Promise<GateReport> {
+  return holdingSignals(() => judge(root, options))
+}
+
+async function judge(root: string, options: RunOptions): Promise<GateReport> {
   const { json } = options
   const only = "only" in options ? options.only : undefined
   const mode = "mode" in options ? options.mode : undefined
@@ -296,9 +321,9 @@ export function runGate(root: string, options: RunOptions): GateReport {
 
   const failures: Failure[] = []
   /** Runs one Step or Check, prints its progress and records its failure under `rule`, if it has one. */
-  const runOne = (kind: Kind, subject: string, command: string): Outcome => {
+  const runOne = async (kind: Kind, subject: string, command: string): Promise<Outcome> => {
     progress.start(kind, subject)
-    const ran = runCommand(command, root, output)
+    const ran = await runCommand(command, root, output)
     progress.end(kind, subject, ran)
     if (ran.detail !== undefined) {
       const remedy = ran.status === "error" ? REMEDIES.notRunnable[kind] : REMEDIES.failed
@@ -311,18 +336,21 @@ export function runGate(root: string, options: RunOptions): GateReport {
     return { status: ran.status, exitCode: ran.exitCode, tail: ran.tail }
   }
 
-  const steps: StepReport[] = []
+  // A failed Step stops what follows; a signal stops it too, wherever it lands.
   let stopped = false
+  const halted = (): boolean => stopped || stoppedBy() !== undefined
+  const steps: StepReport[] = []
   for (const step of selected.steps) {
-    const outcome: Outcome = stopped ? SKIPPED : runOne("step", step, step)
+    const outcome: Outcome = halted() ? SKIPPED : await runOne("step", step, step)
     steps.push({ command: step, ...outcome })
     stopped ||= outcome.status !== "pass"
   }
 
-  const checks: CheckReport[] = selected.run.map((check) => ({
-    ...check,
-    ...(stopped ? SKIPPED : runOne("check", check.name, check.command))
-  }))
+  const checks: CheckReport[] = []
+  for (const check of selected.run) {
+    checks.push({ ...check, ...(halted() ? SKIPPED : await runOne("check", check.name, check.command)) })
+  }
+  stopped = halted()
   const judged = selected.shipped.map((check): Judged => {
     if (stopped) {
       return { check, outcome: SKIPPED, failures: [] }
@@ -385,7 +413,7 @@ export function printReport(report: GateReport, json: boolean, label: string): n
   return EXIT_CODES[report.status]
 }
 
-export function run(argv: string[]): number {
+export async function run(argv: string[]): Promise<number> {
   const cli = parseCli(argv)
   if ("error" in cli) {
     process.stderr.write(`dw-sdlc gate: ${cli.error}\n\n${USAGE}\n`)
@@ -397,5 +425,6 @@ export function run(argv: string[]): number {
   }
 
   const { json, verbose, mode } = cli
-  return printReport(runGate(repositoryRoot(cli.root ?? process.cwd()), { json, verbose, mode }), json, "gate")
+  const report = await runGate(repositoryRoot(cli.root ?? process.cwd()), { json, verbose, mode })
+  return printReport(report, json, "gate")
 }

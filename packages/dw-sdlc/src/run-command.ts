@@ -1,7 +1,8 @@
 // How the Gate runs one command, a Step or a `gate.checks.run` script: through `sh -c` from the
-// repository root, stdin closed, its output captured or passed through, and what it answered.
+// repository root, stdin closed, its output captured or passed through, and what it answered; and
+// how SIGINT and SIGTERM stop the command running and every command after it.
 
-import { type SpawnSyncReturns, spawnSync, type StdioOptions } from "node:child_process"
+import { type ChildProcess, spawn, type StdioOptions } from "node:child_process"
 import { closeSync, fstatSync, mkdtempSync, openSync, readSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -18,6 +19,8 @@ export type Ran = {
   status: Status
   /** Null when it never started or a signal stopped it. */
   exitCode: number | null
+  /** The signal that stopped it: one the Gate got while it ran, or one that ended it. */
+  signal: NodeJS.Signals | null
   seconds: number
   /** What went wrong, as `exited 3`; absent on a pass. */
   detail?: string
@@ -29,6 +32,46 @@ export const TAIL_LINES = 50
 
 /** What the shell answers for a command it cannot find, and for one it cannot execute. */
 const NOT_RUNNABLE: Record<number, string> = { 127: "was not found", 126: "could not be executed" }
+const STOPPING: NodeJS.Signals[] = ["SIGINT", "SIGTERM"]
+
+/** The command running, which a signal the Gate gets is passed on to. */
+let running: ChildProcess | undefined
+/** The first SIGINT or SIGTERM the Gate got; no command starts after it. */
+let received: NodeJS.Signals | undefined
+
+function release(): void {
+  for (const signal of STOPPING) {
+    process.off(signal, stop)
+  }
+}
+
+function stop(signal: NodeJS.Signals): void {
+  if (received !== undefined) {
+    // A second signal ends the Gate at once, as it would with no handler: the command ignored the first.
+    release()
+    process.kill(process.pid, signal)
+    return
+  }
+  received = signal
+  running?.kill(signal)
+}
+
+/** Runs `body` with SIGINT and SIGTERM held, so a signal stops the command running and the Gate reports it. */
+export async function holdingSignals<T>(body: () => Promise<T>): Promise<T> {
+  for (const signal of STOPPING) {
+    process.on(signal, stop)
+  }
+  try {
+    return await body()
+  } finally {
+    release()
+  }
+}
+
+/** The signal that stopped the run, once one has; no command starts after it. */
+export function stoppedBy(): NodeJS.Signals | undefined {
+  return received
+}
 
 /** Everything written to `fd`, read from its start: the command's writes moved the offset it shares to the end. */
 function written(fd: number): string {
@@ -53,31 +96,46 @@ function lastLines(text: string): string[] {
   return all.slice(-TAIL_LINES).map((line) => line.split("\r").findLast((part) => part !== "") ?? "")
 }
 
-function answer(result: SpawnSyncReturns<Buffer>): Pick<Ran, "status" | "exitCode" | "detail"> {
-  if (result.error !== undefined) {
-    return { status: "error", exitCode: null, detail: `could not start: ${result.error.message}` }
+type Answer = Pick<Ran, "status" | "exitCode" | "signal" | "detail">
+
+/** What the command's exit says; a signal the Gate got while it ran stops it, however it then exited. */
+function answer(exitCode: number | null, ended: NodeJS.Signals | null): Answer {
+  const signal = received ?? ended
+  if (signal !== null) {
+    return { status: "fail", exitCode, signal, detail: `was stopped by ${signal}` }
   }
-  if (result.status === 0) {
-    return { status: "pass", exitCode: 0 }
+  if (exitCode === 0) {
+    return { status: "pass", exitCode, signal }
   }
-  if (result.status === null) {
-    return { status: "fail", exitCode: null, detail: `was stopped by ${result.signal ?? "a signal"}` }
-  }
-  const notRunnable = NOT_RUNNABLE[result.status]
+  const notRunnable = exitCode === null ? undefined : NOT_RUNNABLE[exitCode]
   if (notRunnable !== undefined) {
-    return { status: "error", exitCode: result.status, detail: `${notRunnable} (exit ${result.status})` }
+    return { status: "error", exitCode, signal, detail: `${notRunnable} (exit ${exitCode})` }
   }
-  return { status: "fail", exitCode: result.status, detail: `exited ${result.status}` }
+  return { status: "fail", exitCode, signal, detail: `exited ${exitCode}` }
 }
 
-export function runCommand(command: string, root: string, output: Output): Ran {
-  const run = (stdio: StdioOptions): Pick<Ran, "status" | "exitCode" | "detail" | "seconds"> => {
-    const started = performance.now()
-    const answered = answer(spawnSync(command, { shell: true, cwd: root, stdio }))
-    return { ...answered, seconds: (performance.now() - started) / 1000 }
-  }
+function run(command: string, root: string, stdio: StdioOptions): Promise<Omit<Ran, "tail">> {
+  const started = performance.now()
+  return new Promise((resolve) => {
+    const done = (answered: Answer): void => {
+      running = undefined
+      resolve({ ...answered, seconds: (performance.now() - started) / 1000 })
+    }
+    const child = spawn(command, { shell: true, cwd: root, stdio })
+    running = child
+    // A signal that cannot be delivered is an error too; only a child with no pid never started.
+    child.on("error", (error) => {
+      if (child.pid === undefined) {
+        done({ status: "error", exitCode: null, signal: null, detail: `could not start: ${error.message}` })
+      }
+    })
+    child.once("exit", (exitCode, signal) => done(answer(exitCode, signal)))
+  })
+}
+
+export async function runCommand(command: string, root: string, output: Output): Promise<Ran> {
   if (output !== "capture") {
-    return { ...run(["ignore", output === "stderr" ? 2 : "inherit", "inherit"]), tail: null }
+    return { ...(await run(command, root, ["ignore", output === "stderr" ? 2 : "inherit", "inherit"])), tail: null }
   }
   // Both streams share one open file, so its lines keep the order the command wrote them in. The file
   // leaves the disk before the command starts, so no run, an interrupted one included, leaves it behind.
@@ -85,7 +143,7 @@ export function runCommand(command: string, root: string, output: Output): Ran {
   const fd = openSync(join(scratch, "output"), "w+")
   rmSync(scratch, { recursive: true, force: true })
   try {
-    const ran = run(["ignore", fd, fd])
+    const ran = await run(command, root, ["ignore", fd, fd])
     return { ...ran, tail: ran.status === "pass" ? null : lastLines(written(fd)) }
   } finally {
     closeSync(fd)

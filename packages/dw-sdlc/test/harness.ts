@@ -2,7 +2,7 @@
 // and the `dw-sdlc` bin spawned the way a user, a hook or CI spawns it, on such a repository, with the
 // exit code and both streams.
 
-import { spawnSync } from "node:child_process"
+import { spawn, spawnSync } from "node:child_process"
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
@@ -56,6 +56,43 @@ export function runCommand(command: string, args: string[], cwd: string, env: No
 /** Runs `dw-sdlc <args>` from `cwd` under `scratchEnv()`, `env` over it. */
 export function runBin(args: string[], cwd: string, env: NodeJS.ProcessEnv = {}): Run {
   return runCommand(process.execPath, [BIN, ...args], cwd, env)
+}
+
+/** A run of the bin started by `startBin`, and the signal that ended it, if one did. */
+export type Started = { group: number; done: Promise<Run & { signal: NodeJS.Signals | null }> }
+
+/**
+ * Starts `dw-sdlc <args>` from `cwd` as the leader of a process group of its own, so a test signals the
+ * bin and the commands it runs together, as Ctrl-C in a terminal does.
+ */
+export function startBin(args: string[], cwd: string): Started {
+  const child = spawn(process.execPath, [BIN, ...args], { cwd, env: scratchEnv({}), detached: true })
+  if (child.pid === undefined) {
+    throw new Error(`dw-sdlc ${args.join(" ")} did not start`)
+  }
+  let stdout = ""
+  let stderr = ""
+  child.stdout.setEncoding("utf8").on("data", (chunk: string) => {
+    stdout += chunk
+  })
+  child.stderr.setEncoding("utf8").on("data", (chunk: string) => {
+    stderr += chunk
+  })
+  const done = new Promise<Run & { signal: NodeJS.Signals | null }>((resolve, reject) => {
+    child.once("error", reject)
+    child.once("close", (status, signal) => resolve({ status: status ?? -1, stdout, stderr, signal }))
+  })
+  return { group: child.pid, done }
+}
+
+/** Resolves once `ready` holds, checking every 20 ms; rejects after 10 s. */
+export async function until(ready: () => boolean): Promise<void> {
+  for (let waited = 0; !ready(); waited += 20) {
+    if (waited >= 10_000) {
+      throw new Error("timed out waiting")
+    }
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  }
 }
 
 /** The non-empty lines of a command's output. */

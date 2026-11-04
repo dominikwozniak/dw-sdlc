@@ -91,7 +91,10 @@ gate: failed — 1 failure
 
 No file keeps the full output: the failure line names the command to run alone. In a terminal a
 Step's line shows when it starts and takes its result in place when it ends; elsewhere each line
-prints once, finished. `--verbose` passes each command's output through live instead, colours kept,
+prints once, finished. SIGINT or SIGTERM, from Ctrl-C or a cancelled CI job, stops the command
+running and every command after it, and the report still prints: the stopped command's last 50
+lines, its failure line, `"<command>" was stopped by SIGINT`, and the last line. A second signal ends
+the Gate at once, for a command that ignores the first. `--verbose` passes each command's output through live instead, colours kept,
 under a `gate: step <command>` or `gate: check <name>` line, and keeps no tail. An invalid config
 layer runs nothing and fails as
 `.ai/agentic.config.json: config: gate.checks: unknown key "nope" — fix the file; the Gate runs once every layer is valid`.

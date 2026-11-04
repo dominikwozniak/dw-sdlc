@@ -48,7 +48,7 @@ function parseCli(argv: string[]): Cli | { error: string } {
   }
 }
 
-export function run(argv: string[]): number {
+export async function run(argv: string[]): Promise<number> {
   const cli = parseCli(argv)
   if ("error" in cli) {
     process.stderr.write(`dw-sdlc check: ${cli.error}\n\n${USAGE}\n`)
@@ -64,6 +64,6 @@ export function run(argv: string[]): number {
   }
 
   const { json, name } = cli
-  const report = runGate(repositoryRoot(cli.root ?? process.cwd()), { json, only: name })
+  const report = await runGate(repositoryRoot(cli.root ?? process.cwd()), { json, only: name })
   return printReport(report, json, `check ${name}`)
 }
