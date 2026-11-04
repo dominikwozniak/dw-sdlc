@@ -59,6 +59,8 @@ const BUDGET_MINUTES = 40
 const OWN_PREFIX = "dw-sdlc/"
 /** The commit status a clean review of the head leaves on it. */
 export const REVIEW = "dw-sdlc/review"
+/** Its one state: a failure or a pending status would turn the pull request unstable. */
+export const REVIEW_STATE = "success"
 
 /** The words as one POSIX shell command line, each word that needs it single-quoted. */
 export function shellLine(words: string[]): string {
@@ -93,11 +95,10 @@ function listed({ id, path, line, author, body }: Thread): Record<string, unknow
 
 /**
  * The gh arguments that post the `dw-sdlc/review` success on the head, `description` saying how it was
- * read: never a failure or a pending status, which would turn the pull request unstable. The path
- * names the repository, so the call reads the same from any checkout.
+ * read. The path names the repository, so the call reads the same from any checkout.
  */
 export function reviewStatusArgs(pr: PrState, description: string): string[] {
-  const fields = { state: "success", context: REVIEW, target_url: pr.url, description }
+  const fields = { state: REVIEW_STATE, context: REVIEW, target_url: pr.url, description }
   const flags = Object.entries(fields).flatMap(([key, value]) => ["-f", `${key}=${value}`])
   return ["api", `repos/${pr.repo}/statuses/${pr.head}`, "--method", "POST", "--silent", ...flags]
 }

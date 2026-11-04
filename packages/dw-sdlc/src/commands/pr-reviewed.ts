@@ -3,7 +3,7 @@
 
 import { parseArgs } from "node:util"
 
-import { REVIEW, reviewStatusArgs } from "../pr/decide.ts"
+import { REVIEW, REVIEW_STATE, reviewStatusArgs } from "../pr/decide.ts"
 import { CannotRun, gh, namedProblem, read, said } from "../pr/read.ts"
 
 export const summary = "pin a clean review to the head it read, as a commit status"
@@ -17,8 +17,6 @@ Needs an authenticated gh.
 
 Exit 0 posted, 2 when it cannot run or the head moved.`
 
-/** The state `reviewStatusArgs` posts. */
-const STATE = "success"
 const DESCRIPTION = "a clean review of this head"
 
 type Cli = { json: boolean; number: number; repo: string | undefined; head: string }
@@ -101,8 +99,8 @@ export function run(argv: string[]): number {
   }
   const { head } = cli
   const answer = cli.json
-    ? JSON.stringify({ head, context: REVIEW, state: STATE }, null, 2)
-    : `posted ${REVIEW} ${STATE} on ${head}`
+    ? JSON.stringify({ head, context: REVIEW, state: REVIEW_STATE }, null, 2)
+    : `posted ${REVIEW} ${REVIEW_STATE} on ${head}`
   process.stdout.write(`${answer}\n`)
   return 0
 }

@@ -28,7 +28,7 @@ export type PrMerge = "ask" | "auto"
 export type PrReview = "full" | "off"
 
 /** How the Ship script ends a pull request: who merges it and how closely it is reviewed. */
-export type Pr = { merge: PrMerge; review: PrReview }
+export type PrConfig = { merge: PrMerge; review: PrReview }
 
 export type Guardrails = {
   forcePush: ForcePush
@@ -74,7 +74,7 @@ export type ResolvedConfig = {
   guardrails: Guardrails
   commit: { convention: CommitConvention; pattern: string; trailer?: string }
   gate: Gate
-  pr: Pr
+  pr: PrConfig
   worktree: { setup: string[] }
 }
 
@@ -120,7 +120,7 @@ export const STRICTEST_GUARDRAILS: Guardrails = {
 export const STRICTEST_PR_MERGE: PrMerge = "ask"
 /** The Review depth while any layer is invalid, and with nothing declared: the agent reads every head. */
 export const STRICTEST_PR_REVIEW: PrReview = "full"
-const STRICTEST_PR: Pr = { merge: STRICTEST_PR_MERGE, review: STRICTEST_PR_REVIEW }
+const STRICTEST_PR: PrConfig = { merge: STRICTEST_PR_MERGE, review: STRICTEST_PR_REVIEW }
 
 /** What a repository gets with nothing declared. */
 export const DEFAULT_GUARDRAILS: Guardrails = {
@@ -392,7 +392,7 @@ function loosenings(base: Guardrails, local: GuardrailsLayer | undefined): Probl
 }
 
 /** Each local `pr` key less strict than the one it would override: `merge` auto over ask, `review` off over full. */
-function prLoosenings(base: Pr, local: Partial<Pr> | undefined): Problem[] {
+function prLoosenings(base: PrConfig, local: Partial<PrConfig> | undefined): Problem[] {
   const keys = ["merge", "review"] as const
   return keys.flatMap((key) => {
     const value = local?.[key]
