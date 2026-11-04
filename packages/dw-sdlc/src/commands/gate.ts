@@ -7,11 +7,12 @@ import { parseArgs } from "node:util"
 import { type Gate, type Problem, type RunCheck, repositoryRoot, resolveConfig } from "../agentic-config.ts"
 import { CannotRun } from "../checks/check.ts"
 import { CHECK_NAMES, type EnabledCheck, enabledChecks, shippedCheck } from "../checks/index.ts"
+import { type Fingerprint, fingerprint, isGreen, stampGreen } from "../gate-cache.ts"
 import { annotation, type Failure, failureJson, failureLine } from "../report.ts"
 
 export const summary = "run the Gate: the Steps of gate.steps in order, then every Check under gate.checks"
 
-const USAGE = `Usage: dw-sdlc gate [--json] [--root <dir>] [--update-baseline]
+const USAGE = `Usage: dw-sdlc gate [--json] [--root <dir>] [--update-baseline | --cache]
 
 Runs the Gate of the repository holding --root (default: the current directory): each Step of
 gate.steps in order from the repository root, its output passed through, stopping at the first that
@@ -23,6 +24,10 @@ instead and sends the commands' own output to stderr.
 --update-baseline then rewrites the baseline of each Ratchet, only when every Step and every other
 Check passed, and only tighter: a file now within its limit leaves it and no file joins. Where there
 is no baseline, it records one. The Ratchet is judged again on what it wrote.
+
+--cache skips the run when the working tree and the Gate match the last green run in this checkout.
+Untracked files count and ignored files do not. Each worktree keeps its own stamp. A tree it cannot
+hash runs the whole Gate.
 
 Exit 0 when everything passes, 1 when a Step or a Check fails, 2 when the Gate cannot run: an
 invalid config layer, a Step or Check whose command the shell cannot find or execute, or a Check
@@ -36,6 +41,8 @@ type CheckReport = Outcome & { name: string; command: string | null }
 type GateReport = {
   status: Status
   command: string | null
+  /** Present on a run the cache skipped. */
+  cached?: true
   steps: StepReport[]
   checks: CheckReport[]
   failures: Failure[]
@@ -46,8 +53,10 @@ type Judged = { check: EnabledCheck; outcome: Outcome; failures: Failure[] }
 type Log = { write: (text: string) => unknown }
 /** The Steps and Checks one run judges. */
 type Selection = { steps: string[]; run: RunCheck[]; shipped: EnabledCheck[] }
+/** What a run of the whole Gate does besides: nothing, refresh each Ratchet's baseline, or skip a tree already green. */
+type Mode = "run" | "update-baseline" | "cache"
 /** A run of the whole Gate, or of the Checks named `only` alone: no Step, no progress line, no refresh. */
-type RunOptions = { json: boolean } & ({ updateBaseline: boolean } | { only: string })
+type RunOptions = { json: boolean } & ({ mode: Mode } | { only: string })
 
 const EXIT_CODES: Record<Status, number> = { pass: 0, fail: 1, error: 2 }
 /** What the shell answers for a command it cannot find, and for one it cannot execute. */
@@ -68,7 +77,7 @@ function plural(count: number, noun: string): string {
   return `${count} ${noun}${count === 1 ? "" : "s"}`
 }
 
-type Cli = { help: boolean; json: boolean; root: string | undefined; updateBaseline: boolean }
+type Cli = { help: boolean; json: boolean; root: string | undefined; mode: Mode }
 
 function parseCli(argv: string[]): Cli | { error: string } {
   try {
@@ -78,15 +87,17 @@ function parseCli(argv: string[]): Cli | { error: string } {
         help: { type: "boolean", short: "h" },
         json: { type: "boolean" },
         root: { type: "string" },
-        "update-baseline": { type: "boolean" }
+        "update-baseline": { type: "boolean" },
+        cache: { type: "boolean" }
       }
     })
-    return {
-      help: values.help === true,
-      json: values.json === true,
-      root: values.root,
-      updateBaseline: values["update-baseline"] === true
+    const refresh = values["update-baseline"] === true
+    const cache = values.cache === true
+    if (refresh && cache) {
+      return { error: "--cache and --update-baseline do not combine: a refresh needs the Gate to run" }
     }
+    const mode = refresh ? "update-baseline" : cache ? "cache" : "run"
+    return { help: values.help === true, json: values.json === true, root: values.root, mode }
   } catch (error) {
     return { error: error instanceof Error ? error.message : String(error) }
   }
@@ -201,6 +212,7 @@ function select(gate: Gate, only: string | undefined): Selection | Failure {
 export function runGate(root: string, options: RunOptions): GateReport {
   const { json } = options
   const only = "only" in options ? options.only : undefined
+  const mode = "mode" in options ? options.mode : undefined
   const log: Log = only !== undefined ? QUIET : json ? process.stderr : process.stdout
   const { config, problems } = resolveConfig(root)
   const gateCommand = config.gate.command ?? null
@@ -210,6 +222,18 @@ export function runGate(root: string, options: RunOptions): GateReport {
   const selected = select(config.gate, only)
   if ("rule" in selected) {
     return { status: "error", command: gateCommand, steps: [], checks: [], failures: [selected] }
+  }
+
+  let toStamp: Fingerprint | undefined
+  if (mode === "cache") {
+    const found = fingerprint(root, config.gate)
+    if ("error" in found) {
+      log.write(`gate: cannot fingerprint the tree, so the whole Gate runs — ${found.error}\n`)
+    } else if (isGreen(found)) {
+      return { status: "pass", command: gateCommand, cached: true, steps: [], checks: [], failures: [] }
+    } else {
+      toStamp = found
+    }
   }
 
   const failures: Failure[] = []
@@ -252,7 +276,7 @@ export function runGate(root: string, options: RunOptions): GateReport {
     log.write(`gate: check ${check.name}\n`)
     return runShipped(check, root)
   })
-  if ("updateBaseline" in options && options.updateBaseline) {
+  if (mode === "update-baseline") {
     refreshBaselines(judged, [...steps, ...checks], root, log)
   }
   for (const { check, outcome, failures: found } of judged) {
@@ -260,11 +284,19 @@ export function runGate(root: string, options: RunOptions): GateReport {
     checks.push({ name: check.name, command: null, ...outcome })
   }
 
-  return { status: worst([...steps, ...checks]), command: gateCommand, steps, checks, failures }
+  const status = worst([...steps, ...checks])
+  // Stamped with the fingerprint taken before the run: a Gate that changed the tree runs again next time.
+  if (status === "pass" && toStamp !== undefined) {
+    stampGreen(toStamp)
+  }
+  return { status, command: gateCommand, steps, checks, failures }
 }
 
 /** The last line, after `label`: green with what ran, or failed or cannot run with how many failures. */
 function verdict(label: string, report: GateReport): string {
+  if (report.cached === true) {
+    return `${label}: green — skipped, the tree matches the last green run`
+  }
   if (report.status === "pass") {
     return `${label}: green — ${plural(report.steps.length, "step")}, ${plural(report.checks.length, "check")}`
   }
@@ -305,6 +337,6 @@ export function run(argv: string[]): number {
     return 0
   }
 
-  const { json, updateBaseline } = cli
-  return printReport(runGate(repositoryRoot(cli.root ?? process.cwd()), { json, updateBaseline }), json, "gate")
+  const { json, mode } = cli
+  return printReport(runGate(repositoryRoot(cli.root ?? process.cwd()), { json, mode }), json, "gate")
 }

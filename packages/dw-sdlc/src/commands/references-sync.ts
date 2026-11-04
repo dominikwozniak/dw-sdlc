@@ -8,6 +8,7 @@ import { extname, join } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 import { parseArgs } from "node:util"
 
+import { repositoryFreeEnv } from "../git-env.ts"
 import { readPins, resolveRef, type Pins } from "../pins.ts"
 import { REFERENCES_FILE, readReferences, type Reference } from "../references-key.ts"
 import { renderBlock, withBlock } from "../router-block.ts"
@@ -144,16 +145,11 @@ async function lock(root: string, seconds: number): Promise<Lock> {
   }
 }
 
-/** The variables that tie git to one repository, as git itself lists them. */
-const REPOSITORY_VARS = new Set(
-  (spawnSync("git", ["rev-parse", "--local-env-vars"], { encoding: "utf8" }).stdout ?? "").split("\n").filter(Boolean)
-)
-
 function git(args: string[], cwd?: string): { ok: boolean; out: string; err: string } {
-  // Each call finds its repository from `cwd`: the GIT_DIR a git hook exports would aim it at the
-  // hook's repository. A missing credential fails the fetch instead of waiting on a prompt nobody sees.
-  const env = Object.fromEntries(Object.entries(process.env).filter(([name]) => !REPOSITORY_VARS.has(name)))
-  const result = spawnSync("git", args, { cwd, encoding: "utf8", env: { ...env, GIT_TERMINAL_PROMPT: "0" } })
+  // Each call finds its repository from `cwd`. A missing credential fails the fetch instead of waiting
+  // on a prompt nobody sees.
+  const env = { ...repositoryFreeEnv(), GIT_TERMINAL_PROMPT: "0" }
+  const result = spawnSync("git", args, { cwd, encoding: "utf8", env })
   // git's error on one line, so each Reference stays one line of the report.
   const err = (result.stderr ?? "")
     .split("\n")
