@@ -581,7 +581,9 @@ Only the dev invokes it. The skill reads each answer's `status`, then its `actio
   `/code-review` on the changes since the base and, when it finds nothing,
   `dw-sdlc pr reviewed <n> --head <sha>` with the head it reviewed. The skill skips that Review
   when one earlier in the conversation read the changes since the base at the head the script
-  read, found nothing, and nothing changed after it: no edit, no commit, no pull. It then runs
+  read, found nothing, and nothing changed after it: no edit, no commit, no pull. Only a clean run
+  of the review command the step runs, `/code-review`, whose range ended at that head counts as the
+  earlier Review; an informal read of the diff never counts. It then runs
   `pr reviewed` on that head. A Review whose head the conversation does not show, or one with a
   finding, even one fixed since, needs a fresh Review. The agent's other `blockers` go into the
   same push, all but `review`, which needs the head the push makes, and the skill calls the script
