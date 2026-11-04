@@ -167,7 +167,7 @@
               "additionalProperties": false
             },
             "agents-map": {
-              "description": "The agent map: within its line and byte budget, naming the resolved `gate.command`, carrying a Task Router row to the Primitives catalogue where there is one, every path the Task Router points at existing, `CLAUDE.md` a symbolic link to the map unless the map is `CLAUDE.md`, and the skills directory, `skills-lock.json` and the `.claude/skills` links in step where the repository has them.",
+              "description": "The agent map: within its byte budget, with no line limit, naming the resolved `gate.command`, carrying a Task Router row to the Primitives catalogue where there is one, every path the Task Router points at existing, `CLAUDE.md` a symbolic link to the map unless the map is `CLAUDE.md`, and the skills directory, `skills-lock.json` and the `.claude/skills` links in step where the repository has them.",
               "type": ["boolean", "object"],
               "properties": {
                 "file": {
@@ -175,13 +175,8 @@
                   "type": "string",
                   "minLength": 1
                 },
-                "maxLines": {
-                  "description": "Default 150.",
-                  "type": "integer",
-                  "minimum": 1
-                },
                 "maxBytes": {
-                  "description": "Default 10240.",
+                  "description": "The map's budget in bytes. Default 10240.",
                   "type": "integer",
                   "minimum": 1
                 }
@@ -189,11 +184,11 @@
               "additionalProperties": false
             },
             "markdown-budget": {
-              "description": "Each file a glob of `budgets` matches within that glob's `maxLines` and `maxBytes`, and every glob matching a file. A glob matches the files git tracks or would track, a symbolic link left out when the file it points at is matched too; `*` and `**` skip a name that starts with a dot.",
+              "description": "Each file a glob of `budgets` matches within that glob's `maxBytes`, with no line limit, and every glob matching a file. A glob matches the files git tracks or would track, a symbolic link left out when the file it points at is matched too; `*` and `**` skip a name that starts with a dot.",
               "type": ["boolean", "object"],
               "properties": {
                 "budgets": {
-                  "description": "Default `docs/agents/*.md` within 100 lines and 6144 bytes; a list replaces the default.",
+                  "description": "Default `docs/agents/*.md` within 6144 bytes; a list replaces the default, such as one that adds `GLOSSARY.md` at a budget of its own.",
                   "type": "array",
                   "items": {
                     "type": "object",
@@ -202,16 +197,12 @@
                         "type": "string",
                         "minLength": 1
                       },
-                      "maxLines": {
-                        "type": "integer",
-                        "minimum": 1
-                      },
                       "maxBytes": {
                         "type": "integer",
                         "minimum": 1
                       }
                     },
-                    "required": ["glob", "maxLines", "maxBytes"],
+                    "required": ["glob", "maxBytes"],
                     "additionalProperties": false
                   }
                 }
@@ -302,11 +293,11 @@
               "additionalProperties": false
             },
             "file-size-ratchet": {
-              "description": "The file-size Ratchet: each file git tracks or would track within the line limit of its group, or, where `.ai/file-size-ratchet.baseline.json` lists it, within the count recorded there. A file belongs to the first group with a glob that matches it; a file no group matches has no limit, and a symbolic link is left out when the file it points at is matched too. The baseline is committed and lists the files over their limit; one that lists a file twice, at a count within its group's limit or in no group fails the Check. `dw-sdlc gate --update-baseline` records it where there is none and otherwise only tightens it, and only when every Step and every other Check passes: a file within its limit leaves it, a count that shrank is lowered, and no file joins.",
+              "description": "The file-size Ratchet, which holds code: each file git tracks or would track within the line limit of its group, or, where `.ai/file-size-ratchet.baseline.json` lists it, within the count recorded there. A file belongs to the first group with a glob that matches it; a file no group matches has no limit, and a symbolic link is left out when the file it points at is matched too. The baseline is committed and lists the files over their limit; one that lists a file twice, at a count within its group's limit or in no group fails the Check. `dw-sdlc gate --update-baseline` records it where there is none and otherwise only tightens it, and only when every Step and every other Check passes: a file within its limit leaves it, a count that shrank is lowered, and no file joins.",
               "type": ["boolean", "object"],
               "properties": {
                 "groups": {
-                  "description": "Default, in this order: `tests`, 2000 lines, a file under a `test`, `tests` or `__tests__` directory or named `*.test.*` or `*.spec.*`; `agent-docs`, 120 lines, `AGENTS.md`, `CLAUDE.md` and `GLOSSARY.md` anywhere and the markdown under `docs/agents`; `source`, 500 lines, JavaScript, TypeScript and shell.",
+                  "description": "Default, in this order: `tests`, 2000 lines, a file under a `test`, `tests` or `__tests__` directory or named `*.test.*` or `*.spec.*`; `source`, 500 lines, JavaScript, TypeScript and shell. No default group holds markdown: `agents-map` and `markdown-budget` hold it to byte budgets.",
                   "type": "array",
                   "items": {
                     "type": "object",

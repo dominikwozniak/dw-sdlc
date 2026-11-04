@@ -20,7 +20,7 @@ import { CannotRun, type Check, type Finding } from "./check.ts"
 import { overBudget } from "./markdown-budget.ts"
 import { catalogueFile } from "./primitives.ts"
 
-export type AgentsMapOptions = { file: string; maxLines: number; maxBytes: number }
+export type AgentsMapOptions = { file: string; maxBytes: number }
 
 const ROUTER = "Task Router"
 const AGENTS_SKILLS = ".agents/skills"
@@ -210,6 +210,6 @@ function run(root: string, options: AgentsMapOptions): Finding[] {
 
 export const agentsMap: Check<AgentsMapOptions> = {
   name: "agents-map",
-  defaults: { file: "AGENTS.md", maxLines: 150, maxBytes: 10240 },
+  defaults: { file: "AGENTS.md", maxBytes: 10240 },
   run
 }

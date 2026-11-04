@@ -215,8 +215,13 @@ export const CASES: Case[] = [
       gate: {
         checks: {
           primitives: { file: ".ai/primitives.json", roots: ["src", "scripts"] },
-          "agents-map": { file: "AGENTS.md", maxLines: 120, maxBytes: 8192 },
-          "markdown-budget": { budgets: [{ glob: "docs/agents/*.md", maxLines: 80, maxBytes: 4096 }] },
+          "agents-map": { file: "AGENTS.md", maxBytes: 8192 },
+          "markdown-budget": {
+            budgets: [
+              { glob: "docs/agents/*.md", maxBytes: 4096 },
+              { glob: "GLOSSARY.md", maxBytes: 8192 }
+            ]
+          },
           "markdown-refs": { files: ["**/*.md"], exempt: ["vendor/**"] },
           "temporal-language": { files: ["docs/**/*.md"], exempt: ["docs/adr/**"] },
           "decision-records": {
@@ -237,8 +242,8 @@ export const CASES: Case[] = [
         checks: {
           "markdown-budget": {
             budgets: [
-              { glob: "docs/*.md", maxLines: 0 },
-              { glob: "", maxLines: 1, maxBytes: 1, words: 9 }
+              { glob: "docs/*.md", maxBytes: 0 },
+              { glob: "", words: 9 }
             ]
           },
           "markdown-refs": { files: "**/*.md" },
@@ -248,9 +253,9 @@ export const CASES: Case[] = [
       }
     },
     problems: [
-      { path: "gate.checks.markdown-budget.budgets[0].maxLines", message: "0 is below the minimum 1" },
-      { path: "gate.checks.markdown-budget.budgets[0]", message: 'missing required key "maxBytes"' },
+      { path: "gate.checks.markdown-budget.budgets[0].maxBytes", message: "0 is below the minimum 1" },
       { path: "gate.checks.markdown-budget.budgets[1].glob", message: "must not be empty" },
+      { path: "gate.checks.markdown-budget.budgets[1]", message: 'missing required key "maxBytes"' },
       { path: "gate.checks.markdown-budget.budgets[1]", message: 'unknown key "words"' },
       { path: "gate.checks.markdown-refs.files", message: 'expected array, got "**/*.md"' },
       { path: "gate.checks.temporal-language.exempt", message: 'duplicate item "docs/adr/**"' },
@@ -268,13 +273,28 @@ export const CASES: Case[] = [
     name: "the agentic schema refuses a Check's unknown option, a value of the wrong type and a budget below 1",
     schema: AGENTIC_SCHEMA,
     value: {
-      gate: { checks: { primitives: { roots: "src", exempt: [] }, "agents-map": { maxLines: 0, maxBytes: 1.5 } } }
+      gate: { checks: { primitives: { roots: "src", exempt: [] }, "agents-map": { maxBytes: 0 } } }
     },
     problems: [
       { path: "gate.checks.primitives.roots", message: 'expected array, got "src"' },
       { path: "gate.checks.primitives", message: 'unknown key "exempt"' },
-      { path: "gate.checks.agents-map.maxLines", message: "0 is below the minimum 1" },
-      { path: "gate.checks.agents-map.maxBytes", message: "expected integer, got 1.5" }
+      { path: "gate.checks.agents-map.maxBytes", message: "0 is below the minimum 1" }
+    ]
+  },
+  {
+    name: "the agentic schema refuses maxLines under agents-map and markdown-budget, which hold bytes alone",
+    schema: AGENTIC_SCHEMA,
+    value: {
+      gate: {
+        checks: {
+          "agents-map": { maxLines: 150, maxBytes: 10240 },
+          "markdown-budget": { budgets: [{ glob: "docs/agents/*.md", maxLines: 100, maxBytes: 6144 }] }
+        }
+      }
+    },
+    problems: [
+      { path: "gate.checks.agents-map", message: 'unknown key "maxLines"' },
+      { path: "gate.checks.markdown-budget.budgets[0]", message: 'unknown key "maxLines"' }
     ]
   },
   {

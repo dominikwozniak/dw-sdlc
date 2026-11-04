@@ -92,14 +92,16 @@ schema.
   path on disk with its heading anchor resolving, and every file under the roots named by the `code`
   of a Primitive, the file itself or a directory above it. The roots are `packages`, `plugins`,
   `scripts` and `src` by default; a test file needs no Primitive.
-- `agents-map` holds `AGENTS.md` to 150 lines and 10240 bytes, to naming the resolved
+- `agents-map` holds `AGENTS.md` to 10240 bytes, with no line limit, to naming the resolved
   `gate.command`, to a Task Router row that points at the catalogue where there is one, and to every
   path the Task Router points at existing. It holds `CLAUDE.md` at the root to a symbolic link to
   the map by its path from the root, so Claude Code reads the map the Gate judges; a map named
   `CLAUDE.md` needs no link. Where the repository has them, it keeps the skills directory,
   `skills-lock.json` and the `.claude/skills` links in step.
-- `markdown-budget` holds each file a glob matches to that glob's line and byte budget, by default
-  the agent docs, `docs/agents/*.md`, to 100 lines and 6144 bytes. A glob that matches no file fails.
+- `markdown-budget` holds each file a glob matches to that glob's byte budget, by default the agent
+  docs, `docs/agents/*.md`, to 6144 bytes. A list of budgets replaces the default, such as one that
+  adds `GLOSSARY.md` at a budget of its own; no default names a glossary, since a glob that matches
+  no file fails. Markdown has no line limit, so blank lines and line breaks never decide a verdict.
 - `markdown-refs` fails a relative link or image whose path is not a file or directory of the
   repository, or whose heading anchor names no heading of the markdown file it points at. A link
   with a scheme, such as `https:`, and a link inside code are not judged.
@@ -118,12 +120,12 @@ schema.
   Under `superseded-by`, a `superseded` record names the number of each record that replaces it.
   Each number under `amended-by` is the number of a record in the same directory. A list is
   comma-separated after its key, or one `- ` item a line under it.
-- `file-size-ratchet` is a Ratchet. It holds each file to the line limit of the first group whose
-  glob matches it: `tests` 2000, `agent-docs` 120 (`AGENTS.md`, `CLAUDE.md`, `GLOSSARY.md` and
-  `docs/agents/`), `source` 500. A file over its limit passes only when the committed baseline,
-  `.ai/file-size-ratchet.baseline.json`, lists it, and then only up to the count recorded there.
-  A baseline that lists a file twice, at a count within its group's limit or in no group fails the
-  Check.
+- `file-size-ratchet` is a Ratchet over code. It holds each file to the line limit of the first
+  group whose glob matches it: `tests` 2000, `source` 500. A file over its limit passes only when
+  the committed baseline, `.ai/file-size-ratchet.baseline.json`, lists it, and then only up to the
+  count recorded there. A baseline that lists a file twice, at a count within its group's limit or
+  in no group fails the Check. No default group holds markdown: the byte budgets above are fixed,
+  so a long map has to shrink, where a baseline would record it as it stands.
 - `comment-budget` holds each comment block in the JavaScript, TypeScript and shell (`.sh`) under
   `packages`, `plugins`, `scripts` and `src` to 3 lines of prose. A block is one `/* … */` comment or
   a run of `//` or `#` lines, each alone on its line; a comment after code is none. In shell, a `#`

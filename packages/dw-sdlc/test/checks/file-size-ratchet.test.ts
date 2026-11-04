@@ -43,7 +43,7 @@ function failures(stdout: string): string[] {
 describe("the file-size-ratchet Check", () => {
   it("passes files within their group's limit and a listed file within its recorded count", () => {
     const root = withRatchet(
-      { "src/small.ts": text(500), "src/legacy.ts": text(600), "test/big.test.ts": text(2000), "AGENTS.md": text(120) },
+      { "src/small.ts": text(500), "src/legacy.ts": text(600), "test/big.test.ts": text(2000) },
       { "src/legacy.ts": 600 }
     )
     const run = runBin(["gate"], root)
@@ -51,19 +51,15 @@ describe("the file-size-ratchet Check", () => {
     assert.deepEqual(lines(run.stdout), ["gate: check file-size-ratchet", "gate: green — 0 steps, 1 check"])
   })
 
-  it("fails a file grown past its group's limit, by default source 500, tests 2000 and agent docs 120", () => {
+  it("fails a file grown past its group's limit, by default source 500 and tests 2000", () => {
     const root = withRatchet({
       "src/big.ts": text(501),
       "plugins/demo/hooks/run.sh": text(501),
-      "packages/demo/test/big.test.ts": text(2001),
-      "AGENTS.md": text(121),
-      "docs/agents/domain.md": text(121)
+      "packages/demo/test/big.test.ts": text(2001)
     })
     const run = runBin(["gate"], root)
     assert.equal(run.status, 1)
     assert.deepEqual(failures(run.stdout), [
-      "AGENTS.md: file-size-ratchet: 121 lines, over the 120-line limit of the agent-docs group — split it, or cut it to 120 lines",
-      "docs/agents/domain.md: file-size-ratchet: 121 lines, over the 120-line limit of the agent-docs group — split it, or cut it to 120 lines",
       "packages/demo/test/big.test.ts: file-size-ratchet: 2001 lines, over the 2000-line limit of the tests group — split it, or cut it to 2000 lines",
       "plugins/demo/hooks/run.sh: file-size-ratchet: 501 lines, over the 500-line limit of the source group — split it, or cut it to 500 lines",
       "src/big.ts: file-size-ratchet: 501 lines, over the 500-line limit of the source group — split it, or cut it to 500 lines"
@@ -79,18 +75,28 @@ describe("the file-size-ratchet Check", () => {
     ])
   })
 
+  it("judges no markdown file by default: the map, the glossary and the agent docs pass at any length", () => {
+    const root = withRatchet({
+      "AGENTS.md": text(5000),
+      "GLOSSARY.md": text(5000),
+      "docs/agents/domain.md": text(5000),
+      "packages/demo/README.md": text(5000)
+    })
+    const run = runBin(["gate"], root)
+    assert.equal(run.status, 0, run.stdout)
+  })
+
   it("judges no file outside every group, no symbolic link and no file git ignores", () => {
     const root = withRatchet(
       {
         "data/fixture.json": text(5000),
-        "docs/guide.md": text(5000),
         "dist/bundle.js": text(5000),
         ".gitignore": "dist/\n",
-        "AGENTS.md": text(130)
+        "src/legacy.ts": text(600)
       },
-      { "AGENTS.md": 130 }
+      { "src/legacy.ts": 600 }
     )
-    symlinkSync("AGENTS.md", join(root, "CLAUDE.md"))
+    symlinkSync("legacy.ts", join(root, "src/link.ts"))
     const run = runBin(["gate"], root)
     assert.equal(run.status, 0, run.stdout)
   })
@@ -188,7 +194,10 @@ describe("dw-sdlc gate --update-baseline", () => {
   })
 
   it("records the baseline where there is none: every file over its limit, and the Gate then passes", () => {
-    const root = withRatchet({ "src/big.ts": text(501), "AGENTS.md": text(130), "src/small.ts": text(3) }, null)
+    const root = withRatchet(
+      { "src/big.ts": text(501), "test/big.test.ts": text(2001), "src/small.ts": text(3), "AGENTS.md": text(900) },
+      null
+    )
     const run = runBin(["gate", "--update-baseline"], root)
     assert.equal(run.status, 0, run.stdout)
     assert.deepEqual(lines(run.stdout), [
@@ -196,7 +205,24 @@ describe("dw-sdlc gate --update-baseline", () => {
       `gate: baseline ${BASELINE} recorded — 2 files over their limit`,
       "gate: green — 0 steps, 1 check"
     ])
-    assert.equal(readBaseline(root), '{\n  "AGENTS.md": 130,\n  "src/big.ts": 501\n}\n')
+    assert.equal(readBaseline(root), '{\n  "src/big.ts": 501,\n  "test/big.test.ts": 2001\n}\n')
+    assert.equal(runBin(["gate"], root).status, 0)
+  })
+
+  it("drops a markdown file's entry, which no group holds by default, and the Gate then passes", () => {
+    const root = withRatchet(
+      { "AGENTS.md": text(127), "GLOSSARY.md": text(140), "src/legacy.ts": text(600) },
+      '{\n  "AGENTS.md": 127,\n  "GLOSSARY.md": 132,\n  "src/legacy.ts": 600\n}\n'
+    )
+    const stale = "which no group holds — run dw-sdlc gate --update-baseline, which drops it"
+    assert.deepEqual(failures(runBin(["gate"], root).stdout), [
+      `${BASELINE}:2: file-size-ratchet: lists "AGENTS.md", ${stale}`,
+      `${BASELINE}:3: file-size-ratchet: lists "GLOSSARY.md", ${stale}`
+    ])
+    const run = runBin(["gate", "--update-baseline"], root)
+    assert.equal(run.status, 0, run.stdout)
+    assert.ok(lines(run.stdout).includes(`gate: baseline ${BASELINE} tightened — 2 files dropped`), run.stdout)
+    assert.equal(readBaseline(root), '{\n  "src/legacy.ts": 600\n}\n')
     assert.equal(runBin(["gate"], root).status, 0)
   })
 

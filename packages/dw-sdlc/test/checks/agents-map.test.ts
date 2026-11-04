@@ -84,14 +84,18 @@ describe("the agents-map Check", () => {
     assert.deepEqual(lines(run.stdout), ["gate: check agents-map", "gate: green — 0 steps, 1 check"])
   })
 
-  it("holds the map to 150 lines and 10240 bytes by default", () => {
+  it("holds the map to 10240 bytes by default", () => {
     const padded = `${MAP}${"- a line of the map that says something an agent needs to know, and more\n".repeat(140)}`
     const run = runBin(["gate"], withMap({ "AGENTS.md": padded }))
     assert.equal(run.status, 1)
     assert.deepEqual(failures(run.stdout), [
-      "AGENTS.md: agents-map: 156 lines, over the 150-line budget — cut it, or move a topic into a doc a Task Router row points at",
       "AGENTS.md: agents-map: 10651 bytes, over the 10240-byte budget — cut it, or move a topic into a doc a Task Router row points at"
     ])
+  })
+
+  it("never counts the map's lines: a map of many short lines within its bytes passes", () => {
+    const run = runBin(["gate"], withMap({ "AGENTS.md": `${MAP}${"-\n".repeat(4000)}` }))
+    assert.equal(run.status, 0, run.stdout)
   })
 
   it("fails a map that does not name the Gate command, the inferred one or the one gate.command sets", () => {
@@ -274,14 +278,22 @@ describe("the agents-map Check's options", () => {
     assert.equal(runBin(["gate"], own).status, 0)
   })
 
-  it("reads the map from file and holds it to maxLines and maxBytes", () => {
-    const root = withMap({ "CLAUDE.md": MAP }, { file: "CLAUDE.md", maxLines: 10, maxBytes: 100 })
+  it("reads the map from file and holds it to maxBytes", () => {
+    const root = withMap({ "CLAUDE.md": MAP }, { file: "CLAUDE.md", maxBytes: 100 })
     rmSync(join(root, "AGENTS.md"))
     const run = runBin(["gate"], root)
     assert.equal(run.status, 1)
     assert.deepEqual(failures(run.stdout), [
-      "CLAUDE.md: agents-map: 16 lines, over the 10-line budget — cut it, or move a topic into a doc a Task Router row points at",
       "CLAUDE.md: agents-map: 431 bytes, over the 100-byte budget — cut it, or move a topic into a doc a Task Router row points at"
+    ])
+  })
+
+  it("refuses maxLines: the Gate exits 2 naming the key and runs nothing", () => {
+    const run = runBin(["gate"], withMap({}, { maxLines: 150 }))
+    assert.equal(run.status, 2)
+    assert.deepEqual(lines(run.stdout), [
+      `${CONFIG}: config: gate.checks.agents-map: unknown key "maxLines" — fix the file; the Gate runs once every layer is valid`,
+      "gate: cannot run — 1 failure"
     ])
   })
 })
