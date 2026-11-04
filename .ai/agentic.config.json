@@ -16,7 +16,12 @@
     "checks": {
       "primitives": true,
       "agents-map": true,
-      "markdown-budget": true,
+      "markdown-budget": {
+        "budgets": [
+          { "glob": "docs/agents/*.md", "maxBytes": 6144 },
+          { "glob": "GLOSSARY.md", "maxBytes": 8192 }
+        ]
+      },
       "markdown-refs": true,
       "temporal-language": true,
       "decision-records": true,
