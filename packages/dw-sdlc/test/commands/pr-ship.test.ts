@@ -1383,6 +1383,23 @@ describe("dw-sdlc pr ship at a Review depth", () => {
     }
   })
 
+  it("takes --review off over a config layer that is invalid, the dev's word beating the strictest set", () => {
+    const files = { ...OFF, [LOCAL_FILE]: "{ not json" }
+    const run = ship(
+      [...TARGET, "--json", "--review", "off"],
+      { graphql: [served(UNREVIEWED), served(GREEN)] },
+      {},
+      files
+    )
+    assert.equal(run.status, 30, run.stderr)
+    assert.deepEqual(fieldsOf(JSON.parse(run.stdout), ["action", "reason", "performed"]), {
+      action: "ready-to-merge",
+      reason: "pr.merge is ask: the merge is the dev's",
+      performed: [markedRun("off: --review off", true)]
+    })
+    assert.deepEqual(run.calls, [AUTH, READ, marked("off: --review off"), READ])
+  })
+
   it("keeps every other row under off: conflicts, failing CI and threads go to the agent, the post riding in blockers", () => {
     const cases: [string, Pr, string, string[]][] = [
       [
