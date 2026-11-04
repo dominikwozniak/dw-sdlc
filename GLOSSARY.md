@@ -72,6 +72,14 @@ _Avoid_: Step, Verdict, move, GitHub Actions (the CI)
 The command that drives one pull request to merged: it decides each Action and performs the ones it owns.
 _Avoid_: autopilot, babysitter, land (a Landed branch is a local one)
 
+**Review**:
+The agent's reading of a pull request's changes before the merge, pinned to the head it read.
+_Avoid_: approval (a person's verdict on GitHub), code review (the skill that may carry one out)
+
+**Review depth**:
+How closely a Review reads the changes: full, light, or off, where no one reads them.
+_Avoid_: tier, level, mode (a permission mode says what the agent may do unasked)
+
 ### Gate
 
 **Check**:
