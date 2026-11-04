@@ -17,6 +17,7 @@ import {
   runCommand,
   type Run,
   scratch,
+  timed,
   write,
   writeJson
 } from "./harness.ts"
@@ -123,7 +124,7 @@ describe("the packed package", () => {
       assert.ok(existsSync(join(consumer, INSTALLED_SCHEMA)), "the schema is not where $schema points")
       const gate = runCommand(join(consumer, INSTALLED_BIN), ["gate"], consumer)
       assert.equal(gate.status, 0, gate.stderr)
-      assert.deepEqual(lines(gate.stdout), ["gate: step true", "gate: green — 1 step, 0 checks"])
+      assert.deepEqual(timed(gate.stdout), ["gate: step true — pass (N s)", "gate: green — 1 step, 0 checks"])
     })
 
     it("exports the config resolver as JavaScript", () => {

@@ -385,9 +385,10 @@
       "id": "gate.runner",
       "name": "dw-sdlc gate",
       "group": "gate",
-      "summary": "Runs gate.steps to the first failure, then every Check; a line per failure, --json, --cache, exit 0, 1 or 2.",
+      "summary": "Runs gate.steps to the first failure, then every Check; quiet, a failure's last 50 lines, --verbose, --json, --cache.",
       "code": [
         "packages/dw-sdlc/src/commands/gate.ts",
+        "packages/dw-sdlc/src/run-command.ts",
         "packages/dw-sdlc/src/report.ts",
         "packages/dw-sdlc/src/gate-cache.ts",
         "packages/dw-sdlc/src/git-env.ts",

@@ -33,7 +33,7 @@ describe("the markdown-budget Check", () => {
   it("passes an agent doc within 6144 bytes however many lines it has, and leaves a file no glob matches alone", () => {
     const run = runBin(["gate"], withDocs({ "docs/agents/domain.md": "x\n".repeat(3000) }))
     assert.equal(run.status, 0, run.stdout)
-    assert.deepEqual(lines(run.stdout), ["gate: check markdown-budget", "gate: green — 0 steps, 1 check"])
+    assert.deepEqual(lines(run.stdout), ["gate: check markdown-budget — pass", "gate: green — 0 steps, 1 check"])
   })
 
   it("fails each agent doc over 6144 bytes, by default", () => {

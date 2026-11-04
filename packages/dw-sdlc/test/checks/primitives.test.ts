@@ -68,7 +68,7 @@ describe("the primitives Check", () => {
   it("passes a catalogue whose ids, groups, summaries, code and docs hold and that names every file", () => {
     const run = runBin(["gate"], withCatalogue(catalogue()))
     assert.equal(run.status, 0, run.stdout)
-    assert.deepEqual(lines(run.stdout), ["gate: check primitives", "gate: green — 0 steps, 1 check"])
+    assert.deepEqual(lines(run.stdout), ["gate: check primitives — pass", "gate: green — 0 steps, 1 check"])
   })
 
   it("fails a catalogue that is not JSON, or not its shape, and judges nothing else", () => {
@@ -175,7 +175,7 @@ describe("the primitives Check", () => {
     const run = runBin(["gate"], root)
     assert.equal(run.status, 2)
     assert.deepEqual(lines(run.stdout), [
-      "gate: check primitives",
+      "gate: check primitives — cannot run",
       `${CATALOGUE}: primitives: the catalogue does not exist — create it, or point gate.checks.primitives.file at the catalogue`,
       "gate: cannot run — 1 failure"
     ])

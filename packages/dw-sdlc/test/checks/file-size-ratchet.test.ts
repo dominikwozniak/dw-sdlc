@@ -7,7 +7,7 @@ import { existsSync, readFileSync, rmSync, symlinkSync } from "node:fs"
 import { join } from "node:path"
 import { describe, it } from "node:test"
 
-import { commit, git, lines, repo, runBin } from "../harness.ts"
+import { commit, git, lines, repo, runBin, timed } from "../harness.ts"
 
 const CONFIG = ".ai/agentic.config.json"
 const BASELINE = ".ai/file-size-ratchet.baseline.json"
@@ -48,7 +48,7 @@ describe("the file-size-ratchet Check", () => {
     )
     const run = runBin(["gate"], root)
     assert.equal(run.status, 0, run.stdout)
-    assert.deepEqual(lines(run.stdout), ["gate: check file-size-ratchet", "gate: green — 0 steps, 1 check"])
+    assert.deepEqual(lines(run.stdout), ["gate: check file-size-ratchet — pass", "gate: green — 0 steps, 1 check"])
   })
 
   it("fails a file grown past its group's limit, by default source 500 and tests 2000", () => {
@@ -186,7 +186,7 @@ describe("dw-sdlc gate --update-baseline", () => {
     const run = runBin(["gate", "--update-baseline"], root)
     assert.equal(run.status, 0, run.stdout)
     assert.deepEqual(lines(run.stdout), [
-      "gate: check file-size-ratchet",
+      "gate: check file-size-ratchet — pass",
       `gate: baseline ${BASELINE} tightened — 1 file dropped`,
       "gate: green — 0 steps, 1 check"
     ])
@@ -201,7 +201,7 @@ describe("dw-sdlc gate --update-baseline", () => {
     const run = runBin(["gate", "--update-baseline"], root)
     assert.equal(run.status, 0, run.stdout)
     assert.deepEqual(lines(run.stdout), [
-      "gate: check file-size-ratchet",
+      "gate: check file-size-ratchet — pass",
       `gate: baseline ${BASELINE} recorded — 2 files over their limit`,
       "gate: green — 0 steps, 1 check"
     ])
@@ -296,8 +296,8 @@ describe("dw-sdlc gate --update-baseline", () => {
     const root = repo({ files: { [CONFIG]: { version: 1, gate: { steps: ["true"] } } } })
     const run = runBin(["gate", "--update-baseline"], root)
     assert.equal(run.status, 0, run.stdout)
-    assert.deepEqual(lines(run.stdout), [
-      "gate: step true",
+    assert.deepEqual(timed(run.stdout), [
+      "gate: step true — pass (N s)",
       "gate: no Ratchet is turned on, so no baseline to refresh",
       "gate: green — 1 step, 0 checks"
     ])

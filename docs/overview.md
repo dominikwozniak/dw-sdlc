@@ -57,28 +57,61 @@ whole store account from any directory. It carries no other stack-specific guard
 `pnpm check` is the Gate, the one command a change must pass, the same in a terminal and in CI. Its
 script is `dw-sdlc gate`, the bin of the `dw-sdlc` package, which reads the `gate` key of the
 resolved config. The Steps under `gate.steps` run in order from the repository root through `sh -c`,
-each one's output passed through, and the first that fails ends the Gate. Then every Check under
-`gate.checks` runs, and a failed Check does not stop the next: first a repository's own scripts,
-which join through `gate.checks.run` as a `name` and a `command`, then the Checks the package ships.
-The schema refuses a Check name the package does not ship. `gate.command` is the command an agent or
-a person runs, inferred as `pnpm check` from the `check` script of `package.json` when no layer sets
-it.
+and the first that fails ends the Gate. Then every Check under `gate.checks` runs, and a failed Check
+does not stop the next: first a repository's own scripts, which join through `gate.checks.run` as a
+`name` and a `command`, then the Checks the package ships. The schema refuses a Check name the
+package does not ship. `gate.command` is the command an agent or a person runs, inferred as
+`pnpm check` from the `check` script of `package.json` when no layer sets it.
 
-Every failure is one line naming the file where there is one, the rule and the remedy:
+The Gate is quiet in a terminal, for an agent and in CI alike, so its whole report fits in what an
+agent's Bash tool shows. A Step or run script runs with its two output streams captured into one, in
+the order written, and prints none of it when it passes. A green run prints one line per Step with
+its time, one per Check and a last line saying it is green:
 
 ```text
-.ai/agentic.config.json: config: gate.checks: unknown key "nope" — fix the file; the Gate runs once every layer is valid
-step: "pnpm exec vp check" exited 1 — fix what it printed above
+gate: step pnpm test — pass (71 s)
+gate: check primitives — pass
+gate: green — 3 steps, 8 checks
 ```
 
-Under GitHub Actions each line is also a workflow annotation on its file. `--json` prints the same as
-one document on stdout, with the status, the resolved command, each Step and Check with its exit
-code, and the failures; the commands' own output then goes to stderr. A Check the package ships runs
-inside the bin, so its `command` is null. The exit code is 0 when everything passes, 1 when a Step or
-a Check fails, and 2 when the Gate cannot run: an invalid config layer, a Step or Check whose command
-the shell cannot find or execute, or a Check missing an input it reads, such as a Ratchet's
-baseline. Why a Check is a named unit turned on in the config is
-[ADR 0009](adr/0009-checks-are-named-units-turned-on-in-the-config.md).
+A Step or run script that does not pass prints its last 50 lines, indented, under its own line; the
+Steps after a failed one do not run and print nothing. A Check the package ships prints `— failed`
+or `— cannot run`. Then every failure is one line naming the file where there is one, the rule and
+the remedy, and a last line ends the report:
+
+```text
+gate: step pnpm exec vp check — pass (4 s)
+gate: step pnpm test — failed, exit 1 (71 s); its last 50 lines:
+  …
+  ✖ failing tests:
+  …
+step: "pnpm test" exited 1 — fix what it printed above; run it alone for the full output
+gate: failed — 1 failure
+```
+
+No file keeps the full output: the failure line names the command to run alone. In a terminal a
+Step's line shows when it starts and takes its result in place when it ends; elsewhere each line
+prints once, finished. `--verbose` passes each command's output through live instead, colours kept,
+under a `gate: step <command>` or `gate: check <name>` line, and keeps no tail.
+
+SIGINT or SIGTERM sent while a command runs, from Ctrl-C or a cancelled CI job, stops that command
+and every command and Check after it, and the report still prints: the stopped command's last 50
+lines, its failure line, `"<command>" was stopped by SIGINT`, and the last line. A second signal ends
+the Gate at once, for a command that ignores the first. The Checks the package ships run inside the
+bin, where a signal ends the Gate at once.
+
+An invalid config layer runs nothing and fails as
+`.ai/agentic.config.json: config: gate.checks: unknown key "nope" — fix the file; the Gate runs once every layer is valid`.
+
+Under GitHub Actions each failure line is also a workflow annotation on its file. `--json` prints the
+document alone on stdout: the status, the resolved command, each Step and Check with its exit code and
+its `tail`, and the failures. `tail` is the last 50 lines of a Step or run script that did not pass,
+and null otherwise. A Check the package ships runs inside the bin, so its `command` and its `tail`
+are null. With `--verbose` the commands' output goes to stderr and every `tail` is null. The exit
+code is 0 when everything passes, 1 when a Step or a Check fails, and 2 when the Gate cannot run: an
+invalid config layer, a Step or Check whose command the shell cannot find or execute, or a Check
+missing an input it reads, such as a Ratchet's baseline. Why a Check is a named unit turned on in
+the config is [ADR 0009](adr/0009-checks-are-named-units-turned-on-in-the-config.md).
 
 ### The Checks the package ships
 
@@ -172,8 +205,9 @@ skill reads one result. The name is a script under `gate.checks.run` or a Check 
 name both carry runs both, as the Gate does. No Step runs and no other Check. A shipped Check runs
 on the setting `gate.checks` gives it, and on its defaults where the config sets it `false` or
 leaves it out, so a Check can be tried before it is turned on. Its lines, its exit codes and its
-`--json` document are the Gate's, the document with no Step. It takes no `--update-baseline`: a
-refresh needs every other Check to pass, and only the Gate runs them.
+`--json` document are the Gate's, the document with no Step; it prints no line of its own for a
+Check that passes, and a run script that does not pass prints its last 50 lines. It takes no
+`--update-baseline`: a refresh needs every other Check to pass, and only the Gate runs them.
 
 `dw-sdlc primitives --paths <files>` answers from the same catalogue: for each path, the Primitives
 whose `code` names it nearest, with their summaries and the documents to read, or that none does.

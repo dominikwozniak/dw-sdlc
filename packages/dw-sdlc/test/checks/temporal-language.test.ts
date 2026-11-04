@@ -56,7 +56,7 @@ describe("the temporal-language Check", () => {
   it("passes durable docs in the present tense, a phrase inside code, and the records exempt by default", () => {
     const run = runBin(["gate"], withDocs())
     assert.equal(run.status, 0, run.stdout)
-    assert.deepEqual(lines(run.stdout), ["gate: check temporal-language", "gate: green — 0 steps, 1 check"])
+    assert.deepEqual(lines(run.stdout), ["gate: check temporal-language — pass", "gate: green — 0 steps, 1 check"])
   })
 
   it("fails each changelog phrase on the line it starts, one that wraps included", () => {

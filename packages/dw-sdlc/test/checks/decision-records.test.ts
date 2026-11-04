@@ -38,7 +38,7 @@ describe("the decision-records Check", () => {
   it("passes records numbered without a gap, each with a title and an allowed status", () => {
     const run = runBin(["gate"], withRecords())
     assert.equal(run.status, 0, run.stdout)
-    assert.deepEqual(lines(run.stdout), ["gate: check decision-records", "gate: green — 0 steps, 1 check"])
+    assert.deepEqual(lines(run.stdout), ["gate: check decision-records — pass", "gate: green — 0 steps, 1 check"])
   })
 
   it("passes the template's records under docs/decisions by default", () => {

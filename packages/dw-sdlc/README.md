@@ -16,11 +16,12 @@ pnpm add -D dw-sdlc
 ## The Gate
 
 `dw-sdlc gate` runs the Steps under `gate.steps` in order from the repository root, then every Check
-under `gate.checks`. It exits 0 when everything passes, 1 when a Step or a Check fails, and 2 when the
-Gate cannot run. `--json` prints the result as one document. `--cache` skips the run when the
-working tree and the resolved Gate match the last green run in that checkout, so a pre-push hook
-costs nothing on an unchanged tree. `dw-sdlc check <name>` runs one Check alone, with the same lines,
-exit codes and document.
+under `gate.checks`. It prints one line per Step and per Check, and the last 50 lines of a command
+that fails; `--verbose` streams every command's output instead. It exits 0 when everything passes, 1
+when a Step or a Check fails, and 2 when the Gate cannot run. `--json` prints the result as one
+document. `--cache` skips the run when the working tree and the resolved Gate match the last green
+run in that checkout, so a pre-push hook costs nothing on an unchanged tree. `dw-sdlc check <name>`
+runs one Check alone, with the same lines, exit codes and document.
 
 ```json
 {
