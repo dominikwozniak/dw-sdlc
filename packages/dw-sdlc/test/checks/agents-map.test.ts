@@ -1,5 +1,5 @@
-// The `agents-map` Check through `dw-sdlc gate`, on a throwaway repository whose map, skills and lock
-// break one rule at a time: the exit code and each failure line word for word.
+// The `agents-map` Check through `dw-sdlc gate`, on a throwaway repository whose map, `CLAUDE.md`,
+// skills and lock break one rule at a time: the exit code and each failure line word for word.
 
 import assert from "node:assert/strict"
 import { mkdirSync, rmSync, symlinkSync } from "node:fs"
@@ -48,11 +48,23 @@ function link(root: string, skill: string, target = `../../.agents/skills/${skil
   symlinkSync(target, join(root, ".claude/skills", skill))
 }
 
-/** A repository with `agents-map` set to `setting`, `TREE` with `files` over it and the tdd skill linked. */
+/** `CLAUDE.md` at `root` a link to `target`, in place of what it was. */
+function relinkClaude(root: string, target: string): void {
+  rmSync(join(root, "CLAUDE.md"), { force: true })
+  symlinkSync(target, join(root, "CLAUDE.md"))
+}
+
+/**
+ * A repository with `agents-map` set to `setting`, `TREE` with `files` over it, the tdd skill linked,
+ * and `CLAUDE.md` a link to `AGENTS.md` unless `files` writes one.
+ */
 function withMap(files: Record<string, string | object> = {}, setting: unknown = true, gate: object = {}): string {
   const config = { version: 1, gate: { checks: { "agents-map": setting }, ...gate } }
   const root = repo({ files: { [CONFIG]: config, ...TREE, ...files } })
   link(root, "tdd")
+  if (!("CLAUDE.md" in files)) {
+    symlinkSync("AGENTS.md", join(root, "CLAUDE.md"))
+  }
   return root
 }
 
@@ -132,6 +144,46 @@ describe("the agents-map Check", () => {
     ])
   })
 
+  it("fails a CLAUDE.md that is missing, a file of its own or a link elsewhere, so Claude Code reads the map", () => {
+    const missing = withMap()
+    rmSync(join(missing, "CLAUDE.md"))
+    const run = runBin(["gate"], missing)
+    assert.equal(run.status, 1)
+    assert.deepEqual(failures(run.stdout), [
+      "CLAUDE.md: agents-map: does not exist — link it to the map: ln -s AGENTS.md CLAUDE.md"
+    ])
+
+    const file = runBin(["gate"], withMap({ "CLAUDE.md": MAP }))
+    assert.equal(file.status, 1)
+    assert.deepEqual(failures(file.stdout), [
+      "CLAUDE.md: agents-map: is a file of its own, not a link to AGENTS.md — move what it holds into AGENTS.md, remove it, then ln -s AGENTS.md CLAUDE.md"
+    ])
+
+    const elsewhere = withMap()
+    relinkClaude(elsewhere, "docs/guide.md")
+    const linked = runBin(["gate"], elsewhere)
+    assert.equal(linked.status, 1)
+    assert.deepEqual(failures(linked.stdout), [
+      'CLAUDE.md: agents-map: links to "docs/guide.md", not to AGENTS.md — remove it, then ln -s AGENTS.md CLAUDE.md'
+    ])
+  })
+
+  it("fails a CLAUDE.md link to the map by an absolute path, which no other clone resolves", () => {
+    const root = withMap()
+    relinkClaude(root, join(root, "AGENTS.md"))
+    const run = runBin(["gate"], root)
+    assert.equal(run.status, 1)
+    assert.deepEqual(failures(run.stdout), [
+      `CLAUDE.md: agents-map: links to ${JSON.stringify(join(root, "AGENTS.md"))}, not to AGENTS.md — remove it, then ln -s AGENTS.md CLAUDE.md`
+    ])
+  })
+
+  it("passes a CLAUDE.md link to the map spelled ./AGENTS.md", () => {
+    const root = withMap()
+    relinkClaude(root, "./AGENTS.md")
+    assert.equal(runBin(["gate"], root).status, 0)
+  })
+
   it("exits 2 when the map does not exist", () => {
     const root = withMap()
     rmSync(join(root, "AGENTS.md"))
@@ -197,6 +249,7 @@ describe("the agents-map Check on the skills", () => {
         ".claude/skills/tdd/SKILL.md": ""
       }
     })
+    relinkClaude(root, "AGENTS.md")
     rmSync(join(root, ".agents"), { recursive: true })
     assert.equal(runBin(["gate"], root).status, 0)
     rmSync(join(root, ".claude"), { recursive: true })
@@ -206,6 +259,21 @@ describe("the agents-map Check on the skills", () => {
 })
 
 describe("the agents-map Check's options", () => {
+  it("holds CLAUDE.md to a link to the map the file option names, and to nothing when that map is CLAUDE.md", () => {
+    const moved = withMap({ "docs/map.md": MAP }, { file: "docs/map.md" })
+    const run = runBin(["gate"], moved)
+    assert.equal(run.status, 1)
+    assert.deepEqual(failures(run.stdout), [
+      'CLAUDE.md: agents-map: links to "AGENTS.md", not to docs/map.md — remove it, then ln -s docs/map.md CLAUDE.md'
+    ])
+    relinkClaude(moved, "docs/map.md")
+    assert.equal(runBin(["gate"], moved).status, 0)
+
+    const own = withMap({ "CLAUDE.md": MAP }, { file: "CLAUDE.md" })
+    rmSync(join(own, "AGENTS.md"))
+    assert.equal(runBin(["gate"], own).status, 0)
+  })
+
   it("reads the map from file and holds it to maxLines and maxBytes", () => {
     const root = withMap({ "CLAUDE.md": MAP }, { file: "CLAUDE.md", maxLines: 10, maxBytes: 100 })
     rmSync(join(root, "AGENTS.md"))
