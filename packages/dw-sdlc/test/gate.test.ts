@@ -42,7 +42,7 @@ function withGate(gate: unknown, files: Record<string, string | object> = {}): s
  * A repository whose one Step counts its runs in `ran`, a file git ignores, so a run leaves the tree as
  * it was; `gate` over its Gate.
  */
-function countingRepo(files: Record<string, string | object> = {}, gate: object = {}): string {
+function countingRepo(files: Record<string, string | object> = {}, gate: Record<string, unknown> = {}): string {
   return withGate({ steps: ["echo ran >> ran"], ...gate }, { ".gitignore": "ran\n", ...files })
 }
 

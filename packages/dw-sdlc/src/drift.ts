@@ -3,9 +3,9 @@
 // file never drifts and an edit made before the run sits in both records.
 
 import type { Gate } from "./agentic-config.ts"
-import { git, workTree } from "./gate-cache.ts"
 import type { Failure } from "./report.ts"
 import { type Status, stoppedBy } from "./run-command.ts"
+import { git, workTree } from "./work-tree.ts"
 
 const REMEDIES = {
   drift: "commit the change, or make the Step only read",
@@ -15,10 +15,13 @@ const REMEDIES = {
 /** What a letter of `git diff-tree --name-status` did to the file; T is a change of type, as a link to a file. */
 const CHANGES: Record<string, string> = { A: "created", D: "deleted", M: "changed", T: "changed" }
 
+/** What a Step answered, and one failure per file it created, changed or deleted. */
+export type Watched<T> = { result: T; failures: Failure[] }
+
 /** Steps run under watch, and what the watch found. */
 export type DriftWatch = {
-  /** Runs one Step by `run`, and returns what it answered with one failure per file it created, changed or deleted. */
-  step: <T>(command: string, run: () => Promise<T>) => Promise<{ result: T; drift: Failure[] }>
+  /** Runs one Step by `run` between two records of the tree. */
+  step: <T>(command: string, run: () => Promise<T>) => Promise<Watched<T>>
   /** `fail` once a Step drifted, `error` once the tree could not be recorded, `pass` otherwise. */
   status: () => Status
 }
@@ -54,32 +57,32 @@ export function watchDrift(root: string, gate: Gate): DriftWatch {
     return [{ rule: "drift", message, remedy: REMEDIES.cannotWatch }]
   }
 
-  const step = async <T>(command: string, run: () => Promise<T>): Promise<{ result: T; drift: Failure[] }> => {
+  const step = async <T>(command: string, run: () => Promise<T>): Promise<Watched<T>> => {
     if (!watching) {
-      return { result: await run(), drift: [] }
+      return { result: await run(), failures: [] }
     }
     const before = last === undefined ? workTree(root) : { tree: last }
     const result = await run()
     if ("error" in before) {
-      return { result, drift: cannotWatch(command, before.error) }
+      return { result, failures: cannotWatch(command, before.error) }
     }
     if (stoppedBy() !== undefined) {
       // A signal cut the Step short and ends the Gate, so nothing is compared after it.
-      return { result, drift: [] }
+      return { result, failures: [] }
     }
     const after = workTree(root)
     if ("error" in after) {
-      return { result, drift: cannotWatch(command, after.error) }
+      return { result, failures: cannotWatch(command, after.error) }
     }
     last = after.tree
-    const drift = drifted(root, command, before.tree, after.tree)
-    if ("error" in drift) {
-      return { result, drift: cannotWatch(command, drift.error) }
+    const found = drifted(root, command, before.tree, after.tree)
+    if ("error" in found) {
+      return { result, failures: cannotWatch(command, found.error) }
     }
-    if (drift.length > 0) {
+    if (found.length > 0) {
       status = "fail"
     }
-    return { result, drift }
+    return { result, failures: found }
   }
 
   return { step, status: () => status }

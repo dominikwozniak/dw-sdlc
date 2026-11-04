@@ -183,7 +183,7 @@
       "id": "config.gate",
       "name": "gate key",
       "group": "config",
-      "summary": "The Gate's command, its Steps in order and the Checks after them; the command inferred from the check script.",
+      "summary": "The Gate's command, its Steps in order, whether they may write the tree, the Checks after them; command inferred.",
       "code": ["packages/dw-sdlc/config/agentic.config.schema.json"],
       "docs": ["docs/overview.md#how-the-gate-runs", "docs/adr/0009-checks-are-named-units-turned-on-in-the-config.md"]
     },
@@ -391,6 +391,7 @@
         "packages/dw-sdlc/src/run-command.ts",
         "packages/dw-sdlc/src/report.ts",
         "packages/dw-sdlc/src/gate-cache.ts",
+        "packages/dw-sdlc/src/work-tree.ts",
         "packages/dw-sdlc/src/drift.ts",
         "packages/dw-sdlc/src/git-env.ts",
         "packages/dw-sdlc/src/package-version.ts"
