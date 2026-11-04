@@ -141,6 +141,20 @@ count that shrank is lowered, and no file joins. Where there is no baseline it r
 file over its limit at its count, unless HEAD holds one the tree lost: that one is restored with git,
 never recorded again. A refused refresh leaves the file byte for byte as it was.
 
+`dw-sdlc gate --cache` skips the run when the working tree holds what it held at the last green run
+in this checkout, and the same version of dw-sdlc runs the same resolved Gate. A pre-push hook that
+runs the Gate then costs nothing on an unchanged tree. The tree is hashed with `git write-tree` over
+a copy of the index, after `git add -A` on the copy. The real index is never touched. Untracked
+files count and ignored files do not, and the same content still matches once it is committed,
+amended or rebased. What a Step or a Check reads outside the tree, such as `node_modules`, the
+environment or `HEAD`, is not part of the hash, and neither is an uncommitted edit inside a
+submodule. The stamp is `dw-sdlc-gate.green` in the checkout's own git dir, so each worktree keeps
+its own. It holds the hash taken before the run, so a Gate that changes the tree runs again next
+time. A tree the cache cannot hash, such as a directory outside git, runs the whole Gate behind a
+line saying why. A cached run prints `gate: green — cached, the tree matches the last green run`,
+and under `--json` a green document with `cached: true` and no Step or Check. Without the flag
+nothing is skipped and nothing stamped, and `--cache` does not combine with `--update-baseline`.
+
 `dw-sdlc check <name>` runs one Check of the Gate alone, so a person iterates on one Check and a
 skill reads one result. The name is a script under `gate.checks.run` or a Check the package ships; a
 name both carry runs both, as the Gate does. No Step runs and no other Check. A shipped Check runs

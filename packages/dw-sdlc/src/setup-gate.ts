@@ -2,12 +2,10 @@
 // devDependency in package.json, pinned to the version that runs the setup, and the `gate` key of the
 // committed config. Each answers with the file's next text, or why the file stays as it is.
 
-import { readFileSync } from "node:fs"
-import { join } from "node:path"
-
 import type { NodePackageManager } from "./agentic-config.ts"
 import { CHECK_NAMES } from "./checks/index.ts"
 import { appendKey, isObject, type JsonObject, parseObject, render } from "./json-text.ts"
+import { packageVersion } from "./package-version.ts"
 
 const PACKAGE = "dw-sdlc"
 
@@ -25,15 +23,6 @@ const ON_BY_DEFAULT = new Set(["agents-map", "markdown-refs", "temporal-language
 const SCHEMA = `../node_modules/${PACKAGE}/config/agentic.config.schema.json`
 
 const NOT_AN_OBJECT = "is not a JSON object; fix it by hand first"
-
-/** This package's version, the one a pin names, so the plugin and the repository run the same code. */
-function packageVersion(): string {
-  const manifest = parseObject(readFileSync(join(import.meta.dirname, "..", "package.json"), "utf8"))
-  if (typeof manifest?.version !== "string") {
-    throw new Error(`${PACKAGE}'s package.json names no version`)
-  }
-  return manifest.version
-}
 
 /** `a`, `a and b`, `a, b and c`. */
 function list(items: string[]): string {

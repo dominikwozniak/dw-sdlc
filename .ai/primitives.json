@@ -224,7 +224,8 @@
         "packages/dw-sdlc/src/commands/setup.ts",
         "packages/dw-sdlc/src/setup-gate.ts",
         "packages/dw-sdlc/src/setup-rules.ts",
-        "packages/dw-sdlc/src/json-text.ts"
+        "packages/dw-sdlc/src/json-text.ts",
+        "packages/dw-sdlc/src/package-version.ts"
       ],
       "docs": ["plugins/sdlc/README.md#setup", "plugins/sdlc/README.md#adopting-the-gate"]
     },
@@ -241,7 +242,11 @@
       "name": "Sync",
       "group": "tools",
       "summary": "Brings every declared Reference to its ref, shallow and sparse; a clone with local edits is reported and left alone.",
-      "code": ["packages/dw-sdlc/src/commands/references-sync.ts", "packages/dw-sdlc/src/pins.ts"],
+      "code": [
+        "packages/dw-sdlc/src/commands/references-sync.ts",
+        "packages/dw-sdlc/src/pins.ts",
+        "packages/dw-sdlc/src/git-env.ts"
+      ],
       "docs": ["plugins/sdlc/README.md#the-sync", "plugins/sdlc/README.md#failures", "GLOSSARY.md"]
     },
     {
@@ -380,8 +385,14 @@
       "id": "gate.runner",
       "name": "dw-sdlc gate",
       "group": "gate",
-      "summary": "Runs gate.steps to the first failure, then every Check; one line per failure, --json, exit 0, 1 or 2.",
-      "code": ["packages/dw-sdlc/src/commands/gate.ts", "packages/dw-sdlc/src/report.ts"],
+      "summary": "Runs gate.steps to the first failure, then every Check; a line per failure, --json, --cache, exit 0, 1 or 2.",
+      "code": [
+        "packages/dw-sdlc/src/commands/gate.ts",
+        "packages/dw-sdlc/src/report.ts",
+        "packages/dw-sdlc/src/gate-cache.ts",
+        "packages/dw-sdlc/src/git-env.ts",
+        "packages/dw-sdlc/src/package-version.ts"
+      ],
       "docs": ["docs/overview.md#how-the-gate-runs", "GLOSSARY.md"]
     },
     {

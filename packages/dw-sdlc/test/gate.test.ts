@@ -2,13 +2,14 @@
 // code, the lines on stdout and the `--json` document, which `gate.golden.json` holds.
 
 import assert from "node:assert/strict"
-import { existsSync, mkdirSync, readFileSync } from "node:fs"
+import { chmodSync, existsSync, mkdirSync, readFileSync, utimesSync } from "node:fs"
 import { join } from "node:path"
 import { describe, it } from "node:test"
 
-import { lines, repo, runBin, scratch } from "./harness.ts"
+import { commit, git, lines, repo, runBin, scratch, write } from "./harness.ts"
 
 const CONFIG = ".ai/agentic.config.json"
+const LOCAL = ".ai/agentic.config.local.json"
 const GOLDEN = join(import.meta.dirname, "gate.golden.json")
 const SCHEMA = join(import.meta.dirname, "..", "config", "agentic.config.schema.json")
 const CHECK_SCRIPT = JSON.stringify({ scripts: { check: "dw-sdlc gate" } })
@@ -19,6 +20,16 @@ const UNKNOWN_CHECK_LINE = `${CONFIG}: config: gate.checks: unknown key "no-such
 /** A repository whose committed config declares `gate`, beside `files`. */
 function withGate(gate: unknown, files: Record<string, string | object> = {}): string {
   return repo({ files: { [CONFIG]: { version: 1, gate }, ...files } })
+}
+
+/** A repository whose one Step counts its runs in `ran`, a file git ignores, so a run leaves the tree as it was. */
+function countingRepo(files: Record<string, string | object> = {}): string {
+  return withGate({ steps: ["echo ran >> ran"] }, { ".gitignore": "ran\n", ...files })
+}
+
+/** How many times the Step of `countingRepo` ran. */
+function runs(root: string): number {
+  return existsSync(join(root, "ran")) ? lines(readFileSync(join(root, "ran"), "utf8")).length : 0
 }
 
 describe("dw-sdlc gate, the steps", () => {
@@ -192,6 +203,152 @@ describe("dw-sdlc gate --json", () => {
     assert.equal(JSON.parse(runBin(["gate", "--json"], set).stdout).command, "make verify")
     const none = withGate({})
     assert.equal(JSON.parse(runBin(["gate", "--json"], none).stdout).command, null)
+  })
+})
+
+describe("dw-sdlc gate --cache", () => {
+  const CACHED_LINE = "gate: green — cached, the tree matches the last green run"
+  const GREEN_LINE = "gate: green — 1 step, 0 checks"
+
+  it("skips a run whose tree matches the last green one, says so and exits 0", () => {
+    const root = countingRepo()
+    assert.equal(runBin(["gate", "--cache"], root).status, 0)
+    const run = runBin(["gate", "--cache"], root)
+    assert.equal(run.status, 0, run.stdout)
+    assert.deepEqual(lines(run.stdout), [CACHED_LINE])
+    assert.equal(runs(root), 1)
+  })
+
+  it("runs the Gate again on a changed tracked file and on a new untracked one, never on an ignored one", () => {
+    const root = countingRepo({ "notes.md": "one\n" })
+    git(root, "add", "-A")
+    commit(root, "-m", "notes")
+    runBin(["gate", "--cache"], root)
+    write(join(root, "notes.md"), "two\n")
+    assert.deepEqual(lines(runBin(["gate", "--cache"], root).stdout), ["gate: step echo ran >> ran", GREEN_LINE])
+    write(join(root, "new.md"), "new\n")
+    assert.deepEqual(lines(runBin(["gate", "--cache"], root).stdout), ["gate: step echo ran >> ran", GREEN_LINE])
+    write(join(root, "ran"), "an ignored file changed\n")
+    assert.deepEqual(lines(runBin(["gate", "--cache"], root).stdout), [CACHED_LINE])
+  })
+
+  it("runs the Gate again on an edit the stat cache cannot see, made in the second the index was written", () => {
+    const root = countingRepo({ "notes.md": "one\n" })
+    const notes = join(root, "notes.md")
+    const then = new Date(Date.now() - 60_000)
+    git(root, "config", "core.trustctime", "false")
+    utimesSync(notes, then, then)
+    git(root, "add", "-A")
+    utimesSync(join(root, ".git", "index"), then, then)
+    runBin(["gate", "--cache"], root)
+    write(notes, "two\n")
+    utimesSync(notes, then, then)
+    assert.deepEqual(lines(runBin(["gate", "--cache"], root).stdout), ["gate: step echo ran >> ran", GREEN_LINE])
+  })
+
+  it("skips after a commit of the same content and leaves the index as it found it", () => {
+    const root = countingRepo({ "notes.md": "one\n" })
+    runBin(["gate", "--cache"], root)
+    git(root, "add", "-A")
+    commit(root, "-m", "notes")
+    assert.deepEqual(lines(runBin(["gate", "--cache"], root).stdout), [CACHED_LINE])
+    write(join(root, "new.md"), "new\n")
+    runBin(["gate", "--cache"], root)
+    assert.equal(git(root, "status", "--porcelain"), "?? new.md\n")
+  })
+
+  it("runs the Gate again after a failed run", () => {
+    const root = withGate({ steps: ["echo ran >> ran; exit 1"] }, { ".gitignore": "ran\n" })
+    assert.equal(runBin(["gate", "--cache"], root).status, 1)
+    assert.equal(runBin(["gate", "--cache"], root).status, 1)
+    assert.equal(runs(root), 2)
+  })
+
+  it("runs the Gate again after a run that rewrote a tracked file, then skips", () => {
+    const steps = ["echo ran >> ran", "printf 'formatted\\n' > notes.md"]
+    const root = withGate({ steps }, { ".gitignore": "ran\n", "notes.md": "draft\n" })
+    git(root, "add", "-A")
+    commit(root, "-m", "notes")
+    runBin(["gate", "--cache"], root)
+    runBin(["gate", "--cache"], root)
+    assert.deepEqual(lines(runBin(["gate", "--cache"], root).stdout), [CACHED_LINE])
+    assert.equal(runs(root), 2)
+  })
+
+  it("runs the Gate again when the local layer changes it, outside the tree", () => {
+    const root = countingRepo()
+    write(join(root, ".git", "info", "exclude"), `${LOCAL}\n`)
+    runBin(["gate", "--cache"], root)
+    write(join(root, LOCAL), JSON.stringify({ version: 1, gate: { steps: ["echo local >> ran"] } }))
+    assert.deepEqual(lines(runBin(["gate", "--cache"], root).stdout), ["gate: step echo local >> ran", GREEN_LINE])
+  })
+
+  it("runs the whole Gate when it cannot fingerprint the tree, saying why", () => {
+    const root = repo({ git: false, files: { [CONFIG]: { version: 1, gate: { steps: ["echo ran >> ran"] } } } })
+    runBin(["gate", "--cache"], root)
+    const run = runBin(["gate", "--cache"], root)
+    assert.equal(run.status, 0, run.stdout)
+    const [note, ...rest] = lines(run.stdout)
+    assert.match(note ?? "", /^gate: cannot fingerprint the tree, so the whole Gate runs — git rev-parse: fatal: /)
+    assert.deepEqual(rest, ["gate: step echo ran >> ran", GREEN_LINE])
+    assert.equal(runs(root), 2)
+  })
+
+  it("runs the whole Gate when it cannot copy the index, saying why", { skip: process.getuid?.() === 0 }, () => {
+    const root = countingRepo()
+    const index = join(root, ".git", "index")
+    git(root, "add", "-A")
+    chmodSync(index, 0o000)
+    runBin(["gate", "--cache"], root)
+    const run = runBin(["gate", "--cache"], root)
+    chmodSync(index, 0o644)
+    const [note, ...rest] = lines(run.stdout)
+    assert.match(note ?? "", /^gate: cannot fingerprint the tree, so the whole Gate runs — EACCES: /)
+    assert.deepEqual(rest, ["gate: step echo ran >> ran", GREEN_LINE])
+    assert.equal(runs(root), 2)
+  })
+
+  it("keeps a stamp per worktree of one clone", () => {
+    const main = countingRepo()
+    git(main, "add", "-A")
+    commit(main, "-m", "gate")
+    const linked = join(scratch("worktree"), "linked")
+    git(main, "worktree", "add", "-q", linked)
+    runBin(["gate", "--cache"], main)
+    assert.deepEqual(lines(runBin(["gate", "--cache"], linked).stdout), ["gate: step echo ran >> ran", GREEN_LINE])
+    assert.deepEqual(lines(runBin(["gate", "--cache"], linked).stdout), [CACHED_LINE])
+    assert.deepEqual(lines(runBin(["gate", "--cache"], main).stdout), [CACHED_LINE])
+  })
+
+  it("prints a skipped run under --json as a green document marked cached, with nothing run", () => {
+    const root = countingRepo()
+    runBin(["gate", "--cache"], root)
+    const run = runBin(["gate", "--cache", "--json"], root)
+    assert.equal(run.status, 0)
+    assert.deepEqual(JSON.parse(run.stdout), {
+      status: "pass",
+      command: null,
+      cached: true,
+      steps: [],
+      checks: [],
+      failures: []
+    })
+    assert.equal(run.stderr, "")
+  })
+
+  it("stays off without the flag: every run runs and none is stamped", () => {
+    const root = countingRepo()
+    runBin(["gate"], root)
+    runBin(["gate"], root)
+    runBin(["gate", "--cache"], root)
+    assert.equal(runs(root), 3)
+  })
+
+  it("exits 2 with its usage on --cache with --update-baseline", () => {
+    const run = runBin(["gate", "--cache", "--update-baseline"], countingRepo())
+    assert.equal(run.status, 2)
+    assert.ok(run.stderr.startsWith("dw-sdlc gate: --cache and --update-baseline do not combine"), run.stderr)
+    assert.match(run.stderr, /Usage: dw-sdlc gate/)
   })
 })
 
