@@ -219,7 +219,11 @@ export const CASES: Case[] = [
           "markdown-budget": { budgets: [{ glob: "docs/agents/*.md", maxLines: 80, maxBytes: 4096 }] },
           "markdown-refs": { files: ["**/*.md"], exempt: ["vendor/**"] },
           "temporal-language": { files: ["docs/**/*.md"], exempt: ["docs/adr/**"] },
-          "decision-records": { dirs: ["docs/decisions"], statuses: ["active", "superseded"] }
+          "decision-records": {
+            dirs: ["docs/decisions"],
+            statuses: ["active", "superseded"],
+            fields: ["date", "touches", "superseded-by", "amended-by"]
+          }
         }
       }
     },
@@ -239,7 +243,7 @@ export const CASES: Case[] = [
           },
           "markdown-refs": { files: "**/*.md" },
           "temporal-language": { exempt: ["docs/adr/**", "docs/adr/**"], phrases: [] },
-          "decision-records": { dirs: [""], statuses: "accepted" }
+          "decision-records": { dirs: [""], statuses: "accepted", fields: ["date", "rule", "date"] }
         }
       }
     },
@@ -252,7 +256,12 @@ export const CASES: Case[] = [
       { path: "gate.checks.temporal-language.exempt", message: 'duplicate item "docs/adr/**"' },
       { path: "gate.checks.temporal-language", message: 'unknown key "phrases"' },
       { path: "gate.checks.decision-records.dirs[0]", message: "must not be empty" },
-      { path: "gate.checks.decision-records.statuses", message: 'expected array, got "accepted"' }
+      { path: "gate.checks.decision-records.statuses", message: 'expected array, got "accepted"' },
+      {
+        path: "gate.checks.decision-records.fields[1]",
+        message: '"rule" is not one of "date", "touches", "superseded-by", "amended-by"'
+      },
+      { path: "gate.checks.decision-records.fields", message: 'duplicate item "date"' }
     ]
   },
   {

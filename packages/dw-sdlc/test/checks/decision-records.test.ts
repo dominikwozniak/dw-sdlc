@@ -125,9 +125,259 @@ describe("the decision-records Check's options", () => {
     ])
   })
 
+  it("judges no field beyond status unless fields names it, by default or under an empty list", () => {
+    const files = {
+      "docs/adr/0001-guards-ship-here.md": recordWith("accepted", ["date: 17-10-2026", "amended-by: 0009"]),
+      "docs/adr/0002-the-sync-is-a-plugin.md": recordWith("superseded", ["touches:", "  - src/gone.ts"]),
+      "docs/adr/0003-one-plugin.md": recordWith("active", ["superseded-by: 0009"])
+    }
+    for (const setting of [true, { fields: [] }]) {
+      const run = runBin(["gate"], withRecords(files, setting))
+      assert.equal(run.status, 0, run.stdout)
+    }
+  })
+
+  it("reads the first status that has a value", () => {
+    const run = runBin(
+      ["gate"],
+      withRecords({ "docs/adr/0001-guards-ship-here.md": recordWith("", ["status: accepted"]) })
+    )
+    assert.equal(run.status, 0, run.stdout)
+  })
+
   it("stays off under false", () => {
     const run = runBin(["gate"], withRecords({ "docs/adr/0009-far.md": record("approved", "Far") }, false))
     assert.equal(run.status, 0, run.stdout)
     assert.deepEqual(lines(run.stdout), ["gate: green — 0 steps, 0 checks"])
+  })
+})
+
+/** A record whose frontmatter is `fields`, one line each, under the status `status`. */
+function recordWith(status: string, fields: string[], title = "A decision"): string {
+  return `---\nstatus: ${status}\n${fields.map((line) => `${line}\n`).join("")}---\n\n# ${title}\n`
+}
+
+describe("the decision-records Check's date field", () => {
+  const DATED = { fields: ["date"] }
+
+  it("passes a record dated YYYY-MM-DD, a comment after the date left out", () => {
+    const run = runBin(
+      ["gate"],
+      withRecords(
+        {
+          "docs/adr/0001-guards-ship-here.md": recordWith("accepted", ["date: 2026-10-17"]),
+          "docs/adr/0002-the-sync-is-a-plugin.md": recordWith("superseded", ['date: "2026-02-28"']),
+          "docs/adr/0003-one-plugin.md": recordWith("proposed", ["date: 2024-02-29 # the day it was decided"])
+        },
+        DATED
+      )
+    )
+    assert.equal(run.status, 0, run.stdout)
+  })
+
+  it("fails a record with no date, and a date that is not a YYYY-MM-DD day", () => {
+    const run = runBin(
+      ["gate"],
+      withRecords(
+        {
+          "docs/adr/0001-guards-ship-here.md": recordWith("accepted", ["date: 17-10-2026"]),
+          "docs/adr/0003-one-plugin.md": recordWith("proposed", ["date: 2026-02-30"])
+        },
+        DATED
+      )
+    )
+    assert.equal(run.status, 1)
+    assert.deepEqual(failures(run.stdout), [
+      'docs/adr/0001-guards-ship-here.md:3: decision-records: the date "17-10-2026" is not a YYYY-MM-DD day — write the day the decision was made as YYYY-MM-DD',
+      "docs/adr/0002-the-sync-is-a-plugin.md: decision-records: has no date — give its frontmatter the day the decision was made, as date: YYYY-MM-DD",
+      'docs/adr/0003-one-plugin.md:3: decision-records: the date "2026-02-30" is not a YYYY-MM-DD day — write the day the decision was made as YYYY-MM-DD'
+    ])
+  })
+})
+
+describe("the decision-records Check's touches field", () => {
+  const TOUCHES = { fields: ["touches"] }
+  const SOURCE = {
+    "src/db/client.ts": "export {}\n",
+    "src/ui/button.css": "a {}\n",
+    "src/app/(app)/path/[id].tsx": "export {}\n"
+  }
+
+  it("passes a record in force that names files, directories and globs that exist, a route's brackets in a file's name, and a superseded one that names none", () => {
+    const run = runBin(
+      ["gate"],
+      withRecords(
+        {
+          ...SOURCE,
+          "docs/adr/0001-guards-ship-here.md": recordWith("accepted", [
+            "touches:",
+            "  - src/db/client.ts",
+            '  - "src/ui/"',
+            "  - src/app/(app)/path/[id].tsx"
+          ]),
+          "docs/adr/0002-the-sync-is-a-plugin.md": recordWith("superseded by ADR 0003", []),
+          "docs/adr/0003-one-plugin.md": recordWith("active", [
+            "touches: src/**/*.css, ./src/db, src/{db,ui}/*.{ts,css}"
+          ])
+        },
+        TOUCHES
+      )
+    )
+    assert.equal(run.status, 0, run.stdout)
+  })
+
+  it("fails a record in force that names no path, a path that is not in the tree and a glob that matches no file", () => {
+    const run = runBin(
+      ["gate"],
+      withRecords(
+        {
+          ...SOURCE,
+          ".gitignore": "src/secret.ts\n",
+          "src/secret.ts": "export {}\n",
+          "docs/adr/0001-guards-ship-here.md": recordWith("accepted", []),
+          "docs/adr/0002-the-sync-is-a-plugin.md": recordWith("active", ["touches:"]),
+          "docs/adr/0003-one-plugin.md": recordWith("accepted", [
+            "touches:",
+            "  - src/db/client.ts",
+            "  - src/db/gone.ts",
+            "  - src/secret.ts",
+            "  - src/**/*.scss"
+          ])
+        },
+        TOUCHES
+      )
+    )
+    assert.equal(run.status, 1)
+    assert.deepEqual(failures(run.stdout), [
+      "docs/adr/0001-guards-ship-here.md: decision-records: names no path under touches — list under touches the paths it governs",
+      "docs/adr/0002-the-sync-is-a-plugin.md: decision-records: names no path under touches — list under touches the paths it governs",
+      'docs/adr/0003-one-plugin.md:5: decision-records: touches "src/db/gone.ts", which does not exist — fix the path or drop it from touches',
+      'docs/adr/0003-one-plugin.md:6: decision-records: touches "src/secret.ts", which git ignores — name the paths git tracks that it governs, or drop it from touches',
+      'docs/adr/0003-one-plugin.md:7: decision-records: touches "src/**/*.scss", which matches no file — fix the glob or drop it from touches'
+    ])
+  })
+
+  it("fails a superseded record that still names a path under touches, and leaves a proposed or deprecated one free to name none", () => {
+    const run = runBin(
+      ["gate"],
+      withRecords(
+        {
+          ...SOURCE,
+          "docs/adr/0001-guards-ship-here.md": recordWith("deprecated", []),
+          "docs/adr/0004-later.md": recordWith("superseded", ["touches: []"]),
+          "docs/adr/0002-the-sync-is-a-plugin.md": recordWith("superseded by ADR 0003", [
+            "touches:",
+            "  - src/db/client.ts"
+          ])
+        },
+        TOUCHES
+      )
+    )
+    assert.equal(run.status, 1)
+    assert.deepEqual(failures(run.stdout), [
+      "docs/adr/0002-the-sync-is-a-plugin.md:3: decision-records: is superseded and still names touches — drop touches: the record that replaces it governs those paths"
+    ])
+  })
+})
+
+describe("the decision-records Check's superseded-by field", () => {
+  const SUCCESSORS = { fields: ["superseded-by"] }
+
+  it("passes a superseded record that names each record replacing it, by its number padded or not", () => {
+    const run = runBin(
+      ["gate"],
+      withRecords(
+        {
+          "docs/adr/0001-guards-ship-here.md": recordWith("superseded", ["superseded-by: 0003, 2"]),
+          "docs/adr/0002-the-sync-is-a-plugin.md": recordWith("superseded by ADR 0003", ["superseded-by:", "  - 0003"])
+        },
+        SUCCESSORS
+      )
+    )
+    assert.equal(run.status, 0, run.stdout)
+  })
+
+  it("fails a superseded record that names no successor, and a successor no record is numbered", () => {
+    const run = runBin(
+      ["gate"],
+      withRecords(
+        {
+          "docs/adr/0001-guards-ship-here.md": recordWith("superseded", []),
+          "docs/adr/0002-the-sync-is-a-plugin.md": recordWith("superseded by ADR 0003", ["superseded-by: 0003, 0009"]),
+          "docs/adr/0003-one-plugin.md": recordWith("accepted", ["superseded-by:", "  - ADR 0004"])
+        },
+        SUCCESSORS
+      )
+    )
+    assert.equal(run.status, 1)
+    assert.deepEqual(failures(run.stdout), [
+      "docs/adr/0001-guards-ship-here.md: decision-records: is superseded but names no successor under superseded-by — name under superseded-by the number of each record that replaces it",
+      'docs/adr/0002-the-sync-is-a-plugin.md:3: decision-records: superseded-by names "0009", which is not the number of a record — name the number of each record that replaces it',
+      'docs/adr/0003-one-plugin.md:4: decision-records: superseded-by names "ADR 0004", which is not the number of a record — name the number of each record that replaces it'
+    ])
+  })
+})
+
+describe("the decision-records Check's amended-by field", () => {
+  const AMENDMENTS = { fields: ["amended-by"] }
+
+  it("passes a record that names no amendment, or only records that exist", () => {
+    const run = runBin(
+      ["gate"],
+      withRecords(
+        { "docs/adr/0001-guards-ship-here.md": recordWith("accepted", ["amended-by: [0002, 0003]"]) },
+        AMENDMENTS
+      )
+    )
+    assert.equal(run.status, 0, run.stdout)
+  })
+
+  it("fails each amendment no record is numbered", () => {
+    const run = runBin(
+      ["gate"],
+      withRecords(
+        {
+          "docs/adr/0001-guards-ship-here.md": recordWith("accepted", ["amended-by: 0003, 0012 # the later records"]),
+          "docs/adr/0003-one-plugin.md": recordWith("proposed", ["amended-by:", "  - 0001", "  - next"])
+        },
+        AMENDMENTS
+      )
+    )
+    assert.equal(run.status, 1)
+    assert.deepEqual(failures(run.stdout), [
+      'docs/adr/0001-guards-ship-here.md:3: decision-records: amended-by names "0012", which is not the number of a record — name the number of each record that amends it',
+      'docs/adr/0003-one-plugin.md:5: decision-records: amended-by names "next", which is not the number of a record — name the number of each record that amends it'
+    ])
+  })
+})
+
+/** A record the way the template writes one: its number under `decision` and in its title. */
+function template(number: string, status: string, fields: string[]): string {
+  return recordWith(status, [`decision: ${number}`, ...fields], `${number} — A decision`)
+}
+
+describe("the decision-records Check's fields together", () => {
+  it("judges every field it is given on the template's records", () => {
+    const root = withRecords(
+      {
+        "src/db/client.ts": "export {}\n",
+        "docs/decisions/0001-own-database.md": template("0001", "active # active | superseded", [
+          "amended-by: 0003",
+          "date: 2026-08-09",
+          "touches:",
+          "  - src/db/client.ts"
+        ]),
+        "docs/decisions/0002-old-areas.md": template("0002", "superseded", ["date: 2026-08-10", "superseded-by: 0003"]),
+        "docs/decisions/0003-new-areas.md": template("0003", "active", ["date: 2026-08-11", "touches:", "  - src/db"])
+      },
+      {
+        dirs: ["docs/decisions"],
+        statuses: ["active", "superseded"],
+        fields: ["date", "touches", "superseded-by", "amended-by"]
+      }
+    )
+    rmSync(join(root, "docs/adr"), { recursive: true })
+    const run = runBin(["gate"], root)
+    assert.equal(run.status, 0, run.stdout)
   })
 })

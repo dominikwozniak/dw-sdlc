@@ -111,7 +111,13 @@ schema.
 - `decision-records` holds the records under `docs/adr`, or the template's `docs/decisions`, to
   files named `<number>-<slug>.md`, numbered from 1 with no gap and no number taken twice, each with
   a level-1 heading for its title and a frontmatter `status` whose first word is `proposed`,
-  `accepted`, `active`, `deprecated` or `superseded`.
+  `accepted`, `active`, `deprecated` or `superseded`. Its `fields` option holds each record to more
+  of its frontmatter, and names no field by default. `date` is a `YYYY-MM-DD` day. Under `touches`,
+  a record in force, `accepted` or `active`, names the paths it governs. Each is a file or directory
+  git tracks or would track, or a glob that matches such a file. A `superseded` record names none.
+  Under `superseded-by`, a `superseded` record names the number of each record that replaces it.
+  Each number under `amended-by` is the number of a record in the same directory. A list is
+  comma-separated after its key, or one `- ` item a line under it.
 - `file-size-ratchet` is a Ratchet. It holds each file to the line limit of the first group whose
   glob matches it: `tests` 2000, `agent-docs` 120 (`AGENTS.md`, `CLAUDE.md`, `GLOSSARY.md` and
   `docs/agents/`), `source` 500. A file over its limit passes only when the committed baseline,

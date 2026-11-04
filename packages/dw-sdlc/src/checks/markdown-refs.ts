@@ -7,7 +7,7 @@ import { join, posix } from "node:path"
 
 import { type Anchors, anchorsOf, type Link, links } from "../markdown.ts"
 import type { Check, Finding } from "./check.ts"
-import { matching, treeFiles } from "./tree.ts"
+import { directoriesOf, matching, treeFiles } from "./tree.ts"
 
 export type MarkdownRefsOptions = { files: string[]; exempt: string[] }
 
@@ -29,17 +29,6 @@ function decode(text: string): string {
   } catch {
     return text
   }
-}
-
-/** Every directory above a file of `files`. */
-function directoriesOf(files: Set<string>): Set<string> {
-  const directories = new Set<string>()
-  for (const file of files) {
-    for (let dir = posix.dirname(file); dir !== "." && !directories.has(dir); dir = posix.dirname(dir)) {
-      directories.add(dir)
-    }
-  }
-  return directories
 }
 
 /** The repository path `path` names from `file`, the root `.`; a path out of the repository starts with `..`. */

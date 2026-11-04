@@ -1,9 +1,9 @@
-// The files of a repository as git sees them, and the ones a Check's globs pick out of them: what the
-// Checks that judge many files read, so a file git ignores is never judged.
+// The files of a repository as git sees them, the directories above them, and the ones a Check's globs
+// pick out of them: what the Checks that judge many files read, so a file git ignores is never judged.
 
 import { spawnSync } from "node:child_process"
 import { existsSync, lstatSync, realpathSync } from "node:fs"
-import { join, matchesGlob, relative } from "node:path"
+import { join, matchesGlob, posix, relative } from "node:path"
 
 import { CannotRun } from "./check.ts"
 
@@ -19,6 +19,17 @@ export function treeFiles(root: string, pathspecs: string[] = []): string[] {
   return [...new Set(listed.stdout.split("\0").filter((path) => path !== ""))]
     .filter((path) => existsSync(join(root, path)))
     .toSorted()
+}
+
+/** Every directory above a file of `files`. */
+export function directoriesOf(files: Iterable<string>): Set<string> {
+  const directories = new Set<string>()
+  for (const file of files) {
+    for (let dir = posix.dirname(file); dir !== "." && !directories.has(dir); dir = posix.dirname(dir)) {
+      directories.add(dir)
+    }
+  }
+  return directories
 }
 
 /**
