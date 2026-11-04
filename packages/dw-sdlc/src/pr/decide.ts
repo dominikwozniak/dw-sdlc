@@ -2,7 +2,7 @@
 // the pull request answers its Action at the time given; every later row that holds rides in its
 // blockers. The last rows say who merges what no row before them holds back.
 
-import type { PrMerge } from "../agentic-config.ts"
+import type { PrMerge, PrReview } from "../agentic-config.ts"
 import type { CiCheck, PrState, Thread } from "./state.ts"
 
 export type Status = "act" | "wait" | "park" | "done"
@@ -16,6 +16,7 @@ export type Action =
   | "fix-ci"
   | "address-review"
   | "review"
+  | "mark-reviewed"
   | "unverified"
   | "ci-stuck"
   | "awaiting-reply"
@@ -25,7 +26,11 @@ export type Action =
   | "ready-to-merge"
   | "merge"
 /** The Actions the script performs itself, each one gh command. */
-export type ScriptAction = "update-branch" | "mark-ready" | "merge"
+export type ScriptAction = "update-branch" | "mark-ready" | "mark-reviewed" | "merge"
+/** Where a Review depth comes from: the dev's `--review` for this call, or `pr.review`. */
+export type DepthSource = "flag" | "config"
+/** What the decision reads beside the pull request: who merges it, and how closely a Review reads it. */
+export type Policy = { merge: PrMerge; review: { depth: PrReview; source: DepthSource } }
 /** An Action the pull request needs beside the one its answer names, so one push can fix several. */
 export type Blocker = { action: Action; actor: Actor; reason: string; details?: Record<string, unknown> }
 export type Answer = Blocker & {
@@ -38,8 +43,8 @@ export type Answer = Blocker & {
 }
 
 type Row = {
-  when: (pr: PrState, merge: PrMerge) => boolean
-  answer: (pr: PrState, now: number) => Omit<Answer, "blockers">
+  when: (pr: PrState, policy: Policy) => boolean
+  answer: (pr: PrState, now: number, policy: Policy) => Omit<Answer, "blockers">
   /** A row that wins answers with no blockers: a merged, closed or still-computing pull request. */
   alone?: true
   /** A row that never rides in blockers: who merges is no blocker. */
@@ -53,7 +58,7 @@ const BUDGET_MINUTES = 40
 /** The prefix of the contexts the script posts itself, as `dw-sdlc/review`: never CI. */
 const OWN_PREFIX = "dw-sdlc/"
 /** The commit status a clean review of the head leaves on it. */
-const REVIEW = "dw-sdlc/review"
+export const REVIEW = "dw-sdlc/review"
 
 /** The words as one POSIX shell command line, each word that needs it single-quoted. */
 export function shellLine(words: string[]): string {
@@ -86,10 +91,28 @@ function listed({ id, path, line, author, body }: Thread): Record<string, unknow
   return { id, path, line, author, body }
 }
 
-const HOST: Record<ScriptAction, { verb: string; flags: (pr: PrState) => string[] }> = {
-  "update-branch": { verb: "update-branch", flags: () => [] },
-  "mark-ready": { verb: "ready", flags: () => [] },
-  merge: { verb: "merge", flags: (pr) => ["--squash", "--match-head-commit", pr.head] }
+/**
+ * The gh arguments that post the `dw-sdlc/review` success on the head, `description` saying how it was
+ * read: never a failure or a pending status, which would turn the pull request unstable. The path
+ * names the repository, so the call reads the same from any checkout.
+ */
+export function reviewStatusArgs(pr: PrState, description: string): string[] {
+  const fields = { state: "success", context: REVIEW, target_url: pr.url, description }
+  const flags = Object.entries(fields).flatMap(([key, value]) => ["-f", `${key}=${value}`])
+  return ["api", `repos/${pr.repo}/statuses/${pr.head}`, "--method", "POST", "--silent", ...flags]
+}
+
+/** Why a head no one reads carries the success: the dev's word or the config. */
+function offDescription(policy: Policy): string {
+  return `off: ${policy.review.source === "flag" ? "--review off" : "pr.review"}`
+}
+
+/** A script Action's gh arguments; `repo` is `-R` and the repository when the call names it, else empty. */
+const HOST: Record<ScriptAction, (pr: PrState, repo: string[], policy: Policy) => string[]> = {
+  "update-branch": (pr, repo) => ["pr", "update-branch", String(pr.number), ...repo],
+  "mark-ready": (pr, repo) => ["pr", "ready", String(pr.number), ...repo],
+  "mark-reviewed": (pr, _, policy) => reviewStatusArgs(pr, offDescription(policy)),
+  merge: (pr, repo) => ["pr", "merge", String(pr.number), ...repo, "--squash", "--match-head-commit", pr.head]
 }
 
 export function isScriptAction(action: Action): action is ScriptAction {
@@ -100,19 +123,18 @@ export function isScriptAction(action: Action): action is ScriptAction {
  * The gh arguments of a script Action, `-R` naming the repository when `named`. The update merges the
  * base in, never --rebase, which rewrites the branch on GitHub; the merge names the head it read.
  */
-export function hostArgs(pr: PrState, action: ScriptAction, named: boolean): string[] {
-  const { verb, flags } = HOST[action]
-  return ["pr", verb, String(pr.number), ...(named ? ["-R", pr.repo] : []), ...flags(pr)]
+export function hostArgs(pr: PrState, action: ScriptAction, policy: Policy, named: boolean): string[] {
+  return HOST[action](pr, named ? ["-R", pr.repo] : [], policy)
 }
 
 /** The command a script Action leaves the dev to run, from a checkout of the repository. */
-export function devCommand(pr: PrState, action: ScriptAction): string {
-  return shellLine(["gh", ...hostArgs(pr, action, false)])
+export function devCommand(pr: PrState, action: ScriptAction, policy: Policy): string {
+  return shellLine(["gh", ...hostArgs(pr, action, policy, false)])
 }
 
 /** The merge left to the dev, `reason` saying why it is theirs. */
-export function readyToMerge(pr: PrState, reason: string): Omit<Answer, "blockers"> {
-  return { status: "park", action: "ready-to-merge", actor: "dev", reason, command: devCommand(pr, "merge") }
+export function readyToMerge(pr: PrState, policy: Policy, reason: string): Omit<Answer, "blockers"> {
+  return { status: "park", action: "ready-to-merge", actor: "dev", reason, command: devCommand(pr, "merge", policy) }
 }
 
 const ROWS: Row[] = [
@@ -183,18 +205,23 @@ const ROWS: Row[] = [
     answer: () => ({ status: "act", action: "address-review", actor: "agent", reason: "changes requested" })
   },
   {
-    // The dev merges another author's pull request, so it needs no Review.
+    // The dev merges another author's pull request, so it needs no Review. Under off no one reads
+    // the head: the script posts the success itself.
     when: (pr) => pr.viewerDidAuthor && !pr.checks.some((check) => check.name === REVIEW && check.bucket === "pass"),
-    answer: (pr) => ({
-      status: "act",
-      action: "review",
-      actor: "agent",
-      reason: `no ${REVIEW} success on ${pr.head.slice(0, 7)}`
-    })
+    answer: (pr, _, { review }) => {
+      const off = review.depth === "off"
+      return {
+        status: "act",
+        action: off ? "mark-reviewed" : "review",
+        actor: off ? "script" : "agent",
+        reason: `no ${REVIEW} success on ${pr.head.slice(0, 7)}`,
+        details: { ...review }
+      }
+    }
   },
   {
     when: (pr) => ciOf(pr).length === 0,
-    answer: (pr, now) =>
+    answer: (pr, now, policy) =>
       now - Date.parse(pr.headCommittedAt) <= GRACE_SECONDS * 1000
         ? { status: "wait", action: "wait", actor: "script", reason: "unverified", recheckAfter: 15 }
         : {
@@ -202,7 +229,7 @@ const ROWS: Row[] = [
             action: "unverified",
             actor: "dev",
             reason: `no check reported on ${pr.head.slice(0, 7)} within ${GRACE_SECONDS} s of its commit`,
-            command: devCommand(pr, "merge")
+            command: devCommand(pr, "merge", policy)
           }
   },
   {
@@ -256,17 +283,17 @@ const ROWS: Row[] = [
   },
   {
     when: (pr) => !pr.viewerDidAuthor,
-    answer: (pr) => readyToMerge(pr, "another author's pull request: the merge is the dev's"),
+    answer: (pr, _, policy) => readyToMerge(pr, policy, "another author's pull request: the merge is the dev's"),
     merging: true
   },
   {
-    when: (_, merge) => merge === "auto",
+    when: (_, { merge }) => merge === "auto",
     answer: () => ({ status: "act", action: "merge", actor: "script", reason: "green, reviewed and the viewer's own" }),
     merging: true
   },
   {
-    when: (_, merge) => merge === "ask",
-    answer: (pr) => readyToMerge(pr, "pr.merge is ask: the merge is the dev's"),
+    when: (_, { merge }) => merge === "ask",
+    answer: (pr, _, policy) => readyToMerge(pr, policy, "pr.merge is ask: the merge is the dev's"),
     merging: true
   }
 ]
@@ -275,14 +302,17 @@ function blockerOf({ action, actor, reason, details }: Omit<Answer, "blockers">)
   return { action, actor, reason, ...(details === undefined ? {} : { details }) }
 }
 
-/** The Action `pr` needs at `now`, milliseconds since the epoch, when `merge` says who merges it. */
-export function decide(pr: PrState, now: number, merge: PrMerge): Answer {
-  const index = ROWS.findIndex((row) => row.when(pr, merge))
+/** The Action `pr` needs at `now`, milliseconds since the epoch, under `policy`. */
+export function decide(pr: PrState, now: number, policy: Policy): Answer {
+  const index = ROWS.findIndex((row) => row.when(pr, policy))
   const row = ROWS[index]
   if (row === undefined) {
-    throw new Error(`no row of the decision matches ${pr.url} under pr.merge ${merge}`)
+    throw new Error(`no row of the decision matches ${pr.url} under pr.merge ${policy.merge}`)
   }
   const later =
-    row.alone === true ? [] : ROWS.slice(index + 1).filter((other) => !other.merging && other.when(pr, merge))
-  return { ...row.answer(pr, now), blockers: later.map((other) => blockerOf(other.answer(pr, now))) }
+    row.alone === true ? [] : ROWS.slice(index + 1).filter((other) => !other.merging && other.when(pr, policy))
+  return {
+    ...row.answer(pr, now, policy),
+    blockers: later.map((other) => blockerOf(other.answer(pr, now, policy)))
+  }
 }

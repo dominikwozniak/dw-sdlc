@@ -335,11 +335,12 @@ Action that is not, as one line or, with `--json`, one document. The exit code s
 is: 0 done, 10 the agent's, 20 wait, 30 the dev's, 2 it cannot run. The script holds no state
 between calls and never sleeps: a `wait` carries `recheckAfter`, the seconds until the next call.
 
-The script owns three Actions, one `gh` command each. It updates a branch behind its base by
-merging the base in. It marks the viewer's own draft ready once CI is green, no thread is open and
-the head is reviewed. It squash merges with `--match-head-commit`, so a push during the decision
-never merges blind. Each runs at most once per call; one that comes round again, and every
-one under `--dry-run`, parks with its command for the dev.
+The script owns four Actions, one `gh` command each. It updates a branch behind its base by
+merging the base in. It marks the head of the viewer's own pull request reviewed when the Review
+depth is `off`. It marks the viewer's own draft ready once CI is green, no thread is open and the
+head is reviewed. It squash merges with `--match-head-commit`, so a push during the decision never
+merges blind. Each runs at most once per call; one that comes round again, and every one under
+`--dry-run`, parks with its command for the dev.
 
 The agent owns four: `fix-conflicts`, `fix-ci`, `address-review` and `review`. Under `details`,
 `fix-ci` lists each failing check with its link and, for a GitHub Actions job, the command that
@@ -357,6 +358,13 @@ status: `dw-sdlc pr reviewed <n> --head <sha>` posts `dw-sdlc/review` in state `
 the review read and refuses once a push moved it, so a new head needs a fresh review. Contexts under
 `dw-sdlc/` never count as CI. The script never deletes a branch: a merged pull request answers
 `done` with the deletion command for the dev.
+
+How closely a head is read is its Review depth: the dev's `--review full|off` for one call, else
+`pr.review`, and `details` names it under `depth` and where it came from under `source`, `flag` or
+`config`. Under `full` the agent reviews the head. Under `off` no one reads it: the script posts the
+`dw-sdlc/review` success itself as `mark-reviewed`, its description `off: --review off` or
+`off: pr.review`, so a green pull request merges with no agent turn. Every other row holds at
+either depth: conflicts, failing CI, threads and who merges.
 
 The `sdlc-pr-ship` skill is the agent's side: it calls the script, does the agent's Action, calls
 again, and stops at a wait, a park or done, as the

@@ -4,14 +4,16 @@
 
 import { parseArgs } from "node:util"
 
-import { type PrMerge, repositoryRoot, resolveConfig } from "../agentic-config.ts"
+import { type PrReview, repositoryRoot, resolveConfig, STRICTNESS } from "../agentic-config.ts"
 import {
   type Answer,
   decide,
   devCommand,
   hostArgs,
   isScriptAction,
+  type Policy,
   readyToMerge,
+  REVIEW,
   type ScriptAction,
   shellLine,
   type Status
@@ -21,16 +23,19 @@ import type { PrState } from "../pr/state.ts"
 
 export const summary = "decide the Action one pull request needs next, as a line or JSON"
 
-const USAGE = `Usage: dw-sdlc pr ship [<n>] [-R owner/name] [--merge] [--dry-run] [--json] [--verbose]
+const USAGE = `Usage: dw-sdlc pr ship [<n>] [-R owner/name] [--merge] [--review full|off] [--dry-run] [--json] [--verbose]
 
 Reads pull request <n> through gh, the one of the current branch as gh pr view resolves it when <n>
 is omitted, and answers the Action it needs next: the status, the action, whose turn it is and why.
 The script performs its own Actions, each at most once and then reads again: it updates a branch
 behind its base, marks a draft ready once nothing else holds it back, and squash merges a pull
 request ready to merge under pr.merge auto in .ai/agentic.config.json or with --merge for this call;
-under ask, the default, it parks with the merge command. --dry-run performs nothing: it parks at the
-first Action the script would perform, listed under performed. One line, or one document with
---json; --verbose adds the state as read to the document under facts. Needs an authenticated gh.
+under ask, the default, it parks with the merge command. A head without a ${REVIEW} success
+gets the Review depth --review names for this call, else pr.review: under full, the default, the
+agent reviews it; under off the script posts the success itself, its description saying why.
+--dry-run performs nothing: it parks at the first Action the script would perform, listed under
+performed. One line, or one document with --json; --verbose adds the state as read to the document
+under facts. Needs an authenticated gh.
 
 Exit 0 done, 10 the agent's turn, 20 wait, 30 the dev's turn, 2 when it cannot run.`
 
@@ -43,6 +48,7 @@ type Cli = {
   json: boolean
   verbose: boolean
   merge: boolean
+  review: PrReview | undefined
   dryRun: boolean
   number: number | undefined
   repo: string | undefined
@@ -61,12 +67,14 @@ function parseCli(argv: string[]): Cli | { error: string } {
         json: { type: "boolean" },
         verbose: { type: "boolean" },
         merge: { type: "boolean" },
+        review: { type: "string" },
         "dry-run": { type: "boolean" },
         repo: { type: "string", short: "R" }
       }
     })
     const [number, ...more] = positionals
     const { repo } = values
+    const review = STRICTNESS.review.find((depth) => depth === values.review)
     if (values.help !== true) {
       if (more.length > 0) {
         return { error: `name one pull request, not ${positionals.length}` }
@@ -75,12 +83,16 @@ function parseCli(argv: string[]): Cli | { error: string } {
       if (problem !== undefined) {
         return { error: problem }
       }
+      if (values.review !== undefined && review === undefined) {
+        return { error: `--review takes ${STRICTNESS.review.join(" or ")}, not ${JSON.stringify(values.review)}` }
+      }
     }
     return {
       help: values.help === true,
       json: values.json === true,
       verbose: values.verbose === true,
       merge: values.merge === true,
+      review,
       dryRun: values["dry-run"] === true,
       number: number === undefined ? undefined : Number(number),
       repo
@@ -107,47 +119,52 @@ function now(): number {
 const NAMED: Record<ScriptAction, { would: string; act: string; still: string }> = {
   "update-branch": { would: "update the branch", act: "the update", still: "the branch still reads behind its base" },
   "mark-ready": { would: "mark it ready", act: "the mark-ready", still: "the pull request still reads as a draft" },
+  "mark-reviewed": {
+    would: "mark it reviewed",
+    act: "the mark-reviewed",
+    still: `the head still carries no ${REVIEW} success`
+  },
   merge: { would: "merge it", act: "the merge", still: "the pull request still reads open" }
 }
 
 /** A script Action the call leaves to the dev, `reason` saying why; a merge parks as ready-to-merge. */
-function handedOver(pr: PrState, answer: Answer, action: ScriptAction, reason: string): Answer {
+function handedOver(pr: PrState, policy: Policy, answer: Answer, action: ScriptAction, reason: string): Answer {
   if (action === "merge") {
-    return { ...readyToMerge(pr, reason), blockers: answer.blockers }
+    return { ...readyToMerge(pr, policy, reason), blockers: answer.blockers }
   }
-  return { ...answer, status: "park", actor: "dev", reason, command: devCommand(pr, action) }
+  return { ...answer, status: "park", actor: "dev", reason, command: devCommand(pr, action, policy) }
 }
 
 /**
  * Reads and decides until the Action is not the script's. Each script Action runs at most once, then the
  * pull request is read again; under --dry-run, or when an Action comes round again, it is the dev's.
  */
-function ship(cli: Cli, merge: PrMerge): { pr: PrState; answer: Answer; performed: Performed[] } {
+function ship(cli: Cli, policy: Policy): { pr: PrState; answer: Answer; performed: Performed[] } {
   let pr = read(cli, "pr ship")
   const performed: Performed[] = []
   const refusals: Partial<Record<ScriptAction, string>> = {}
   for (;;) {
-    const answer = decide(pr, now(), merge)
+    const answer = decide(pr, now(), policy)
     const { action } = answer
     if (!isScriptAction(action)) {
       return { pr, answer, performed }
     }
     // -R names the repository, so the checkout the script runs in plays no part.
-    const args = hostArgs(pr, action, true)
+    const args = hostArgs(pr, action, policy, true)
     const command = shellLine(["gh", ...args])
     const { would, act, still } = NAMED[action]
     if (cli.dryRun) {
       performed.push({ action, command, ok: null })
       return {
         pr,
-        answer: handedOver(pr, answer, action, `the script would ${would}; --dry-run performs nothing`),
+        answer: handedOver(pr, policy, answer, action, `the script would ${would}; --dry-run performs nothing`),
         performed
       }
     }
     if (performed.some((done) => done.action === action)) {
       const refusal = refusals[action]
       const reason = refusal === undefined ? `${act} ran, and ${still}` : `gh refused ${act}: ${refusal}`
-      return { pr, answer: handedOver(pr, answer, action, reason), performed }
+      return { pr, answer: handedOver(pr, policy, answer, action, reason), performed }
     }
     const result = gh(args)
     performed.push({ action, command, ok: result.status === 0 })
@@ -180,11 +197,16 @@ export function run(argv: string[]): number {
     process.stdout.write(`${USAGE}\n`)
     return 0
   }
-  // An invalid config layer resolves to ask, like every other strictest setting.
-  const merge = cli.merge ? "auto" : resolveConfig(repositoryRoot(process.cwd())).config.pr.merge
+  // An invalid config layer resolves to ask and full, like every other strictest setting.
+  const declared = resolveConfig(repositoryRoot(process.cwd())).config.pr
+  const policy: Policy = {
+    merge: cli.merge ? "auto" : declared.merge,
+    review:
+      cli.review === undefined ? { depth: declared.review, source: "config" } : { depth: cli.review, source: "flag" }
+  }
   let shipped: ReturnType<typeof ship>
   try {
-    shipped = ship(cli, merge)
+    shipped = ship(cli, policy)
   } catch (error) {
     if (error instanceof CannotRun) {
       process.stderr.write(`dw-sdlc pr ship: ${error.message} — ${error.remedy}\n`)

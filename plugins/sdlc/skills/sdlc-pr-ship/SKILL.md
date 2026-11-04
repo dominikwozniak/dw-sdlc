@@ -14,8 +14,9 @@ request; a later call takes `<n>` from the end of the answer's `pr`:
 node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" pr ship [<n>] --json
 ```
 
-Add `--merge` only when the dev wrote "merge" for this pull request in the conversation. Add
-`--dry-run` only when they asked for one, then show the answer and stop. Exit 1, a bug, or 2, cannot
+Add `--merge` only when the dev wrote "merge" for this pull request in the conversation, and
+`--review full` or `--review off` only when they wrote that Review depth for it. Add `--dry-run`
+only when they asked for one, then show the answer and stop. Exit 1, a bug, or 2, cannot
 run: show what it printed and stop. Otherwise read `status`, then `action`; `<base>` and `<head>`
 are the answer's. Before an `act`, the checkout must be the pull request's branch at `<head>`:
 behind it, `git pull --rebase`, since the script may have updated the branch; anything else, say so
@@ -30,13 +31,14 @@ the push makes.
   for changes (`gh pr view <n> --json reviews`). Fix it and resolve the thread with
   `resolveReviewThread` through `gh api graphql`, or reply with `addPullRequestReviewThreadReply`
   and leave it open for the reviewer; `git push` when code changed.
-- `act review`: run `/code-review` on the changes since `origin/<base>`. Skip it when a Review
-  earlier in this conversation read the changes since `origin/<base>` at `<head>`, found nothing,
-  and nothing changed after it: no edit, no commit, no pull. Only a clean run of the review command
-  this step runs, `/code-review`, whose range ended at `<head>` counts as that earlier Review; an
-  informal read of the diff never counts. A Review whose head the conversation does not show, or
-  one with a finding, even one fixed since, needs a fresh Review. After the skip, or a fresh Review
-  that finds nothing, run
+- `act review`: at the Review depth `details.depth`, `full`, run `/code-review` on the changes
+  since `origin/<base>`; under `off` the script marks the head reviewed itself and never asks.
+  Skip the Review when one earlier in this conversation read the changes since `origin/<base>` at
+  `<head>`, found nothing, and nothing changed after it: no edit, no commit, no pull. Only a clean
+  run of the review command this step runs, `/code-review`, whose range ended at `<head>` counts
+  as that earlier Review; an informal read of the diff never counts. A Review whose head the
+  conversation does not show, or one with a finding, even one fixed since, needs a fresh Review.
+  After the skip, or a fresh Review that finds nothing, run
   `node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" pr reviewed <n> --head <head>`; its exit 2 says
   whether the head moved or it cannot run. Fix a finding and `git push`.
 - `wait`: tell the dev the `reason` and `recheckAfter`, and end the turn. The next call comes with

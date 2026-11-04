@@ -55,16 +55,19 @@ script would perform as the dev's. It never deletes a branch; a merged pull requ
 the delete command for the dev.
 
 `pr.merge` in the committed `.ai/agentic.config.json` says who merges: the script under `auto`, the
-dev under `ask`, the default. The local layer may tighten it and never loosen it, and `--merge` acts
-as `auto` for one call. A pull request the `gh` account did not open is always the dev's to merge.
+dev under `ask`, the default. `pr.review` says how closely a head no one has reviewed is read: the
+agent reviews it under `full`, the default, and no one does under `off`. The local layer may tighten
+either and never loosen it; `--merge` acts as `auto` and `--review full|off` sets the depth for one
+call. A pull request the `gh` account did not open is always the dev's to merge.
 
 ```json
-{ "pr": { "merge": "auto" } }
+{ "pr": { "merge": "auto", "review": "full" } }
 ```
 
-`pr ship` answers `review` until the head carries the commit status `dw-sdlc/review`, which
-`dw-sdlc pr reviewed <n> --head <sha>` posts after a clean review. It posts nothing and exits 2 once
-a push moved the head, so a new head needs a fresh review.
+`pr ship` answers `review`, its depth under `details`, until the head carries the commit status
+`dw-sdlc/review`, which `dw-sdlc pr reviewed <n> --head <sha>` posts after a clean review. It posts
+nothing and exits 2 once a push moved the head, so a new head needs a fresh review. Under `off` the
+script posts that status itself, its description saying why, and goes on.
 
 ## Commands
 

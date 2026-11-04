@@ -307,7 +307,8 @@ describe("dw-sdlc pr ship", () => {
   it("prints its usage with --help", () => {
     const run = ship(["--help"], {})
     assert.equal(run.status, 0, run.stderr)
-    const usage = "Usage: dw-sdlc pr ship [<n>] [-R owner/name] [--merge] [--dry-run] [--json] [--verbose]\n"
+    const usage =
+      "Usage: dw-sdlc pr ship [<n>] [-R owner/name] [--merge] [--review full|off] [--dry-run] [--json] [--verbose]\n"
     assert.ok(run.stdout.startsWith(usage), run.stdout)
     assert.deepEqual(run.calls, [])
   })
@@ -563,7 +564,12 @@ describe("dw-sdlc pr ship hands the pull request to the agent", () => {
           reason: "1 check(s) failing",
           details: { checks: [{ name: "Check", link: RUN, log: LOG }] }
         },
-        { action: "review", actor: "agent", reason: "no dw-sdlc/review success on e36732e" }
+        {
+          action: "review",
+          actor: "agent",
+          reason: "no dw-sdlc/review success on e36732e",
+          details: { depth: "full", source: "config" }
+        }
       ],
       performed: []
     })
@@ -1091,6 +1097,7 @@ describe("dw-sdlc pr ship updates a branch and marks a draft ready", () => {
       action: "review",
       actor: "agent",
       reason: "no dw-sdlc/review success on 5f0c2a7",
+      details: { depth: "full", source: "config" },
       blockers: [{ action: "wait", actor: "script", reason: "ci-pending" }],
       performed: [ran("update-branch", true)]
     })
@@ -1264,6 +1271,224 @@ describe("dw-sdlc pr ship updates a branch and marks a draft ready", () => {
       assert.deepEqual(run.calls, [AUTH, READ], action)
       const line = ship([...TARGET, "--dry-run"], { graphql: [served(pr)] }, {}, AUTO)
       assert.deepEqual([line.status, line.stdout], [30, `park ${action}: ${reason} — ${command}\n`], line.stderr)
+    }
+  })
+})
+
+/** Where the script posts the status on HEAD, the repository named in the path. */
+const STATUSES = `repos/byarcadia-app/foundation/statuses/${HEAD}`
+
+/** The post that marks HEAD reviewed, `why` its description. */
+function marked(why: string): string[] {
+  return [
+    "api",
+    STATUSES,
+    "--method",
+    "POST",
+    "--silent",
+    "-f",
+    "state=success",
+    "-f",
+    "context=dw-sdlc/review",
+    "-f",
+    `target_url=${URL}`,
+    "-f",
+    `description=${why}`
+  ]
+}
+
+/** The same post as `performed` and a parked answer print it. */
+function markedCommand(why: string): string {
+  const fields = `-f state=success -f context=dw-sdlc/review -f target_url=${URL} -f 'description=${why}'`
+  return `gh api ${STATUSES} --method POST --silent ${fields}`
+}
+
+/** The post under `performed`, `ok` as gh answered; null under --dry-run. */
+function markedRun(why: string, ok: boolean | null): unknown {
+  return { action: "mark-reviewed", command: markedCommand(why), ok }
+}
+
+/** pr.review off, and the merge the script's. */
+const OFF: Files = { [COMMITTED_FILE]: { pr: { merge: "auto", review: "off" } } }
+/** Green and the viewer's own, its head not reviewed. */
+const UNREVIEWED: Pr = { ...GREEN, checks: [PASSING] }
+
+describe("dw-sdlc pr ship at a Review depth", () => {
+  it("asks the agent for a full Review by default, the depth and where it came from under details", () => {
+    const run = json(UNREVIEWED)
+    assert.equal(run.status, 10, run.stderr)
+    assert.deepEqual(run.document, {
+      pr: URL,
+      head: HEAD,
+      base: "main",
+      status: "act",
+      action: "review",
+      actor: "agent",
+      reason: "no dw-sdlc/review success on e36732e",
+      details: { depth: "full", source: "config" },
+      blockers: [],
+      performed: []
+    })
+    assert.deepEqual(run.calls, [AUTH, READ])
+  })
+
+  it("takes --review full over pr.review off, the flag named as the source", () => {
+    const run = json(UNREVIEWED, ["--review", "full"], {}, OFF)
+    assert.equal(run.status, 10, run.stderr)
+    assert.deepEqual(fieldsOf(run.document, ["action", "actor", "details", "performed"]), {
+      action: "review",
+      actor: "agent",
+      details: { depth: "full", source: "flag" },
+      performed: []
+    })
+    assert.deepEqual(run.calls, [AUTH, READ])
+  })
+
+  it("posts the dw-sdlc/review success itself under --review off, reads again and answers what that read gives", () => {
+    const run = ship([...TARGET, "--json", "--review", "off"], { graphql: [served(UNREVIEWED), served(GREEN)] })
+    assert.equal(run.status, 30, run.stderr)
+    assert.deepEqual(fieldsOf(JSON.parse(run.stdout), ["action", "reason", "performed"]), {
+      action: "ready-to-merge",
+      reason: "pr.merge is ask: the merge is the dev's",
+      performed: [markedRun("off: --review off", true)]
+    })
+    assert.deepEqual(run.calls, [AUTH, READ, marked("off: --review off"), READ])
+  })
+
+  it("posts the status under pr.review off, then merges under pr.merge auto in the same call", () => {
+    const run = ship([...TARGET, "--json"], { graphql: [served(UNREVIEWED), served(GREEN), served(MERGED)] }, {}, OFF)
+    assert.equal(run.status, 0, run.stderr)
+    assert.deepEqual(fieldsOf(JSON.parse(run.stdout), ["status", "performed"]), {
+      status: "done",
+      performed: [markedRun("off: pr.review", true), ran("merge", true)]
+    })
+    assert.deepEqual(run.calls, [AUTH, READ, marked("off: pr.review"), READ, MERGE, READ])
+  })
+
+  it("runs full while a config layer is invalid or loosens pr.review, whatever the committed file sets", () => {
+    const cases: Files[] = [
+      { ...OFF, [LOCAL_FILE]: "{ not json" },
+      { ...OFF, [LOCAL_FILE]: { pr: { review: "none" } } },
+      { [COMMITTED_FILE]: { pr: { review: "full" } }, [LOCAL_FILE]: { pr: { review: "off" } } }
+    ]
+    for (const files of cases) {
+      const run = json(UNREVIEWED, [], {}, files)
+      assert.equal(run.status, 10, run.stderr)
+      assert.deepEqual(fieldsOf(run.document, ["action", "details", "performed"]), {
+        action: "review",
+        details: { depth: "full", source: "config" },
+        performed: []
+      })
+      assert.deepEqual(run.calls, [AUTH, READ], JSON.stringify(files))
+    }
+  })
+
+  it("keeps every other row under off: conflicts, failing CI and threads go to the agent, the post riding in blockers", () => {
+    const cases: [string, Pr, string, string[]][] = [
+      [
+        "conflicts",
+        { ...UNREVIEWED, mergeable: "CONFLICTING", mergeStateStatus: "DIRTY" },
+        "fix-conflicts",
+        ["mark-reviewed"]
+      ],
+      ["CI failing", { ...GREEN, mergeStateStatus: "UNSTABLE", checks: [FAILING] }, "fix-ci", ["mark-reviewed"]],
+      ["open thread", { ...UNREVIEWED, threads: [THREAD] }, "address-review", ["mark-reviewed"]]
+    ]
+    for (const [name, pr, action, blockers] of cases) {
+      const run = json(pr, [], {}, OFF)
+      assert.equal(run.status, 10, `${name}: ${run.stderr}`)
+      assert.deepEqual([fieldsOf(run.document, ["action"]), blockersOf(run.document)], [{ action }, blockers], name)
+      assert.deepEqual(run.calls, [AUTH, READ], name)
+    }
+    const conflicting = json({ ...UNREVIEWED, mergeable: "CONFLICTING", mergeStateStatus: "DIRTY" }, [], {}, OFF)
+    assert.ok(typeof conflicting.document === "object" && conflicting.document !== null)
+    assert.ok("blockers" in conflicting.document && Array.isArray(conflicting.document.blockers))
+    assert.deepEqual(conflicting.document.blockers, [
+      {
+        action: "mark-reviewed",
+        actor: "script",
+        reason: "no dw-sdlc/review success on e36732e",
+        details: { depth: "off", source: "config" }
+      }
+    ])
+  })
+
+  it("posts the status while CI runs, then waits for CI", () => {
+    const running: Context = { kind: "run", name: "Check", state: "IN_PROGRESS", link: RUN, startedAt: STARTED }
+    const pending: Pr = { ...GREEN, mergeStateStatus: "BLOCKED", checks: [running] }
+    const scenario = { graphql: [served(pending), served({ ...pending, checks: [running, REVIEWED] })] }
+    const run = ship([...TARGET, "--json"], scenario, clockAt(STARTED, 9 * 60), OFF)
+    assert.equal(run.status, 20, run.stderr)
+    assert.deepEqual(fieldsOf(JSON.parse(run.stdout), ["action", "reason", "performed"]), {
+      action: "wait",
+      reason: "ci-pending",
+      performed: [markedRun("off: pr.review", true)]
+    })
+    assert.deepEqual(run.calls, [AUTH, READ, marked("off: pr.review"), READ])
+  })
+
+  it("parks the post for the dev with its command under --dry-run, running nothing", () => {
+    const reason = "the script would mark it reviewed; --dry-run performs nothing"
+    const run = json(UNREVIEWED, ["--dry-run"], {}, OFF)
+    assert.equal(run.status, 30, run.stderr)
+    assert.deepEqual(run.document, {
+      pr: URL,
+      head: HEAD,
+      base: "main",
+      status: "park",
+      action: "mark-reviewed",
+      actor: "dev",
+      reason,
+      details: { depth: "off", source: "config" },
+      command: markedCommand("off: pr.review"),
+      blockers: [],
+      performed: [markedRun("off: pr.review", null)]
+    })
+    assert.deepEqual(run.calls, [AUTH, READ])
+    const line = ship([...TARGET, "--dry-run", "--review", "off"], { graphql: [served(UNREVIEWED)] })
+    const command = markedCommand("off: --review off")
+    assert.deepEqual([line.status, line.stdout], [30, `park mark-reviewed: ${reason} — ${command}\n`], line.stderr)
+  })
+
+  it("posts at most once per call: a refused post, or one the next read does not show, goes to the dev", () => {
+    const refusal = { exit: 1, stderr: "gh: Resource not accessible by integration (HTTP 403)\n" }
+    const cases: [Response, string][] = [
+      [refusal, "gh refused the mark-reviewed: Resource not accessible by integration (HTTP 403)"],
+      [{}, "the mark-reviewed ran, and the head still carries no dw-sdlc/review success"]
+    ]
+    for (const [response, reason] of cases) {
+      const scenario = {
+        graphql: [served(UNREVIEWED), served(UNREVIEWED)],
+        commands: { [`api ${STATUSES}`]: response }
+      }
+      const run = ship([...TARGET, "--json"], scenario, {}, OFF)
+      assert.equal(run.status, 30, run.stderr)
+      assert.deepEqual(
+        fieldsOf(JSON.parse(run.stdout), ["status", "action", "actor", "reason", "command", "performed"]),
+        {
+          status: "park",
+          action: "mark-reviewed",
+          actor: "dev",
+          reason,
+          command: markedCommand("off: pr.review"),
+          performed: [markedRun("off: pr.review", response.exit === undefined)]
+        }
+      )
+      assert.deepEqual(run.calls, [AUTH, READ, marked("off: pr.review"), READ], reason)
+    }
+  })
+
+  it("exits 2 with the usage on a depth it does not take, before any gh call", () => {
+    for (const depth of ["light", "auto", "FULL"]) {
+      const run = ship([...TARGET, "--review", depth], {})
+      assert.equal(run.status, 2, depth)
+      const [first = "", ...rest] = lines(run.stderr)
+      assert.equal(first, `dw-sdlc pr ship: --review takes full or off, not ${JSON.stringify(depth)}`)
+      assert.ok(
+        rest.some((line) => line.startsWith("Usage: dw-sdlc pr ship")),
+        run.stderr
+      )
+      assert.deepEqual(run.calls, [], depth)
     }
   })
 })

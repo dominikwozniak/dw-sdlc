@@ -91,7 +91,7 @@ pnpm check                      # dw-sdlc gate: the gate.steps of .ai/agentic.co
 pnpm exec dw-sdlc gate [--json] [--verbose] [--update-baseline | --cache] # a line per Step and Check, a failure's last 50 lines (--json: tail), --verbose streams all; exit 0 green, 1 failed or a Step wrote the tree (Drift), 2 cannot run; --update-baseline tightens baselines, --cache skips a tree already green
 pnpm exec dw-sdlc check <name> [--json] # one Check of the Gate by name, no Step; off in the config, it runs on its defaults
 pnpm exec dw-sdlc primitives --paths <files> [--json] # the Primitives that own each path: summary, docs to read
-pnpm exec dw-sdlc pr ship [<n>] [-R owner/name] [--merge] [--dry-run] [--json] [--verbose] # the Action one pull request needs next; the script updates a branch behind, marks a draft ready and merges under pr.merge auto; exit 0 done, 10 act, 20 wait, 30 park, 2 cannot run
+pnpm exec dw-sdlc pr ship [<n>] [-R owner/name] [--merge] [--review full|off] [--dry-run] [--json] [--verbose] # the Action one pull request needs next; the script updates a branch behind, marks a head reviewed under off, marks a draft ready and merges under pr.merge auto; exit 0 done, 10 act, 20 wait, 30 park, 2 cannot run
 pnpm exec dw-sdlc pr reviewed <n> [-R owner/name] --head <sha> [--json] # post dw-sdlc/review success on that head; exit 2 when it moved or cannot run
 pnpm exec vp check [--fix]      # Vite+: oxfmt, oxlint and the type check from vite.config.ts; --fix writes
 pnpm test                       # node --test over every *.test.ts under packages/*/test/ and plugins/*/test/, in one run
