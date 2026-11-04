@@ -58,12 +58,16 @@ function stop(signal: NodeJS.Signals): void {
 
 /** Runs `body` with SIGINT and SIGTERM held, so a signal stops the command running and the Gate reports it. */
 export async function holdingSignals<T>(body: () => Promise<T>): Promise<T> {
+  running = undefined
+  received = undefined
   for (const signal of STOPPING) {
     process.on(signal, stop)
   }
   try {
     return await body()
   } finally {
+    // One turn of the event loop hands a signal that landed after the last command to its handler.
+    await new Promise((resolve) => setImmediate(resolve))
     release()
   }
 }

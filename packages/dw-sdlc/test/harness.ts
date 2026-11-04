@@ -85,6 +85,15 @@ export function startBin(args: string[], cwd: string): Started {
   return { group: child.pid, done }
 }
 
+/** Kills what is left of the process group `group`; it may have exited already. */
+export function killGroup(group: number): void {
+  try {
+    process.kill(-group, "SIGKILL")
+  } catch {
+    // The group has exited.
+  }
+}
+
 /** Resolves once `ready` holds, checking every 20 ms; rejects after 10 s. */
 export async function until(ready: () => boolean): Promise<void> {
   for (let waited = 0; !ready(); waited += 20) {

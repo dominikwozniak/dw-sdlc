@@ -10,12 +10,14 @@ import {
   commit,
   FAILED_REMEDY,
   git,
+  killGroup,
   lines,
   NUMBERED,
   NUMBERED_TAIL,
   repo,
   runBin,
   scratch,
+  type Started,
   startBin,
   timed,
   until,
@@ -44,6 +46,26 @@ function countingRepo(files: Record<string, string | object> = {}): string {
 /** How many times the Step of `countingRepo` ran. */
 function runs(root: string): number {
   return existsSync(join(root, "ran")) ? lines(readFileSync(join(root, "ran"), "utf8")).length : 0
+}
+
+/**
+ * Runs `dw-sdlc <args>` on `root` and sends `signal` once a command touched `started`: to the bin and
+ * its commands together, as Ctrl-C does, or to the bin alone.
+ */
+async function interrupted(
+  root: string,
+  args: string[],
+  signal: NodeJS.Signals,
+  to: "group" | "bin" = "group"
+): Promise<Awaited<Started["done"]>> {
+  const gate = startBin(args, root)
+  try {
+    await until(() => existsSync(join(root, "started")))
+    process.kill(to === "group" ? -gate.group : gate.group, signal)
+    return await gate.done
+  } finally {
+    killGroup(gate.group)
+  }
 }
 
 describe("dw-sdlc gate, the steps", () => {
@@ -118,12 +140,9 @@ describe("dw-sdlc gate, stopped by a signal", () => {
     it(`prints what a Step printed when ${signal} stops it, runs nothing after it and exits 1`, async () => {
       const root = withGate({
         steps: [WAITING, "touch second-ran"],
-        checks: { run: [{ name: "docs", command: "touch check-ran" }] }
+        checks: { run: [{ name: "docs", command: "touch check-ran" }], primitives: true }
       })
-      const gate = startBin(["gate"], root)
-      await until(() => existsSync(join(root, "started")))
-      process.kill(-gate.group, signal)
-      const run = await gate.done
+      const run = await interrupted(root, ["gate"], signal)
       assert.equal(run.status, 1, run.stdout)
       assert.ok(!existsSync(join(root, "second-ran")), "a Step ran after the stopped one")
       assert.ok(!existsSync(join(root, "check-ran")), "a Check ran after the stopped Step")
@@ -136,12 +155,16 @@ describe("dw-sdlc gate, stopped by a signal", () => {
     })
   }
 
+  it("reports the Step stopped when SIGTERM reaches the Gate alone", async () => {
+    const root = withGate({ steps: [WAITING, "touch second-ran"] })
+    const run = await interrupted(root, ["gate"], "SIGTERM", "bin")
+    assert.equal(run.status, 1, run.stdout)
+    assert.ok(!existsSync(join(root, "second-ran")), "a Step ran after the stopped one")
+    assert.equal(timed(run.stdout)[0], `gate: step ${WAITING} — failed, stopped by SIGTERM (N s); its last 50 lines:`)
+  })
+
   it("carries the stopped Step with its tail in the --json document, stderr empty", async () => {
-    const root = withGate({ steps: [WAITING, "true"] })
-    const gate = startBin(["gate", "--json"], root)
-    await until(() => existsSync(join(root, "started")))
-    process.kill(-gate.group, "SIGINT")
-    const run = await gate.done
+    const run = await interrupted(withGate({ steps: [WAITING, "true"] }), ["gate", "--json"], "SIGINT")
     assert.equal(run.status, 1, run.stdout)
     const { steps, failures } = JSON.parse(run.stdout)
     assert.deepEqual(
@@ -160,21 +183,15 @@ describe("dw-sdlc gate, stopped by a signal", () => {
   })
 
   it("runs no Check after a run Check a signal stops", async () => {
-    const root = withGate({
-      checks: {
-        run: [
-          { name: "waiting", command: WAITING },
-          { name: "next", command: "touch next-ran" }
-        ]
-      }
-    })
-    const gate = startBin(["gate"], root)
-    await until(() => existsSync(join(root, "started")))
-    process.kill(-gate.group, "SIGINT")
-    const run = await gate.done
-    assert.equal(run.status, 1, run.stdout)
+    const run = [
+      { name: "waiting", command: WAITING },
+      { name: "next", command: "touch next-ran" }
+    ]
+    const root = withGate({ checks: { run } })
+    const result = await interrupted(root, ["gate"], "SIGINT")
+    assert.equal(result.status, 1, result.stdout)
     assert.ok(!existsSync(join(root, "next-ran")), "a Check ran after the stopped one")
-    assert.deepEqual(lines(run.stdout), [
+    assert.deepEqual(lines(result.stdout), [
       "gate: check waiting — failed, stopped by SIGINT; its last 50 lines:",
       "  started",
       `waiting: ${JSON.stringify(WAITING)} was stopped by SIGINT — ${FAILED_REMEDY}`,
@@ -198,11 +215,7 @@ describe("dw-sdlc gate, stopped by a signal", () => {
       const run = await gate.done
       assert.equal(run.signal, "SIGINT", run.stdout)
     } finally {
-      try {
-        process.kill(-gate.group, "SIGKILL")
-      } catch {
-        // The group has already exited.
-      }
+      killGroup(gate.group)
     }
   })
 })

@@ -32,9 +32,9 @@ Actions it is also a workflow annotation. A Step or run script prints nothing of
 does not pass: then its last ${TAIL_LINES} lines, both streams in the order written, under its own
 line. In a terminal a Step's line shows when it starts and takes its result when it ends.
 
-SIGINT or SIGTERM stops the command running and every command after it, and the report still prints:
-the stopped command's last lines, its failure line and the last line. A second signal ends the Gate
-at once.
+SIGINT or SIGTERM sent while a command runs stops it and everything after it, and the report still
+prints: the stopped command's last lines, its failure line and the last line. A second signal, or one
+sent while the Checks the package ships run, ends the Gate at once.
 
 --verbose passes each command's output through as it runs instead, under a line naming the command,
 and keeps no tail. --json prints the document alone; each Step and Check in it carries tail, the last
@@ -285,12 +285,7 @@ function select(gate: Gate, only: string | undefined): Selection | Failure {
   return { steps: [], run: scripts, shipped: shipped === undefined ? [] : [shipped] }
 }
 
-/** Runs the Gate, or one Check of it, with SIGINT and SIGTERM stopping it and the report still printed. */
-export function runGate(root: string, options: RunOptions): Promise<GateReport> {
-  return holdingSignals(() => judge(root, options))
-}
-
-async function judge(root: string, options: RunOptions): Promise<GateReport> {
+export async function runGate(root: string, options: RunOptions): Promise<GateReport> {
   const { json } = options
   const only = "only" in options ? options.only : undefined
   const mode = "mode" in options ? options.mode : undefined
@@ -336,21 +331,25 @@ async function judge(root: string, options: RunOptions): Promise<GateReport> {
     return { status: ran.status, exitCode: ran.exitCode, tail: ran.tail }
   }
 
-  // A failed Step stops what follows; a signal stops it too, wherever it lands.
-  let stopped = false
-  const halted = (): boolean => stopped || stoppedBy() !== undefined
-  const steps: StepReport[] = []
-  for (const step of selected.steps) {
-    const outcome: Outcome = halted() ? SKIPPED : await runOne("step", step, step)
-    steps.push({ command: step, ...outcome })
-    stopped ||= outcome.status !== "pass"
-  }
-
-  const checks: CheckReport[] = []
-  for (const check of selected.run) {
-    checks.push({ ...check, ...(halted() ? SKIPPED : await runOne("check", check.name, check.command)) })
-  }
-  stopped = halted()
+  // While commands run, SIGINT and SIGTERM stop the one running and every one after it, and the report
+  // still prints. The Checks the package ships run in this process, where a signal ends the Gate at once.
+  const commands = await holdingSignals(async () => {
+    let failedStep = false
+    const halted = (): boolean => failedStep || stoppedBy() !== undefined
+    const steps: StepReport[] = []
+    for (const step of selected.steps) {
+      const outcome: Outcome = halted() ? SKIPPED : await runOne("step", step, step)
+      steps.push({ command: step, ...outcome })
+      failedStep ||= outcome.status !== "pass"
+    }
+    const checks: CheckReport[] = []
+    for (const check of selected.run) {
+      checks.push({ ...check, ...(halted() ? SKIPPED : await runOne("check", check.name, check.command)) })
+    }
+    return { steps, checks, halted: halted() }
+  })
+  const { steps, checks } = commands
+  const stopped = commands.halted || stoppedBy() !== undefined
   const judged = selected.shipped.map((check): Judged => {
     if (stopped) {
       return { check, outcome: SKIPPED, failures: [] }
