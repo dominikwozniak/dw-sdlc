@@ -578,15 +578,15 @@ Only the dev invokes it. The skill reads each answer's `status`, then its `actio
   `address-review` triages each open thread someone else commented on last against the code, or
   with none the review that requests changes, and either fixes it and resolves the thread, or
   replies and leaves it open for the reviewer, then pushes when code changed; `review` runs
-  `/code-review` on the changes since the base and, on a clean result,
-  `dw-sdlc pr reviewed <n> --head <sha>` with the head it reviewed. When a Review earlier in the
-  conversation read the same changes with that head checked out, found nothing, and no edit or
-  commit came after it, the skill runs `pr reviewed` without a second Review. So a session that
-  ends its work with `/code-review` reviews once when it ships. A finding in that Review, even one
-  fixed since, needs a fresh one. The agent's other
-  `blockers` go into the same push, all but `review`, which needs the head the push makes, and the
-  skill calls the script again. An `act` that leaves nothing to change, as changes requested once
-  a push answers them, stops it: the reviewer's turn.
+  `/code-review` on the changes since the base and, when it finds nothing,
+  `dw-sdlc pr reviewed <n> --head <sha>` with the head it reviewed. The skill skips that Review
+  when one earlier in the conversation read the same changes at the head the script read, found
+  nothing, and nothing changed after it: no edit, no commit, no pull. A Review whose commit the
+  conversation does not show, or one with a finding, even one fixed since, takes a fresh Review.
+  So a session that ends its work with `/code-review` on its last commit reviews once when it
+  ships. The agent's other `blockers` go into the same push, all but `review`, which needs the
+  head the push makes, and the skill calls the script again. An `act` that leaves nothing to
+  change, as changes requested once a push answers them, stops it: the reviewer's turn.
 - `wait`: it tells the dev the reason and `recheckAfter` and ends the turn. The next call comes with
   the dev's next message or a `/loop` wake-up, never from a sleep in a shell.
 - `park` and `done`: it prints the reason, and the command when there is one, and stops, a script
