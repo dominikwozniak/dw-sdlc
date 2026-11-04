@@ -421,7 +421,7 @@
       "id": "gate.agents-map",
       "name": "agents-map Check",
       "group": "gate",
-      "summary": "Holds AGENTS.md to its budget, the Gate command, a row to the catalogue, Task Router paths that exist, skills in step.",
+      "summary": "Holds AGENTS.md to its budget, the Gate command, a catalogue row, real Task Router paths, a CLAUDE.md link, skills.",
       "code": ["packages/dw-sdlc/src/checks/agents-map.ts"],
       "docs": ["docs/overview.md#the-checks-the-package-ships", "AGENTS.md#task-router"]
     },

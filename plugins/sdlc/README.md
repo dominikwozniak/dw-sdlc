@@ -363,7 +363,8 @@ Gate is green: set it to `true` and run the refresh, which records the baseline 
 
 The setup never writes the agent map. The first `dw-sdlc gate` names what the map lacks through
 `agents-map`: a missing `AGENTS.md`, which ends that Gate as cannot run, the Gate command the map
-does not name, a Task Router path that does not exist. A repository without a `package.json` gets
+does not name, a Task Router path that does not exist, a `CLAUDE.md` that is not a link to the
+map. A repository without a `package.json` gets
 neither file.
 
 Settings that still enable `guardrails@dw-sdlc` or `references@dw-sdlc`, the two plugins `sdlc`

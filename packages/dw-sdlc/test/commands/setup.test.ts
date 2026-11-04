@@ -690,9 +690,10 @@ describe("adopting the Gate", () => {
     assert.equal(read(root, "AGENTS.md"), map)
     const gate = runBin(["gate", "--root", root], REPO_ROOT)
     assert.equal(gate.status, 1, gate.stdout)
-    assert.deepEqual(lines(gate.stdout).slice(-2), [
+    assert.deepEqual(lines(gate.stdout).slice(-3), [
       'AGENTS.md: agents-map: does not name the Gate command "pnpm check" — name it where the map lists the commands',
-      "gate: failed — 1 failure"
+      "CLAUDE.md: agents-map: does not exist — link it to the map: ln -s AGENTS.md CLAUDE.md",
+      "gate: failed — 2 failures"
     ])
 
     const bare = withoutGate()

@@ -167,7 +167,7 @@
               "additionalProperties": false
             },
             "agents-map": {
-              "description": "The agent map: within its line and byte budget, naming the resolved `gate.command`, carrying a Task Router row to the Primitives catalogue where there is one, every path the Task Router points at existing, and the skills directory, `skills-lock.json` and the `.claude/skills` links in step where the repository has them.",
+              "description": "The agent map: within its line and byte budget, naming the resolved `gate.command`, carrying a Task Router row to the Primitives catalogue where there is one, every path the Task Router points at existing, `CLAUDE.md` a symbolic link to the map unless the map is `CLAUDE.md`, and the skills directory, `skills-lock.json` and the `.claude/skills` links in step where the repository has them.",
               "type": ["boolean", "object"],
               "properties": {
                 "file": {

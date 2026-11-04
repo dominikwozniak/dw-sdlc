@@ -94,8 +94,10 @@ schema.
   `scripts` and `src` by default; a test file needs no Primitive.
 - `agents-map` holds `AGENTS.md` to 150 lines and 10240 bytes, to naming the resolved
   `gate.command`, to a Task Router row that points at the catalogue where there is one, and to every
-  path the Task Router points at existing. Where the repository has them, it keeps the skills
-  directory, `skills-lock.json` and the `.claude/skills` links in step.
+  path the Task Router points at existing. It holds `CLAUDE.md` at the root to a symbolic link to
+  the map by its path from the root, so Claude Code reads the map the Gate judges; a map named
+  `CLAUDE.md` needs no link. Where the repository has them, it keeps the skills directory,
+  `skills-lock.json` and the `.claude/skills` links in step.
 - `markdown-budget` holds each file a glob matches to that glob's line and byte budget, by default
   the agent docs, `docs/agents/*.md`, to 100 lines and 6144 bytes. A glob that matches no file fails.
 - `markdown-refs` fails a relative link or image whose path is not a file or directory of the

@@ -1,9 +1,18 @@
 // `agents-map`: the agent map stays a map. Within its budget, naming the Gate command, routing to the
-// Primitives catalogue, every path its Task Router points at existing, and the skills directory, its
-// lock and its links in step.
+// Primitives catalogue, every path its Task Router points at existing, `CLAUDE.md` a link to it so
+// Claude Code reads it, and the skills directory, its lock and its links in step.
 
-import { existsSync, globSync, lstatSync, readdirSync, readFileSync, realpathSync, statSync } from "node:fs"
-import { join } from "node:path"
+import {
+  existsSync,
+  globSync,
+  lstatSync,
+  readdirSync,
+  readFileSync,
+  readlinkSync,
+  realpathSync,
+  statSync
+} from "node:fs"
+import { join, normalize } from "node:path"
 
 import { resolveConfig } from "../agentic-config.ts"
 import { codeSpans, tableRows } from "../markdown.ts"
@@ -17,6 +26,8 @@ const ROUTER = "Task Router"
 const AGENTS_SKILLS = ".agents/skills"
 const CLAUDE_SKILLS = ".claude/skills"
 const LOCK = "skills-lock.json"
+/** The file Claude Code reads at the repository root, in place of `AGENTS.md`. */
+const CLAUDE_MD = "CLAUDE.md"
 
 const REMEDIES = {
   missing: "write it, or point gate.checks.agents-map.file at the map",
@@ -73,6 +84,32 @@ function judgeMap(root: string, { file, ...budget }: AgentsMapOptions, text: str
     }
   }
   return findings
+}
+
+/**
+ * `CLAUDE.md` a link to the map by its path from the root, so the link holds in every clone; nothing
+ * when the map is `CLAUDE.md` itself.
+ */
+function judgeLink(root: string, map: string): Finding[] {
+  if (normalize(map) === CLAUDE_MD) {
+    return []
+  }
+  const path = join(root, CLAUDE_MD)
+  const command = `ln -s ${map} ${CLAUDE_MD}`
+  const stat = lstatSync(path, { throwIfNoEntry: false })
+  if (stat === undefined) {
+    return [{ file: CLAUDE_MD, message: "does not exist", remedy: `link it to the map: ${command}` }]
+  }
+  if (!stat.isSymbolicLink()) {
+    const message = `is a file of its own, not a link to ${map}`
+    return [{ file: CLAUDE_MD, message, remedy: `move what it holds into ${map}, remove it, then ${command}` }]
+  }
+  const target = readlinkSync(path)
+  if (normalize(target) !== normalize(map)) {
+    const message = `links to ${JSON.stringify(target)}, not to ${map}`
+    return [{ file: CLAUDE_MD, message, remedy: `remove it, then ${command}` }]
+  }
+  return []
 }
 
 /** The names of the directories in `dir`, sorted; empty when there is no `dir`. */
@@ -164,7 +201,11 @@ function run(root: string, options: AgentsMapOptions): Finding[] {
   if (!existsSync(path)) {
     throw new CannotRun({ file: options.file, message: "the map does not exist", remedy: REMEDIES.missing })
   }
-  return [...judgeMap(root, options, readFileSync(path, "utf8")), ...judgeSkills(root)]
+  return [
+    ...judgeMap(root, options, readFileSync(path, "utf8")),
+    ...judgeLink(root, options.file),
+    ...judgeSkills(root)
+  ]
 }
 
 export const agentsMap: Check<AgentsMapOptions> = {
