@@ -298,6 +298,22 @@ export const CASES: Case[] = [
     ]
   },
   {
+    name: "the agentic schema takes the files and exempt of routed-docs",
+    schema: AGENTIC_SCHEMA,
+    value: { gate: { checks: { "routed-docs": { files: ["docs/**/*.md", "guides/*.md"], exempt: [] } } } },
+    problems: []
+  },
+  {
+    name: "the agentic schema refuses a routed-docs option it does not take and a glob that is not a list",
+    schema: AGENTIC_SCHEMA,
+    value: { gate: { checks: { "routed-docs": { files: "docs/**/*.md", exempt: [""], map: "AGENTS.md" } } } },
+    problems: [
+      { path: "gate.checks.routed-docs.files", message: 'expected array, got "docs/**/*.md"' },
+      { path: "gate.checks.routed-docs.exempt[0]", message: "must not be empty" },
+      { path: "gate.checks.routed-docs", message: 'unknown key "map"' }
+    ]
+  },
+  {
     name: "the agentic schema takes the file-size Ratchet's groups and the comment budget's options",
     schema: AGENTIC_SCHEMA,
     value: {

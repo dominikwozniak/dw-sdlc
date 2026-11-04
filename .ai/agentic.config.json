@@ -16,6 +16,7 @@
     "checks": {
       "primitives": true,
       "agents-map": true,
+      "routed-docs": true,
       "markdown-budget": {
         "budgets": [
           { "glob": "docs/agents/*.md", "maxBytes": 6144 },

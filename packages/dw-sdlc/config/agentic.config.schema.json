@@ -183,6 +183,31 @@
               },
               "additionalProperties": false
             },
+            "routed-docs": {
+              "description": "Every document a task leads to: each file `files` matches and `exempt` does not is reached by a Task Router row of the agent map, through a code span in a cell after the first naming it, a directory above it or a glob that matches it, or by the `docs` of a Primitive in the catalogue naming it, its heading anchor dropped; a path reads from the root, `./` or `/` before it or not. The map is the file `agents-map` reads and the catalogue the one `primitives` reads, each Check on or off; a catalogue that is missing or invalid reaches nothing. A map with no Task Router table fails once on the map, and a missing map leaves the Gate unable to run.",
+              "type": ["boolean", "object"],
+              "properties": {
+                "files": {
+                  "description": "Globs of the documents, against the files git tracks or would track; `*` and `**` skip a name that starts with a dot. Default `docs/**/*.md`.",
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "uniqueItems": true
+                },
+                "exempt": {
+                  "description": "Globs of the documents left out. Default `docs/research/**`: a research note is read through the spec it backs. A list replaces the default.",
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "uniqueItems": true
+                }
+              },
+              "additionalProperties": false
+            },
             "markdown-budget": {
               "description": "Each file a glob of `budgets` matches within that glob's `maxBytes`, and every glob matching a file. A glob matches the files git tracks or would track, a symbolic link left out when the file it points at is matched too; `*` and `**` skip a name that starts with a dot.",
               "type": ["boolean", "object"],

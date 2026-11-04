@@ -437,6 +437,14 @@
       "docs": ["docs/overview.md#the-checks-the-package-ships", "AGENTS.md#task-router"]
     },
     {
+      "id": "gate.routed-docs",
+      "name": "routed-docs Check",
+      "group": "gate",
+      "summary": "Fails each doc under docs/ that no Task Router row and no Primitive's docs reach; research notes exempt.",
+      "code": ["packages/dw-sdlc/src/checks/routed-docs.ts"],
+      "docs": ["docs/overview.md#the-checks-the-package-ships", "AGENTS.md#task-router"]
+    },
+    {
       "id": "gate.markdown-budget",
       "name": "markdown-budget Check",
       "group": "gate",
