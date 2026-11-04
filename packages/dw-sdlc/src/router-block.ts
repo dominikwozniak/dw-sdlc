@@ -43,7 +43,7 @@ function table(header: string[], body: string[][]): string[] {
 
 /**
  * The block the file gives: one row per Reference in the file's order, or one line when it has none,
- * with a blank line inside each marker, as oxfmt leaves it.
+ * with a blank line inside each marker and each `when` trimmed, as oxfmt leaves it.
  */
 export function renderBlock(references: Reference[]): string {
   const body =
@@ -51,7 +51,7 @@ export function renderBlock(references: Reference[]): string {
       ? [NONE]
       : table(
           ["dir", "reach for it when"],
-          references.map((reference) => [`\`${reference.dir}\``, reference.when.replaceAll("|", "\\|")])
+          references.map((reference) => [`\`${reference.dir}\``, reference.when.trim().replaceAll("|", "\\|")])
         )
   return `${[START, "", ...body, "", END].join("\n")}\n`
 }

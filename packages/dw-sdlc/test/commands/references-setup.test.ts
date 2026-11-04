@@ -336,12 +336,13 @@ describe("the Router's table", () => {
     )
   })
 
-  it("leaves a Router oxfmt does not change, each cell padded by the columns oxfmt draws its graphemes in", () => {
+  it("leaves a Router oxfmt does not change: graphemes counted in its columns, each when trimmed", () => {
     const root = initRepo(scratch("repo"))
     declare(
       root,
       reference("wide", "漢字 한국어 ＡＢ, an emoji 🚀 \u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467} 🇵🇱 ❤\u{FE0F}"),
-      reference("narrow", "cafe\u{301}, ｱｲ, © ❤ ↔ — and `a | b`")
+      reference("narrow", "cafe\u{301}, ｱｲ, © ❤ ↔ — and `a | b`"),
+      reference("edges", "  spaces at both edges  ")
     )
     expectStatus(setup(root), 0)
     const formatter = spawnIsolated(VP, ["fmt", "--check", join(root, "references/AGENTS.md")], REPO_ROOT, {})

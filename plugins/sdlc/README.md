@@ -544,9 +544,10 @@ pnpm references:setup [--root <dir>] [--dry-run | --check]   # in a checkout of 
   its path, with its `CLAUDE.md` symlink, written once too. On every run, the block between the
   Router's two markers: a table of each Reference's `dir` and `when`, one row per entry in the
   file's order with `|` escaped, or one line saying `/sdlc-references-add <repository>` adds one when
-  the list is empty. The setup writes the block as oxfmt leaves it: a blank line inside each marker,
-  and each column padded to its widest cell, an emoji or an East Asian wide character counted as two
-  columns.
+  the list is empty. The setup writes the block in the shape oxfmt leaves it in: a blank line inside
+  each marker, each `when` trimmed, and each column padded to its widest cell, an emoji or an East
+  Asian wide character counted as two columns. That count matches oxfmt on Latin text, CJK, Hangul
+  and emoji; on a script with combining signs, such as Devanagari, oxfmt pads the table again.
   The text around the block stays as it is, and a Router without the markers gets the block at its
   end. The block is in step when its rows say what the file says, not when its bytes match, so a
   block in another shape with the same rows stays as it is;
