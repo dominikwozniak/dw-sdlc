@@ -340,8 +340,8 @@ describe("the Router's table", () => {
     const root = initRepo(scratch("repo"))
     declare(
       root,
-      reference("wide", "漢字 한국어 ＡＢ, an emoji 🚀 \u{1F468}‍\u{1F469}‍\u{1F467} 🇵🇱 ❤️"),
-      reference("narrow", "café, ｱｲ, © ❤ ↔ — and `a | b`")
+      reference("wide", "漢字 한국어 ＡＢ, an emoji 🚀 \u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467} 🇵🇱 ❤\u{FE0F}"),
+      reference("narrow", "cafe\u{301}, ｱｲ, © ❤ ↔ — and `a | b`")
     )
     expectStatus(setup(root), 0)
     const formatter = spawnIsolated(VP, ["fmt", "--check", join(root, "references/AGENTS.md")], REPO_ROOT, {})

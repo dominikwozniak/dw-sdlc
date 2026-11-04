@@ -13,9 +13,13 @@ const NONE = "No Reference is declared yet: `/sdlc-references-add <repository>` 
 const GRAPHEMES = new Intl.Segmenter("en", { granularity: "grapheme" })
 /** An emoji drawn as one, or a character of the East Asian wide and fullwidth ranges. */
 const WIDE =
-  /[\p{Emoji_Presentation}️ᄀ-ᅟ〈〉⺀-〾぀-꓏가-힣豈-﫿︐-︙︰-﹯＀-｠￠-￦\u{20000}-\u{2FFFD}\u{30000}-\u{3FFFD}]/u
+  /[\p{Emoji_Presentation}\u{FE0F}\u{1100}-\u{115F}\u{2329}\u{232A}\u{2E80}-\u{303E}\u{3040}-\u{A4CF}\u{AC00}-\u{D7A3}\u{F900}-\u{FAFF}\u{FE10}-\u{FE19}\u{FE30}-\u{FE6F}\u{FF00}-\u{FF60}\u{FFE0}-\u{FFE6}\u{20000}-\u{2FFFD}\u{30000}-\u{3FFFD}]/u
 
-/** A cell's width in columns as oxfmt measures it: two for a wide grapheme, one for any other. */
+/**
+ * A cell's width in columns, close to oxfmt's: two for a wide grapheme, one for any other. It matches
+ * oxfmt on Latin text, CJK, Hangul and emoji; a script with combining signs, such as Devanagari, or a
+ * rarer wide character comes out off, and the formatter pads that table again.
+ */
 function width(cell: string): number {
   let columns = 0
   for (const { segment } of GRAPHEMES.segment(cell)) {
@@ -32,9 +36,9 @@ function tableLine(cells: string[]): string {
 function table(header: string[], body: string[][]): string[] {
   const rows = [header, ...body]
   const widths = header.map((_, column) => Math.max(3, ...rows.map((row) => width(row[column] ?? ""))))
-  const padded = (row: string[]): string =>
+  const paddedLine = (row: string[]): string =>
     tableLine(row.map((cell, column) => cell + " ".repeat((widths[column] ?? 0) - width(cell))))
-  return [padded(header), tableLine(widths.map((count) => "-".repeat(count))), ...body.map(padded)]
+  return [paddedLine(header), tableLine(widths.map((count) => "-".repeat(count))), ...body.map(paddedLine)]
 }
 
 /**
