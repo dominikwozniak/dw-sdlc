@@ -1430,6 +1430,36 @@ describe("dw-sdlc pr ship at a Review depth", () => {
     ])
   })
 
+  it("never marks another author's pull request reviewed under off: it parks for the dev with no post", () => {
+    for (const [flags, files] of [
+      [[], OFF],
+      [["--review", "off"], {}]
+    ] satisfies [string[], Files][]) {
+      const name = `flags [${flags.join(" ")}], config ${JSON.stringify(files)}`
+      const run = json({ ...UNREVIEWED, viewerDidAuthor: false }, flags, {}, files)
+      assert.equal(run.status, 30, `${name}: ${run.stderr}`)
+      assert.deepEqual(
+        fieldsOf(run.document, ["action", "reason", "command", "blockers", "performed"]),
+        {
+          action: "ready-to-merge",
+          reason: "another author's pull request: the merge is the dev's",
+          command: DEV_MERGE,
+          blockers: [],
+          performed: []
+        },
+        name
+      )
+      assert.deepEqual(run.calls, [AUTH, READ], name)
+      const failing = json(
+        { ...GREEN, viewerDidAuthor: false, mergeStateStatus: "UNSTABLE", checks: [FAILING] },
+        flags,
+        {},
+        files
+      )
+      assert.deepEqual(blockersOf(failing.document), [], `${name}: ${failing.stdout}`)
+    }
+  })
+
   it("posts the status while CI runs, then waits for CI", () => {
     const running: Context = { kind: "run", name: "Check", state: "IN_PROGRESS", link: RUN, startedAt: STARTED }
     const pending: Pr = { ...GREEN, mergeStateStatus: "BLOCKED", checks: [running] }
