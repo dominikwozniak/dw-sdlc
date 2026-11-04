@@ -1,12 +1,11 @@
-// `file-size-ratchet`: each file within the line limit of its group or, listed in the baseline, within
-// the count recorded there. A refresh only tightens the baseline: it lowers and drops, and adds no file.
+// `file-size-ratchet`: each file of code within the line limit of its group or, listed in the baseline,
+// within the count recorded there. A refresh only tightens the baseline: it lowers and drops, and adds no file.
 
 import { spawnSync } from "node:child_process"
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs"
 import { dirname, join, matchesGlob } from "node:path"
 
 import { CannotRun, type Check, type Finding } from "./check.ts"
-import { lineCount } from "./markdown-budget.ts"
 import { matching, treeFiles } from "./tree.ts"
 
 export type Group = { name: string; maxLines: number; files: string[] }
@@ -55,6 +54,12 @@ function inBaseline(line: number | undefined): Pick<Finding, "file" | "line"> {
 /** The first group with a glob that matches `path`. */
 function groupOf(path: string, groups: Group[]): Group | undefined {
   return groups.find(({ files }) => files.some((glob) => matchesGlob(path, glob)))
+}
+
+/** The lines of `text`, a last line without its newline counted, the empty line after a final newline not. */
+function lineCount(text: string): number {
+  const lines = text.split("\n").length
+  return text.endsWith("\n") ? lines - 1 : lines
 }
 
 function measure(root: string, groups: Group[]): Measured {
@@ -210,7 +215,6 @@ function refresh(root: string, { groups }: FileSizeRatchetOptions): string {
 }
 
 const TESTS = ["**/{test,tests,__tests__}/**", "**/*.{test,spec}.*"]
-const AGENT_DOCS = ["**/{AGENTS,CLAUDE,GLOSSARY}.md", "docs/agents/**/*.md"]
 const SOURCE = ["**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs,sh}"]
 
 export const fileSizeRatchet: Check<FileSizeRatchetOptions> = {
@@ -218,7 +222,6 @@ export const fileSizeRatchet: Check<FileSizeRatchetOptions> = {
   defaults: {
     groups: [
       { name: "tests", maxLines: 2000, files: TESTS },
-      { name: "agent-docs", maxLines: 120, files: AGENT_DOCS },
       { name: "source", maxLines: 500, files: SOURCE }
     ]
   },

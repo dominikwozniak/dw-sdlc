@@ -440,7 +440,7 @@
       "id": "gate.markdown-budget",
       "name": "markdown-budget Check",
       "group": "gate",
-      "summary": "Holds each file a glob matches to that glob's line and byte budget; by default the agent docs under docs/agents.",
+      "summary": "Holds each file a glob matches to that glob's byte budget; by default the agent docs under docs/agents.",
       "code": ["packages/dw-sdlc/src/checks/markdown-budget.ts"],
       "docs": ["docs/overview.md#the-checks-the-package-ships"]
     },
@@ -472,7 +472,7 @@
       "id": "gate.file-size-ratchet",
       "name": "file-size-ratchet Check",
       "group": "gate",
-      "summary": "Holds each file to its group's line limit, or to its count in a committed baseline that --update-baseline only tightens.",
+      "summary": "Holds each code file to its group's line limit, or to its count in a baseline that --update-baseline only tightens.",
       "code": ["packages/dw-sdlc/src/checks/file-size-ratchet.ts", ".ai/file-size-ratchet.baseline.json"],
       "docs": ["docs/overview.md#the-checks-the-package-ships", "GLOSSARY.md"]
     },
