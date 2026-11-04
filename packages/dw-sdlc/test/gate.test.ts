@@ -6,7 +6,19 @@ import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, utimesSync
 import { join } from "node:path"
 import { describe, it } from "node:test"
 
-import { commit, git, lines, repo, runBin, scratch, timed, write } from "./harness.ts"
+import {
+  commit,
+  FAILED_REMEDY,
+  git,
+  lines,
+  NUMBERED,
+  NUMBERED_TAIL,
+  repo,
+  runBin,
+  scratch,
+  timed,
+  write
+} from "./harness.ts"
 
 const CONFIG = ".ai/agentic.config.json"
 const LOCAL = ".ai/agentic.config.local.json"
@@ -16,11 +28,6 @@ const CHECK_SCRIPT = JSON.stringify({ scripts: { check: "dw-sdlc gate" } })
 /** A layer the schema refuses: `gate.checks` names only the Checks the package ships. */
 const UNKNOWN_CHECK = { version: 1, gate: { steps: ["touch step-ran"], checks: { "no-such-check": true } } }
 const UNKNOWN_CHECK_LINE = `${CONFIG}: config: gate.checks: unknown key "no-such-check" — fix the file; the Gate runs once every layer is valid`
-const FAILED_REMEDY = "fix what it printed above; run it alone for the full output"
-/** A command printing `line 1` to `line 80`, the odd ones on stdout and the even ones on stderr, then exiting 3. */
-const NUMBERED =
-  'i=1; while [ $i -le 80 ]; do if [ $((i % 2)) -eq 0 ]; then echo "line $i" >&2; else echo "line $i"; fi; i=$((i + 1)); done; exit 3'
-const LAST_50 = Array.from({ length: 50 }, (_, index) => `line ${index + 31}`)
 
 /** A repository whose committed config declares `gate`, beside `files`. */
 function withGate(gate: unknown, files: Record<string, string | object> = {}): string {
@@ -79,7 +86,7 @@ describe("dw-sdlc gate, the steps", () => {
     assert.ok(!existsSync(join(root, "check-ran")), "a Check ran after a failed step")
     assert.deepEqual(timed(run.stdout), [
       `gate: step ${NUMBERED} — failed, exit 3 (N s); its last 50 lines:`,
-      ...LAST_50.map((line) => `  ${line}`),
+      ...NUMBERED_TAIL.map((line) => `  ${line}`),
       `step: ${JSON.stringify(NUMBERED)} exited 3 — ${FAILED_REMEDY}`,
       "gate: failed — 1 failure"
     ])
@@ -175,7 +182,7 @@ describe("dw-sdlc gate, the Checks", () => {
     assert.equal(run.status, 1)
     assert.deepEqual(lines(run.stdout), [
       "gate: check numbered — failed, exit 3; its last 50 lines:",
-      ...LAST_50.map((line) => `  ${line}`),
+      ...NUMBERED_TAIL.map((line) => `  ${line}`),
       `numbered: ${JSON.stringify(NUMBERED)} exited 3 — ${FAILED_REMEDY}`,
       "gate: failed — 1 failure"
     ])
@@ -295,7 +302,7 @@ describe("dw-sdlc gate --json", () => {
     const run = runBin(["gate", "--json"], withGate({ steps: [NUMBERED, "true"] }))
     assert.equal(run.status, 1)
     assert.deepEqual(JSON.parse(run.stdout).steps, [
-      { command: NUMBERED, status: "fail", exitCode: 3, tail: LAST_50 },
+      { command: NUMBERED, status: "fail", exitCode: 3, tail: NUMBERED_TAIL },
       { command: "true", status: "skipped", exitCode: null, tail: null }
     ])
     assert.equal(run.stderr, "")

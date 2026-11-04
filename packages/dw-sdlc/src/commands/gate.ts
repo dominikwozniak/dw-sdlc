@@ -19,11 +19,10 @@ gate.steps in order from the repository root, stopping at the first that fails; 
 under gate.checks, the run scripts and then the Checks the package ships, none stopping the next.
 
 Prints one line per Step with its time, one per Check, one per failure and a last line, green or
-failed. A failure
-line names the file where there is one, the rule and the remedy; under GitHub Actions it is also a
-workflow annotation. A Step or run script prints nothing of its own unless it does not pass: then its
-last ${TAIL_LINES} lines, both streams in the order written, under its own line. In a terminal a Step's
-line shows when it starts and takes its result when it ends.
+failed. A failure line names the file where there is one, the rule and the remedy; under GitHub
+Actions it is also a workflow annotation. A Step or run script prints nothing of its own unless it
+does not pass: then its last ${TAIL_LINES} lines, both streams in the order written, under its own
+line. In a terminal a Step's line shows when it starts and takes its result when it ends.
 
 --verbose passes each command's output through as it runs instead, under a line naming the command,
 and keeps no tail. --json prints the document alone; each Step and Check in it carries tail, the last

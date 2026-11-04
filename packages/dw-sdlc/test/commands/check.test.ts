@@ -6,13 +6,9 @@ import { existsSync } from "node:fs"
 import { join } from "node:path"
 import { describe, it } from "node:test"
 
-import { lines, repo, runBin, scratch } from "../harness.ts"
+import { FAILED_REMEDY, lines, NUMBERED, NUMBERED_TAIL, repo, runBin, scratch } from "../harness.ts"
 
 const CONFIG = ".ai/agentic.config.json"
-const FAILED_REMEDY = "fix what it printed above; run it alone for the full output"
-/** A command printing `line 1` to `line 80`, the odd ones on stdout and the even ones on stderr, then exiting 3. */
-const NUMBERED =
-  'i=1; while [ $i -le 80 ]; do if [ $((i % 2)) -eq 0 ]; then echo "line $i" >&2; else echo "line $i"; fi; i=$((i + 1)); done; exit 3'
 /** A run Check of each kind beside a Step, so a test sees what else ran by the files left behind. */
 const STEP_AND_RUNS = {
   steps: ["touch step-ran"],
@@ -67,7 +63,7 @@ describe("dw-sdlc check, a run Check", () => {
     assert.equal(run.status, 1)
     assert.deepEqual(lines(run.stdout), [
       "check numbered — failed, exit 3; its last 50 lines:",
-      ...Array.from({ length: 50 }, (_, index) => `  line ${index + 31}`),
+      ...NUMBERED_TAIL.map((line) => `  ${line}`),
       `numbered: ${JSON.stringify(NUMBERED)} exited 3 — ${FAILED_REMEDY}`,
       "check numbered: failed — 1 failure"
     ])

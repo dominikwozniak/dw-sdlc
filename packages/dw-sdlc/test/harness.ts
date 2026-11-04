@@ -63,6 +63,14 @@ export function lines(text: string): string[] {
   return text.split("\n").filter((line) => line !== "")
 }
 
+/** The remedy of a Step or run script that did not pass. */
+export const FAILED_REMEDY = "fix what it printed above; run it alone for the full output"
+/** A command printing `line 1` to `line 80`, the odd ones on stdout and the even ones on stderr, then exiting 3. */
+export const NUMBERED =
+  'i=1; while [ $i -le 80 ]; do if [ $((i % 2)) -eq 0 ]; then echo "line $i" >&2; else echo "line $i"; fi; i=$((i + 1)); done; exit 3'
+/** The lines a failed `NUMBERED` leaves in its tail: the last 50. */
+export const NUMBERED_TAIL = Array.from({ length: 50 }, (_, index) => `line ${index + 31}`)
+
 /** The lines of a quiet Gate run, each Step's time read as `N`. */
 export function timed(stdout: string): string[] {
   return lines(stdout).map((line) => line.replace(/ \(\d+ s\)/, " (N s)"))
