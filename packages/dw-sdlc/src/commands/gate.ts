@@ -1,7 +1,6 @@
 // `dw-sdlc gate`: the Gate of a repository, from the `gate` key of its resolved agentic config. The
 // run and the report serve `dw-sdlc check` too, which judges one Check of it.
 
-import { spawnSync } from "node:child_process"
 import { parseArgs } from "node:util"
 
 import { type Gate, type Problem, type RunCheck, repositoryRoot, resolveConfig } from "../agentic-config.ts"
@@ -9,6 +8,7 @@ import { CannotRun } from "../checks/check.ts"
 import { CHECK_NAMES, type EnabledCheck, enabledChecks, shippedCheck } from "../checks/index.ts"
 import { type Fingerprint, fingerprint, isGreen, stampGreen } from "../gate-cache.ts"
 import { annotation, type Failure, failureJson, failureLine } from "../report.ts"
+import { runCommand, type Status } from "../run-command.ts"
 
 export const summary = "run the Gate: the Steps of gate.steps in order, then every Check under gate.checks"
 
@@ -33,7 +33,6 @@ Exit 0 when everything passes, 1 when a Step or a Check fails, 2 when the Gate c
 invalid config layer, a Step or Check whose command the shell cannot find or execute, or a Check
 missing an input it reads.`
 
-type Status = "pass" | "fail" | "error"
 type Outcome = { status: Status | "skipped"; exitCode: number | null }
 type StepReport = Outcome & { command: string }
 /** A Check the package ships runs in this process: it has no command. */
@@ -59,8 +58,6 @@ type Mode = "plain" | "update-baseline" | "cache"
 type RunOptions = { json: boolean } & ({ mode: Mode } | { only: string })
 
 const EXIT_CODES: Record<Status, number> = { pass: 0, fail: 1, error: 2 }
-/** What the shell answers for a command it cannot find, and for one it cannot execute. */
-const NOT_RUNNABLE: Record<number, string> = { 127: "was not found", 126: "could not be executed" }
 const SKIPPED: Outcome = { status: "skipped", exitCode: null }
 /** One Check run by name says nothing before its result. */
 const QUIET: Log = { write: () => true }
@@ -106,28 +103,6 @@ function parseCli(argv: string[]): Cli | { error: string } {
 function configFailure({ file, path, message }: Problem): Failure {
   const where = path === "" ? message : `${path}: ${message}`
   return { file, rule: "config", message: where, remedy: REMEDIES.invalidLayer }
-}
-
-/**
- * Runs `command` through `sh -c` from `root`, stdin closed and stderr passed through; stdout too, or
- * onto stderr when `--json` keeps stdout for the document. `detail` says what went wrong, when it did.
- */
-function runCommand(command: string, root: string, json: boolean): Outcome & { detail?: string } {
-  const result = spawnSync(command, { shell: true, cwd: root, stdio: ["ignore", json ? 2 : "inherit", "inherit"] })
-  if (result.error !== undefined) {
-    return { status: "error", exitCode: null, detail: `could not start: ${result.error.message}` }
-  }
-  if (result.status === 0) {
-    return { status: "pass", exitCode: 0 }
-  }
-  if (result.status === null) {
-    return { status: "fail", exitCode: null, detail: `was stopped by ${result.signal ?? "a signal"}` }
-  }
-  const notRunnable = NOT_RUNNABLE[result.status]
-  if (notRunnable !== undefined) {
-    return { status: "error", exitCode: result.status, detail: `${notRunnable} (exit ${result.status})` }
-  }
-  return { status: "fail", exitCode: result.status, detail: `exited ${result.status}` }
 }
 
 /** What a Check that threw reports: the input it lacks, or what stopped it. */
