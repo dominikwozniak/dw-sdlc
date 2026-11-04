@@ -92,16 +92,17 @@ schema.
   path on disk with its heading anchor resolving, and every file under the roots named by the `code`
   of a Primitive, the file itself or a directory above it. The roots are `packages`, `plugins`,
   `scripts` and `src` by default; a test file needs no Primitive.
-- `agents-map` holds `AGENTS.md` to 10240 bytes, with no line limit, to naming the resolved
-  `gate.command`, to a Task Router row that points at the catalogue where there is one, and to every
-  path the Task Router points at existing. It holds `CLAUDE.md` at the root to a symbolic link to
-  the map by its path from the root, so Claude Code reads the map the Gate judges; a map named
-  `CLAUDE.md` needs no link. Where the repository has them, it keeps the skills directory,
-  `skills-lock.json` and the `.claude/skills` links in step.
+- `agents-map` holds `AGENTS.md` to 10240 bytes, to naming the resolved `gate.command`, to a Task
+  Router row that points at the catalogue where there is one, and to every path the Task Router
+  points at existing. It holds `CLAUDE.md` at the root to a symbolic link to the map by its path
+  from the root, so Claude Code reads the map the Gate judges; a map named `CLAUDE.md` needs no
+  link. Where the repository has them, it keeps the skills directory, `skills-lock.json` and the
+  `.claude/skills` links in step.
 - `markdown-budget` holds each file a glob matches to that glob's byte budget, by default the agent
   docs, `docs/agents/*.md`, to 6144 bytes. A list of budgets replaces the default, such as one that
   adds `GLOSSARY.md` at a budget of its own; no default names a glossary, since a glob that matches
-  no file fails. Markdown has no line limit, so blank lines and line breaks never decide a verdict.
+  no file fails. Markdown has no line limit, so blank lines and line breaks never decide whether a
+  file passes.
 - `markdown-refs` fails a relative link or image whose path is not a file or directory of the
   repository, or whose heading anchor names no heading of the markdown file it points at. A link
   with a scheme, such as `https:`, and a link inside code are not judged.

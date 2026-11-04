@@ -167,7 +167,7 @@
               "additionalProperties": false
             },
             "agents-map": {
-              "description": "The agent map: within its byte budget, with no line limit, naming the resolved `gate.command`, carrying a Task Router row to the Primitives catalogue where there is one, every path the Task Router points at existing, `CLAUDE.md` a symbolic link to the map unless the map is `CLAUDE.md`, and the skills directory, `skills-lock.json` and the `.claude/skills` links in step where the repository has them.",
+              "description": "The agent map: within its byte budget, naming the resolved `gate.command`, carrying a Task Router row to the Primitives catalogue where there is one, every path the Task Router points at existing, `CLAUDE.md` a symbolic link to the map unless the map is `CLAUDE.md`, and the skills directory, `skills-lock.json` and the `.claude/skills` links in step where the repository has them.",
               "type": ["boolean", "object"],
               "properties": {
                 "file": {
@@ -184,7 +184,7 @@
               "additionalProperties": false
             },
             "markdown-budget": {
-              "description": "Each file a glob of `budgets` matches within that glob's `maxBytes`, with no line limit, and every glob matching a file. A glob matches the files git tracks or would track, a symbolic link left out when the file it points at is matched too; `*` and `**` skip a name that starts with a dot.",
+              "description": "Each file a glob of `budgets` matches within that glob's `maxBytes`, and every glob matching a file. A glob matches the files git tracks or would track, a symbolic link left out when the file it points at is matched too; `*` and `**` skip a name that starts with a dot.",
               "type": ["boolean", "object"],
               "properties": {
                 "budgets": {
