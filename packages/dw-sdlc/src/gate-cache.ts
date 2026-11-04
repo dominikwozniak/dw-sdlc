@@ -1,5 +1,6 @@
 // The Gate's cache. A checkout's fingerprint is its working tree's content and the Gate that judges
-// it. A green run stamps it in the checkout's own git dir, so each worktree keeps its own stamp.
+// it. A green run stamps it in the checkout's own git dir, so each worktree keeps its own stamp. The
+// watch for Drift records the same tree around each Step.
 
 import { spawnSync } from "node:child_process"
 import { createHash } from "node:crypto"
@@ -26,7 +27,7 @@ const STAMP_FILE = "dw-sdlc-gate.green"
 export type Fingerprint = { key: string; stampFile: string }
 
 /** `git <args>` in the repository at `root`, on `index` when given. */
-function git(root: string, args: string[], index?: string): { out: string } | { error: string } {
+export function git(root: string, args: string[], index?: string): { out: string } | { error: string } {
   const env = repositoryFreeEnv()
   const result = spawnSync("git", ["-C", root, ...args], {
     encoding: "utf8",
@@ -63,19 +64,29 @@ function treeOf(root: string, gitDir: string): { out: string } | { error: string
   }
 }
 
-/** The fingerprint of the checkout at `root` judged by `gate`, or why it has none. */
-export function fingerprint(root: string, gate: Gate): Fingerprint | { error: string } {
+/** The tree of every file git tracks or would track in the checkout at `root`, and its git dir; or why it has none. */
+export function workTree(root: string): { tree: string; gitDir: string } | { error: string } {
   try {
     const gitDir = git(root, ["rev-parse", "--absolute-git-dir"])
     if ("error" in gitDir) {
       return gitDir
     }
     const tree = treeOf(root, gitDir.out)
-    if ("error" in tree) {
-      return tree
-    }
+    return "error" in tree ? tree : { tree: tree.out, gitDir: gitDir.out }
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : String(error) }
+  }
+}
+
+/** The fingerprint of the checkout at `root` judged by `gate`, or why it has none. */
+export function fingerprint(root: string, gate: Gate): Fingerprint | { error: string } {
+  const found = workTree(root)
+  if ("error" in found) {
+    return found
+  }
+  try {
     const judge = createHash("sha256").update(JSON.stringify({ version: packageVersion(), gate }))
-    return { key: `${tree.out} ${judge.digest("hex")}`, stampFile: join(gitDir.out, STAMP_FILE) }
+    return { key: `${found.tree} ${judge.digest("hex")}`, stampFile: join(found.gitDir, STAMP_FILE) }
   } catch (error) {
     return { error: error instanceof Error ? error.message : String(error) }
   }

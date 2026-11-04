@@ -2,7 +2,7 @@
 // code, the lines on stdout and the `--json` document, which `gate.golden.json` holds.
 
 import assert from "node:assert/strict"
-import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, utimesSync } from "node:fs"
+import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, utimesSync } from "node:fs"
 import { join } from "node:path"
 import { describe, it } from "node:test"
 
@@ -38,9 +38,20 @@ function withGate(gate: unknown, files: Record<string, string | object> = {}): s
   return repo({ files: { [CONFIG]: { version: 1, gate }, ...files } })
 }
 
-/** A repository whose one Step counts its runs in `ran`, a file git ignores, so a run leaves the tree as it was. */
-function countingRepo(files: Record<string, string | object> = {}): string {
-  return withGate({ steps: ["echo ran >> ran"] }, { ".gitignore": "ran\n", ...files })
+/**
+ * A repository whose one Step counts its runs in `ran`, a file git ignores, so a run leaves the tree as
+ * it was; `gate` over its Gate.
+ */
+function countingRepo(files: Record<string, string | object> = {}, gate: object = {}): string {
+  return withGate({ steps: ["echo ran >> ran"], ...gate }, { ".gitignore": "ran\n", ...files })
+}
+
+/** A repository with `files` committed, whose Gate is `gate`; `ran` and `dist/` are ignored. */
+function committed(gate: unknown, files: Record<string, string> = {}): string {
+  const root = withGate(gate, { ".gitignore": "ran\ndist/\n", ...files })
+  git(root, "add", "-A")
+  commit(root, "-m", "init")
+  return root
 }
 
 /** How many times the Step of `countingRepo` ran. */
@@ -70,7 +81,7 @@ async function interrupted(
 
 describe("dw-sdlc gate, the steps", () => {
   it("runs every step in order from the repository root and exits 0 when each is green", () => {
-    const root = withGate({ steps: ["echo lint >> ran", "echo test >> ran"] })
+    const root = withGate({ steps: ["echo lint >> ran", "echo test >> ran"] }, { ".gitignore": "ran\n" })
     mkdirSync(join(root, "sub"))
     const run = runBin(["gate"], join(root, "sub"))
     assert.equal(run.status, 0, run.stderr)
@@ -129,6 +140,105 @@ describe("dw-sdlc gate, the steps", () => {
       'step: "dw-sdlc-no-such-command" was not found (exit 127) — install the command or fix gate.steps in the agentic config',
       "gate: cannot run — 1 failure"
     ])
+  })
+})
+
+describe("dw-sdlc gate, Drift", () => {
+  const REMEDY = "commit the change, or make the Step only read"
+  const FORMAT = "printf 'formatted\\n' > notes.md"
+
+  it("fails a Step that edits a tracked file by file and Step, still runs the next Step and exits 1", () => {
+    const root = committed({ steps: [FORMAT, "echo ran >> ran"] }, { "notes.md": "draft\n" })
+    const run = runBin(["gate"], root)
+    assert.equal(run.status, 1, run.stdout)
+    assert.equal(runs(root), 1)
+    assert.deepEqual(timed(run.stdout), [
+      `gate: step ${FORMAT} — pass (N s)`,
+      "gate: step echo ran >> ran — pass (N s)",
+      `notes.md: drift: ${JSON.stringify(FORMAT)} changed it — ${REMEDY}`,
+      "gate: failed — 1 failure"
+    ])
+  })
+
+  it("reports a file a Step creates unignored and a file a Step deletes", () => {
+    const root = committed({ steps: ["touch new.md", "rm old.md"] }, { "old.md": "old\n" })
+    const run = runBin(["gate"], root)
+    assert.equal(run.status, 1, run.stdout)
+    assert.deepEqual(lines(run.stdout).slice(-3), [
+      `new.md: drift: "touch new.md" created it — ${REMEDY}`,
+      `old.md: drift: "rm old.md" deleted it — ${REMEDY}`,
+      "gate: failed — 2 failures"
+    ])
+  })
+
+  it("passes a Step that writes only under an ignored path, on a tree edited before the run", () => {
+    const root = committed({ steps: ["mkdir -p dist && echo built > dist/out.js"] }, { "notes.md": "draft\n" })
+    write(join(root, "notes.md"), "edited by the dev\n")
+    write(join(root, "draft.md"), "a new file of the dev's\n")
+    const run = runBin(["gate"], root)
+    assert.equal(run.status, 0, run.stdout)
+    assert.equal(lines(run.stdout).at(-1), "gate: green — 1 step, 0 checks")
+  })
+
+  it("reports the Drift of a Step that fails beside its failure", () => {
+    const root = committed({ steps: ["touch new.md; exit 1"] })
+    const run = runBin(["gate"], root)
+    assert.equal(run.status, 1, run.stdout)
+    assert.deepEqual(lines(run.stdout).slice(-3), [
+      `step: "touch new.md; exit 1" exited 1 — ${FAILED_REMEDY}`,
+      `new.md: drift: "touch new.md; exit 1" created it — ${REMEDY}`,
+      "gate: failed — 2 failures"
+    ])
+  })
+
+  it('passes a Step that writes under gate.drift "allow"', () => {
+    const run = runBin(["gate"], committed({ drift: "allow", steps: ["touch new.md"] }))
+    assert.equal(run.status, 0, run.stdout)
+  })
+
+  it("carries each Drift failure in the --json document like a Check's, the Step itself passing", () => {
+    const run = runBin(["gate", "--json"], committed({ steps: [FORMAT] }, { "notes.md": "draft\n" }))
+    assert.equal(run.status, 1)
+    const { status, steps, failures } = JSON.parse(run.stdout)
+    assert.equal(status, "fail")
+    assert.deepEqual(steps, [{ command: FORMAT, status: "pass", exitCode: 0, tail: null }])
+    assert.deepEqual(failures, [
+      { file: "notes.md", line: null, rule: "drift", message: `${JSON.stringify(FORMAT)} changed it`, remedy: REMEDY }
+    ])
+    assert.equal(run.stderr, "")
+  })
+
+  it("refuses --update-baseline after a Step drifted, as after any failure", () => {
+    const ratchet = ".ai/file-size-ratchet.baseline.json"
+    const baseline = `${JSON.stringify({ "src/fixed.ts": 600 })}\n`
+    const files = { [ratchet]: baseline, "src/fixed.ts": "export const fixed = 1\n" }
+    const root = committed({ steps: ["touch new.md"], checks: { "file-size-ratchet": true } }, files)
+    const run = runBin(["gate", "--update-baseline"], root)
+    assert.equal(run.status, 1, run.stdout)
+    assert.ok(
+      lines(run.stdout).includes(`gate: baseline ${ratchet} not refreshed — a Step or another Check did not pass`),
+      run.stdout
+    )
+    assert.equal(readFileSync(join(root, ratchet), "utf8"), baseline)
+  })
+
+  it("leaves no stamp for --cache after a run with Drift", () => {
+    const root = committed({ steps: ["echo ran >> ran", "touch new.md"] })
+    assert.equal(runBin(["gate", "--cache"], root).status, 1)
+    rmSync(join(root, "new.md"))
+    assert.equal(runBin(["gate", "--cache"], root).status, 1)
+    assert.equal(runs(root), 2)
+  })
+
+  it('exits 2 when it cannot record the tree, outside a git checkout, naming gate.drift "allow"', () => {
+    const root = repo({ git: false, files: { [CONFIG]: { version: 1, gate: { steps: ["true"] } } } })
+    const run = runBin(["gate"], root)
+    assert.equal(run.status, 2, run.stdout)
+    const [step, failure, ...rest] = timed(run.stdout)
+    assert.equal(step, "gate: step true — pass (N s)")
+    assert.match(failure ?? "", /^drift: cannot watch "true": git rev-parse: fatal: not a git repository/)
+    assert.ok(failure?.endsWith(' — run the Gate in a git checkout, or set gate.drift to "allow"'), failure)
+    assert.deepEqual(rest, ["gate: cannot run — 1 failure"])
   })
 })
 
@@ -391,7 +501,7 @@ describe("dw-sdlc gate, the config", () => {
   })
 
   it("--root runs the Gate of the repository holding that directory", () => {
-    const root = withGate({ steps: ["touch step-ran"] })
+    const root = withGate({ steps: ["touch step-ran"] }, { ".gitignore": "step-ran\n" })
     const run = runBin(["gate", "--root", root], scratch("elsewhere"))
     assert.equal(run.status, 0, run.stdout)
     assert.ok(existsSync(join(root, "step-ran")))
@@ -530,7 +640,8 @@ describe("dw-sdlc gate --cache", () => {
   })
 
   it("runs the whole Gate when it cannot fingerprint the tree, saying why", () => {
-    const root = repo({ git: false, files: { [CONFIG]: { version: 1, gate: { steps: ["echo ran >> ran"] } } } })
+    const gate = { steps: ["echo ran >> ran"], drift: "allow" }
+    const root = repo({ git: false, files: { [CONFIG]: { version: 1, gate } } })
     runBin(["gate", "--cache"], root)
     const run = runBin(["gate", "--cache"], root)
     assert.equal(run.status, 0, run.stdout)
@@ -541,7 +652,7 @@ describe("dw-sdlc gate --cache", () => {
   })
 
   it("runs the whole Gate when it cannot copy the index, saying why", { skip: process.getuid?.() === 0 }, () => {
-    const root = countingRepo()
+    const root = countingRepo({}, { drift: "allow" })
     const index = join(root, ".git", "index")
     git(root, "add", "-A")
     chmodSync(index, 0o000)

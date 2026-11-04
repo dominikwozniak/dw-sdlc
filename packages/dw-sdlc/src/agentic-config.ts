@@ -41,10 +41,12 @@ export type RunCheck = { name: string; command: string }
  * its options. `src/checks/` reads the setting of each.
  */
 export type GateChecks = { run: RunCheck[]; [check: string]: unknown }
-/** The Gate: its command, the steps run in order, the Checks run after them. */
-export type Gate = { command?: string; steps: string[]; checks: GateChecks }
+/** Whether a Step may write the tree; `src/drift.ts` reads it, `fail` where no layer sets it. */
+export type Drift = "fail" | "allow"
+/** The Gate: its command, the steps run in order, whether they may write the tree, the Checks run after them. */
+export type Gate = { command?: string; steps: string[]; drift?: Drift; checks: GateChecks }
 /** `gate` as one layer writes it: every key optional, `checks` Check by Check. */
-export type GateLayer = { command?: string; steps?: string[]; checks?: Partial<GateChecks> }
+export type GateLayer = { command?: string; steps?: string[]; drift?: Drift; checks?: Partial<GateChecks> }
 
 /** One layer as written in a file: every key optional, unknown top-level keys tolerated. */
 export type AgenticConfig = {

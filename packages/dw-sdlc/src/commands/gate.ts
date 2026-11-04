@@ -6,6 +6,7 @@ import { parseArgs } from "node:util"
 import { type Gate, type Problem, type RunCheck, repositoryRoot, resolveConfig } from "../agentic-config.ts"
 import { CannotRun } from "../checks/check.ts"
 import { CHECK_NAMES, type EnabledCheck, enabledChecks, shippedCheck } from "../checks/index.ts"
+import { watchDrift } from "../drift.ts"
 import { type Fingerprint, fingerprint, isGreen, stampGreen } from "../gate-cache.ts"
 import { annotation, type Failure, failureJson, failureLine } from "../report.ts"
 import {
@@ -32,6 +33,11 @@ Actions it is also a workflow annotation. A Step or run script prints nothing of
 does not pass: then its last ${TAIL_LINES} lines, both streams in the order written, under its own
 line. In a terminal a Step's line shows when it starts and takes its result when it ends.
 
+Each Step runs between two records of every file git tracks or would track: a file the Step created,
+changed or deleted is Drift, one failure per file, and the Steps after it still run. Ignored files
+and edits made before the run never drift, and a Step a signal stopped is not compared. gate.drift
+"allow" turns the watch off.
+
 SIGINT or SIGTERM sent while a command runs stops it and everything after it, and the report still
 prints: the stopped command's last lines, its failure line and the last line. A second signal, or one
 sent while the Checks the package ships run, ends the Gate at once.
@@ -42,18 +48,20 @@ ${TAIL_LINES} lines of a command that did not pass, null otherwise. With --verbo
 commands' output goes to stderr and every tail is null.
 
 --update-baseline then rewrites the baseline of each Ratchet, only when every Step and every other
-Check passed, and only tighter: a file now within its limit leaves it and no file joins. Where there
+Check passed and no Step drifted, and only tighter: a file now within its limit leaves it and no file joins. Where there
 is no baseline, it records one. The Ratchet is judged again on what it wrote.
 
 --cache skips the run when the working tree and the Gate match the last green run in this checkout.
 Untracked files count and ignored files do not. Each worktree keeps its own stamp. A tree it cannot
 hash runs the whole Gate.
 
-Exit 0 when everything passes, 1 when a Step or a Check fails, 2 when the Gate cannot run: an
-invalid config layer, a Step or Check whose command the shell cannot find or execute, or a Check
-missing an input it reads.`
+Exit 0 when everything passes, 1 when a Step or a Check fails or a Step drifts, 2 when the Gate
+cannot run: an invalid config layer, a Step or Check whose command the shell cannot find or execute,
+a Check missing an input it reads, or a tree it cannot record for Drift.`
 
 type Outcome = { status: Status | "skipped"; exitCode: number | null; tail: string[] | null }
+/** What a verdict reads of a Step, a Check or the watch for Drift. */
+type Judgement = Pick<Outcome, "status">
 type StepReport = Outcome & { command: string }
 /** A Check the package ships runs in this process: it has no command. */
 type CheckReport = Outcome & { name: string; command: string | null }
@@ -230,10 +238,11 @@ function runShipped(check: EnabledCheck, root: string): Judged {
 }
 
 /**
- * Rewrites the baseline of each Ratchet while every Step, every run Check in `others` and every other
- * shipped Check passed, and judges the Ratchet again on what it wrote. Returns a line on each.
+ * Rewrites the baseline of each Ratchet while every Step, every run Check and the watch for Drift in
+ * `others` and every other shipped Check passed, and judges the Ratchet again on what it wrote.
+ * Returns a line on each.
  */
-function refreshBaselines(judged: Judged[], others: Outcome[], root: string): string[] {
+function refreshBaselines(judged: Judged[], others: Judgement[], root: string): string[] {
   if (!judged.some(({ check }) => check.baseline !== undefined)) {
     return ["gate: no Ratchet is turned on, so no baseline to refresh"]
   }
@@ -262,7 +271,7 @@ function refreshBaselines(judged: Judged[], others: Outcome[], root: string): st
   return notes
 }
 
-function worst(outcomes: Outcome[]): Status {
+function worst(outcomes: Judgement[]): Status {
   const statuses = new Set(outcomes.map(({ status }) => status))
   return statuses.has("error") ? "error" : statuses.has("fail") ? "fail" : "pass"
 }
@@ -315,6 +324,7 @@ export async function runGate(root: string, options: RunOptions): Promise<GateRe
   }
 
   const failures: Failure[] = []
+  const drift = watchDrift(root, config.gate)
   /** Runs one Step or Check, prints its progress and records its failure under `rule`, if it has one. */
   const runOne = async (kind: Kind, subject: string, command: string): Promise<Outcome> => {
     progress.start(kind, subject)
@@ -338,7 +348,9 @@ export async function runGate(root: string, options: RunOptions): Promise<GateRe
     const halted = (): boolean => failedStep || stoppedBy() !== undefined
     const steps: StepReport[] = []
     for (const step of selected.steps) {
-      const outcome: Outcome = halted() ? SKIPPED : await runOne("step", step, step)
+      const watched = halted() ? undefined : await drift.step(step, () => runOne("step", step, step))
+      failures.push(...(watched?.drift ?? []))
+      const outcome: Outcome = watched?.result ?? SKIPPED
       steps.push({ command: step, ...outcome })
       failedStep ||= outcome.status !== "pass"
     }
@@ -362,7 +374,8 @@ export async function runGate(root: string, options: RunOptions): Promise<GateRe
     progress.start("check", check.name)
     return runShipped(check, root)
   })
-  const notes = mode === "update-baseline" ? refreshBaselines(judged, [...steps, ...checks], root) : []
+  const others = [...steps, ...checks, { status: drift.status() }]
+  const notes = mode === "update-baseline" ? refreshBaselines(judged, others, root) : []
   // A Ratchet's result is printed after its refresh, which judges it again.
   for (const { check, outcome, failures: found } of judged) {
     if (outcome.status !== "skipped") {
@@ -375,7 +388,7 @@ export async function runGate(root: string, options: RunOptions): Promise<GateRe
     log.write(`${note}\n`)
   }
 
-  const status = worst([...steps, ...checks])
+  const status = worst([...steps, ...checks, { status: drift.status() }])
   // Stamped with the fingerprint taken before the run: a Gate that changed the tree runs again next time.
   if (status === "pass" && toStamp !== undefined) {
     stampGreen(toStamp)

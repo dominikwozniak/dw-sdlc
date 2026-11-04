@@ -88,7 +88,7 @@ is its long form: how a guard works, why the design, adopting and releasing.
 
 ```bash
 pnpm check                      # dw-sdlc gate: the gate.steps of .ai/agentic.config.json in order, then its Checks; = CI
-pnpm exec dw-sdlc gate [--json] [--verbose] [--update-baseline | --cache] # a line per Step and Check, a failure's last 50 lines (--json: tail), --verbose streams all; exit 0 green, 1 failed, 2 cannot run; --update-baseline tightens baselines, --cache skips a tree already green
+pnpm exec dw-sdlc gate [--json] [--verbose] [--update-baseline | --cache] # a line per Step and Check, a failure's last 50 lines (--json: tail), --verbose streams all; exit 0 green, 1 failed or a Step wrote the tree (Drift), 2 cannot run; --update-baseline tightens baselines, --cache skips a tree already green
 pnpm exec dw-sdlc check <name> [--json] # one Check of the Gate by name, no Step; off in the config, it runs on its defaults
 pnpm exec dw-sdlc primitives --paths <files> [--json] # the Primitives that own each path: summary, docs to read
 pnpm exec dw-sdlc pr ship [<n>] [-R owner/name] [--merge] [--dry-run] [--json] [--verbose] # the Action one pull request needs next; the script updates a branch behind, marks a draft ready and merges under pr.merge auto; exit 0 done, 10 act, 20 wait, 30 park, 2 cannot run
