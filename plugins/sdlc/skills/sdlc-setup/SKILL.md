@@ -112,7 +112,8 @@ node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" doctor
 ```
 
 When the run wrote the `gate` key, run the Gate once and show its lines. `agents-map` names what the
-agent map lacks, such as the Gate command; edit `AGENTS.md` only when the user asks.
+agent map lacks, such as the Gate command or a `CLAUDE.md` link to it; edit `AGENTS.md` or
+`CLAUDE.md` only when the user asks.
 
 ```bash
 pnpm exec dw-sdlc gate

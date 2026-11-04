@@ -361,11 +361,12 @@ or leaves a Gate that cannot run, exit 2, which reads as a broken setup. The Rat
 `dw-sdlc gate --update-baseline`, runs only when every other Check passes, so it turns on once the
 Gate is green: set it to `true` and run the refresh, which records the baseline to commit.
 
-The setup never writes the agent map. The first `dw-sdlc gate` names what the map lacks through
-`agents-map`: a missing `AGENTS.md`, which ends that Gate as cannot run, the Gate command the map
-does not name, a Task Router path that does not exist, a `CLAUDE.md` that is not a link to the
-map. A repository without a `package.json` gets
-neither file.
+The setup never writes the agent map or its `CLAUDE.md` link. The first `dw-sdlc gate` names what
+the map lacks through `agents-map`: a missing `AGENTS.md`, which ends that Gate as cannot run, the
+Gate command the map does not name, a Task Router path that does not exist, a `CLAUDE.md` that is
+not a link to the map.
+
+A repository without a `package.json` gets neither the `dw-sdlc` pin nor the `gate` key.
 
 Settings that still enable `guardrails@dw-sdlc` or `references@dw-sdlc`, the two plugins `sdlc`
 replaced, get a `by hand` line naming the `enabledPlugins` edit: remove them and add

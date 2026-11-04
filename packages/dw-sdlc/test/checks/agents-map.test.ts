@@ -249,7 +249,7 @@ describe("the agents-map Check on the skills", () => {
         ".claude/skills/tdd/SKILL.md": ""
       }
     })
-    symlinkSync("AGENTS.md", join(root, "CLAUDE.md"))
+    relinkClaude(root, "AGENTS.md")
     rmSync(join(root, ".agents"), { recursive: true })
     assert.equal(runBin(["gate"], root).status, 0)
     rmSync(join(root, ".claude"), { recursive: true })
