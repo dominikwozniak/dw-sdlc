@@ -101,16 +101,17 @@ the Gate at once, for a command that ignores the first. The Checks the package s
 bin, where a signal ends the Gate at once.
 
 Every Step runs under watch for Drift. Before and after each Step the Gate records the content of
-every file git tracks or would track, hashed with `git write-tree` over a copy of the index, and each
-file the Step created, changed or deleted is one failure:
+every file git tracks or would track, hashed with `git write-tree` over a copy of the index, and
+each file the Step created, changed or deleted is one failure:
 `packages/x/package.json: drift: "pnpm build" changed it — commit the change, or make the Step only read`.
 The records are taken around each Step, never against `HEAD`, so an edit made before the run never
-drifts, and an ignored file, such as build output under `dist/`, is never recorded. Drift does not
+drifts, and an ignored file, such as build output under `dist/`, is never recorded. Nor is a tracked
+file marked `--assume-unchanged` or `--skip-worktree`, which `git add` passes over. Drift does not
 stop the Steps after it or the Checks, so one run names every Step that writes. A Step a signal
 stopped is not compared. A stale generated file then fails a local `pnpm check` as it fails a
 `git diff --exit-code` in CI. A tree the Gate cannot record, such as a directory outside git, means
-the Gate cannot run. `gate.drift: "allow"` turns the watch off, for a repository whose Steps must
-write while it fixes them.
+the Gate cannot run. `gate.drift: "allow"` turns the watch off, for a repository whose Steps must write
+while it fixes them.
 
 An invalid config layer runs nothing and fails as
 `.ai/agentic.config.json: config: gate.checks: unknown key "nope" — fix the file; the Gate runs once every layer is valid`.
