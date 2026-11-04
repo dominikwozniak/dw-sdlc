@@ -577,8 +577,12 @@ Only the dev invokes it. The skill reads each answer's `status`, then its `actio
   push that rewrites the branch, which a repository under `guardrails.forcePush: deny` refuses;
   `address-review` triages each open thread someone else commented on last against the code, or
   with none the review that requests changes, and either fixes it and resolves the thread, or
-  replies and leaves it open for the reviewer, then pushes when code changed; `review` runs `/code-review` on the changes since the base and, on a
-  clean result, `dw-sdlc pr reviewed <n> --head <sha>` with the head it reviewed. The agent's other
+  replies and leaves it open for the reviewer, then pushes when code changed; `review` runs
+  `/code-review` on the changes since the base and, on a clean result,
+  `dw-sdlc pr reviewed <n> --head <sha>` with the head it reviewed. A clean Review earlier in the
+  conversation that read the same head, with no edit or commit after it, is pinned the same way
+  without a second one, so a session that ends its work with `/code-review` and then ships reviews
+  once; a finding in that Review, even one fixed since, takes a fresh one. The agent's other
   `blockers` go into the same push, all but `review`, which needs the head the push makes, and the
   skill calls the script again. An `act` that leaves nothing to change, as changes requested once
   a push answers them, stops it: the reviewer's turn.
