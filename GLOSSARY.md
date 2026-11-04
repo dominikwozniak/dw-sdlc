@@ -52,8 +52,7 @@ _Avoid_: commit format, commit style
 ### Git and pull requests
 
 **Lease push**:
-A force push that names `--force-with-lease` or `--force-if-includes`; the one force form a guard lets
-through, and only to a branch that is not protected.
+A force push that names `--force-with-lease` or `--force-if-includes`, the one force form a guard lets through.
 _Avoid_: safe force push
 
 **Protected branch**:
@@ -77,18 +76,19 @@ _Avoid_: autopilot, babysitter, land (a Landed branch is a local one)
 
 **Check**:
 One unit that judges the state of the working tree and answers with an exit code, a line naming the
-remedy and, on request, machine-readable output: a module the package ships, or a repository's own
-script under `gate.checks.run`, run the same in CI, a commit hook, an agent hook and a terminal.
+remedy and, on request, machine-readable output: a module the package ships or a repository's own script.
 _Avoid_: Step (a toolchain command the Gate runs first), rule, validator, test (proves behaviour, not the tree)
 
 **Step**:
-One toolchain command the Gate runs before its Checks, such as lint, format, typecheck or the tests.
-Steps run in order and the first that fails ends the Gate, its output passed through.
+One toolchain command the Gate runs before its Checks, such as lint or the tests; the first to fail ends the Gate.
 _Avoid_: Check (which judges the tree and runs on after another fails), stage, job
 
 **Gate**:
 The Steps and then the Checks a change must pass, run by one command, the same locally and in CI.
 _Avoid_: quality gate, CI (which runs it), lint (one part of a Step)
+
+**Drift**:
+A file a Step rewrites while the Gate runs, such as a stale generated file; never the dev's own edits.
 
 **Ratchet**:
 A Check whose recorded baseline may only tighten: a number that never grows or a list of exceptions that only shrinks.
@@ -125,7 +125,7 @@ _Avoid_: vendored repo, subtree
 **Router**:
 The file an agent reads first under a repository's References: the rules for reading them, where
 their list is declared, and a table of each one's `dir` and `when` that the setup writes from that list.
-_Avoid_: manifest, index
+_Avoid_: manifest, index, Task Router (the Agent map's table)
 
 **Sync**:
 Bringing every Reference a repository declares to its ref: a missing one cloned, an existing one moved.
