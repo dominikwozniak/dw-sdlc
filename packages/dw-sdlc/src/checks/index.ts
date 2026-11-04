@@ -9,6 +9,7 @@ import { fileSizeRatchet } from "./file-size-ratchet.ts"
 import { markdownBudget } from "./markdown-budget.ts"
 import { markdownRefs } from "./markdown-refs.ts"
 import { primitives } from "./primitives.ts"
+import { routedDocs } from "./routed-docs.ts"
 import { temporalLanguage } from "./temporal-language.ts"
 
 /** A Check turned on by its setting, ready to judge a tree, and to refresh its baseline if it is a Ratchet. */
@@ -41,6 +42,7 @@ function ship<Options extends object>(check: Check<Options>): Shipped {
 const SHIPPED: Shipped[] = [
   ship(primitives),
   ship(agentsMap),
+  ship(routedDocs),
   ship(markdownBudget),
   ship(markdownRefs),
   ship(temporalLanguage),

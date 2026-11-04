@@ -561,6 +561,7 @@ describe("adopting the Gate", () => {
   const DEFAULT_CHECKS = [
     ["primitives", false],
     ["agents-map", true],
+    ["routed-docs", false],
     ["markdown-budget", false],
     ["markdown-refs", true],
     ["temporal-language", true],

@@ -108,7 +108,7 @@ describe("dw-sdlc check, what it cannot run", () => {
     assert.equal(run.status, 2)
     assert.deepEqual(ran(root), [])
     assert.deepEqual(lines(run.stdout), [
-      'check: no Check is named "nope" — name one of own, other, stale, missing, primitives, agents-map, markdown-budget, markdown-refs, temporal-language, decision-records, file-size-ratchet, comment-budget',
+      'check: no Check is named "nope" — name one of own, other, stale, missing, primitives, agents-map, routed-docs, markdown-budget, markdown-refs, temporal-language, decision-records, file-size-ratchet, comment-budget',
       "check nope: cannot run — 1 failure"
     ])
   })

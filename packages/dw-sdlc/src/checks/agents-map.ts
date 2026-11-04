@@ -16,7 +16,7 @@ import { join, normalize } from "node:path"
 
 import { resolveConfig } from "../agentic-config.ts"
 import { codeSpans, tableRows } from "../markdown.ts"
-import { CannotRun, type Check, type Finding } from "./check.ts"
+import { CannotRun, type Check, type Finding, optionsOf } from "./check.ts"
 import { overBudget } from "./markdown-budget.ts"
 import { catalogueFile } from "./primitives.ts"
 
@@ -55,6 +55,18 @@ function escape(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 }
 
+/** A row of the map's Task Router: its line and the paths its cells after the first point at. */
+export type Route = { line: number; paths: string[] }
+
+/** The rows of the Task Router in `text`, none when it has no such table. */
+export function routes(text: string): Route[] {
+  // The first column says when a row applies; the others say what to read.
+  return tableRows(text, ROUTER).map(({ cells, line }) => ({
+    line,
+    paths: codeSpans(cells.slice(1).join(" ")).filter(isPath)
+  }))
+}
+
 /** The budget, the Gate command, the row to the catalogue and every path the Task Router points at. */
 function judgeMap(root: string, { file, ...budget }: AgentsMapOptions, text: string): Finding[] {
   const findings: Finding[] = overBudget(text, budget).map((message) => ({ file, message, remedy: REMEDIES.budget }))
@@ -67,17 +79,13 @@ function judgeMap(root: string, { file, ...budget }: AgentsMapOptions, text: str
     findings.push({ file, message, remedy: REMEDIES.command })
   }
 
-  // The first column says when a row applies; the others say what to read.
-  const routes = tableRows(text, ROUTER).map(({ cells, line }) => ({
-    line,
-    paths: codeSpans(cells.slice(1).join(" ")).filter(isPath)
-  }))
+  const rows = routes(text)
   const catalogue = catalogueFile(gate.checks)
-  if (existsSync(join(root, catalogue)) && !routes.some(({ paths }) => paths.includes(catalogue))) {
+  if (existsSync(join(root, catalogue)) && !rows.some(({ paths }) => paths.includes(catalogue))) {
     const message = `no ${ROUTER} row points at ${catalogue}`
     findings.push({ file, message, remedy: REMEDIES.catalogue })
   }
-  for (const { line, paths } of routes) {
+  for (const { line, paths } of rows) {
     for (const missing of paths.filter((path) => !exists(root, path))) {
       const message = `the ${ROUTER} points at ${JSON.stringify(missing)}, which does not exist`
       findings.push({ file, line, message, remedy: REMEDIES.route })
@@ -212,4 +220,9 @@ export const agentsMap: Check<AgentsMapOptions> = {
   name: "agents-map",
   defaults: { file: "AGENTS.md", maxBytes: 10240 },
   run
+}
+
+/** The agent map a resolved `gate.checks` points at: the `agents-map` Check's file, on or off. */
+export function mapFile(checks: Record<string, unknown>): string {
+  return (optionsOf(agentsMap, checks["agents-map"]) ?? agentsMap.defaults).file
 }
