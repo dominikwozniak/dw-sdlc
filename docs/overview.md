@@ -193,11 +193,12 @@ link to an ignored file, or to another case of a file's name, fails on a Mac as 
 glob's `*` and `**` skip a name that starts with a dot, as a shell does: `**/*.md` leaves the
 vendored skills under `.agents/` out.
 
-`dw-sdlc gate --update-baseline` runs the Gate, then rewrites the baseline of each Ratchet, only when
-every Step and every other Check passed and no Step drifted. It only tightens: a file within its limit leaves the list, a
-count that shrank is lowered, and no file joins. Where there is no baseline it records one, every
-file over its limit at its count, unless HEAD holds one the tree lost: that one is restored with git,
-never recorded again. A refused refresh leaves the file byte for byte as it was.
+`dw-sdlc gate --update-baseline` runs the Gate, then rewrites the baseline of each Ratchet, only
+when every Step and every other Check passed and no Step drifted. It only tightens: a file within
+its limit leaves the list, a count that shrank is lowered, and no file joins. Where there is no
+baseline it records one, every file over its limit at its count, unless HEAD holds one the tree
+lost: that one is restored with git, never recorded again. A refused refresh leaves the file byte
+for byte as it was.
 
 `dw-sdlc gate --cache` skips the run when the working tree holds what it held at the last green run
 in this checkout, and the same version of dw-sdlc runs the same resolved Gate. A pre-push hook that

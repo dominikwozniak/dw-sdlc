@@ -7,7 +7,7 @@ import { join } from "node:path"
 
 import type { Gate } from "./agentic-config.ts"
 import { packageVersion } from "./package-version.ts"
-import { workTree } from "./work-tree.ts"
+import { workingTree } from "./working-tree.ts"
 
 const STAMP_FILE = "dw-sdlc-gate.green"
 
@@ -16,7 +16,7 @@ export type Fingerprint = { key: string; stampFile: string }
 
 /** The fingerprint of the checkout at `root` judged by `gate`, or why it has none. */
 export function fingerprint(root: string, gate: Gate): Fingerprint | { error: string } {
-  const found = workTree(root)
+  const found = workingTree(root)
   if ("error" in found) {
     return found
   }

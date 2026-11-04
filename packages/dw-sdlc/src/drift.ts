@@ -5,7 +5,7 @@
 import type { Gate } from "./agentic-config.ts"
 import type { Failure } from "./report.ts"
 import { type Status, stoppedBy } from "./run-command.ts"
-import { git, workTree } from "./work-tree.ts"
+import { git, workingTree } from "./working-tree.ts"
 
 const REMEDIES = {
   drift: "commit the change, or make the Step only read",
@@ -61,7 +61,7 @@ export function watchDrift(root: string, gate: Gate): DriftWatch {
     if (!watching) {
       return { result: await run(), failures: [] }
     }
-    const before = last === undefined ? workTree(root) : { tree: last }
+    const before = last === undefined ? workingTree(root) : { tree: last }
     const result = await run()
     if ("error" in before) {
       return { result, failures: cannotWatch(command, before.error) }
@@ -70,7 +70,7 @@ export function watchDrift(root: string, gate: Gate): DriftWatch {
       // A signal cut the Step short and ends the Gate, so nothing is compared after it.
       return { result, failures: [] }
     }
-    const after = workTree(root)
+    const after = workingTree(root)
     if ("error" in after) {
       return { result, failures: cannotWatch(command, after.error) }
     }

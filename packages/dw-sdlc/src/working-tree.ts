@@ -47,7 +47,7 @@ function treeOf(root: string, gitDir: string): { out: string } | { error: string
 }
 
 /** The tree of the checkout at `root` and its git dir, or why it has none. */
-export function workTree(root: string): { tree: string; gitDir: string } | { error: string } {
+export function workingTree(root: string): { tree: string; gitDir: string } | { error: string } {
   try {
     const gitDir = git(root, ["rev-parse", "--absolute-git-dir"])
     if ("error" in gitDir) {

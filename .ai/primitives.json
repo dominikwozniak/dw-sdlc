@@ -391,7 +391,7 @@
         "packages/dw-sdlc/src/run-command.ts",
         "packages/dw-sdlc/src/report.ts",
         "packages/dw-sdlc/src/gate-cache.ts",
-        "packages/dw-sdlc/src/work-tree.ts",
+        "packages/dw-sdlc/src/working-tree.ts",
         "packages/dw-sdlc/src/drift.ts",
         "packages/dw-sdlc/src/git-env.ts",
         "packages/dw-sdlc/src/package-version.ts"
