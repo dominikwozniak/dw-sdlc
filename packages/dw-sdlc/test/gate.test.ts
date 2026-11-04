@@ -47,7 +47,7 @@ function countingRepo(files: Record<string, string | object> = {}, gate: Record<
 }
 
 /** A repository with `files` committed, whose Gate is `gate`; `ran` and `dist/` are ignored. */
-function committed(gate: unknown, files: Record<string, string> = {}): string {
+function committedRepo(gate: unknown, files: Record<string, string> = {}): string {
   const root = withGate(gate, { ".gitignore": "ran\ndist/\n", ...files })
   git(root, "add", "-A")
   commit(root, "-m", "init")
@@ -148,7 +148,7 @@ describe("dw-sdlc gate, Drift", () => {
   const FORMAT = "printf 'formatted\\n' > notes.md"
 
   it("fails a Step that edits a tracked file by file and Step, still runs the next Step and exits 1", () => {
-    const root = committed({ steps: [FORMAT, "echo ran >> ran"] }, { "notes.md": "draft\n" })
+    const root = committedRepo({ steps: [FORMAT, "echo ran >> ran"] }, { "notes.md": "draft\n" })
     const run = runBin(["gate"], root)
     assert.equal(run.status, 1, run.stdout)
     assert.equal(runs(root), 1)
@@ -161,7 +161,7 @@ describe("dw-sdlc gate, Drift", () => {
   })
 
   it("reports a file a Step creates unignored and a file a Step deletes", () => {
-    const root = committed({ steps: ["touch new.md", "rm old.md"] }, { "old.md": "old\n" })
+    const root = committedRepo({ steps: ["touch new.md", "rm old.md"] }, { "old.md": "old\n" })
     const run = runBin(["gate"], root)
     assert.equal(run.status, 1, run.stdout)
     assert.deepEqual(lines(run.stdout).slice(-3), [
@@ -172,7 +172,7 @@ describe("dw-sdlc gate, Drift", () => {
   })
 
   it("passes a Step that writes only under an ignored path, on a tree edited before the run", () => {
-    const root = committed({ steps: ["mkdir -p dist && echo built > dist/out.js"] }, { "notes.md": "draft\n" })
+    const root = committedRepo({ steps: ["mkdir -p dist && echo built > dist/out.js"] }, { "notes.md": "draft\n" })
     write(join(root, "notes.md"), "edited by the dev\n")
     write(join(root, "draft.md"), "a new file of the dev's\n")
     const run = runBin(["gate"], root)
@@ -181,7 +181,7 @@ describe("dw-sdlc gate, Drift", () => {
   })
 
   it("reports the Drift of a Step that fails beside its failure", () => {
-    const root = committed({ steps: ["touch new.md; exit 1"] })
+    const root = committedRepo({ steps: ["touch new.md; exit 1"] })
     const run = runBin(["gate"], root)
     assert.equal(run.status, 1, run.stdout)
     assert.deepEqual(lines(run.stdout).slice(-3), [
@@ -192,12 +192,12 @@ describe("dw-sdlc gate, Drift", () => {
   })
 
   it('passes a Step that writes under gate.drift "allow"', () => {
-    const run = runBin(["gate"], committed({ drift: "allow", steps: ["touch new.md"] }))
+    const run = runBin(["gate"], committedRepo({ drift: "allow", steps: ["touch new.md"] }))
     assert.equal(run.status, 0, run.stdout)
   })
 
   it("carries each Drift failure in the --json document like a Check's, the Step itself passing", () => {
-    const run = runBin(["gate", "--json"], committed({ steps: [FORMAT] }, { "notes.md": "draft\n" }))
+    const run = runBin(["gate", "--json"], committedRepo({ steps: [FORMAT] }, { "notes.md": "draft\n" }))
     assert.equal(run.status, 1)
     const { status, steps, failures } = JSON.parse(run.stdout)
     assert.equal(status, "fail")
@@ -212,7 +212,7 @@ describe("dw-sdlc gate, Drift", () => {
     const ratchet = ".ai/file-size-ratchet.baseline.json"
     const baseline = `${JSON.stringify({ "src/fixed.ts": 600 })}\n`
     const files = { [ratchet]: baseline, "src/fixed.ts": "export const fixed = 1\n" }
-    const root = committed({ steps: ["touch new.md"], checks: { "file-size-ratchet": true } }, files)
+    const root = committedRepo({ steps: ["touch new.md"], checks: { "file-size-ratchet": true } }, files)
     const run = runBin(["gate", "--update-baseline"], root)
     assert.equal(run.status, 1, run.stdout)
     assert.ok(
@@ -223,7 +223,7 @@ describe("dw-sdlc gate, Drift", () => {
   })
 
   it("leaves no stamp for --cache after a run with Drift", () => {
-    const root = committed({ steps: ["echo ran >> ran", "touch new.md"] })
+    const root = committedRepo({ steps: ["echo ran >> ran", "touch new.md"] })
     assert.equal(runBin(["gate", "--cache"], root).status, 1)
     rmSync(join(root, "new.md"))
     assert.equal(runBin(["gate", "--cache"], root).status, 1)

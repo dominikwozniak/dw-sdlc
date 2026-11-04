@@ -372,8 +372,8 @@ export async function runGate(root: string, options: RunOptions): Promise<GateRe
     progress.start("check", check.name)
     return runShipped(check, root)
   })
-  const drift = { status: watch.status() }
-  const notes = mode === "update-baseline" ? refreshBaselines(judged, [...steps, ...checks, drift], root) : []
+  const drifted = { status: watch.status() }
+  const notes = mode === "update-baseline" ? refreshBaselines(judged, [...steps, ...checks, drifted], root) : []
   // A Ratchet's result is printed after its refresh, which judges it again.
   for (const { check, outcome, failures: found } of judged) {
     if (outcome.status !== "skipped") {
@@ -386,7 +386,7 @@ export async function runGate(root: string, options: RunOptions): Promise<GateRe
     log.write(`${note}\n`)
   }
 
-  const status = worst([...steps, ...checks, drift])
+  const status = worst([...steps, ...checks, drifted])
   // Stamped with the fingerprint taken before the run: a Gate that changed the tree runs again next time.
   if (status === "pass" && toStamp !== undefined) {
     stampGreen(toStamp)

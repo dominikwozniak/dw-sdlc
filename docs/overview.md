@@ -123,8 +123,8 @@ are null. With `--verbose` the commands' output goes to stderr and every `tail` 
 code is 0 when everything passes, 1 when a Step or a Check fails or a Step drifts, and 2 when the
 Gate cannot run: an invalid config layer, a Step or Check whose command the shell cannot find or
 execute, a Check missing an input it reads, such as a Ratchet's baseline, or a tree it cannot record
-for Drift. Why a Check is a named unit turned on in
-the config is [ADR 0009](adr/0009-checks-are-named-units-turned-on-in-the-config.md).
+for Drift. Why a Check is a named unit turned on in the config is
+[ADR 0009](adr/0009-checks-are-named-units-turned-on-in-the-config.md).
 
 ### The Checks the package ships
 
