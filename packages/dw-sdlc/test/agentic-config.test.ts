@@ -55,7 +55,7 @@ describe("inference, with no config file", () => {
       protectedBranches: ["master", "main", "production"]
     })
     assert.deepEqual(config.gate, { steps: [], drift: "fail", checks: { run: [] } })
-    assert.deepEqual(config.pr, { merge: "ask" })
+    assert.deepEqual(config.pr, { merge: "ask", review: "full" })
     assert.deepEqual(config.worktree, { setup: [] })
     assert.equal(config.baseBranch, "auto")
   })
@@ -441,6 +441,56 @@ describe("pr.merge", () => {
     assert.deepEqual(result.problems, [
       { file: "agentic.config.json", path: "pr.merge", message: '"always" is not one of "ask", "auto"' },
       { file: "agentic.config.json", path: "pr", message: 'unknown key "draft"' }
+    ])
+  })
+})
+
+describe("pr.review", () => {
+  it("takes off from the committed file, and a local full over it, pr.merge left as it was", () => {
+    const committed = repo({ files: { [COMMITTED_FILE]: { pr: { merge: "auto", review: "off" } } } })
+    assert.deepEqual(resolveConfig(committed).problems, [])
+    assert.deepEqual(resolveConfig(committed).config.pr, { merge: "auto", review: "off" })
+
+    const tighter = repo({
+      files: { [COMMITTED_FILE]: { pr: { merge: "auto", review: "off" } }, [LOCAL_FILE]: { pr: { review: "full" } } }
+    })
+    assert.deepEqual(resolveConfig(tighter).problems, [])
+    assert.deepEqual(resolveConfig(tighter).config.pr, { merge: "auto", review: "full" })
+  })
+
+  it("may not be loosened by the local file: off over a committed or a default full drops the file and runs full", () => {
+    const message = '"off" loosens "full"; the local file may tighten pr.review, never loosen it'
+    for (const committed of [{ pr: { review: "full" } }, {}]) {
+      const root = repo({
+        files: { [COMMITTED_FILE]: committed, [LOCAL_FILE]: { baseBranch: "develop", pr: { review: "off" } } }
+      })
+      const { config, problems, layers } = resolveConfig(root)
+      assert.deepEqual(problems, [{ file: LOCAL_FILE, path: "pr.review", message }])
+      assert.deepEqual(layers, { committed: "valid", local: "invalid" })
+      assert.deepEqual(config.pr, { merge: "ask", review: "full" })
+      assert.equal(config.baseBranch, "auto")
+    }
+  })
+
+  it("runs full while any layer is invalid, whatever the committed file sets", () => {
+    const cases: Record<string, string | object>[] = [
+      { [COMMITTED_FILE]: { pr: { review: "off" } }, [LOCAL_FILE]: "{ not json" },
+      { [COMMITTED_FILE]: { pr: { review: "off" } }, [LOCAL_FILE]: { pr: { merge: "always" } } },
+      { [COMMITTED_FILE]: { pr: { review: "off" } }, [LOCAL_FILE]: { guardrails: { protectedBranches: [] } } },
+      { [COMMITTED_FILE]: { pr: { review: "off" }, guardrails: { extra: 1 } } }
+    ]
+    for (const files of cases) {
+      const { config, problems } = resolveConfig(repo({ files }))
+      assert.notDeepEqual(problems, [])
+      assert.equal(config.pr.review, "full", JSON.stringify(files))
+    }
+  })
+
+  it("is full or off, nothing else", () => {
+    const result = validateDocument("agentic.config.json", JSON.stringify({ pr: { review: "auto" } }))
+    assert.ok("problems" in result)
+    assert.deepEqual(result.problems, [
+      { file: "agentic.config.json", path: "pr.review", message: '"auto" is not one of "full", "off"' }
     ])
   })
 })

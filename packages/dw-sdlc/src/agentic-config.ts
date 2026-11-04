@@ -24,6 +24,11 @@ export type EnvPolicy = "deny" | "git"
 export type EnvFiles = { policy: EnvPolicy; allow: string[]; deny: string[] }
 /** Who merges a pull request the Ship script finds ready: the script under `auto`, the dev under `ask`. */
 export type PrMerge = "ask" | "auto"
+/** How closely a Review reads an unreviewed head: the agent reads it under `full`, no one under `off`. */
+export type PrReview = "full" | "off"
+
+/** How the Ship script ends a pull request: who merges it and how closely it is reviewed. */
+export type Pr = { merge: PrMerge; review: PrReview }
 
 export type Guardrails = {
   forcePush: ForcePush
@@ -57,7 +62,7 @@ export type AgenticConfig = {
   guardrails?: GuardrailsLayer
   commit?: { convention?: CommitConvention; pattern?: string; trailer?: string }
   gate?: GateLayer
-  pr?: { merge?: PrMerge }
+  pr?: { merge?: PrMerge; review?: PrReview }
   worktree?: { setup?: string[] }
 }
 
@@ -69,7 +74,7 @@ export type ResolvedConfig = {
   guardrails: Guardrails
   commit: { convention: CommitConvention; pattern: string; trailer?: string }
   gate: Gate
-  pr: { merge: PrMerge }
+  pr: Pr
   worktree: { setup: string[] }
 }
 
@@ -93,12 +98,14 @@ export const STRICTNESS = {
   forcePush: ["deny", "ask", "lease"],
   commitOnProtected: ["deny", "allow"],
   envFiles: ["deny", "git"],
-  merge: ["ask", "auto"]
+  merge: ["ask", "auto"],
+  review: ["full", "off"]
 } as const satisfies {
   forcePush: readonly ForcePush[]
   commitOnProtected: readonly CommitOnProtected[]
   envFiles: readonly EnvPolicy[]
   merge: readonly PrMerge[]
+  review: readonly PrReview[]
 }
 
 /** What the guards run on while any layer is invalid. */
@@ -111,6 +118,9 @@ export const STRICTEST_GUARDRAILS: Guardrails = {
 
 /** What the Ship script runs on while any layer is invalid, and with nothing declared: it merges nothing itself. */
 export const STRICTEST_PR_MERGE: PrMerge = "ask"
+/** The Review depth while any layer is invalid, and with nothing declared: the agent reads every head. */
+export const STRICTEST_PR_REVIEW: PrReview = "full"
+const STRICTEST_PR: Pr = { merge: STRICTEST_PR_MERGE, review: STRICTEST_PR_REVIEW }
 
 /** What a repository gets with nothing declared. */
 export const DEFAULT_GUARDRAILS: Guardrails = {
@@ -299,7 +309,7 @@ export function inferConfig(root: string): Merged {
     guardrails: cloneGuardrails(DEFAULT_GUARDRAILS),
     commit: { convention: "conventional" },
     gate: inferGate(root),
-    pr: { merge: STRICTEST_PR_MERGE },
+    pr: { ...STRICTEST_PR },
     worktree: { setup: [] }
   }
 }
@@ -381,13 +391,17 @@ function loosenings(base: Guardrails, local: GuardrailsLayer | undefined): Probl
   return problems
 }
 
-/** A local `pr.merge` less strict than the one it would override: `auto` over `ask`. */
-function prLoosenings(base: PrMerge, local: PrMerge | undefined): Problem[] {
-  if (local === undefined || rank("merge", local) <= rank("merge", base)) {
-    return []
-  }
-  const message = `${show(local)} loosens ${show(base)}; the local file may tighten pr.merge, never loosen it`
-  return [{ file: LOCAL_FILE, path: "pr.merge", message }]
+/** Each local `pr` key less strict than the one it would override: `merge` auto over ask, `review` off over full. */
+function prLoosenings(base: Pr, local: Partial<Pr> | undefined): Problem[] {
+  const keys = ["merge", "review"] as const
+  return keys.flatMap((key) => {
+    const value = local?.[key]
+    if (value === undefined || rank(key, value) <= rank(key, base[key])) {
+      return []
+    }
+    const message = `${show(value)} loosens ${show(base[key])}; the local file may tighten pr.${key}, never loosen it`
+    return [{ file: LOCAL_FILE, path: `pr.${key}`, message }]
+  })
 }
 
 /** `commit.pattern` from the convention's preset when no layer set one; a set pattern wins. */
@@ -415,7 +429,7 @@ export function resolveConfig(root: string): Resolution {
   if (local.value !== undefined) {
     const loosened = [
       ...loosenings(config.guardrails, local.value.guardrails),
-      ...prLoosenings(config.pr.merge, local.value.pr?.merge)
+      ...prLoosenings(config.pr, local.value.pr)
     ]
     if (loosened.length > 0) {
       problems.push(...loosened)
@@ -425,7 +439,7 @@ export function resolveConfig(root: string): Resolution {
     }
   }
   if (problems.length > 0) {
-    config = { ...config, guardrails: cloneGuardrails(STRICTEST_GUARDRAILS), pr: { merge: STRICTEST_PR_MERGE } }
+    config = { ...config, guardrails: cloneGuardrails(STRICTEST_GUARDRAILS), pr: { ...STRICTEST_PR } }
   }
   return {
     config: finalize(config),

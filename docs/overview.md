@@ -33,15 +33,16 @@ sequenceDiagram
 ## Where the rules come from
 
 The rules come from the repository, not from the plugin. `.ai/agentic.config.json` declares the
-package manager, protected branches, env-file policy and commit convention, and `pr.merge`, who
-merges a pull request the Ship script finds ready: the script under `auto`, the dev under `ask`, the
-default. A machine may add `.ai/agentic.config.local.json` on top, which can tighten `guardrails` and
-`pr.merge` and never loosen them. Any key neither file sets is inferred: pnpm from the lockfile, and
-the `conventional` commit convention. A repository whose subjects start with a ticket key sets
-`commit.convention: ticket-key` in either file. A linked worktree reads a layer it lacks from its main
-checkout, so a repository that keeps `.ai/` out of git needs no copy per worktree. An invalid layer is
-dropped whole and the guards run on the strictest set, `pr.merge: ask` with it, until it is fixed;
-the session start hook names each problem.
+package manager, protected branches, env-file policy and commit convention; `pr.merge`, who merges
+a pull request the Ship script finds ready: the script under `auto`, the dev under `ask`, the
+default; and `pr.review`, the Review depth of a head no one has reviewed: `full`, the default, or
+`off`. A machine may add `.ai/agentic.config.local.json` on top, which can tighten `guardrails`,
+`pr.merge` and `pr.review` and never loosen them. Any key neither file sets is inferred: pnpm from
+the lockfile, and the `conventional` commit convention. A repository whose subjects start with a
+ticket key sets `commit.convention: ticket-key` in either file. A linked worktree reads a layer it
+lacks from its main checkout, so a repository that keeps `.ai/` out of git needs no copy per
+worktree. An invalid layer is dropped whole and the guards run on the strictest set, `pr.merge: ask`
+and `pr.review: full` with it, until it is fixed; the session start hook names each problem.
 
 The guards judge the agent's tool calls only. A commit typed in a terminal meets the subject rule
 through git's `commit-msg` hook: `hooks/commit-msg.sh` resolves the same config and refuses a subject

@@ -185,6 +185,18 @@ export const CASES: Case[] = [
     ]
   },
   {
+    name: "the agentic schema takes pr.review full or off",
+    schema: AGENTIC_SCHEMA,
+    value: { pr: { merge: "auto", review: "off" } },
+    problems: []
+  },
+  {
+    name: "the agentic schema refuses any other pr.review",
+    schema: AGENTIC_SCHEMA,
+    value: { pr: { review: "none" } },
+    problems: [{ path: "pr.review", message: '"none" is not one of "full", "off"' }]
+  },
+  {
     name: "the agentic schema refuses a Check name the package does not ship",
     schema: AGENTIC_SCHEMA,
     value: { gate: { checks: { "no-such-check": true } } },
