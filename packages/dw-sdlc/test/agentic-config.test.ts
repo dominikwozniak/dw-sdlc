@@ -54,7 +54,7 @@ describe("inference, with no config file", () => {
       envFiles: DEFAULT_ENV_FILES,
       protectedBranches: ["master", "main", "production"]
     })
-    assert.deepEqual(config.gate, { steps: [], checks: { run: [] } })
+    assert.deepEqual(config.gate, { steps: [], drift: "fail", checks: { run: [] } })
     assert.deepEqual(config.pr, { merge: "ask" })
     assert.deepEqual(config.worktree, { setup: [] })
     assert.equal(config.baseBranch, "auto")
@@ -76,7 +76,7 @@ describe("inference, with no config file", () => {
     const check = JSON.stringify({ scripts: { check: "dw-sdlc gate" } })
     for (const files of [{ "package.json": check }, { "package.json": check, "pnpm-lock.yaml": "" }]) {
       const { config } = resolveConfig(repo({ files }))
-      assert.deepEqual(config.gate, { command: "pnpm check", steps: [], checks: { run: [] } })
+      assert.deepEqual(config.gate, { command: "pnpm check", steps: [], drift: "fail", checks: { run: [] } })
     }
     for (const manifest of ["{}", JSON.stringify({ scripts: { lint: "x" } }), "[]", "{ not json"]) {
       const { config } = resolveConfig(repo({ files: { "package.json": manifest } }))
@@ -123,6 +123,7 @@ describe("the committed file", () => {
     })
     assert.deepEqual(config.gate, {
       steps: ["pnpm lint"],
+      drift: "fail",
       checks: { run: [{ name: "docs", command: "node docs.ts" }] }
     })
     assert.equal(config.commit.convention, "conventional")
@@ -215,7 +216,7 @@ describe("the local file", () => {
         [COMMITTED_FILE]: {
           gate: { steps: ["pnpm lint", "pnpm test"], checks: { run: [{ name: "docs", command: "node docs.ts" }] } }
         },
-        [LOCAL_FILE]: { gate: { command: "pnpm verify", steps: ["pnpm test"] } }
+        [LOCAL_FILE]: { gate: { command: "pnpm verify", steps: ["pnpm test"], drift: "allow" } }
       }
     })
     const { config, problems } = resolveConfig(root)
@@ -223,6 +224,7 @@ describe("the local file", () => {
     assert.deepEqual(config.gate, {
       command: "pnpm verify",
       steps: ["pnpm test"],
+      drift: "allow",
       checks: { run: [{ name: "docs", command: "node docs.ts" }] }
     })
   })
