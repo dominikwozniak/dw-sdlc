@@ -101,8 +101,8 @@ schema.
 - `markdown-budget` holds each file a glob matches to that glob's byte budget, by default the agent
   docs, `docs/agents/*.md`, to 6144 bytes. A list of budgets replaces the default, such as one that
   adds `GLOSSARY.md` at a budget of its own; no default names a glossary, since a glob that matches
-  no file fails. Markdown has no line limit, so blank lines and line breaks never decide whether a
-  file passes.
+  no file fails. Neither byte budget counts lines, so re-wrapping a paragraph never changes whether
+  a file passes.
 - `markdown-refs` fails a relative link or image whose path is not a file or directory of the
   repository, or whose heading anchor names no heading of the markdown file it points at. A link
   with a scheme, such as `https:`, and a link inside code are not judged.
