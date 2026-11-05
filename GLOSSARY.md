@@ -87,18 +87,18 @@ The session that cuts the dev's work into Briefs, hands each to a Worker and ans
 _Avoid_: orchestrator, coordinator
 
 **Worker**:
-A session that carries one Brief to its end itself and reports back to its Lead; it starts no other session.
+A session that carries one Brief to its end itself, reporting to its Lead when it has one; it starts no other session.
 _Avoid_: subagent (a helper inside one session), child, agent
 
 **Brief**:
-What a Worker starts from: the goal, a pointer to its source, what it may write, what it must not do,
-the proof it is done and where it reports. It points at the source and never retells it.
-_Avoid_: prompt, task, handoff
+What a Worker starts from: the goal, a pointer to its source rather than a retelling, what it may write,
+what it must not do, the proof it is done, where it reports, and the model and effort it runs on.
+_Avoid_: prompt, task
 
 **Recap**:
-What a session tells the dev who did not follow it: a verdict, what happened, what waits on whom, the
-questions for the dev and the follow-ups. A Worker reports to its Lead with the same.
-_Avoid_: status report, summary, handoff
+What a session tells the dev who did not follow it: where its work stands in the Action words, what happened
+and what it decided alone, whether it can close, its questions and its follow-ups. A Worker reports to its Lead with one.
+_Avoid_: status report, summary
 
 ### Gate
 
