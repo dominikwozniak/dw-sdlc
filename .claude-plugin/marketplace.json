@@ -16,6 +16,15 @@
       "keywords": ["guardrails", "hooks", "skills", "git", "env", "pnpm", "worktree", "references"],
       "category": "utilities",
       "tags": ["guardrails", "hooks", "safety", "references"]
+    },
+    {
+      "name": "sdlc-sessions",
+      "version": "0.1.0",
+      "source": "./plugins/sdlc-sessions",
+      "description": "The skills that run a Claude Code session: /sdlc-recap answers where a session stands, in one fixed shape, with whether it can be closed. It depends on sdlc, so a session keeps its guards.",
+      "keywords": ["sessions", "recap", "skills"],
+      "category": "utilities",
+      "tags": ["sessions", "recap"]
     }
   ]
 }

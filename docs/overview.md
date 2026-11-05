@@ -1,11 +1,13 @@
 # How dw-sdlc works
 
 The repository holds the software delivery process Dominik works by and the Claude Code tooling that
-carries it: a plugin marketplace and the code behind it. Its one plugin, `sdlc`, carries a set of
+carries it: a plugin marketplace and the code behind it. Its plugin `sdlc` carries a set of
 deterministic hooks that stop an agent session from doing the damage a human would not: rewriting
 history, reading a secret, installing through the wrong package manager, committing sloppily. Beside
 them it carries the Sync of a repository's References and the skills that set a repository up,
-check a machine and ship a pull request. This page is the long version of the README: how a guard
+check a machine and ship a pull request. The plugin
+[`sdlc-sessions`](../plugins/sdlc-sessions/README.md) depends on it and carries the skills that run a
+session. This page is the long version of the README: how a guard
 judges a call, where its rules come from, how the Gate runs, why the design is shaped this way, how
 the plugin is adopted and released, and how a pull request lands. Every guard in full is in the
 [plugin README](../plugins/sdlc/README.md).
@@ -240,6 +242,9 @@ Each choice below is a one-paragraph decision record in `adr/`.
 - **The guards, the Sync and the skills are that one plugin.** One `enabledPlugins` line and one
   version cover a machine, and a machine takes every part or none.
   [ADR 0010](adr/0010-one-sdlc-plugin-carries-guards-sync-and-gate.md)
+- **The session helpers are a plugin of their own.** They are work the dev starts, not protection on
+  every tool call, and they depend on `sdlc`, so a session keeps its guards.
+  [ADR 0014](adr/0014-session-helpers-ship-as-sdlc-sessions-beside-sdlc.md)
 - **Policy is a validated config file, not prose.** A hook parsing a markdown rule is fragile; a JSON
   file against a schema is checked before it is trusted.
   [ADR 0002](adr/0002-agent-rules-are-a-validated-config-file.md)
@@ -441,6 +446,9 @@ that lands on `main`. Installs from a clone see the change in the next session w
 The plugin's version is its own, apart from the package's: a release of one never bumps the other.
 Where the two meet, the doctor's `package` line names a drift between the `dw-sdlc` the plugin links
 and the one a repository pins.
+
+`sdlc-sessions` releases the same way, on a version of its own, in a `chore: release sdlc-sessions x.y.z`
+commit. The doctor's `sessions` line names a drift between its copy of `dw-sdlc` and the copy `sdlc` runs.
 
 ## Releasing the package
 

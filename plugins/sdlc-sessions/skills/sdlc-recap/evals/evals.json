@@ -1,0 +1,56 @@
+{
+  "skill_name": "sdlc-recap",
+  "evals": [
+    {
+      "id": 1,
+      "name": "merged-quiet-polish",
+      "prompt": "/sdlc-recap\n\nHere is the session so far, in place of a conversation you lived through. The dev writes Polish. They asked: \"dodaj flagę --json do komendy eksportu\". You did it in pull request #57, https://github.com/acme/tool/pull/57, and `gh pr view 57 --json state` answers MERGED. You took no decision on your own, and you have no question and no follow-up.\n\nIn place of running the command, take this as what `dw-sdlc recap --json` printed, exit 0:\n{\"branch\":\"feat/export-json\",\"head\":\"a1b2c3d\",\"uncommitted\":0,\"upstream\":\"origin/feat/export-json\",\"unpushed\":0,\"pullRequest\":{\"url\":\"https://github.com/acme/tool/pull/57\",\"number\":57,\"state\":\"MERGED\",\"status\":\"done\",\"action\":\"done\",\"actor\":\"dev\",\"reason\":\"merged as f00ba47\",\"command\":\"git push origin --delete feat/export-json\",\"blockers\":[]},\"worktree\":{\"linked\":false,\"path\":\"/repo\"},\"close\":{\"verdict\":\"yes\",\"line\":\"Close the session: yes, because nothing is uncommitted, unpushed or open; pull request #57 merged as f00ba47\",\"reasons\":[]}}\n\nGive the Recap. Save it as recap.md.",
+      "expected_output": "A short Polish Recap: a done verdict line, one table row with the link, the close line in Polish, and no empty section.",
+      "files": [],
+      "expectations": [
+        "The first line starts with the word done followed by one sentence, with no heading above it",
+        "The prose is in Polish",
+        "What happened is a table with a link to pull request 57",
+        "The close line says the session can be closed, in Polish, and names the merge",
+        "There is no section for decisions, questions, waiting or follow-ups, not even one saying none",
+        "No file is listed and no tool call is narrated",
+        "The output does not offer to run or run the branch deletion"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "parked-with-questions-and-follow-ups",
+      "prompt": "/sdlc-recap\n\nHere is the session so far, in place of a conversation you lived through. The dev writes English. They asked for rate limiting on the public API. You opened pull request #91, https://github.com/acme/api/pull/91, closing issue #80. `gh pr view 91 --json state,statusCheckRollup` answers OPEN and all checks green. Alone, you chose a fixed window over a sliding one because Redis already holds fixed counters. You have one question: whether internal callers are exempt; you would exempt them, since they share one key and would throttle each other. You noticed two things beyond the ticket: a typo in the rate limit docs you could fix here in a minute, and the admin API has no rate limiting at all, which is a larger piece of work.\n\nIn place of running the command, take this as what `dw-sdlc recap --json` printed, exit 1:\n{\"branch\":\"feat/rate-limit\",\"head\":\"c0ffee1\",\"uncommitted\":0,\"upstream\":\"origin/feat/rate-limit\",\"unpushed\":0,\"pullRequest\":{\"url\":\"https://github.com/acme/api/pull/91\",\"number\":91,\"state\":\"OPEN\",\"status\":\"park\",\"action\":\"ready-to-merge\",\"actor\":\"dev\",\"reason\":\"pr.merge is ask: the merge is the dev's\",\"command\":\"gh pr merge 91 --squash --match-head-commit c0ffee1\",\"blockers\":[]},\"worktree\":{\"linked\":true,\"path\":\"/repo/.claude/worktrees/rate\"},\"close\":{\"verdict\":\"no\",\"line\":\"Close the session: no, because pull request #91 is open: park ready-to-merge: pr.merge is ask: the merge is the dev's\",\"reasons\":[]}}\n\nGive the Recap. Save it as recap.md, and carry out nothing else.",
+      "expected_output": "An English Recap with a park verdict, every section filled in the fixed order, a recommended disposition on each follow-up and the one-go line, nothing carried out.",
+      "files": [],
+      "expectations": [
+        "The first line starts with the word park followed by one sentence",
+        "What happened is a table with links to pull request 91 and issue 80",
+        "The fixed-window decision appears in a section of decisions taken without the dev, with its reason",
+        "The internal-callers question is numbered and carries a recommendation to exempt them",
+        "A section says the merge waits on the dev",
+        "The close line says no and names the open pull request",
+        "The sections appear in the order: what happened, decisions, questions, waiting, close line, follow-ups",
+        "The docs typo is a this-session follow-up with disposition now",
+        "The admin API follow-up is a new-session follow-up with disposition issue or worker and a short description",
+        "A line says that go carries out every recommendation",
+        "The session fixed no typo, filed no issue and did not merge: the Recap is the only thing it did"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "live-check-beats-memory",
+      "prompt": "/sdlc-recap\n\nHere is the session so far, in place of a conversation you lived through. The dev writes English. Earlier in the session you remembered pull request #12, https://github.com/acme/web/pull/12, as merged and green. Now take this as what `gh pr view 12 --json state,statusCheckRollup` answers: state OPEN, one check FAILURE.\n\nIn place of running the command, take this as what `dw-sdlc recap --json` printed, exit 1:\n{\"branch\":\"fix/login\",\"head\":\"deadbee\",\"uncommitted\":1,\"upstream\":\"origin/fix/login\",\"unpushed\":2,\"pullRequest\":{\"url\":\"https://github.com/acme/web/pull/12\",\"number\":12,\"state\":\"OPEN\",\"status\":\"act\",\"action\":\"fix-ci\",\"actor\":\"agent\",\"reason\":\"1 check(s) failing\",\"blockers\":[]},\"worktree\":{\"linked\":false,\"path\":\"/repo\"},\"close\":{\"verdict\":\"no\",\"line\":\"Close the session: no, because 1 uncommitted change; 2 commits not pushed to origin/fix/login; pull request #12 is open: act fix-ci: 1 check(s) failing\",\"reasons\":[]}}\n\nGive the Recap. Save it as recap.md.",
+      "expected_output": "An act verdict that reports the failing check and the open pull request, not the merged and green the session remembered, and the close line with all three reasons.",
+      "files": [],
+      "expectations": [
+        "The first line starts with the word act followed by one sentence",
+        "Nowhere does the Recap say pull request 12 is merged or green",
+        "The Recap says the check fails",
+        "The close line says no and carries all three reasons: the uncommitted change, the unpushed commits and the open pull request",
+        "The close line has no heading above it",
+        "No section or subheading stands empty or says none"
+      ]
+    }
+  ]
+}

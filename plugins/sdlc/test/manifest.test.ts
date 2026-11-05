@@ -1,6 +1,6 @@
 // The plugin as Claude Code loads it: each hook script wired to its event and matcher or run by
 // another hook, each skill present under its name and user-invoked, each subagent under its name and
-// on its allowed tools, the package linked, and the marketplace listing this plugin alone at the manifest's version.
+// on its allowed tools, the package linked, and the marketplace listing this plugin at the manifest's version.
 
 import assert from "node:assert/strict"
 import { readdirSync, readFileSync, realpathSync, statSync } from "node:fs"
@@ -134,13 +134,13 @@ describe("the sdlc plugin", () => {
     assert.equal(realpathSync(join(PLUGIN_ROOT, "dw-sdlc")), realpathSync(join(REPO_ROOT, "packages", "dw-sdlc")))
   })
 
-  it("is the one plugin the marketplace lists, at the manifest's version", () => {
+  it("is the plugin named sdlc, on the path the marketplace lists it at", () => {
     const marketplace = readJson(join(REPO_ROOT, ".claude-plugin", "marketplace.json"))
     assert.ok(isObject(marketplace) && Array.isArray(marketplace.plugins) && isObject(manifest))
-    const listed = marketplace.plugins.map((plugin) =>
-      isObject(plugin) ? [plugin.name, plugin.source, plugin.version] : plugin
-    )
-    assert.deepEqual(listed, [[manifest.name, "./plugins/sdlc", manifest.version]])
+    const entry: unknown = marketplace.plugins.find((plugin) => isObject(plugin) && plugin.name === "sdlc")
+    assert.ok(isObject(entry))
     assert.equal(manifest.name, "sdlc")
+    assert.equal(entry.source, "./plugins/sdlc")
+    assert.equal(entry.version, manifest.version)
   })
 })

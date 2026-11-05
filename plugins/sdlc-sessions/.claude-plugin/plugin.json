@@ -1,0 +1,10 @@
+{
+  "name": "sdlc-sessions",
+  "version": "0.1.0",
+  "description": "The skills that run a Claude Code session: /sdlc-recap answers where a session stands, in one fixed shape, with whether it can be closed. It depends on sdlc, so a session keeps its guards.",
+  "author": {
+    "name": "Dominik Woźniak"
+  },
+  "repository": "https://github.com/dominikwozniak/dw-sdlc",
+  "dependencies": ["sdlc"]
+}

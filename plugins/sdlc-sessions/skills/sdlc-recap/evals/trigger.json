@@ -1,0 +1,25 @@
+[
+  { "query": "/sdlc-recap", "should_trigger": true },
+  { "query": "/sdlc-recap this one ran long, I was on the other terminal", "should_trigger": true },
+  { "query": "/sdlc-sessions:sdlc-recap", "should_trigger": true },
+  {
+    "query": "You are a Worker. Do #88 yourself and start no other session. Report: end with a Recap through /sdlc-recap. The work on #88 is done: the pull request merged. Finish as the Brief says.",
+    "should_trigger": true
+  },
+  {
+    "query": "Brief for this session: fix the flaky login test in test/auth. Proof it is done: pnpm test is green. When you finish, end with a Recap. The test is fixed and green now, so finish as the Brief says.",
+    "should_trigger": true
+  },
+  { "query": "co dalej?", "should_trigger": false },
+  { "query": "co dalej z tym PR-em #91, czekamy na CI?", "should_trigger": false },
+  { "query": "gdzie jesteśmy?", "should_trigger": false },
+  { "query": "where are we on the rate limit work? just a quick word", "should_trigger": false },
+  { "query": "can I close this session?", "should_trigger": false },
+  { "query": "mogę zamknąć tę sesję czy coś jeszcze wisi?", "should_trigger": false },
+  { "query": "is it merged?", "should_trigger": false },
+  { "query": "any questions for me before you go on with the migration?", "should_trigger": false },
+  { "query": "write me a summary of the last three commits for the changelog", "should_trigger": false },
+  { "query": "podsumuj mi ten ADR 0014 w dwóch zdaniach", "should_trigger": false },
+  { "query": "add a recap section to the README describing what the release workflow does", "should_trigger": false },
+  { "query": "what does the dw-sdlc recap command print when there is no upstream?", "should_trigger": false }
+]

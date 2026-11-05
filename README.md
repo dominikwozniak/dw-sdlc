@@ -3,8 +3,10 @@
 **The software delivery process Dominik works by, and the Claude Code tooling that carries it.**
 
 A plugin marketplace and the code behind it. The process is proven in this repository before it goes
-wider. The marketplace ships one plugin, `sdlc`: the guards, the Sync of the repositories an agent
-reads for prior art, and the skills that set a repository up and check a machine.
+wider. The marketplace ships two plugins. `sdlc` carries the guards, the Sync of the repositories an
+agent reads for prior art, and the skills that set a repository up and check a machine.
+[`sdlc-sessions`](plugins/sdlc-sessions/README.md) depends on it and carries `/sdlc-recap`, which says
+where a session stands and whether it can be closed.
 
 ## Install
 
