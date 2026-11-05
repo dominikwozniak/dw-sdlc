@@ -37,9 +37,9 @@ package manager, protected branches, env-file policy and commit convention; `pr.
 a pull request the Ship script finds ready: the script under `auto`, the dev under `ask`, the
 default; `pr.review`, the Review depth of a head no one has reviewed: `full`, `light`, `off`, or
 `auto`, the default, which routes one from the changes; and `pr.reviewCommand`, the slash command
-a `full` Review runs, `/code-review` by default. A machine may add `.ai/agentic.config.local.json` on top, which can tighten `guardrails`, `pr.merge`
-and `pr.review` and never loosen them. It sets `pr.reviewCommand` freely: the key has no
-strictness order. Any key neither file sets is inferred: pnpm from
+a `full` Review runs, `/code-review` by default. A machine may add `.ai/agentic.config.local.json`
+on top, which can tighten `guardrails`, `pr.merge` and `pr.review` and never loosen them. It sets
+`pr.reviewCommand` freely: the key has no strictness order. Any key neither file sets is inferred: pnpm from
 the lockfile, and the `conventional` commit convention. A repository whose subjects start with a
 ticket key sets `commit.convention: ticket-key` in either file. A linked worktree reads a layer it
 lacks from its main checkout, so a repository that keeps `.ai/` out of git needs no copy per
@@ -379,13 +379,16 @@ lines. The rules, first match wins:
 
 - `off`: every changed file is a lockfile, as `pnpm-lock.yaml` or `Gemfile.lock` in any directory.
   The status reads `off: lockfiles only`.
-- `full`: a file under `.github/workflows/`, under its name or its name before a rename; more than
-  100 changed lines outside lockfiles; or 300 files, GitHub's compare limit, which may hold some back.
+- `full`: a change the script cannot size: 300 files, GitHub's compare limit, which may hold some
+  back, or a file outside lockfiles the compare shows no patch for, such as a binary one. A file
+  under `.github/workflows/`, under its name or its name before a rename. More than 100 changed
+  lines outside lockfiles.
 - `light`: the rest.
 
 `source` is then `auto`, and `details.reviewCommand` comes at every depth: the agent may raise a
-`light` it judges riskier than its size to `full`, saying why in one line. It never lowers a depth,
-and never raises one the dev or the config set. No config key moves the rules. An invalid layer
+`light` it judges riskier than its size to `full`, saying why in one line. An `off` the rules route
+the script posts in the same call, so no agent turn comes to raise it. The agent never lowers a
+depth, and never raises one the dev or the config set. No config key moves the rules. An invalid layer
 runs `full`, and the local layer may tighten `pr.review` in the order full, auto, light, off.
 
 After a push, the Review reads only what changed since the last reviewed commit. The same GraphQL
@@ -394,7 +397,7 @@ query reads the pull request's last 100 commits. The last one before the head wi
 script posted under `off` does not count, since no one read that head. A rebase or a force push
 drops the reviewed commit from the history, and 100 later commits push it out of the read. Then no
 `details.since` comes, and the Review reads the whole diff since the base. After a merge of the base
-in, the changes since `details.since` include what the base brought in.
+in, the changes since `details.since` include what the base brought in, and `auto` counts them too.
 
 A head that only merged the base in carries the earlier status. Two tests tell such a merge from
 the branch's own changes, and both must pass:
@@ -407,10 +410,11 @@ the branch's own changes, and both must pass:
   files, with the same status and names, and the same added and removed lines in the same order.
   Hunk positions and context lines are left out, since a base that moved shifts them.
 
-When both pass, the script posts the status as `mark-reviewed`, described as `carried from <sha>`.
-A depth the dev names for the call beats the carry: `--review full` or `light` asks for a Review of
-the whole diff since the base, and `--review off` posts the status as `off: --review off`. A conflict resolved by hand
-changes the branch's own lines, so it never carries. Neither does a file the compare shows no patch
+When both pass, the script posts the status as `mark-reviewed`, described as `carried from <sha>`,
+and its `details` name only `since`: a carry reads at no depth. A depth the dev names for the call
+beats the carry: `--review full` or `light` asks for a Review of the whole diff since the base, and
+`--review off` posts the status as `off: --review off`. A conflict resolved by hand changes the
+branch's own lines, so it never carries. Neither does a file the compare shows no patch
 for, such as a binary one, or a compare at GitHub's limit of 300 files. A merge made by hand that
 moves one of the branch's own lines within a file, keeping their order, does carry: the test leaves
 positions out.

@@ -51,7 +51,7 @@ export function changedOf(reply: string): ChangedFile[] | "unsized" {
   const files = filesOf(reply).map((file) => ({
     path: string(file, "filename"),
     previous: optional(file, "previous_filename"),
-    lines: integer(file, "additions") + integer(file, "deletions")
+    lines: optional(file, "patch") === null ? null : integer(file, "additions") + integer(file, "deletions")
   }))
   return files.length >= FILE_LIMIT ? "unsized" : files
 }

@@ -133,15 +133,18 @@ function sinceOf(pr: PrState, policy: Policy): string | null {
 }
 
 /** A depth as the answer names it, and under off why no one reads the head. */
-type Depth = { depth: ReviewDepth; source: DepthSource; why?: string }
+type Depth =
+  | { depth: Exclude<ReviewDepth, "off">; source: DepthSource }
+  | { depth: "off"; source: DepthSource; why: string }
 
 /** The depth a Review reads the head at: the dev's or the one `pr.review` sets, else the one the rules route. */
 function depthOf(pr: PrState, { review }: Policy): Depth {
-  if (review.source === "flag") {
-    return { ...review, why: "--review off" }
+  const { depth, source } = review
+  if (depth === "off") {
+    return { depth, source, why: source === "flag" ? "--review off" : "pr.review" }
   }
-  if (review.depth !== "auto") {
-    return { depth: review.depth, source: "config", why: "pr.review" }
+  if (depth !== "auto") {
+    return { depth, source }
   }
   return { ...route(pr.changed), source: "auto" }
 }
@@ -152,7 +155,11 @@ function markedDescription(pr: PrState, policy: Policy): string {
   if (carried !== null) {
     return `carried from ${carried.slice(0, 7)}`
   }
-  return `${OFF_PREFIX} ${depthOf(pr, policy).why}`
+  const depth = depthOf(pr, policy)
+  if (depth.depth !== "off") {
+    throw new Error(`the script marks ${pr.url} reviewed at ${depth.depth}, neither off nor a carry`)
+  }
+  return `${OFF_PREFIX} ${depth.why}`
 }
 
 /** A script Action's gh arguments; `repo` is `-R` and the repository when the call names it, else empty. */
@@ -254,24 +261,27 @@ const ROWS: Row[] = [
   },
   {
     // Another author's pull request needs no Review: the dev merges it. The script posts the success
-    // under off, and over a carry, which names the depth as configured and routes none.
+    // under off, and over a carry, which reads at no depth.
     when: awaitsReview,
     answer: (pr, _, policy) => {
-      const carried = carriedFrom(pr, policy) !== null
-      const { depth, source } = carried ? policy.review : depthOf(pr, policy)
-      const byScript = carried || depth === "off"
       const since = sinceOf(pr, policy)
+      const head = { status: "act", reason: `no ${REVIEW} success on ${pr.head.slice(0, 7)}` } as const
+      const after = since === null ? {} : { since }
+      if (carriedFrom(pr, policy) !== null) {
+        return { ...head, action: "mark-reviewed", actor: "script", details: after }
+      }
+      const { depth, source } = depthOf(pr, policy)
+      const byScript = depth === "off"
       return {
-        status: "act",
+        ...head,
         action: byScript ? "mark-reviewed" : "review",
         actor: byScript ? "script" : "agent",
-        reason: `no ${REVIEW} success on ${pr.head.slice(0, 7)}`,
         details: {
           depth,
           source,
           // The agent may raise a routed depth to full, so auto names the command at any depth.
           ...(depth === "full" || source === "auto" ? { reviewCommand: policy.reviewCommand } : {}),
-          ...(since === null ? {} : { since })
+          ...after
         }
       }
     }

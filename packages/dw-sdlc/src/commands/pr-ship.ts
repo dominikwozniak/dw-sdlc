@@ -36,7 +36,8 @@ with the command pr.reviewCommand names, /code-review by default; under light on
 subagent reads the diff; under off the script posts the success itself, its description saying
 why. Under auto, the default, the script routes the depth from the changes the Review would read:
 lockfiles alone off; a file under .github/workflows/, more than 100 changed lines outside
-lockfiles, or more files than GitHub's compare lists full; the rest light. After a push it names
+lockfiles, or a change it cannot size, more files than GitHub's compare lists or a file outside
+lockfiles with no patch, full; the rest light. After a push it names
 the last reviewed commit under details.since, where the Review reads from and auto routes from. It
 carries that commit's success over a head whose only commits since are merges of the base, unless
 --review names a depth for the call.

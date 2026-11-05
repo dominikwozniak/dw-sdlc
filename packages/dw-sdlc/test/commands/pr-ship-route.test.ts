@@ -52,6 +52,11 @@ function file(filename: string, additions: number, deletions = 0): File {
   return { filename, status: "modified", additions, deletions, patch: "@@ -1 +1 @@\n-a\n+b" }
 }
 
+/** A file the compare shows no patch for: a binary one, or a diff too large to show. */
+function unpatched(filename: string, additions: number, deletions = 0): File {
+  return { filename, status: "modified", additions, deletions }
+}
+
 /** The compare from `from` to `to`, the call that reads the changes a Review would read. */
 function compare(from: string, to = HEAD): string[] {
   return ["api", `repos/byarcadia-app/foundation/compare/${from}...${to}?per_page=1`]
@@ -104,7 +109,10 @@ describe("dw-sdlc pr ship under pr.review auto", () => {
       ["101 changed lines", [file("src/a.ts", 60, 41)], full],
       ["100 changed lines, lockfiles uncounted", [file("src/a.ts", 60, 40), ...LOCKFILES], light],
       ["a lockfile and one line of code", [...LOCKFILES, file("package.json", 1, 1)], light],
-      ["300 files, more than the compare can size", many, full]
+      ["no changed file", [], light],
+      ["300 files, more than the compare can size", many, full],
+      ["a file the compare shows no patch for, as a binary one", [unpatched("assets/icon.png", 0)], full],
+      ["a lockfile too large for a patch", [unpatched("pnpm-lock.yaml", 9000, 9000), file("src/a.ts", 1)], light]
     ]
     for (const [name, files, details] of cases) {
       const run = ship(["--json"], [UNREVIEWED], compared(BASE_OID, files))
@@ -153,6 +161,17 @@ describe("dw-sdlc pr ship under pr.review auto", () => {
     assert.deepEqual(run.calls, [AUTH, READ, compare(REVIEWED)])
   })
 
+  it("routes on the whole diff since the base over a rewritten history that holds no reviewed commit", () => {
+    const rebased: Pr = { ...UNREVIEWED, history: [{ oid: PUSHED, review: null }] }
+    const run = ship(["--json"], [rebased], compared(BASE_OID, [file("src/a.ts", 101)]))
+    assert.equal(run.status, 10, run.stderr)
+    assert.deepEqual(documentOf(run.stdout, ["action", "details"]), {
+      action: "review",
+      details: { depth: "full", source: "auto", reviewCommand: "/code-review" }
+    })
+    assert.deepEqual(run.calls, [AUTH, READ, compare(BASE_OID)])
+  })
+
   it("reads no compare when the dev's --review or a fixed pr.review sets the depth", () => {
     const cases: [string[], Files, object][] = [
       [["--review", "light"], {}, { depth: "light", source: "flag" }],
@@ -184,7 +203,7 @@ describe("dw-sdlc pr ship under pr.review auto", () => {
     assert.equal(run.status, 30, run.stderr)
     assert.deepEqual(documentOf(run.stdout, ["action", "details", "command"]), {
       action: "mark-reviewed",
-      details: { depth: "auto", source: "config", since: REVIEWED },
+      details: { since: REVIEWED },
       command: commandOf(marked(`carried from ${REVIEWED.slice(0, 7)}`))
     })
     assert.deepEqual(run.calls, [AUTH, READ, compare(BASE_OID, REVIEWED), compare(BASE_OID)])
@@ -206,7 +225,7 @@ describe("dw-sdlc pr ship under pr.review auto", () => {
       ],
       [
         "unparsed",
-        { stdout: JSON.stringify({ files: [{ filename: "src/a.ts", status: "modified" }] }) },
+        { stdout: JSON.stringify({ files: [{ filename: "src/a.ts", status: "modified", patch: "@@ -1 +1 @@\n+b" }] }) },
         "dw-sdlc pr ship: the reply does not parse: files[0].additions is missing, not an integer — gh answered a shape dw-sdlc does not read; report it with the output of gh --version"
       ]
     ]

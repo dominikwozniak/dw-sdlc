@@ -91,9 +91,9 @@ function commandOf(args: string[]): string {
 }
 
 const CARRIED = `carried from ${REVIEWED.slice(0, 7)}`
-/** pr.review full: no compare beyond the two a carry reads; `pr-ship-route` reads auto. */
 /** The files of a test's checkout: a relative path and its text, an object written as JSON. */
 type Files = Record<string, string | object>
+/** pr.review full: no compare beyond the two a carry reads; `pr-ship-route` reads auto. */
 const FULL: Files = { [COMMITTED_FILE]: { pr: { review: "full" } } }
 
 function ship(args: string[], graphql: Pr[], commands: Record<string, Response> = {}, files: Files = FULL) {
@@ -172,7 +172,7 @@ describe("dw-sdlc pr ship after a push to a reviewed pull request", () => {
         action: "mark-reviewed",
         actor: "dev",
         reason: "the script would mark it reviewed; --dry-run performs nothing",
-        details: { depth: "full", source: "config", reviewCommand: "/code-review", since: REVIEWED },
+        details: { since: REVIEWED },
         command,
         performed: [{ action: "mark-reviewed", command, ok: null }]
       }

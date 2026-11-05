@@ -79,8 +79,11 @@ export type PrState = {
   changed: ChangedFile[] | "unsized" | null
 }
 
-/** A file a Review would read: its name, its name before a rename, and the lines it adds and removes. */
-export type ChangedFile = { path: string; previous: string | null; lines: number }
+/**
+ * A file a Review would read: its name, its name before a rename, and the lines it adds and removes,
+ * null when the compare shows no patch for it, as for a binary file.
+ */
+export type ChangedFile = { path: string; previous: string | null; lines: number | null }
 
 /** A reviewed commit, and whether every commit after it, the head included, is a merge. */
 export type LastReviewed = { commit: string; mergesOnly: boolean }

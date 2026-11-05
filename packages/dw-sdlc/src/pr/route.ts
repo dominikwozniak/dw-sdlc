@@ -41,18 +41,22 @@ function isWorkflow({ path, previous }: ChangedFile): boolean {
   return [path, previous].some((name) => name?.startsWith(WORKFLOWS) === true)
 }
 
-/** The depth the rules route `changed` to; a change not read or not sized reads in full. */
+/**
+ * The depth the rules route `changed` to. A change not read or not sized reads in full, as does a file
+ * outside lockfiles the compare shows no patch for.
+ */
 export function route(changed: ChangedFile[] | "unsized" | null): Routed {
   if (changed === null || changed === "unsized") {
     return { depth: "full" }
   }
-  if (changed.length === 0) {
-    return { depth: "off", why: "no changes" }
-  }
   const code = changed.filter((file) => !isLockfile(file.path))
-  if (code.length === 0) {
+  if (changed.length > 0 && code.length === 0) {
     return { depth: "off", why: "lockfiles only" }
   }
-  const lines = code.reduce((sum, file) => sum + file.lines, 0)
-  return { depth: changed.some(isWorkflow) || lines > LINE_LIMIT ? "full" : "light" }
+  const lines = code.map((file) => file.lines)
+  if (changed.some(isWorkflow) || lines.includes(null)) {
+    return { depth: "full" }
+  }
+  const total = lines.reduce<number>((sum, count) => sum + (count ?? 0), 0)
+  return { depth: total > LINE_LIMIT ? "full" : "light" }
 }

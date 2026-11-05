@@ -94,7 +94,7 @@ function targetOf({ number, repo }: Named, command: string): { repo: string; num
  * The state of the pull request `named`; `command`, as `pr ship`, names the call in a remedy. With
  * `sized`, as `pr.review: auto` needs, the read sizes the changes a Review would read.
  */
-export function read(named: Named, command: string, sized = false): PrState {
+export function read(named: Named, command: string, sized: boolean): PrState {
   // The host gh api reads from: an account on any other host has no say in this call.
   const host = process.env.GH_HOST?.trim() || "github.com"
   const auth = gh(["auth", "status", "--active", "--hostname", host])
@@ -105,7 +105,7 @@ export function read(named: Named, command: string, sized = false): PrState {
 }
 
 /** The state of `pr` once more, after an action the script performed on it: the same pull request. */
-export function readAgain(pr: PrState, sized = false): PrState {
+export function readAgain(pr: PrState, sized: boolean): PrState {
   return query(pr, sized)
 }
 
