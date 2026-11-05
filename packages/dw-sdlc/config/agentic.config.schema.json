@@ -114,7 +114,7 @@
           "minLength": 1
         },
         "steps": {
-          "description": "The Steps: toolchain commands run in order from the repository root through `sh -c`, each one's output passed through; the first that fails ends the Gate and no Check runs. A command the shell cannot find (exit 127) or execute (126) means the Gate cannot run.",
+          "description": "The Steps: toolchain commands run in order from the repository root through `sh -c`, each one's output captured and printed only when it fails, or passed through under `--verbose`; the first that fails ends the Gate and no Check runs. A command the shell cannot find (exit 127) or execute (126) means the Gate cannot run.",
           "type": "array",
           "items": {
             "type": "string",
