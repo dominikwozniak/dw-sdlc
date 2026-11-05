@@ -58,7 +58,8 @@ the delete command for the dev.
 dev under `ask`, the default. `pr.review` says how closely a head no one has reviewed is read: the
 agent reviews it under `full`, the default, one `sdlc-reviewer` subagent of the plugin does under
 `light`, and no one does under `off`. The local layer may tighten either and never loosen it;
-`--merge` acts as `auto` and `--review full|light|off` sets the depth for one call. A pull request the `gh` account did not open is always the dev's to merge.
+`--merge` acts as `auto` and `--review full|light|off` sets the depth for one call. A pull request
+the `gh` account did not open is always the dev's to merge.
 
 ```json
 { "pr": { "merge": "auto", "review": "full" } }

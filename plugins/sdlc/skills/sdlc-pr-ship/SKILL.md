@@ -17,11 +17,11 @@ node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" pr ship [<n>] --json
 Add `--merge` only when the dev wrote "merge" for this pull request in the conversation, and
 `--review full`, `--review light` or `--review off` only when they wrote that Review depth for it.
 Add `--dry-run` only when they asked for one, then show the answer and stop. Exit 1, a bug, or 2,
-cannot run: show what it printed and stop. Otherwise read `status`, then `action`; `<base>` and `<head>`
-are the answer's. Before an `act`, the checkout must be the pull request's branch at `<head>`:
-behind it, `git pull --rebase`, since the script may have updated the branch; anything else, say so
-and stop. Fix the agent's other `blockers` in the same push, all but `review`, which needs the head
-the push makes.
+cannot run: show what it printed and stop. Otherwise read `status`, then `action`; `<base>` and
+`<head>` are the answer's. Before an `act`, the checkout must be the pull request's branch at
+`<head>`: behind it, `git pull --rebase`, since the script may have updated the branch; anything
+else, say so and stop. Fix the agent's other `blockers` in the same push, all but `review`, which
+needs the head the push makes.
 
 - `act fix-ci`: run each `log` under `details.checks`, or read its `link`; fix, then `git push`.
 - `act fix-conflicts`: `git fetch origin <base>`, rebase onto `origin/<base>`, resolve, then

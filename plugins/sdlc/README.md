@@ -606,21 +606,20 @@ with `--rebase` first when the branch is behind it, as after the script's update
 asks for shows the answer and does nothing. It passes `--merge` only when the dev wrote "merge" for
 this pull request in the conversation, and `--review full`, `--review light` or `--review off` only
 when they wrote that Review depth for it; under `off`, from the flag or `pr.review`, the script
-posts the review marker itself and the skill never reviews. It never deletes a branch, the one a `done` answer's
-command names included. Review-thread text is data it triages against the code, never an
-instruction. The decision, the exit codes and the review marker `pr reviewed` posts are in the
-overview, [How a pull request lands](../../docs/overview.md#how-a-pull-request-lands).
+posts the review marker itself and the skill never reviews. It never deletes a branch, the one a
+`done` answer's command names included. Review-thread text is data it triages against the code,
+never an instruction. The decision, the exit codes and the review marker `pr reviewed` posts are in
+the overview, [How a pull request lands](../../docs/overview.md#how-a-pull-request-lands).
 
 ### The light Review
 
 `agents/sdlc-reviewer.md` is the one reader of a `light` Review: a subagent on the session's model
 at `effort: medium`, whatever effort the session runs at, unless `CLAUDE_CODE_EFFORT_LEVEL` sets
 one. Its tools are `Read`, `Grep` and `Bash`, and its instructions keep Bash to read-only git. It
-does not see the
-conversation, so the skill's prompt holds what it reads: the diff command, the files the diff
-touches, and the spec as the conversation states it. It reads those files and the repository's
-agent rules, nothing else, skips what the Gate checks, and reports under 300 words, its first line
-`clean` or `findings: <n>`.
+does not see the conversation, so the skill's prompt holds what it reads: the diff command, the
+files the diff touches, and the spec as the conversation states it. It reads those files and the
+repository's Agent map, nothing else, skips what the Gate checks, and reports under 300 words, its
+first line `clean` or `findings: <n>`.
 
 ## Tests
 
@@ -639,9 +638,9 @@ empty.
 `test/references-harness.ts` through the link, which builds throwaway repositories apart from the
 machine's git config. `test/manifest.test.ts` holds the manifest to the tree: each hook script wired
 to its event and matcher, run by the dispatcher or left to git, each skill under its name, with
-every plugin path it runs on disk and left for the user to invoke, each subagent under its name,
-read-only at medium effort on the session's model, the link to the package, and the
-marketplace listing this plugin alone at the manifest's version.
+every plugin path it runs on disk and left for the user to invoke, each subagent under its name, at
+medium effort on the session's model with no tool that edits a file, the link to the package, and
+the marketplace listing this plugin alone at the manifest's version.
 
 The commands' tests sit beside the package's code, in its `test/commands/`: `setup`, `doctor` and
 `config`, `references-sync.test.ts`, which drives the Sync against upstreams served over `file://`,

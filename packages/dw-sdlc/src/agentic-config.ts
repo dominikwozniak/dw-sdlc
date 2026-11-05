@@ -25,8 +25,8 @@ export type EnvFiles = { policy: EnvPolicy; allow: string[]; deny: string[] }
 /** Who merges a pull request the Ship script finds ready: the script under `auto`, the dev under `ask`. */
 export type PrMerge = "ask" | "auto"
 /**
- * How closely a Review reads an unreviewed head: the repository's review command under `full`, one
- * `sdlc-reviewer` subagent under `light`, no one under `off`.
+ * How closely a Review reads an unreviewed head: the command `pr.reviewCommand` names under `full`,
+ * one `sdlc-reviewer` subagent under `light`, no one under `off`.
  */
 export type PrReview = "full" | "light" | "off"
 

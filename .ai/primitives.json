@@ -319,7 +319,7 @@
       "id": "agents.reviewer",
       "name": "sdlc-reviewer",
       "group": "agents",
-      "summary": "The light Review: one read-only subagent at medium effort over a diff, the files it touches and the agent rules.",
+      "summary": "The light Review: one subagent at medium effort over a diff, the files it touches and the Agent map; Bash for git reads.",
       "code": ["plugins/sdlc/agents/sdlc-reviewer.md"],
       "docs": [
         "plugins/sdlc/README.md#shipping-a-pull-request",

@@ -21,9 +21,8 @@ is its long form: how a guard works, why the design, adopting and releasing.
   scope: `hooks/` the bash guards on a shared `lib.sh` plus the jq config contract, and the session
   hooks, the report and the Sync; `skills/` the user-invoked `sdlc-setup`, `sdlc-doctor`,
   `sdlc-references-add` and `sdlc-pr-ship`; `agents/` the `sdlc-reviewer` subagent a `light` Review
-  spawns; `dw-sdlc` a link to the package, whose bin the hooks and
-  skills run; `test/` the hook tests, mirroring `hooks/`, each spawning a hook on the real stdin
-  payload, and the manifest test
+  spawns; `dw-sdlc` a link to the package, whose bin the hooks and skills run; `test/` the hook
+  tests, mirroring `hooks/`, each spawning a hook on the real stdin payload, and the manifest test
 - `.ai/` — `agentic.config.json`, this repo's agent rules against the package's schema;
   `references.json`, the References this repo reads; `primitives.json`, the catalogue of what this
   repo exposes to an agent, per Primitive its code and the doc that explains it, held to the tree by the

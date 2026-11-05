@@ -42,7 +42,7 @@ under facts. Needs an authenticated gh.
 Exit 0 done, 10 the agent's turn, 20 wait, 30 the dev's turn, 2 when it cannot run.`
 
 /** The depths --review takes, strictest first, as a sentence lists them. */
-const DEPTHS = `${STRICTNESS.review.slice(0, -1).join(", ")} or ${STRICTNESS.review.at(-1)}`
+const DEPTHS_SENTENCE = `${STRICTNESS.review.slice(0, -1).join(", ")} or ${STRICTNESS.review.at(-1)}`
 
 const EXIT: Record<Status, number> = { done: 0, act: 10, wait: 20, park: 30 }
 
@@ -89,7 +89,7 @@ function parseCli(argv: string[]): Cli | { error: string } {
         return { error: problem }
       }
       if (values.review !== undefined && review === undefined) {
-        return { error: `--review takes ${DEPTHS}, not ${JSON.stringify(values.review)}` }
+        return { error: `--review takes ${DEPTHS_SENTENCE}, not ${JSON.stringify(values.review)}` }
       }
     }
     return {

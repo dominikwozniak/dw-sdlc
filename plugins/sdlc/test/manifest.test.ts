@@ -1,6 +1,6 @@
 // The plugin as Claude Code loads it: each hook script wired to its event and matcher or run by
 // another hook, each skill present under its name and user-invoked, each subagent under its name and
-// read-only, the package linked, and the marketplace listing this plugin alone at the manifest's version.
+// on its allowed tools, the package linked, and the marketplace listing this plugin alone at the manifest's version.
 
 import assert from "node:assert/strict"
 import { readdirSync, readFileSync, realpathSync, statSync } from "node:fs"
@@ -35,8 +35,8 @@ const GIT_HOOKS = ["commit-msg.sh"]
 const SKILLS = ["sdlc-doctor", "sdlc-pr-ship", "sdlc-references-add", "sdlc-setup"]
 /** The subagents under `agents/`, each a file named as its `name`, spawned as `sdlc:<name>`. */
 const AGENTS = ["sdlc-reviewer"]
-/** What a subagent of the plugin may use: it reads the repository, and Bash only for git's reads. */
-const READ_ONLY_TOOLS = new Set(["Read", "Grep", "Glob", "Bash"])
+/** The tools a subagent of the plugin may list: none that edits a file. Its instructions keep Bash to git's reads. */
+const ALLOWED_TOOLS = new Set(["Read", "Grep", "Bash"])
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
@@ -109,7 +109,7 @@ describe("the sdlc plugin", () => {
     }
   })
 
-  it("ships each subagent under its name, read-only at medium effort on the session's model", () => {
+  it("ships each subagent under its name, at medium effort on the session's model, with no tool that edits a file", () => {
     assert.deepEqual(
       readdirSync(join(PLUGIN_ROOT, "agents")).toSorted(),
       AGENTS.map((name) => `${name}.md`)
@@ -124,7 +124,7 @@ describe("the sdlc plugin", () => {
       assert.equal(field("model"), "inherit", `${name} runs on the session's model`)
       const tools = (field("tools") ?? "").split(",").map((tool) => tool.trim())
       assert.ok(
-        tools.length > 0 && tools.every((tool) => READ_ONLY_TOOLS.has(tool)),
+        tools.length > 0 && tools.every((tool) => ALLOWED_TOOLS.has(tool)),
         `${name} tools: ${tools.join(", ")}`
       )
     }

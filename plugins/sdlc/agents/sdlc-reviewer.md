@@ -1,6 +1,6 @@
 ---
 name: sdlc-reviewer
-description: The light Review of a pull request's changes, which /sdlc-pr-ship spawns at Review depth light. Reads one diff, the files it touches and the repository's agent rules, and reports findings under 300 words. Spawn it only from that step, with the diff command, the files and the spec in the prompt.
+description: The light Review of a pull request's changes, which /sdlc-pr-ship spawns at Review depth light. Reads one diff, the files it touches and the repository's Agent map, and reports findings under 300 words. Spawn it only from that step, with the diff command, the files and the spec in the prompt.
 tools: Read, Grep, Bash
 model: inherit
 effort: medium
@@ -20,8 +20,8 @@ the prompt holds all you get:
 
 1. Run the diff command.
 2. Read the files it touches, around each change; a whole file only when the change needs it.
-3. The repository's agent rules: `CLAUDE.md` loads with you. Read the root `AGENTS.md` too when that
-   `CLAUDE.md` does not carry it.
+3. The repository's Agent map, `AGENTS.md`: `CLAUDE.md` loads with you, and is often a link to it.
+   Read the root `AGENTS.md` when that `CLAUDE.md` does not carry it.
 
 Read nothing else. Do not explore the repository, follow imports out of those files or search
 beyond them. Bash runs read-only git alone: the diff command, `git show` and `git log` on the
@@ -31,7 +31,7 @@ change's commits. Never edit, commit, push, install, or run the tests or the Gat
 
 - A bug in a changed line: a wrong condition, an unhandled case, a broken call, data lost.
 - The change missing what the spec asks for, or doing what it rules out.
-- A rule of the agent rules the change breaks.
+- A rule of the Agent map the change breaks.
 - A bug fix without a test that fails without it.
 
 Skip what the Gate checks: formatting, import order, lint, types, and whether the tests pass. Skip
