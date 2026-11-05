@@ -1,5 +1,0 @@
----
-"dw-sdlc": minor
----
-
-A new Check, `routed-docs`, fails each document under `docs/` that no Task Router row of the agent map and no Primitive's `docs` reach, so a task leads an agent to every document that explains it. A row reaches a document through a code span in a cell after the first that names it, a directory above it or a glob that matches it; a Primitive reaches the documents its `docs` name, the heading anchor dropped. A path reads from the root, with or without `./` or `/` before it. `gate.checks.routed-docs` takes `true` or `{ files, exempt }` over the defaults `docs/**/*.md` and `docs/research/**`, and the schema refuses any other option. The map is the file `agents-map` reads and the catalogue the one `primitives` reads. A map with no Task Router table fails once on the map, a missing map exits 2, and a catalogue that is missing or invalid reaches nothing. Each unreached document fails with `no Task Router row or Primitive reaches it — add a Task Router row, name it in a Primitive's docs, or exempt it`. The Check runs after `agents-map` and stays off until a repository turns it on; the setup writes it as `false`.
