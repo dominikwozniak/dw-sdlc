@@ -96,8 +96,6 @@ function checkJq(probe: Probe): Check {
   return { name: "jq", level: "FAIL", detail: "missing: every guard is silent without it. brew install jq" }
 }
 
-/** Where the plugin's hooks run: live from the checkout for a marketplace added from a directory, a
- *  cached snapshot for one added from git. A marker placed in only one of the two settled it. */
 /** The checkout a directory marketplace runs the plugin from, or undefined for a snapshot. */
 function liveCheckout(probe: Probe, claude: string): string | undefined {
   const known = parseJson(probe.read(join(claude, "plugins", "known_marketplaces.json")))
@@ -218,9 +216,11 @@ function checkPackage(probe: Probe, claude: string, root: string | undefined): C
  */
 function checkSessions(probe: Probe, claude: string): Check {
   const name = "sessions"
-  const entry = listedPlugins(probe)?.find((item) => item.id === SESSIONS_ID)
+  const list = listedPlugins(probe)
+  const entry = list?.find((item) => item.id === SESSIONS_ID)
   if (entry === undefined) {
-    return { name, level: "INFO", detail: `no ${SESSIONS_ID} here, so no /sdlc-recap` }
+    const detail = list === undefined ? "claude plugin list did not answer" : `no ${SESSIONS_ID}, so no /sdlc-recap`
+    return { name, level: "INFO", detail }
   }
   const version = typeof entry.version === "string" ? entry.version : "?"
   if (entry.enabled !== true) {

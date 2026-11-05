@@ -660,7 +660,7 @@ machine's git config. `test/manifest.test.ts` holds the manifest to the tree: ea
 to its event and matcher, run by the dispatcher or left to git, each skill under its name, with
 every plugin path it runs on disk and left for the user to invoke, each subagent under its name, at
 medium effort on the session's model with no tool that edits a file, the link to the package, and
-the marketplace listing this plugin alone at the manifest's version.
+the marketplace listing this plugin at the manifest's version.
 
 The commands' tests sit beside the package's code, in its `test/commands/`: `setup`, `doctor` and
 `config`, `references-sync.test.ts`, which drives the Sync against upstreams served over `file://`,

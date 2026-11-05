@@ -19,15 +19,27 @@ every reason. It writes nothing: the pull request's Action is the one dw-sdlc pr
 and never performed.
 
 The session cannot be closed over an uncommitted change, a commit pushed nowhere or only part of the way,
-an open pull request whatever its Action, or commits on top of the base that no pull request holds. A
-linked worktree is a reason beside the verdict, never against it: the session cannot remove the
-directory it runs in. One line a fact, or one document with --json. Needs an authenticated gh, except
-on a detached HEAD or in a repository with no remote, which ask gh nothing.
+an open pull request whatever its Action, or commits on top of the base that no pull request holds; the
+default branch and a branch guardrails.protectedBranches names need no pull request. A linked worktree
+is a reason beside the verdict, never against it: the session cannot remove the directory it runs in.
+One line a fact, or one document with --json. Needs an authenticated gh and a remote it can read. A
+detached HEAD or a repository with no remote asks gh nothing, and the verdict says so.
 
 Exit 0 the session can be closed, 1 it cannot, 2 when it cannot run.`
 
+type ReasonId =
+  | "uncommitted"
+  | "unpushed"
+  | "no-upstream"
+  | "no-pull-request"
+  | "open-pull-request"
+  | "merged"
+  | "closed"
+  | "worktree"
+  | "clean"
+
 /** Why the verdict is what it is: `blocks` says the reason keeps the session open. */
-type Reason = { id: string; blocks: boolean; text: string }
+type Reason = { id: ReasonId; blocks: boolean; text: string }
 
 type Local = {
   /** Null on a detached HEAD. */
@@ -103,10 +115,23 @@ function readShipped(root: string): Shipped | null {
 /** How many commits sit on top of `base`, the branch a pull request for them would land on. */
 type Ahead = { base: string; commits: number }
 
-/** The commits on top of the base when no pull request can land them; the default branch needs none. */
-function aheadOf(root: string, branch: string, shipped: Shipped | null): Ahead {
+/**
+ * The commits on top of the base that no pull request holds. A branch the config protects takes changes
+ * through pull requests rather than making one, and so does the default branch: neither needs one.
+ */
+function aheadOf(root: string, branch: string, shipped: Shipped | null): Ahead | null {
+  if (resolveConfig(root).config.guardrails.protectedBranches.includes(branch)) {
+    return null
+  }
   const base = shipped?.pr.base ?? defaultBranch()
-  return { base, commits: branch === base ? 0 : count(root, ["HEAD", "--not", `--remotes=*/${base}`]) }
+  if (branch === base) {
+    return null
+  }
+  const refs = must(root, ["remote"])
+    .split("\n")
+    .map((remote) => `refs/remotes/${remote}/${base}`)
+    .filter((ref) => asked(root, ["rev-parse", "--verify", "--quiet", ref]) !== undefined)
+  return { base, commits: count(root, ["HEAD", "--not", ...refs]) }
 }
 
 function unpushedReason({ branch, upstream, unpushed }: Local): Reason {
@@ -118,47 +143,53 @@ function unpushedReason({ branch, upstream, unpushed }: Local): Reason {
   return { id: "no-upstream", blocks: true, text: `${commits} ${where}` }
 }
 
-function pullRequestReason({ pr, answer }: Shipped): Reason[] {
+function pullRequestReason({ pr, answer }: Shipped): Reason {
+  const name = `pull request #${pr.number}`
   if (pr.state === "OPEN") {
-    const text = `pull request #${pr.number} is open: ${labelOf(answer)}: ${answer.reason}`
-    return [{ id: "open-pull-request", blocks: true, text }]
+    return { id: "open-pull-request", blocks: true, text: `${name} is open: ${labelOf(answer)}: ${answer.reason}` }
   }
-  return [{ id: pr.state.toLowerCase(), blocks: false, text: `pull request #${pr.number} ${answer.reason}` }]
+  return { id: pr.state === "MERGED" ? "merged" : "closed", blocks: false, text: `${name} ${answer.reason}` }
 }
 
-const CLEAN: Reason = { id: "clean", blocks: false, text: "nothing is uncommitted, unpushed or open" }
-
-function reasonsOf(local: Local, shipped: Shipped | null, ahead: Ahead | null): Reason[] {
-  const all: Reason[] = [
-    ...(local.uncommitted > 0
-      ? [{ id: "uncommitted", blocks: true, text: plural(local.uncommitted, "uncommitted change") }]
-      : []),
-    ...(local.unpushed > 0 ? [unpushedReason(local)] : []),
-    ...(ahead !== null && ahead.commits > 0
-      ? [
-          {
-            id: "no-pull-request",
-            blocks: true,
-            text: `${plural(ahead.commits, "commit")} on top of ${ahead.base} in no pull request`
-          }
-        ]
-      : []),
-    ...(shipped === null ? [] : pullRequestReason(shipped))
-  ]
-  return [
-    ...(all.some((reason) => reason.blocks) ? [] : [CLEAN]),
-    ...all,
-    ...(local.worktree.linked
-      ? [{ id: "worktree", blocks: false, text: `the worktree at ${local.worktree.path} is left to remove` }]
-      : [])
-  ]
+/** The reason when none blocks; `askedGh` false says what the verdict never read, so it claims no more. */
+function cleanReason(askedGh: boolean): Reason {
+  const text = askedGh
+    ? "nothing is uncommitted, unpushed or open"
+    : "nothing is uncommitted or unpushed; gh was not asked"
+  return { id: "clean", blocks: false, text }
 }
 
-function closeLine(reasons: Reason[]): string {
+function reasonsOf(local: Local, shipped: Shipped | null, ahead: Ahead | null, askedGh: boolean): Reason[] {
+  const all: Reason[] = []
+  if (local.uncommitted > 0) {
+    all.push({ id: "uncommitted", blocks: true, text: plural(local.uncommitted, "uncommitted change") })
+  }
+  if (local.unpushed > 0) {
+    all.push(unpushedReason(local))
+  }
+  if (ahead !== null && ahead.commits > 0) {
+    const text = `${plural(ahead.commits, "commit")} on top of ${ahead.base} in no pull request`
+    all.push({ id: "no-pull-request", blocks: true, text })
+  }
+  if (shipped !== null) {
+    all.push(pullRequestReason(shipped))
+  }
+  if (!all.some((reason) => reason.blocks)) {
+    all.unshift(cleanReason(askedGh))
+  }
+  if (local.worktree.linked) {
+    all.push({ id: "worktree", blocks: false, text: `the worktree at ${local.worktree.path} is left to remove` })
+  }
+  return all
+}
+
+/** The verdict and the line a Recap quotes: after "no" only what blocks, after "yes" every reason. */
+function closeOf(reasons: Reason[]): { verdict: "yes" | "no"; line: string; reasons: Reason[] } {
   const blocking = reasons.filter((reason) => reason.blocks)
   const verdict = blocking.length > 0 ? "no" : "yes"
   const shown = blocking.length > 0 ? blocking : reasons
-  return `Close the session: ${verdict}, because ${shown.map((reason) => reason.text).join("; ")}`
+  const line = `Close the session: ${verdict}, because ${shown.map((reason) => reason.text).join("; ")}`
+  return { verdict, line, reasons }
 }
 
 function linesOf(local: Local, shipped: Shipped | null, line: string): string {
@@ -202,20 +233,16 @@ function report(json: boolean): number {
   const held = shipped !== null && head !== null && shipped.pr.commits.includes(head)
   const local = held ? { ...read, unpushed: 0 } : read
   // An open pull request can still take the head, and a commit-less repository has nothing to land.
-  const landed = held || shipped?.pr.state === "OPEN" || head === null
-  const ahead = asksGh && !landed ? aheadOf(root, branch, shipped) : null
-  const reasons = reasonsOf(local, shipped, ahead)
-  const line = closeLine(reasons)
-  const verdict = reasons.some((reason) => reason.blocks) ? "no" : "yes"
+  const nothingToLand = held || shipped?.pr.state === "OPEN" || head === null
+  const ahead = asksGh && !nothingToLand ? aheadOf(root, branch, shipped) : null
+  const close = closeOf(reasonsOf(local, shipped, ahead, asksGh))
   const pullRequest =
     shipped === null
       ? null
       : { url: shipped.pr.url, number: shipped.pr.number, state: shipped.pr.state, ...shipped.answer }
-  const output = json
-    ? JSON.stringify({ ...local, pullRequest, close: { verdict, line, reasons } }, null, 2)
-    : linesOf(local, shipped, line)
+  const output = json ? JSON.stringify({ ...local, pullRequest, close }, null, 2) : linesOf(local, shipped, close.line)
   process.stdout.write(`${output}\n`)
-  return verdict === "yes" ? 0 : 1
+  return close.verdict === "yes" ? 0 : 1
 }
 
 export function run(argv: string[]): number {

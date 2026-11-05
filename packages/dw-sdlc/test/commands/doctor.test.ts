@@ -236,8 +236,10 @@ describe("diagnose", () => {
     it("is INFO when absent, or when claude plugin list does not answer: a machine may go without it", () => {
       const absent = sessions(listing(SDLC_ENTRY))
       assert.equal(absent.level, "INFO")
-      assert.equal(absent.detail, "no sdlc-sessions@dw-sdlc here, so no /sdlc-recap")
-      assert.equal(sessions(withCommand(HEALTHY, "claude plugin list --json", undefined)).level, "INFO")
+      assert.equal(absent.detail, "no sdlc-sessions@dw-sdlc, so no /sdlc-recap")
+      const silent = sessions(withCommand(HEALTHY, "claude plugin list --json", undefined))
+      assert.equal(silent.level, "INFO")
+      assert.equal(silent.detail, "claude plugin list did not answer")
     })
 
     it("warns when disabled, naming the command that enables it", () => {

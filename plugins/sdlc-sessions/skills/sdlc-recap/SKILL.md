@@ -1,6 +1,6 @@
 ---
 name: sdlc-recap
-description: Tell the dev where this session stands, in one fixed shape, with whether it can be closed. Invoke it only when the dev types /sdlc-recap, or when a Brief tells this session, as a Worker, to end with a Recap. Never on a question in the dev's words, such as "co dalej?", "where are we?" or "can I close this?": answer those in plain text.
+description: Tell the dev where this session stands, in one fixed shape, with whether it can be closed. Invoke it only when the dev types /sdlc-recap, or when a Brief tells this session, as a Worker, to end with a Recap. A question in the dev's words, such as "co dalej?", "where are we?" or "can I close this?", gets a plain answer and never this skill.
 ---
 
 # sdlc-recap

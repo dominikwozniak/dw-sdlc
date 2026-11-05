@@ -118,7 +118,7 @@ describe("dw-sdlc recap", () => {
         reasons: [{ id: "clean", blocks: false, text: "nothing is uncommitted, unpushed or open" }]
       }
     })
-    assert.deepEqual(calls, [AUTH, VIEW, DEFAULT])
+    assert.deepEqual(calls, [AUTH, VIEW])
   })
 
   it("uncommitted changes, tracked and untracked, block it and each counts", () => {
@@ -184,6 +184,31 @@ describe("dw-sdlc recap", () => {
       { id: "no-pull-request", blocks: true, text: "1 commit on top of main in no pull request" }
     ])
     assert.deepEqual(calls, [AUTH, VIEW, DEFAULT])
+  })
+
+  it("counts from the base's own ref: a pushed branch named feat/main is not the base", () => {
+    const root = clone()
+    git(root, "switch", "-q", "-c", "feat/main")
+    commit(root, "--allow-empty", "-m", "change")
+    git(root, "push", "-q", "-u", "origin", "feat/main")
+    const { status, doc } = document(root, noPr)
+    assert.equal(status, 1)
+    assert.deepEqual(ids(doc), ["no-pull-request"])
+  })
+
+  it("a branch the config protects needs no pull request, and asks gh for no default branch", () => {
+    const root = clone()
+    writeJson(join(root, COMMITTED_FILE), { guardrails: { protectedBranches: ["main", "develop"] } })
+    git(root, "add", COMMITTED_FILE)
+    commit(root, "-m", "protect develop")
+    git(root, "push", "-q")
+    git(root, "switch", "-q", "-c", "develop")
+    commit(root, "--allow-empty", "-m", "on develop")
+    git(root, "push", "-q", "-u", "origin", "develop")
+    const { status, doc, calls } = document(root, noPr)
+    assert.equal(status, 0, JSON.stringify(doc.close))
+    assert.deepEqual(ids(doc), ["clean"])
+    assert.deepEqual(calls, [AUTH, VIEW])
   })
 
   it("an open pull request blocks it, whatever its Action, and carries that Action's words", () => {
@@ -329,6 +354,11 @@ describe("dw-sdlc recap", () => {
     assert.equal(atRemote.status, 0)
     assert.equal(atRemote.doc.branch, null)
     assert.deepEqual(atRemote.calls, [])
+    assert.deepEqual(
+      atRemote.doc.close.reasons,
+      [{ id: "clean", blocks: false, text: "nothing is uncommitted or unpushed; gh was not asked" }],
+      "it never read a pull request, so it says nothing of one"
+    )
     commit(root, "--allow-empty", "-m", "on no branch")
     const ahead = document(root, noPr)
     assert.equal(ahead.status, 1)

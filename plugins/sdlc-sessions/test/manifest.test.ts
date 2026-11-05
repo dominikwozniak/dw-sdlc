@@ -62,6 +62,7 @@ describe("the sdlc-sessions plugin", () => {
     const description = /^description: (.+)$/m.exec(frontmatter)?.[1] ?? ""
     assert.match(description, /Invoke it only when the dev types \/sdlc-recap, or when a Brief tells/)
     assert.match(description, /co dalej\?/)
+    assert.doesNotMatch(description, /: /, "a colon and a space end a plain YAML value")
   })
 
   it("is listed beside sdlc, each at its manifest's version", () => {

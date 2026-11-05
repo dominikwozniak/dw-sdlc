@@ -1,5 +1,5 @@
-// The read both pr commands make: gh as a child process, its auth on the host gh api reads from, the
-// pull request a command names, and that pull request's state from one GraphQL request, with the two
+// The read the pr commands and recap make: gh as a child process, its auth on the host gh api reads from,
+// the pull request a command names, and that pull request's state from one GraphQL request, with the two
 // compares that tell whether its head carries an earlier Review and the one that sizes its changes.
 
 import { spawnSync } from "node:child_process"
@@ -7,7 +7,7 @@ import { spawnSync } from "node:child_process"
 import { behindOf, changedOf, changesOf, compareArgs, sameChanges } from "./delta.ts"
 import { awaitsReview, parseDefaultBranch, parsePr, parseView, type PrState, QUERY, ReplyError } from "./state.ts"
 
-/** What stops a pr command before it answers: exit 2, the problem and its remedy on one line. */
+/** What stops a command that reads a pull request before it answers: exit 2, the problem and its remedy on one line. */
 export class CannotRun extends Error {
   remedy: string
   constructor(message: string, remedy: string) {
