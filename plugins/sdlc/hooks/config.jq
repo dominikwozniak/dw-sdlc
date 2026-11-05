@@ -23,8 +23,9 @@ def strictest: {
 # the agent reviews every head.
 def strictest_pr: {merge: "ask", review: "full"};
 
-# A resolved config as it runs while any layer is invalid.
-def on_strictest: .guardrails = strictest | .pr = strictest_pr;
+# A resolved config as it runs while any layer is invalid; pr.reviewCommand has no strictest value
+# and keeps what the valid layers name.
+def on_strictest: .guardrails = strictest | .pr += strictest_pr;
 
 # The preset each commit.convention names. `ticket-key` is a ticket key ahead of a short type list;
 # `conventional` is Conventional Commits. Both POSIX ERE, because `grep -E` runs them.
@@ -45,7 +46,7 @@ def defaults($inferred): {
   },
   commit: {convention: $inferred.commit.convention},
   gate: ({steps: [], drift: "fail", checks: {run: []}} + ($inferred.gate // {})),
-  pr: strictest_pr,
+  pr: (strictest_pr + {reviewCommand: "/code-review"}),
   worktree: {setup: []}
 };
 

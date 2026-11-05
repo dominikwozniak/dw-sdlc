@@ -228,6 +228,26 @@ describe("hooks/lib.sh agrees with resolveConfig", () => {
         repo({
           files: { [COMMITTED_FILE]: { pr: { review: "off" } }, [LOCAL_FILE]: { pr: { review: "none" } } }
         })
+    ],
+    [
+      "on a committed pr.reviewCommand, and a local one over it",
+      () =>
+        repo({
+          files: {
+            [COMMITTED_FILE]: { pr: { reviewCommand: "/review" } },
+            [LOCAL_FILE]: { pr: { reviewCommand: "/pr-review-toolkit:review-pr code errors" } }
+          }
+        })
+    ],
+    [
+      "on a committed pr.reviewCommand beside a local file loosening pr.review",
+      () =>
+        repo({
+          files: {
+            [COMMITTED_FILE]: { pr: { reviewCommand: "/review" } },
+            [LOCAL_FILE]: { pr: { review: "off", reviewCommand: "/other" } }
+          }
+        })
     ]
   ]
   for (const [name, make] of cases) {

@@ -568,7 +568,7 @@ describe("dw-sdlc pr ship hands the pull request to the agent", () => {
           action: "review",
           actor: "agent",
           reason: "no dw-sdlc/review success on e36732e",
-          details: { depth: "full", source: "config" }
+          details: { depth: "full", source: "config", reviewCommand: "/code-review" }
         }
       ],
       performed: []
@@ -1097,7 +1097,7 @@ describe("dw-sdlc pr ship updates a branch and marks a draft ready", () => {
       action: "review",
       actor: "agent",
       reason: "no dw-sdlc/review success on 5f0c2a7",
-      details: { depth: "full", source: "config" },
+      details: { depth: "full", source: "config", reviewCommand: "/code-review" },
       blockers: [{ action: "wait", actor: "script", reason: "ci-pending" }],
       performed: [ran("update-branch", true)]
     })
@@ -1325,7 +1325,7 @@ describe("dw-sdlc pr ship at a Review depth", () => {
       action: "review",
       actor: "agent",
       reason: "no dw-sdlc/review success on e36732e",
-      details: { depth: "full", source: "config" },
+      details: { depth: "full", source: "config", reviewCommand: "/code-review" },
       blockers: [],
       performed: []
     })
@@ -1338,10 +1338,32 @@ describe("dw-sdlc pr ship at a Review depth", () => {
     assert.deepEqual(fieldsOf(run.document, ["action", "actor", "details", "performed"]), {
       action: "review",
       actor: "agent",
-      details: { depth: "full", source: "flag" },
+      details: { depth: "full", source: "flag", reviewCommand: "/code-review" },
       performed: []
     })
     assert.deepEqual(run.calls, [AUTH, READ])
+  })
+
+  it("names the command pr.reviewCommand sets for a full Review, the local layer's over the committed one", () => {
+    const toolkit = "/pr-review-toolkit:review-pr code errors"
+    const cases: [Files, string[], string][] = [
+      [{ [COMMITTED_FILE]: { pr: { reviewCommand: "/review" } } }, [], "/review"],
+      [
+        { [COMMITTED_FILE]: { pr: { reviewCommand: "/review" } }, [LOCAL_FILE]: { pr: { reviewCommand: toolkit } } },
+        [],
+        toolkit
+      ],
+      [{ ...OFF, [LOCAL_FILE]: { pr: { reviewCommand: toolkit } } }, ["--review", "full"], toolkit]
+    ]
+    for (const [files, flags, reviewCommand] of cases) {
+      const run = json(UNREVIEWED, flags, {}, files)
+      assert.equal(run.status, 10, run.stderr)
+      assert.deepEqual(
+        fieldsOf(run.document, ["action", "details"]),
+        { action: "review", details: { depth: "full", source: flags.length > 0 ? "flag" : "config", reviewCommand } },
+        JSON.stringify(files)
+      )
+    }
   })
 
   it("posts the dw-sdlc/review success itself under --review off, reads again and answers what that read gives", () => {
@@ -1376,7 +1398,7 @@ describe("dw-sdlc pr ship at a Review depth", () => {
       assert.equal(run.status, 10, run.stderr)
       assert.deepEqual(fieldsOf(run.document, ["action", "details", "performed"]), {
         action: "review",
-        details: { depth: "full", source: "config" },
+        details: { depth: "full", source: "config", reviewCommand: "/code-review" },
         performed: []
       })
       assert.deepEqual(run.calls, [AUTH, READ], JSON.stringify(files))

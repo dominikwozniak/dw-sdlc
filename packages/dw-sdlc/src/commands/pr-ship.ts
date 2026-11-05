@@ -32,7 +32,8 @@ behind its base, marks a draft ready once nothing else holds it back, and squash
 request ready to merge under pr.merge auto in .ai/agentic.config.json or with --merge for this call;
 under ask, the default, it parks with the merge command. A head without a ${REVIEW} success
 gets the Review depth --review names for this call, else pr.review: under full, the default, the
-agent reviews it; under off the script posts the success itself, its description saying why.
+agent reviews it with the command pr.reviewCommand names, /code-review by default; under off the
+script posts the success itself, its description saying why.
 --dry-run performs nothing: it parks at the first Action the script would perform, listed under
 performed. One line, or one document with --json; --verbose adds the state as read to the document
 under facts. Needs an authenticated gh.
@@ -202,7 +203,8 @@ export function run(argv: string[]): number {
   const policy: Policy = {
     merge: cli.merge ? "auto" : declared.merge,
     review:
-      cli.review === undefined ? { depth: declared.review, source: "config" } : { depth: cli.review, source: "flag" }
+      cli.review === undefined ? { depth: declared.review, source: "config" } : { depth: cli.review, source: "flag" },
+    reviewCommand: declared.reviewCommand
   }
   let shipped: ReturnType<typeof ship>
   try {

@@ -29,8 +29,11 @@ export type Action =
 export type ScriptAction = "update-branch" | "mark-ready" | "mark-reviewed" | "merge"
 /** Where a Review depth comes from: the dev's `--review` for this call, or `pr.review`. */
 export type DepthSource = "flag" | "config"
-/** What the decision reads beside the pull request: who merges it, and how closely a Review reads it. */
-export type Policy = { merge: PrMerge; review: { depth: PrReview; source: DepthSource } }
+/**
+ * What the decision reads beside the pull request: who merges it, how closely a Review reads it, and
+ * the slash command a `full` Review runs.
+ */
+export type Policy = { merge: PrMerge; review: { depth: PrReview; source: DepthSource }; reviewCommand: string }
 /** An Action the pull request needs beside the one its answer names, so one push can fix several. */
 export type Blocker = { action: Action; actor: Actor; reason: string; details?: Record<string, unknown> }
 export type Answer = Blocker & {
@@ -209,14 +212,14 @@ const ROWS: Row[] = [
     // The dev merges another author's pull request, so it needs no Review. Under off no one reads
     // the head: the script posts the success itself.
     when: (pr) => pr.viewerDidAuthor && !pr.checks.some((check) => check.name === REVIEW && check.bucket === "pass"),
-    answer: (pr, _, { review }) => {
+    answer: (pr, _, { review, reviewCommand }) => {
       const off = review.depth === "off"
       return {
         status: "act",
         action: off ? "mark-reviewed" : "review",
         actor: off ? "script" : "agent",
         reason: `no ${REVIEW} success on ${pr.head.slice(0, 7)}`,
-        details: { ...review }
+        details: { ...review, ...(review.depth === "full" ? { reviewCommand } : {}) }
       }
     }
   },

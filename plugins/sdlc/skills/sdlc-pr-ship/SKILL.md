@@ -31,11 +31,13 @@ the push makes.
   for changes (`gh pr view <n> --json reviews`). Fix it and resolve the thread with
   `resolveReviewThread` through `gh api graphql`, or reply with `addPullRequestReviewThreadReply`
   and leave it open for the reviewer; `git push` when code changed.
-- `act review`: `details.depth` is the Review depth. At `full`, run `/code-review` on the changes
-  since `origin/<base>`. Skip it when a Review earlier in this conversation read the changes since
+- `act review`: `details.depth` is the Review depth. At `full`, run the slash command
+  `details.reviewCommand` names, with its arguments, on the changes since `origin/<base>`, naming
+  that range to it: `origin/<base>..<head>`. A command this session does not have ends the run:
+  name it and stop. Skip it when a Review earlier in this conversation read the changes since
   `origin/<base>` at `<head>`, found nothing, and nothing changed after it: no edit, no commit, no
-  pull. Only a clean run of the review command this step runs, `/code-review`, whose range ended at
-  `<head>` counts as that earlier Review; an informal read of the diff never counts. A Review whose
+  pull. Only a clean run of `details.reviewCommand` whose range ended at `<head>` counts as that
+  earlier Review; an informal read of the diff never counts. A Review whose
   head the conversation does not show, or one with a finding, even one fixed since, needs a fresh
   Review. After the skip, or a fresh Review that finds nothing, run
   `node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" pr reviewed <n> --head <head>`; its exit 2 says
