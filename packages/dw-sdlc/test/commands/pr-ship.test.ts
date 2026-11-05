@@ -7,6 +7,7 @@ import { describe, it } from "node:test"
 import { COMMITTED_FILE, LOCAL_FILE } from "../../src/agentic-config.ts"
 import { lines, repo, runBin, scratch } from "../harness.ts"
 import {
+  BASE_OID,
   type Context,
   fakeGh,
   GREEN,
@@ -230,6 +231,7 @@ describe("dw-sdlc pr ship", () => {
       headCommittedAt: "2026-10-31T11:00:00Z",
       branch: "feat/example",
       base: "main",
+      baseOid: BASE_OID,
       mergeCommit: null,
       checks: [
         {
@@ -284,7 +286,8 @@ describe("dw-sdlc pr ship", () => {
           body: "A file-level note.",
           lastByViewer: false
         }
-      ]
+      ],
+      lastReviewed: null
     })
     const bare = json({ ...GREEN, checks: [] }, ["--verbose"]).document
     assert.ok(typeof bare === "object" && bare !== null && "facts" in bare)

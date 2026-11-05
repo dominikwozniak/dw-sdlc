@@ -82,6 +82,11 @@ function failingOf(pr: PrState): CiCheck[] {
   return ciOf(pr).filter((check) => check.bucket === "fail")
 }
 
+/** The viewer's own pull request without a review success on its head: the one a Review reads. */
+export function awaitsReview(pr: PrState): boolean {
+  return pr.viewerDidAuthor && !pr.checks.some((check) => check.name === REVIEW && check.bucket === "pass")
+}
+
 /** A failing check as the agent reads it: its link, and the command that prints a GitHub Actions job's log. */
 function failure({ name, link, log }: CiCheck): Record<string, unknown> {
   return { name, link, ...(log === null ? {} : { log: shellLine(log) }) }
@@ -106,8 +111,11 @@ export function reviewStatusArgs(pr: PrState, description: string): string[] {
   return ["api", `repos/${pr.repo}/statuses/${pr.head}`, "--method", "POST", "--silent", ...flags]
 }
 
-/** Why a head no one reads carries the success: the dev's word or the config. */
-function offDescription(policy: Policy): string {
+/** Why the head carries the success the script posts: the Review it carries, else the dev's word or the config. */
+function markedDescription(pr: PrState, policy: Policy): string {
+  if (pr.lastReviewed?.carried === true) {
+    return `carried from ${pr.lastReviewed.commit.slice(0, 7)}`
+  }
   return `off: ${policy.review.source === "flag" ? "--review off" : "pr.review"}`
 }
 
@@ -115,7 +123,7 @@ function offDescription(policy: Policy): string {
 const HOST: Record<ScriptAction, (pr: PrState, repo: string[], policy: Policy) => string[]> = {
   "update-branch": (pr, repo) => ["pr", "update-branch", String(pr.number), ...repo],
   "mark-ready": (pr, repo) => ["pr", "ready", String(pr.number), ...repo],
-  "mark-reviewed": (pr, _, policy) => reviewStatusArgs(pr, offDescription(policy)),
+  "mark-reviewed": (pr, _, policy) => reviewStatusArgs(pr, markedDescription(pr, policy)),
   merge: (pr, repo) => ["pr", "merge", String(pr.number), ...repo, "--squash", "--match-head-commit", pr.head]
 }
 
@@ -210,16 +218,21 @@ const ROWS: Row[] = [
   },
   {
     // The dev merges another author's pull request, so it needs no Review. Under off no one reads
-    // the head: the script posts the success itself.
-    when: (pr) => pr.viewerDidAuthor && !pr.checks.some((check) => check.name === REVIEW && check.bucket === "pass"),
+    // the head, and a head with the own changes of the last reviewed commit carries its success: the
+    // script posts the success itself. Otherwise the Review reads from that commit, when there is one.
+    when: awaitsReview,
     answer: (pr, _, { review, reviewCommand }) => {
-      const off = review.depth === "off"
+      const byScript = review.depth === "off" || pr.lastReviewed?.carried === true
       return {
         status: "act",
-        action: off ? "mark-reviewed" : "review",
-        actor: off ? "script" : "agent",
+        action: byScript ? "mark-reviewed" : "review",
+        actor: byScript ? "script" : "agent",
         reason: `no ${REVIEW} success on ${pr.head.slice(0, 7)}`,
-        details: { ...review, ...(review.depth === "full" ? { reviewCommand } : {}) }
+        details: {
+          ...review,
+          ...(review.depth === "full" ? { reviewCommand } : {}),
+          ...(pr.lastReviewed === null ? {} : { since: pr.lastReviewed.commit })
+        }
       }
     }
   },

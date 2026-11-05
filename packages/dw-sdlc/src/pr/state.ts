@@ -1,10 +1,12 @@
 // One pull request as the Ship script reads it: the one GraphQL query, and its reply parsed into the
 // state the decision reads. Every field the state needs is checked; a reply that fails names the field.
 
+import { REVIEW } from "./decide.ts"
+
 export const QUERY = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
     pullRequest(number: $number) {
-      url number state isDraft mergeable mergeStateStatus reviewDecision headRefOid headRefName baseRefName
+      url number state isDraft mergeable mergeStateStatus reviewDecision headRefOid headRefName baseRefName baseRefOid
       viewerDidAuthor mergeCommit { oid }
       reviewThreads(first: 100) { nodes { id isResolved isOutdated path line
         comments(first: 1) { nodes { author { login } body } }
@@ -13,6 +15,7 @@ export const QUERY = `query($owner: String!, $name: String!, $number: Int!) {
         contexts(first: 50) { nodes {
           ... on CheckRun { name status conclusion detailsUrl startedAt isRequired(pullRequestNumber: $number) }
           ... on StatusContext { context state targetUrl createdAt isRequired(pullRequestNumber: $number) } } } } } } }
+      history: commits(last: 100) { nodes { commit { oid status { context(name: "${REVIEW}") { state } } } } }
     }
   }
 }`
@@ -56,28 +59,35 @@ export type PrState = {
   headCommittedAt: string
   branch: string
   base: string
+  /** The commit the base branch points at. */
+  baseOid: string
   mergeCommit: string | null
   checks: CiCheck[]
   /** The threads neither resolved nor outdated. */
   unresolvedThreads: Thread[]
+  /**
+   * The last commit before the head with a review success, among the pull request's last 100, and
+   * whether the head carries the same own changes; a rewritten history holds none.
+   */
+  lastReviewed: { commit: string; carried: boolean } | null
 }
 
 /** A reply that is not the shape the query asks for; the message names the field. */
 export class ReplyError extends Error {}
 
 /** A JSON object of the reply and the path that reached it, as `data.repository.pullRequest`. */
-type Node = { value: Record<string, unknown>; at: string }
+export type Node = { value: Record<string, unknown>; at: string }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
-function shown(value: unknown): string {
+export function shown(value: unknown): string {
   return value === undefined ? "missing" : JSON.stringify(value)
 }
 
 /** The JSON object `reply` holds, the root its fields' paths start from; `what` names it in a problem. */
-function rootOf(reply: string, what: string): Node {
+export function rootOf(reply: string, what: string): Node {
   let json: unknown
   try {
     json = JSON.parse(reply)
@@ -90,11 +100,11 @@ function rootOf(reply: string, what: string): Node {
   return { value: json, at: "" }
 }
 
-function fieldOf(node: Node, key: string): { value: unknown; at: string } {
+export function fieldOf(node: Node, key: string): { value: unknown; at: string } {
   return { value: node.value[key], at: node.at === "" ? key : `${node.at}.${key}` }
 }
 
-function object(value: unknown, at: string): Node {
+export function object(value: unknown, at: string): Node {
   if (!isRecord(value)) {
     throw new ReplyError(`${at} is ${shown(value)}, not an object`)
   }
@@ -111,7 +121,7 @@ function childOrNull(node: Node, key: string): Node | null {
   return value === null ? null : object(value, at)
 }
 
-function string(node: Node, key: string): string {
+export function string(node: Node, key: string): string {
   const { value, at } = fieldOf(node, key)
   if (typeof value !== "string") {
     throw new ReplyError(`${at} is ${shown(value)}, not a string`)
@@ -251,6 +261,20 @@ function threadOf(thread: Node): Thread {
   }
 }
 
+/** The last commit before `head` whose review context reads SUCCESS, the history oldest first. */
+function lastReviewedOf(pr: Node, head: string): string | null {
+  const reviewed = nodes(pr, "history")
+    .map((node) => child(node, "commit"))
+    .filter((commit) => {
+      const status = childOrNull(commit, "status")
+      const context = status === null ? null : childOrNull(status, "context")
+      return context !== null && string(context, "state") === "SUCCESS"
+    })
+    .map((commit) => string(commit, "oid"))
+    .filter((oid) => oid !== head)
+  return reviewed.at(-1) ?? null
+}
+
 /** The repository and number of the pull request whose URL `gh pr view --json url` printed. */
 export function parseView(reply: string): { repo: string; number: number } {
   const url = string(rootOf(reply, "the reply of gh pr view"), "url")
@@ -267,6 +291,8 @@ export function parsePr(reply: string, repo: string): PrState {
   const commit = child(firstNode(pr, "commits"), "commit")
   const rollup = childOrNull(commit, "statusCheckRollup")
   const mergeCommit = childOrNull(pr, "mergeCommit")
+  const head = string(pr, "headRefOid")
+  const lastReviewed = lastReviewedOf(pr, head)
   return {
     url: string(pr, "url"),
     repo,
@@ -277,14 +303,16 @@ export function parsePr(reply: string, repo: string): PrState {
     mergeStateStatus: string(pr, "mergeStateStatus"),
     reviewDecision: pr.value.reviewDecision === null ? null : oneOf(pr, "reviewDecision", REVIEW_DECISIONS),
     viewerDidAuthor: boolean(pr, "viewerDidAuthor"),
-    head: string(pr, "headRefOid"),
+    head,
     headCommittedAt: time(commit, "committedDate"),
     branch: string(pr, "headRefName"),
     base: string(pr, "baseRefName"),
+    baseOid: string(pr, "baseRefOid"),
     mergeCommit: mergeCommit === null ? null : string(mergeCommit, "oid"),
     checks: rollup === null ? [] : nodes(rollup, "contexts").map((context) => checkOf(context, repo)),
     unresolvedThreads: nodes(pr, "reviewThreads")
       .filter((thread) => !boolean(thread, "isResolved") && !boolean(thread, "isOutdated"))
-      .map(threadOf)
+      .map(threadOf),
+    lastReviewed: lastReviewed === null ? null : { commit: lastReviewed, carried: false }
   }
 }

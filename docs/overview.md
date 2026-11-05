@@ -371,6 +371,20 @@ ships reads the diff at medium effort. Under `off` no one reads it: the script p
 `off: pr.review`, so a green pull request merges with no agent turn. Every other row holds at every
 depth: conflicts, failing CI, threads and who merges.
 
+A push reads as the changes since the last reviewed head. Among the pull request's last 100
+commits the script finds the last one before the head that carries a `dw-sdlc/review` success,
+through the same GraphQL query, and names it under `details.since`, the point the Review reads from.
+A history that no longer holds it, after a rebase or a force push, names none, and the Review reads
+the whole diff since the base. A merge of the base in is told from the branch's own changes by
+content: the script reads GitHub's compare from the base's head to the reviewed commit and to the
+head, two `gh api` calls that need no checkout. Each lists the pull request's own changes against
+the merge base, the diff the pull request shows. When both list the same files, each with the same
+status, names and added and removed lines in the same order, the head adds nothing of its own: the
+script carries the status and posts it as `mark-reviewed`, its description `carried from <sha>`.
+Hunk positions and context lines are left out, since a base that moved shifts them. A file the
+compare shows no patch for, as a binary one, or a compare at GitHub's limit of 300 files, never
+carries, and neither does a conflict resolved by hand, which changes the branch's own lines.
+
 The `sdlc-pr-ship` skill is the agent's side: it calls the script, does the agent's Action, calls
 again, and stops at a wait, a park or done, as the
 [plugin README](../plugins/sdlc/README.md#shipping-a-pull-request) describes.

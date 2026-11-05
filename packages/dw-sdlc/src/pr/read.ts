@@ -3,6 +3,8 @@
 
 import { spawnSync } from "node:child_process"
 
+import { awaitsReview } from "./decide.ts"
+import { changesOf, compareArgs, sameChanges } from "./delta.ts"
 import { parsePr, parseView, type PrState, QUERY, ReplyError } from "./state.ts"
 
 /** What stops a pr command before it answers: exit 2, the problem and its remedy on one line. */
@@ -104,7 +106,27 @@ export function readAgain(pr: PrState): PrState {
   return query(pr)
 }
 
-/** The state of pull request `number` of `repo`, from one GraphQL request. */
+/** The own changes of `pr` at `commit`, from the compare with its base; null when it cannot show them whole. */
+function ownChanges(pr: PrState, commit: string): string[] | null {
+  const reply = gh(compareArgs(pr.repo, pr.baseOid, commit))
+  if (reply.status !== 0) {
+    const problem = `the compare with ${commit.slice(0, 7)}: ${said(reply.stderr)}`
+    throw new CannotRun(`${pr.repo}#${pr.number}: ${problem}`, REMEDIES.read)
+  }
+  return parseOrCannotRun(() => changesOf(reply.stdout))
+}
+
+/** `pr`, its head carrying the last reviewed commit's status or not; read only when a Review awaits it. */
+function withCarried(pr: PrState): PrState {
+  const last = pr.lastReviewed
+  if (last === null || pr.state !== "OPEN" || !awaitsReview(pr)) {
+    return pr
+  }
+  const carried = sameChanges(ownChanges(pr, last.commit), ownChanges(pr, pr.head))
+  return { ...pr, lastReviewed: { commit: last.commit, carried } }
+}
+
+/** The state of pull request `number` of `repo`, from one GraphQL request and the compares a Review needs. */
 function query({ repo, number }: { repo: string; number: number }): PrState {
   const [owner = "", name = ""] = repo.split("/")
   const reply = gh([
@@ -124,5 +146,5 @@ function query({ repo, number }: { repo: string; number: number }): PrState {
     const remedy = problem.startsWith("Could not resolve to a") ? REMEDIES.target : REMEDIES.read
     throw new CannotRun(`${repo}#${number}: ${problem}`, remedy)
   }
-  return parseOrCannotRun(() => parsePr(reply.stdout, repo))
+  return withCarried(parseOrCannotRun(() => parsePr(reply.stdout, repo)))
 }
