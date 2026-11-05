@@ -35,9 +35,9 @@ gets the Review depth --review names for this call, else pr.review: under full, 
 agent reviews it with the command pr.reviewCommand names, /code-review by default; under light one
 sdlc-reviewer subagent reads the diff; under off the script posts the success itself, its
 description saying why.
-Each Action the call runs is listed under performed: ok when the read after it shows the Action took
-effect, whatever gh's exit status, which it keeps beside ok with gh's stderr. --dry-run performs
-nothing: it parks at the first Action the script would perform, listed under performed with ok null.
+Each Action the call runs is listed under performed. Its ok says whether the read after it shows the
+Action took effect, whatever gh's exit status; gh's exit status and stderr stand beside it. --dry-run
+performs nothing: it parks at the first Action the script would perform, under performed with ok null.
 One line, or one document with --json; --verbose adds the state as read to the document under
 facts. Needs an authenticated gh.
 
@@ -65,7 +65,10 @@ type Cli = {
  * A host action the call ran: `ok` whether the read after it shows the Action took effect, beside gh's
  * exit status and its stderr when it wrote any. Under --dry-run, which runs nothing, `ok` is null alone.
  */
-type Performed = { action: ScriptAction; command: string; ok: boolean | null; exit?: number; stderr?: string }
+type Performed = { action: ScriptAction; command: string } & (
+  | { ok: boolean; exit: number; stderr?: string }
+  | { ok: null }
+)
 
 function parseCli(argv: string[]): Cli | { error: string } {
   try {
@@ -184,24 +187,23 @@ function ship(cli: Cli, policy: Policy): { pr: PrState; answer: Answer; performe
       }
     }
     const done = performed.find((earlier) => earlier.action === action)
-    if (done !== undefined) {
-      const { ok, exit = 0, stderr = "" } = done
+    // --dry-run returns before any Action runs, so an earlier one always carries gh's exit.
+    if (done !== undefined && done.ok !== null) {
+      const { ok, exit, stderr = "" } = done
       const reason =
-        ok === true || exit === 0
-          ? `${act} ran, and ${still}`
-          : `gh refused ${act}: ${said(stderr) || `gh exited ${exit}`}`
+        ok || exit === 0 ? `${act} ran, and ${still}` : `gh refused ${act}: ${said(stderr) || `gh exited ${exit}`}`
       return { pr, answer: handedOver(pr, policy, answer, action, reason), performed }
     }
     const { status, stderr } = gh(args)
     const before = pr
     pr = readAgain(pr)
-    const wrote = stderr.trim()
+    const message = stderr.trim()
     performed.push({
       action,
       command,
       ok: TOOK[action](before, pr),
       exit: status,
-      ...(wrote === "" ? {} : { stderr: wrote })
+      ...(message === "" ? {} : { stderr: message })
     })
   }
 }
