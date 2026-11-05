@@ -136,7 +136,7 @@ describe("dw-sdlc pr ship after a push to a reviewed pull request", () => {
     assert.deepEqual(documentOf(run.stdout, ["action", "reason", "performed"]), {
       action: "ready-to-merge",
       reason: "pr.merge is ask: the merge is the dev's",
-      performed: [{ action: "mark-reviewed", command: commandOf(marked(CARRIED)), ok: true }]
+      performed: [{ action: "mark-reviewed", command: commandOf(marked(CARRIED)), exit: 0, ok: true }]
     })
     assert.deepEqual(run.calls, [AUTH, READ, compare(REVIEWED), compare(HEAD), marked(CARRIED), READ])
   })
