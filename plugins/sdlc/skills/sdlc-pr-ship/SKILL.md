@@ -31,7 +31,11 @@ needs the head the push makes.
   for changes (`gh pr view <n> --json reviews`). Fix it and resolve the thread with
   `resolveReviewThread` through `gh api graphql`, or reply with `addPullRequestReviewThreadReply`
   and leave it open for the reviewer; `git push` when code changed.
-- `act review`: `details.depth` is the Review depth. The Review reads the changes since `<since>`:
+- `act review`: `details.depth` is the Review depth, and `details.source` says who set it: `flag`
+  the dev, `config` the repository, `auto` the script's rules from the size of the changes. Only
+  under `auto` may you raise it, `light` to `full`, when the change looks riskier than its size,
+  saying why in one line; never lower one. A depth the dev or the config set stands: when you think
+  it wrong, say so in one line and review at it. The Review reads the changes since `<since>`:
   `details.since`, the last reviewed commit, when the answer has it, else `origin/<base>`. At
   `full`, run the slash command `details.reviewCommand` names, with its arguments, on those changes,
   naming that range to it: `<since>..<head>`. A command this session does not have ends the run:
@@ -48,8 +52,8 @@ needs the head the push makes.
   nothing, run
   `node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" pr reviewed <n> --head <head>`; its exit 2 says
   whether the head moved or it cannot run. Fix a finding and `git push`. At `off`, and over a head
-  that only merged the base in unless the dev's `--review full` asks for a Review, the script marks
-  the head reviewed itself, so no `act review` comes.
+  that only merged the base in unless the dev's `--review` names a depth, the script marks the head
+  reviewed itself, so no `act review` comes.
 - `wait`: tell the dev the `reason` and `recheckAfter`, and end the turn. The next call comes with
   the dev's next message, or under `/loop` after `recheckAfter` seconds; never sleep in a shell.
 - `park` and `done`, whatever the `action`: print the `reason`, and the `command` when there is one,

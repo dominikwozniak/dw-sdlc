@@ -2,7 +2,8 @@
 // the pull request answers its Action at the time given; every later row that holds rides in its
 // blockers. The last rows say who merges what no row before them holds back.
 
-import type { PrMerge, PrReview } from "../agentic-config.ts"
+import type { PrMerge, PrReview, ReviewDepth } from "../agentic-config.ts"
+import { route } from "./route.ts"
 import { awaitsReview, type CiCheck, OFF_PREFIX, type PrState, REVIEW, type Thread } from "./state.ts"
 
 export { REVIEW }
@@ -29,13 +30,20 @@ export type Action =
   | "merge"
 /** The Actions the script performs itself, each one gh command. */
 export type ScriptAction = "update-branch" | "mark-ready" | "mark-reviewed" | "merge"
-/** Where a Review depth comes from: the dev's `--review` for this call, or `pr.review`. */
-export type DepthSource = "flag" | "config"
 /**
- * What the decision reads beside the pull request: who merges it, how closely a Review reads it, and
- * the slash command a `full` Review runs.
+ * Where a Review depth comes from: the dev's `--review` for this call, a depth `pr.review` sets, or the
+ * rules `pr.review: auto` routes it by.
  */
-export type Policy = { merge: PrMerge; review: { depth: PrReview; source: DepthSource }; reviewCommand: string }
+export type DepthSource = "flag" | "config" | "auto"
+/**
+ * What the decision reads beside the pull request: who merges it, how closely a Review reads it, the
+ * dev's word or `pr.review`, and the slash command a `full` Review runs.
+ */
+export type Policy = {
+  merge: PrMerge
+  review: { depth: ReviewDepth; source: "flag" } | { depth: PrReview; source: "config" }
+  reviewCommand: string
+}
 /** An Action the pull request needs beside the one its answer names, so one push can fix several. */
 export type Blocker = { action: Action; actor: Actor; reason: string; details?: Record<string, unknown> }
 export type Answer = Blocker & {
@@ -106,31 +114,45 @@ export function reviewStatusArgs(pr: PrState, description: string): string[] {
   return ["api", `repos/${pr.repo}/statuses/${pr.head}`, "--method", "POST", "--silent", ...flags]
 }
 
-/** Whether the dev's --review full asks for a Review of a head that would carry the status. */
-function fullOverCarry(pr: PrState, { review }: Policy): boolean {
-  return pr.carried && review.source === "flag" && review.depth === "full"
+/** Whether the dev named a depth for a head that would carry the status: their word beats the carry. */
+function flagOverCarry(pr: PrState, { review }: Policy): boolean {
+  return pr.carried && review.source === "flag"
 }
 
-/** The reviewed commit whose success the head carries, if it does and the dev did not ask for full. */
+/** The reviewed commit whose success the head carries, if it does and the dev named no depth. */
 function carriedFrom(pr: PrState, policy: Policy): string | null {
-  return pr.carried && !fullOverCarry(pr, policy) ? (pr.lastReviewed?.commit ?? null) : null
+  return pr.carried && !flagOverCarry(pr, policy) ? (pr.lastReviewed?.commit ?? null) : null
 }
 
 /**
- * The commit the Review reads from: the last reviewed one. Over a carry the dev's full reads the whole
+ * The commit the Review reads from: the last reviewed one. Over a carry the dev's depth reads the whole
  * diff, since the changes after that commit are only the base's.
  */
 function sinceOf(pr: PrState, policy: Policy): string | null {
-  return fullOverCarry(pr, policy) ? null : (pr.lastReviewed?.commit ?? null)
+  return flagOverCarry(pr, policy) ? null : (pr.lastReviewed?.commit ?? null)
 }
 
-/** Why the head carries the success the script posts: the Review it carries, else the dev's word or the config. */
+/** A depth as the answer names it, and under off why no one reads the head. */
+type Depth = { depth: ReviewDepth; source: DepthSource; why?: string }
+
+/** The depth a Review reads the head at: the dev's or the one `pr.review` sets, else the one the rules route. */
+function depthOf(pr: PrState, { review }: Policy): Depth {
+  if (review.source === "flag") {
+    return { ...review, why: "--review off" }
+  }
+  if (review.depth !== "auto") {
+    return { depth: review.depth, source: "config", why: "pr.review" }
+  }
+  return { ...route(pr.changed), source: "auto" }
+}
+
+/** Why the head carries the success the script posts: the Review it carries, else why its depth is off. */
 function markedDescription(pr: PrState, policy: Policy): string {
   const carried = carriedFrom(pr, policy)
   if (carried !== null) {
     return `carried from ${carried.slice(0, 7)}`
   }
-  return `${OFF_PREFIX} ${policy.review.source === "flag" ? "--review off" : "pr.review"}`
+  return `${OFF_PREFIX} ${depthOf(pr, policy).why}`
 }
 
 /** A script Action's gh arguments; `repo` is `-R` and the repository when the call names it, else empty. */
@@ -231,22 +253,25 @@ const ROWS: Row[] = [
     answer: () => ({ status: "act", action: "address-review", actor: "agent", reason: "changes requested" })
   },
   {
-    // The dev merges another author's pull request, so it needs no Review. Under off no one reads
-    // the head, and a head that only merged the base in since the last reviewed commit carries its
-    // success: the script posts the success itself. Otherwise the Review reads from that commit.
+    // Another author's pull request needs no Review: the dev merges it. The script posts the success
+    // under off, and over a carry, which names the depth as configured and routes none.
     when: awaitsReview,
     answer: (pr, _, policy) => {
-      const { review, reviewCommand } = policy
-      const byScript = review.depth === "off" || carriedFrom(pr, policy) !== null
+      const carried = carriedFrom(pr, policy) !== null
+      const { depth, source } = carried ? policy.review : depthOf(pr, policy)
+      const byScript = carried || depth === "off"
+      const since = sinceOf(pr, policy)
       return {
         status: "act",
         action: byScript ? "mark-reviewed" : "review",
         actor: byScript ? "script" : "agent",
         reason: `no ${REVIEW} success on ${pr.head.slice(0, 7)}`,
         details: {
-          ...review,
-          ...(review.depth === "full" ? { reviewCommand } : {}),
-          ...(sinceOf(pr, policy) === null ? {} : { since: sinceOf(pr, policy) })
+          depth,
+          source,
+          // The agent may raise a routed depth to full, so auto names the command at any depth.
+          ...(depth === "full" || source === "auto" ? { reviewCommand: policy.reviewCommand } : {}),
+          ...(since === null ? {} : { since })
         }
       }
     }

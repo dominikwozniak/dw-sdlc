@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # A Review's depth follows the change, and the dev's word overrides it

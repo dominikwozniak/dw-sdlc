@@ -56,8 +56,10 @@ the delete command for the dev.
 
 `pr.merge` in the committed `.ai/agentic.config.json` says who merges: the script under `auto`, the
 dev under `ask`, the default. `pr.review` says how closely a head no one has reviewed is read: the
-agent reviews it under `full`, the default, one `sdlc-reviewer` subagent of the plugin does under
-`light`, and no one does under `off`. The local layer may tighten either and never loosen it;
+agent reviews it under `full`, one `sdlc-reviewer` subagent of the plugin does under `light`, and no
+one does under `off`. Under `auto`, the default, the script routes the depth from the changes:
+lockfiles alone `off`; a workflow file, more than 100 changed lines outside lockfiles, or a change
+too large to size `full`; the rest `light`. The local layer may tighten either and never loosen it;
 `--merge` acts as `auto` and `--review full|light|off` sets the depth for one call. A pull request
 the `gh` account did not open is always the dev's to merge.
 
