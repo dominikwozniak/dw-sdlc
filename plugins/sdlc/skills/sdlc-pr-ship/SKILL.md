@@ -31,22 +31,24 @@ needs the head the push makes.
   for changes (`gh pr view <n> --json reviews`). Fix it and resolve the thread with
   `resolveReviewThread` through `gh api graphql`, or reply with `addPullRequestReviewThreadReply`
   and leave it open for the reviewer; `git push` when code changed.
-- `act review`: `details.depth` is the Review depth. At `full`, run the slash command
-  `details.reviewCommand` names, with its arguments, on the changes since `origin/<base>`, naming
-  that range to it: `origin/<base>..<head>`. A command this session does not have ends the run: name
-  it and stop. At `light`, `git fetch origin <base>`, then spawn the `sdlc:sdlc-reviewer` subagent.
-  It does not see this conversation, so its prompt holds all it reads: the diff command
-  `git diff origin/<base>...<head>`, the files `git diff --name-only origin/<base>...<head>` lists,
-  and the spec as this conversation states it, the issue or the dev's ask, else "none stated". Its
-  report's first line, `clean` or `findings: <n>`, is the result. Skip either when a Review earlier
-  in this conversation read the changes since `origin/<base>` at `<head>`, found nothing, and
-  nothing changed after it: no edit, no commit, no pull. Only a clean run of
-  `details.reviewCommand`, or at `light` of `sdlc-reviewer` too, whose range ended at `<head>`
-  counts as that earlier Review; an informal read of the diff never counts. A Review whose head the
-  conversation does not show, or one with a finding, even one fixed since, needs a fresh Review.
-  After the skip, or a fresh Review that finds nothing, run
+- `act review`: `details.depth` is the Review depth. The Review reads the changes since `<since>`:
+  `details.since`, the last reviewed commit, when the answer has it, else `origin/<base>`. At
+  `full`, run the slash command `details.reviewCommand` names, with its arguments, on those changes,
+  naming that range to it: `<since>..<head>`. A command this session does not have ends the run:
+  name it and stop. At `light`, `git fetch origin <base>`, then spawn the `sdlc:sdlc-reviewer`
+  subagent. It does not see this conversation, so its prompt holds all it reads: the diff command
+  `git diff <since>...<head>`, the files `git diff --name-only <since>...<head>` lists, and the
+  spec as this conversation states it, the issue or the dev's ask, else "none stated". Its report's
+  first line, `clean` or `findings: <n>`, is the result. Skip either when a Review earlier in this
+  conversation read the changes since `<since>` at `<head>`, found nothing, and nothing changed
+  after it: no edit, no commit, no pull. Only a clean run of `details.reviewCommand`, or at `light`
+  of `sdlc-reviewer` too, whose range ended at `<head>` counts as that earlier Review; an informal
+  read of the diff never counts. A Review whose head the conversation does not show, or one with a
+  finding, even one fixed since, needs a fresh Review. After the skip, or a fresh Review that finds
+  nothing, run
   `node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" pr reviewed <n> --head <head>`; its exit 2 says
-  whether the head moved or it cannot run. Fix a finding and `git push`. At `off` the script marks
+  whether the head moved or it cannot run. Fix a finding and `git push`. At `off`, and over a head
+  that only merged the base in unless the dev's `--review full` asks for a Review, the script marks
   the head reviewed itself, so no `act review` comes.
 - `wait`: tell the dev the `reason` and `recheckAfter`, and end the turn. The next call comes with
   the dev's next message, or under `/loop` after `recheckAfter` seconds; never sleep in a shell.

@@ -371,6 +371,32 @@ ships reads the diff at medium effort. Under `off` no one reads it: the script p
 `off: pr.review`, so a green pull request merges with no agent turn. Every other row holds at every
 depth: conflicts, failing CI, threads and who merges.
 
+After a push, the Review reads only what changed since the last reviewed commit. The same GraphQL
+query reads the pull request's last 100 commits. The last one before the head with a
+`dw-sdlc/review` success goes under `details.since`, the point the Review reads from. A success the
+script posted under `off` does not count, since no one read that head. A rebase or a force push
+drops the reviewed commit from the history, and 100 later commits push it out of the read. Then no
+`details.since` comes, and the Review reads the whole diff since the base. After a merge of the base
+in, the changes since `details.since` include what the base brought in.
+
+A head that only merged the base in carries the earlier status. Two tests tell such a merge from
+the branch's own changes, and both must pass:
+
+- Every commit after the reviewed one, the head included, is a merge. The GraphQL query reads each
+  commit's parent count.
+- The pull request's own changes are the same at the head as at the reviewed commit. The script
+  reads GitHub's compare from the base's head to each of the two commits. That takes two `gh api`
+  calls and no checkout. Each compare is the diff the pull request shows. Both must list the same
+  files, with the same status and names, and the same added and removed lines in the same order.
+  Hunk positions and context lines are left out, since a base that moved shifts them.
+
+When both pass, the script posts the status as `mark-reviewed`, described as `carried from <sha>`.
+The dev's `--review full` asks for a Review of the whole diff instead. A conflict resolved by hand
+changes the branch's own lines, so it never carries. Neither does a file the compare shows no patch
+for, such as a binary one, or a compare at GitHub's limit of 300 files. A merge made by hand that
+moves one of the branch's own lines within a file, keeping their order, does carry: the test leaves
+positions out.
+
 The `sdlc-pr-ship` skill is the agent's side: it calls the script, does the agent's Action, calls
 again, and stops at a wait, a park or done, as the
 [plugin README](../plugins/sdlc/README.md#shipping-a-pull-request) describes.

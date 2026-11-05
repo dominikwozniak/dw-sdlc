@@ -34,7 +34,9 @@ under ask, the default, it parks with the merge command. A head without a ${REVI
 gets the Review depth --review names for this call, else pr.review: under full, the default, the
 agent reviews it with the command pr.reviewCommand names, /code-review by default; under light one
 sdlc-reviewer subagent reads the diff; under off the script posts the success itself, its
-description saying why.
+description saying why. After a push it names the last reviewed commit under details.since, where
+the Review reads from. It carries that commit's success over a head whose only commits since are
+merges of the base, unless --review full asks for the Review.
 Each Action the call runs is listed under performed. Its ok says whether the read after it shows the
 Action took effect, whatever gh's exit status; gh's exit status and stderr stand beside it. --dry-run
 performs nothing: it parks at the first Action the script would perform, under performed with ok null.

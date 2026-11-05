@@ -1,9 +1,11 @@
 // The read both pr commands make: gh as a child process, its auth on the host gh api reads from, the
-// pull request a command names, and that pull request's state from one GraphQL request.
+// pull request a command names, and that pull request's state from one GraphQL request, with the two
+// compares that tell whether its head carries an earlier Review.
 
 import { spawnSync } from "node:child_process"
 
-import { parsePr, parseView, type PrState, QUERY, ReplyError } from "./state.ts"
+import { changesOf, compareArgs, sameChanges } from "./delta.ts"
+import { awaitsReview, parsePr, parseView, type PrState, QUERY, ReplyError } from "./state.ts"
 
 /** What stops a pr command before it answers: exit 2, the problem and its remedy on one line. */
 export class CannotRun extends Error {
@@ -104,7 +106,29 @@ export function readAgain(pr: PrState): PrState {
   return query(pr)
 }
 
-/** The state of pull request `number` of `repo`, from one GraphQL request. */
+/** The own changes of `pr` at `commit`, from the compare with its base; null when it cannot show them whole. */
+function ownChanges(pr: Omit<PrState, "carried">, commit: string): string[] | null {
+  const reply = gh(compareArgs(pr.repo, pr.baseOid, commit))
+  if (reply.status !== 0) {
+    const problem = `the compare with ${commit.slice(0, 7)}: ${said(reply.stderr)}`
+    throw new CannotRun(`${pr.repo}#${pr.number}: ${problem}`, REMEDIES.read)
+  }
+  return parseOrCannotRun(() => changesOf(reply.stdout))
+}
+
+/**
+ * `pr` and whether its head carries the last reviewed commit's status: only merges since it, and the
+ * same own changes at both. The compares run only when a Review awaits the head.
+ */
+function withCarried(pr: Omit<PrState, "carried">): PrState {
+  const last = pr.lastReviewed
+  if (last === null || !last.mergesOnly || pr.state !== "OPEN" || !awaitsReview(pr)) {
+    return { ...pr, carried: false }
+  }
+  return { ...pr, carried: sameChanges(ownChanges(pr, last.commit), ownChanges(pr, pr.head)) }
+}
+
+/** The state of pull request `number` of `repo`, from one GraphQL request and the compares a Review needs. */
 function query({ repo, number }: { repo: string; number: number }): PrState {
   const [owner = "", name = ""] = repo.split("/")
   const reply = gh([
@@ -124,5 +148,5 @@ function query({ repo, number }: { repo: string; number: number }): PrState {
     const remedy = problem.startsWith("Could not resolve to a") ? REMEDIES.target : REMEDIES.read
     throw new CannotRun(`${repo}#${number}: ${problem}`, remedy)
   }
-  return parseOrCannotRun(() => parsePr(reply.stdout, repo))
+  return withCarried(parseOrCannotRun(() => parsePr(reply.stdout, repo)))
 }

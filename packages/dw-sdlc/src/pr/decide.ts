@@ -3,7 +3,9 @@
 // blockers. The last rows say who merges what no row before them holds back.
 
 import type { PrMerge, PrReview } from "../agentic-config.ts"
-import type { CiCheck, PrState, Thread } from "./state.ts"
+import { awaitsReview, type CiCheck, OFF_PREFIX, type PrState, REVIEW, type Thread } from "./state.ts"
+
+export { REVIEW }
 
 export type Status = "act" | "wait" | "park" | "done"
 export type Actor = "script" | "agent" | "dev"
@@ -60,8 +62,6 @@ const GRACE_SECONDS = 120
 const BUDGET_MINUTES = 40
 /** The prefix of the contexts the script posts itself, as `dw-sdlc/review`: never CI. */
 const OWN_PREFIX = "dw-sdlc/"
-/** The commit status a clean review of the head leaves on it. */
-export const REVIEW = "dw-sdlc/review"
 /** Its one state: a failure or a pending status would turn the pull request unstable. */
 export const REVIEW_STATE = "success"
 
@@ -106,16 +106,38 @@ export function reviewStatusArgs(pr: PrState, description: string): string[] {
   return ["api", `repos/${pr.repo}/statuses/${pr.head}`, "--method", "POST", "--silent", ...flags]
 }
 
-/** Why a head no one reads carries the success: the dev's word or the config. */
-function offDescription(policy: Policy): string {
-  return `off: ${policy.review.source === "flag" ? "--review off" : "pr.review"}`
+/** Whether the dev's --review full asks for a Review of a head that would carry the status. */
+function fullOverCarry(pr: PrState, { review }: Policy): boolean {
+  return pr.carried && review.source === "flag" && review.depth === "full"
+}
+
+/** The reviewed commit whose success the head carries, if it does and the dev did not ask for full. */
+function carriedFrom(pr: PrState, policy: Policy): string | null {
+  return pr.carried && !fullOverCarry(pr, policy) ? (pr.lastReviewed?.commit ?? null) : null
+}
+
+/**
+ * The commit the Review reads from: the last reviewed one. Over a carry the dev's full reads the whole
+ * diff, since the changes after that commit are only the base's.
+ */
+function sinceOf(pr: PrState, policy: Policy): string | null {
+  return fullOverCarry(pr, policy) ? null : (pr.lastReviewed?.commit ?? null)
+}
+
+/** Why the head carries the success the script posts: the Review it carries, else the dev's word or the config. */
+function markedDescription(pr: PrState, policy: Policy): string {
+  const carried = carriedFrom(pr, policy)
+  if (carried !== null) {
+    return `carried from ${carried.slice(0, 7)}`
+  }
+  return `${OFF_PREFIX} ${policy.review.source === "flag" ? "--review off" : "pr.review"}`
 }
 
 /** A script Action's gh arguments; `repo` is `-R` and the repository when the call names it, else empty. */
 const HOST: Record<ScriptAction, (pr: PrState, repo: string[], policy: Policy) => string[]> = {
   "update-branch": (pr, repo) => ["pr", "update-branch", String(pr.number), ...repo],
   "mark-ready": (pr, repo) => ["pr", "ready", String(pr.number), ...repo],
-  "mark-reviewed": (pr, _, policy) => reviewStatusArgs(pr, offDescription(policy)),
+  "mark-reviewed": (pr, _, policy) => reviewStatusArgs(pr, markedDescription(pr, policy)),
   merge: (pr, repo) => ["pr", "merge", String(pr.number), ...repo, "--squash", "--match-head-commit", pr.head]
 }
 
@@ -210,16 +232,22 @@ const ROWS: Row[] = [
   },
   {
     // The dev merges another author's pull request, so it needs no Review. Under off no one reads
-    // the head: the script posts the success itself.
-    when: (pr) => pr.viewerDidAuthor && !pr.checks.some((check) => check.name === REVIEW && check.bucket === "pass"),
-    answer: (pr, _, { review, reviewCommand }) => {
-      const off = review.depth === "off"
+    // the head, and a head that only merged the base in since the last reviewed commit carries its
+    // success: the script posts the success itself. Otherwise the Review reads from that commit.
+    when: awaitsReview,
+    answer: (pr, _, policy) => {
+      const { review, reviewCommand } = policy
+      const byScript = review.depth === "off" || carriedFrom(pr, policy) !== null
       return {
         status: "act",
-        action: off ? "mark-reviewed" : "review",
-        actor: off ? "script" : "agent",
+        action: byScript ? "mark-reviewed" : "review",
+        actor: byScript ? "script" : "agent",
         reason: `no ${REVIEW} success on ${pr.head.slice(0, 7)}`,
-        details: { ...review, ...(review.depth === "full" ? { reviewCommand } : {}) }
+        details: {
+          ...review,
+          ...(review.depth === "full" ? { reviewCommand } : {}),
+          ...(sinceOf(pr, policy) === null ? {} : { since: sinceOf(pr, policy) })
+        }
       }
     }
   },
