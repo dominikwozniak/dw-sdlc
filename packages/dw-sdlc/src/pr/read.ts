@@ -5,7 +5,7 @@
 import { spawnSync } from "node:child_process"
 
 import { behindOf, changedOf, changesOf, compareArgs, sameChanges } from "./delta.ts"
-import { awaitsReview, parsePr, parseView, type PrState, QUERY, ReplyError } from "./state.ts"
+import { awaitsReview, parseDefaultBranch, parsePr, parseView, type PrState, QUERY, ReplyError } from "./state.ts"
 
 /** What stops a pr command before it answers: exit 2, the problem and its remedy on one line. */
 export class CannotRun extends Error {
@@ -24,7 +24,8 @@ const REMEDIES = {
   auth: "run gh auth login, or set GH_TOKEN",
   target: "check the number, or name the repository with -R owner/name",
   read: "check gh auth status and the network, then call again",
-  reply: "gh answered a shape dw-sdlc does not read; report it with the output of gh --version"
+  reply: "gh answered a shape dw-sdlc does not read; report it with the output of gh --version",
+  clock: "unset it: it stands in for the clock in tests"
 }
 
 /** The problem with `<n>` or `-R` as given on a command line, if there is one. */
@@ -90,18 +91,60 @@ function targetOf({ number, repo }: Named, command: string): { repo: string; num
   return parseOrCannotRun(() => parseView(view.stdout))
 }
 
-/**
- * The state of the pull request `named`; `command`, as `pr ship`, names the call in a remedy. With
- * `sized`, as `pr.review: auto` needs, the read sizes the changes a Review would read.
- */
-export function read(named: Named, command: string, sized: boolean): PrState {
+function requireAuth(): void {
   // The host gh api reads from: an account on any other host has no say in this call.
   const host = process.env.GH_HOST?.trim() || "github.com"
   const auth = gh(["auth", "status", "--active", "--hostname", host])
   if (auth.status !== 0) {
     throw new CannotRun(`gh auth status failed: ${authProblem(auth.stderr)}`, REMEDIES.auth)
   }
+}
+
+/**
+ * The state of the pull request `named`; `command`, as `pr ship`, names the call in a remedy. With
+ * `sized`, as `pr.review: auto` needs, the read sizes the changes a Review would read.
+ */
+export function read(named: Named, command: string, sized: boolean): PrState {
+  requireAuth()
   return query(targetOf(named, command), sized)
+}
+
+/** The state of the current branch's pull request, open or not, or null when gh finds none. */
+export function readBranch(sized: boolean): PrState | null {
+  requireAuth()
+  const view = gh(["pr", "view", "--json", "url"])
+  if (view.status === 0) {
+    return query(
+      parseOrCannotRun(() => parseView(view.stdout)),
+      sized
+    )
+  }
+  if (said(view.stderr).startsWith("no pull requests found")) {
+    return null
+  }
+  throw new CannotRun(`gh pr view failed: ${said(view.stderr)}`, REMEDIES.read)
+}
+
+/** The default branch of the repository gh resolves from the current directory. */
+export function defaultBranch(): string {
+  const view = gh(["repo", "view", "--json", "defaultBranchRef"])
+  if (view.status !== 0) {
+    throw new CannotRun(`gh repo view failed: ${said(view.stderr)}`, REMEDIES.read)
+  }
+  return parseOrCannotRun(() => parseDefaultBranch(view.stdout))
+}
+
+/** The time the decision reads: DW_SDLC_NOW, an ISO 8601 time a test sets, else the system clock. */
+export function now(): number {
+  const given = process.env.DW_SDLC_NOW?.trim()
+  if (given === undefined || given === "") {
+    return Date.now()
+  }
+  const time = Date.parse(given)
+  if (Number.isNaN(time)) {
+    throw new CannotRun(`DW_SDLC_NOW is ${JSON.stringify(given)}, not an ISO 8601 time`, REMEDIES.clock)
+  }
+  return time
 }
 
 /** The state of `pr` once more, after an action the script performed on it: the same pull request. */

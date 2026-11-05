@@ -2,7 +2,7 @@
 // the pull request answers its Action at the time given; every later row that holds rides in its
 // blockers. The last rows say who merges what no row before them holds back.
 
-import type { PrMerge, PrReview, ReviewDepth } from "../agentic-config.ts"
+import type { PrMerge, PrReview, ResolvedConfig, ReviewDepth } from "../agentic-config.ts"
 import { route } from "./route.ts"
 import { awaitsReview, type CiCheck, OFF_PREFIX, type PrState, REVIEW, type Thread } from "./state.ts"
 
@@ -44,6 +44,11 @@ export type Policy = {
   review: { depth: ReviewDepth; source: "flag" } | { depth: PrReview; source: "config" }
   reviewCommand: string
 }
+/** The policy a repository's `pr` key declares; a flag for one call goes over it. */
+export function declaredPolicy({ merge, review, reviewCommand }: ResolvedConfig["pr"]): Policy {
+  return { merge, review: { depth: review, source: "config" }, reviewCommand }
+}
+
 /** An Action the pull request needs beside the one its answer names, so one push can fix several. */
 export type Blocker = { action: Action; actor: Actor; reason: string; details?: Record<string, unknown> }
 export type Answer = Blocker & {
@@ -364,6 +369,18 @@ const ROWS: Row[] = [
     merging: true
   }
 ]
+
+/** `<status> <action>`, the action dropped when it repeats the status. */
+export function labelOf({ status, action }: Pick<Answer, "status" | "action">): string {
+  return status === action ? status : `${status} ${action}`
+}
+
+/** The label and the reason, then the recheck and the command. */
+export function lineOf(answer: Answer): string {
+  const { reason, command, recheckAfter } = answer
+  const recheck = recheckAfter === undefined ? "" : `, recheck in ${recheckAfter} s`
+  return `${labelOf(answer)}: ${reason}${recheck}${command === undefined ? "" : ` — ${command}`}`
+}
 
 function blockerOf({ action, actor, reason, details }: Omit<Answer, "blockers">): Blocker {
   return { action, actor, reason, ...(details === undefined ? {} : { details }) }

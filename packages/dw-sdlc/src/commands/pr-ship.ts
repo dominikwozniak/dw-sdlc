@@ -8,9 +8,11 @@ import { repositoryRoot, resolveConfig, REVIEW_DEPTHS, type ReviewDepth } from "
 import {
   type Answer,
   decide,
+  declaredPolicy,
   devCommand,
   hostArgs,
   isScriptAction,
+  lineOf,
   type Policy,
   readyToMerge,
   REVIEW,
@@ -18,7 +20,7 @@ import {
   shellLine,
   type Status
 } from "../pr/decide.ts"
-import { CannotRun, carriesBase, gh, namedProblem, read, readAgain, said } from "../pr/read.ts"
+import { CannotRun, carriesBase, gh, namedProblem, now, read, readAgain, said } from "../pr/read.ts"
 import type { PrState } from "../pr/state.ts"
 
 export const summary = "decide the Action one pull request needs next, as a line or JSON"
@@ -57,8 +59,6 @@ Exit 0 done, 10 the agent's turn, 20 wait, 30 the dev's turn, 2 when it cannot r
 const DEPTHS_SENTENCE = `${REVIEW_DEPTHS.slice(0, -1).join(", ")} or ${REVIEW_DEPTHS.at(-1)}`
 
 const EXIT: Record<Status, number> = { done: 0, act: 10, wait: 20, park: 30 }
-
-const REMEDIES = { clock: "unset it: it stands in for the clock in tests" }
 
 type Cli = {
   help: boolean
@@ -132,19 +132,6 @@ function parseCli(argv: string[]): Cli | { error: string } {
   } catch (error) {
     return { error: error instanceof Error ? error.message : String(error) }
   }
-}
-
-/** The time the decision reads: DW_SDLC_NOW, an ISO 8601 time a test sets, else the system clock. */
-function now(): number {
-  const given = process.env.DW_SDLC_NOW?.trim()
-  if (given === undefined || given === "") {
-    return Date.now()
-  }
-  const time = Date.parse(given)
-  if (Number.isNaN(time)) {
-    throw new CannotRun(`DW_SDLC_NOW is ${JSON.stringify(given)}, not an ISO 8601 time`, REMEDIES.clock)
-  }
-  return time
 }
 
 /** How a reason names each script Action: what the script would do, the act, and the state it acts on. */
@@ -255,13 +242,6 @@ function ship(cli: Cli, policy: Policy): { pr: PrState; answer: Answer; performe
   }
 }
 
-/** `<status> <action>: <reason>`, the action dropped when it repeats the status, then the recheck and the command. */
-function lineOf({ status, action, reason, command, recheckAfter }: Answer): string {
-  const label = status === action ? status : `${status} ${action}`
-  const recheck = recheckAfter === undefined ? "" : `, recheck in ${recheckAfter} s`
-  return `${label}: ${reason}${recheck}${command === undefined ? "" : ` — ${command}`}`
-}
-
 function documentOf(pr: PrState, answer: Answer, performed: Performed[], verbose: boolean): Record<string, unknown> {
   const facts = verbose ? { facts: pr } : {}
   return { pr: pr.url, head: pr.head, base: pr.base, ...answer, performed, ...facts }
@@ -280,10 +260,9 @@ export function run(argv: string[]): number {
   // An invalid config layer resolves to ask and full, like every other strictest setting.
   const declared = resolveConfig(repositoryRoot(process.cwd())).config.pr
   const policy: Policy = {
-    merge: cli.merge ? "auto" : declared.merge,
-    review:
-      cli.review === undefined ? { depth: declared.review, source: "config" } : { depth: cli.review, source: "flag" },
-    reviewCommand: declared.reviewCommand
+    ...declaredPolicy(declared),
+    ...(cli.merge ? { merge: "auto" } : {}),
+    ...(cli.review === undefined ? {} : { review: { depth: cli.review, source: "flag" } })
   }
   let shipped: ReturnType<typeof ship>
   try {

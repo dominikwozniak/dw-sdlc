@@ -9,6 +9,7 @@ import * as gate from "./commands/gate.ts"
 import * as prReviewed from "./commands/pr-reviewed.ts"
 import * as prShip from "./commands/pr-ship.ts"
 import * as primitives from "./commands/primitives.ts"
+import * as recap from "./commands/recap.ts"
 import * as referencesSetup from "./commands/references-setup.ts"
 import * as referencesSync from "./commands/references-sync.ts"
 import * as setup from "./commands/setup.ts"
@@ -26,7 +27,8 @@ const COMMANDS = new Map<string, Command>([
   ["references sync", referencesSync],
   ["references setup", referencesSetup],
   ["pr ship", prShip],
-  ["pr reviewed", prReviewed]
+  ["pr reviewed", prReviewed],
+  ["recap", recap]
 ])
 
 function usage(): string {
