@@ -96,7 +96,7 @@ The Steps and then the Checks a change must pass, run by one command, the same l
 _Avoid_: quality gate, CI (which runs it), lint (one part of a Step)
 
 **Drift**:
-A file a Step rewrites while the Gate runs, such as a stale generated file; never the dev's own edits.
+A file a Step creates, changes or deletes while the Gate runs, such as a stale generated file; never an edit made before the run.
 
 **Ratchet**:
 A Check whose recorded baseline may only tighten: a number that never grows or a list of exceptions that only shrinks.

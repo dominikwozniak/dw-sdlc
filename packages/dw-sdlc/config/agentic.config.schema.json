@@ -114,7 +114,7 @@
           "minLength": 1
         },
         "steps": {
-          "description": "The Steps: toolchain commands run in order from the repository root through `sh -c`, each one's output passed through; the first that fails ends the Gate and no Check runs. A command the shell cannot find (exit 127) or execute (126) means the Gate cannot run.",
+          "description": "The Steps: toolchain commands run in order from the repository root through `sh -c`; the first that does not pass ends the Gate and no Check runs. Each one's output is captured, and its last 50 lines are printed when it does not pass; `--verbose` passes the output through instead. A command the shell cannot find (exit 127) or execute (126) means the Gate cannot run.",
           "type": "array",
           "items": {
             "type": "string",
@@ -122,7 +122,7 @@
           }
         },
         "drift": {
-          "description": "Whether a Step may write the tree. `fail`, the default, watches every Step for Drift: before and after each Step the Gate records the content of every file git tracks or would track, and each file the Step created, changed or deleted is one failure, `\"<step>\" changed it`, without stopping the Steps after it. Ignored files and edits made before the run never drift. A tree the Gate cannot record, outside a git checkout, means the Gate cannot run. `allow` turns the watch off.",
+          "description": "Whether a Step may write the tree. `fail`, the default, watches every Step for Drift: before and after each Step the Gate records the content of every file git tracks or would track, and each file the Step created, changed or deleted is one failure, `\"<step>\" created it`, `changed it` or `deleted it`, without stopping the Steps after it. Ignored files and edits made before the run never drift. A tree the Gate cannot record, outside a git checkout, means the Gate cannot run. `allow` turns the watch off.",
           "enum": ["fail", "allow"],
           "default": "fail"
         },
