@@ -47,6 +47,7 @@ def defaults($inferred): {
   commit: {convention: $inferred.commit.convention},
   gate: ({steps: [], drift: "fail", checks: {run: []}} + ($inferred.gate // {})),
   pr: {merge: "ask", review: "auto", reviewCommand: "/code-review"},
+  worker: {command: "claude", model: "sonnet", effort: "high"},
   worktree: {setup: []}
 };
 
@@ -63,6 +64,7 @@ def apply($layer):
       commit: ($base.commit + ($layer.commit // {})),
       gate: (($base.gate + ($layer.gate // {})) | .checks = ($base.gate.checks + ($layer.gate.checks // {}))),
       pr: ($base.pr + ($layer.pr // {})),
+      worker: ($base.worker + ($layer.worker // {})),
       worktree: {setup: ($layer.worktree.setup // $base.worktree.setup)}
     };
 

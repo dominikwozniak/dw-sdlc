@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
-import { existsSync, readFileSync } from "node:fs"
-import { join } from "node:path"
+import { chmodSync, existsSync, readFileSync } from "node:fs"
+import { delimiter, join } from "node:path"
 import { describe, it } from "node:test"
 import { pathToFileURL } from "node:url"
 
@@ -15,11 +15,30 @@ import {
   PACKAGE_ROOT,
   REPO_ROOT,
   type Run,
-  runBin,
+  runBin as spawnBin,
   scratch,
   write as writeFile,
   writeJson
 } from "../harness.ts"
+
+/** This machine's PATH without any directory that holds a `cswap`, so a run never finds the dev's own. */
+const PATH_WITHOUT_CSWAP = (process.env.PATH ?? "")
+  .split(delimiter)
+  .filter((dir) => !existsSync(join(dir, "cswap")))
+  .join(delimiter)
+
+/** The bin on a PATH with no `cswap`, unless a test names another; `env` over it. */
+function runBin(args: string[], cwd: string, env: NodeJS.ProcessEnv = {}): Run {
+  return spawnBin(args, cwd, { PATH: PATH_WITHOUT_CSWAP, ...env })
+}
+
+/** This machine's PATH without a `cswap` and with a fake one first. */
+function withCswap(): string {
+  const dir = scratch("cswap")
+  writeFile(join(dir, "cswap"), "#!/bin/sh\nexit 0\n")
+  chmodSync(join(dir, "cswap"), 0o755)
+  return `${dir}${delimiter}${PATH_WITHOUT_CSWAP}`
+}
 
 function write(root: string, file: string, text: string): void {
   writeFile(join(root, file), text)
@@ -75,7 +94,9 @@ function outcomes(steps: Step[]): Record<string, string> {
 function run(
   root: string,
   home: string,
-  options: Partial<Pick<SetupOptions, "force" | "dryRun" | "convention" | "forcePush" | "commitOnProtected">> = {}
+  options: Partial<
+    Pick<SetupOptions, "force" | "dryRun" | "convention" | "forcePush" | "commitOnProtected" | "path">
+  > = {}
 ): Step[] {
   return setup({
     root,
@@ -84,7 +105,8 @@ function run(
     dryRun: options.dryRun ?? false,
     convention: options.convention,
     forcePush: options.forcePush,
-    commitOnProtected: options.commitOnProtected
+    commitOnProtected: options.commitOnProtected,
+    path: options.path ?? PATH_WITHOUT_CSWAP
   })
 }
 
@@ -469,6 +491,87 @@ describe("setup", () => {
       "Claude Code reads the main checkout's local settings"
     )
     assert.ok(!existsSync(join(worktree, ".claude/settings.local.json")))
+  })
+})
+
+describe("the worker command", () => {
+  const COMMAND = "cswap run -- --dangerously-skip-permissions"
+
+  it("writes worker.command into the local layer when cswap is on PATH, and a second run changes nothing", () => {
+    const root = nodeRepo()
+    const home = scratch("home")
+    const path = withCswap()
+    assert.equal(outcomes(run(root, home, { path }))[LOCAL_FILE], "wrote")
+    assert.deepEqual(json(join(root, LOCAL_FILE)).worker, { command: COMMAND })
+    const resolved = resolveConfig(root)
+    assert.deepEqual(resolved.problems, [])
+    assert.deepEqual(resolved.config.worker, { command: COMMAND, model: "sonnet", effort: "high" })
+    const text = read(root, LOCAL_FILE)
+    assert.equal(outcomes(run(root, home, { path }))[LOCAL_FILE], "unchanged")
+    assert.equal(read(root, LOCAL_FILE), text)
+  })
+
+  it("writes no worker key without cswap, and a run later with it adds the key to the file", () => {
+    const root = nodeRepo()
+    const home = scratch("home")
+    run(root, home)
+    assert.equal(json(join(root, LOCAL_FILE)).worker, undefined)
+    assert.equal(resolveConfig(root).config.worker.command, "claude")
+    assert.equal(outcomes(run(root, home, { path: withCswap() }))[LOCAL_FILE], "wrote")
+    assert.deepEqual(json(join(root, LOCAL_FILE)).worker, { command: COMMAND })
+  })
+
+  it("leaves a command the file holds alone, --force included, and keeps the other worker keys", () => {
+    const root = nodeRepo()
+    const home = scratch("home")
+    run(root, home)
+    const byHand = { ...json(join(root, LOCAL_FILE)), worker: { command: "claude --verbose", model: "opus" } }
+    write(root, LOCAL_FILE, JSON.stringify(byHand, null, 2) + "\n")
+    const text = read(root, LOCAL_FILE)
+    const path = withCswap()
+    assert.equal(outcomes(run(root, home, { path }))[LOCAL_FILE], "unchanged")
+    assert.equal(outcomes(run(root, home, { path, force: true }))[LOCAL_FILE], "unchanged")
+    assert.equal(read(root, LOCAL_FILE), text)
+    assert.deepEqual(resolveConfig(root).config.worker, { command: "claude --verbose", model: "opus", effort: "high" })
+  })
+
+  it("adds the command beside a worker block that holds none", () => {
+    const root = nodeRepo()
+    const home = scratch("home")
+    run(root, home)
+    const byHand = { ...json(join(root, LOCAL_FILE)), worker: { model: "opus" } }
+    write(root, LOCAL_FILE, JSON.stringify(byHand, null, 2) + "\n")
+    assert.equal(outcomes(run(root, home, { path: withCswap() }))[LOCAL_FILE], "wrote")
+    assert.deepEqual(json(join(root, LOCAL_FILE)).worker, { model: "opus", command: COMMAND })
+    assert.equal(outcomes(run(root, home, { path: PATH_WITHOUT_CSWAP }))[LOCAL_FILE], "unchanged")
+  })
+
+  it("refuses a worker value that is not an object, as any other content the setup does not own", () => {
+    const root = nodeRepo()
+    const home = scratch("home")
+    run(root, home)
+    write(root, LOCAL_FILE, JSON.stringify({ ...json(join(root, LOCAL_FILE)), worker: "cswap" }) + "\n")
+    assert.equal(outcomes(run(root, home, { path: withCswap() }))[LOCAL_FILE], "refused")
+  })
+
+  it("the command finds cswap on its own PATH; a dry run shows the write and makes none", () => {
+    const root = nodeRepo()
+    const home = scratch("home")
+    const dry = runBin(["setup", "--root", root, "--home", home, "--dry-run"], REPO_ROOT, { PATH: withCswap() })
+    assert.equal(dry.status, 0, dry.stderr)
+    assert.match(
+      dry.stdout,
+      /^would write \.ai\/agentic\.config\.local\.json — worker\.command: cswap run -- --dangerously-skip-permissions$/m
+    )
+    assert.ok(!existsSync(join(root, LOCAL_FILE)))
+
+    const wrote = runBin(["setup", "--root", root, "--home", home], REPO_ROOT, { PATH: withCswap() })
+    assert.equal(wrote.status, 0, wrote.stderr)
+    assert.deepEqual(json(join(root, LOCAL_FILE)).worker, { command: COMMAND })
+
+    const without = nodeRepo()
+    assert.equal(runBin(["setup", "--root", without, "--home", home], REPO_ROOT).status, 0)
+    assert.equal(json(join(without, LOCAL_FILE)).worker, undefined)
   })
 })
 

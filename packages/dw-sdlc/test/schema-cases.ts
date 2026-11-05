@@ -203,6 +203,30 @@ export const CASES: Case[] = [
     problems: [{ path: "pr.review", message: '"none" is not one of "full", "auto", "light", "off"' }]
   },
   {
+    name: "the agentic schema takes a worker with its command, model and effort",
+    schema: AGENTIC_SCHEMA,
+    value: { worker: { command: "cswap run -- --dangerously-skip-permissions", model: "sonnet", effort: "high" } },
+    problems: []
+  },
+  {
+    name: "the agentic schema refuses a worker effort off Claude Code's levels",
+    schema: AGENTIC_SCHEMA,
+    value: { worker: { effort: "extreme" } },
+    problems: [{ path: "worker.effort", message: '"extreme" is not one of "low", "medium", "high", "xhigh", "max"' }]
+  },
+  {
+    name: "the agentic schema refuses an empty worker command",
+    schema: AGENTIC_SCHEMA,
+    value: { worker: { command: "" } },
+    problems: [{ path: "worker.command", message: "must not be empty" }]
+  },
+  {
+    name: "the agentic schema refuses a worker key it does not know",
+    schema: AGENTIC_SCHEMA,
+    value: { worker: { launcher: "claude" } },
+    problems: [{ path: "worker", message: 'unknown key "launcher"' }]
+  },
+  {
     name: "the agentic schema refuses a Check name the package does not ship",
     schema: AGENTIC_SCHEMA,
     value: { gate: { checks: { "no-such-check": true } } },

@@ -97,6 +97,26 @@ describe("the agentic:check command", () => {
     )
   })
 
+  it("shows the resolved worker key: the defaults, then the layers' keys over them", () => {
+    const bare = JSON.parse(runBin(["config", "--root", repo()], REPO_ROOT).stdout.split("\n").slice(2).join("\n"))
+    assert.deepEqual(bare.worker, { command: "claude", model: "sonnet", effort: "high" })
+
+    const root = repo({
+      files: {
+        [COMMITTED_FILE]: { worker: { model: "opus" } },
+        [LOCAL_FILE]: { worker: { command: "cswap run -- --dangerously-skip-permissions" } }
+      }
+    })
+    const verdict = runBin(["config", "--root", root], REPO_ROOT)
+    assert.equal(verdict.status, 0, verdict.stderr)
+    const shown = JSON.parse(verdict.stdout.split("\n").slice(2).join("\n"))
+    assert.deepEqual(shown.worker, {
+      command: "cswap run -- --dangerously-skip-permissions",
+      model: "opus",
+      effort: "high"
+    })
+  })
+
   it("--root inside a repository resolves the repository's top level", () => {
     const root = repo({ files: { [COMMITTED_FILE]: { baseBranch: "develop" }, "sub/x.txt": "" } })
     const verdict = runBin(["config", "--root", join(root, "sub")], REPO_ROOT)

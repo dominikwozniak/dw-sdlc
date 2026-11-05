@@ -266,6 +266,26 @@ describe("hooks/lib.sh agrees with resolveConfig", () => {
         })
     ],
     [
+      "on a committed worker, and a local one over it key by key",
+      () =>
+        repo({
+          files: {
+            [COMMITTED_FILE]: { worker: { model: "opus", effort: "max" } },
+            [LOCAL_FILE]: { worker: { command: "cswap run -- --dangerously-skip-permissions", effort: "low" } }
+          }
+        })
+    ],
+    [
+      "on a committed worker beside a local file loosening pr.review",
+      () =>
+        repo({
+          files: {
+            [COMMITTED_FILE]: { worker: { model: "opus" } },
+            [LOCAL_FILE]: { pr: { review: "off" }, worker: { command: "cswap run" } }
+          }
+        })
+    ],
+    [
       "on a committed pr.reviewCommand in a file the schema refuses",
       () => repo({ files: { [COMMITTED_FILE]: { pr: { reviewCommand: "/review", draft: true } } } })
     ]
