@@ -46,7 +46,8 @@ Action took effect, whatever gh's exit status; gh's exit status and stderr stand
 false with exit 0 is an Action gh accepted that the read does not show yet. An update counts when
 the head carries the base it read. When the read after an Action fails, the call exits 2 and names
 each Action that ran with gh's exit, under performed too with --json: it may have landed, so do not
-run it blind again. --dry-run performs nothing: it parks at the first Action the script would perform, under performed with ok null.
+run it blind again. --dry-run performs nothing: it parks at the first Action the script would
+perform, under performed with ok null.
 One line, or one document with --json; --verbose adds the state as read to the document under
 facts. Needs an authenticated gh.
 
@@ -182,7 +183,7 @@ function reasonOf(
   ranOn: string | undefined,
   { act, still }: { act: string; still: string }
 ): string {
-  if (action === "mark-reviewed" && ranOn !== undefined && ranOn !== pr.head) {
+  if (action === "mark-reviewed" && exit === 0 && ranOn !== undefined && ranOn !== pr.head) {
     return `${act} posted on ${ranOn.slice(0, 7)}, and the head moved to ${pr.head.slice(0, 7)}`
   }
   if (ok) {

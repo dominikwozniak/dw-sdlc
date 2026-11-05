@@ -1711,6 +1711,35 @@ describe("dw-sdlc pr ship records what an Action did when the read cannot show i
     }
   })
 
+  it("keeps gh's refusal as the reason when the head moved after a mark-reviewed gh refused", () => {
+    const off: Files = { [COMMITTED_FILE]: { pr: { review: "off" } } }
+    const unreviewed: Pr = { ...GREEN, checks: [] }
+    const refused = { exit: 1, stderr: "X HTTP 422: Validation Failed\n" }
+    const post = `api repos/byarcadia-app/foundation/statuses/${HEAD}`
+    const scenario = {
+      graphql: [served(unreviewed), served({ ...unreviewed, head: UPDATED })],
+      commands: { [post]: refused }
+    }
+    const run = ship([...TARGET, "--json"], scenario, {}, off)
+    assert.equal(run.status, 30, run.stderr)
+    const { reason } = JSON.parse(run.stdout) as { reason: string }
+    assert.equal(reason, "gh refused the mark-reviewed: HTTP 422: Validation Failed")
+  })
+
+  it("answers exit 2 when the compare after an update fails, the update named as run with ok null", () => {
+    const scenario = {
+      graphql: [served(BEHIND), served({ ...BEHIND, head: UPDATED })],
+      commands: { [BASE_COMPARE.join(" ")]: { exit: 1, stderr: "gh: Not Found (HTTP 404)\n" } }
+    }
+    const run = ship([...TARGET, "--json"], scenario, {}, AUTO)
+    assert.equal(run.status, 2)
+    assert.deepEqual(lines(run.stderr).at(-1), "update-branch ran (gh exit 0)")
+    assert.deepEqual(JSON.parse(run.stdout).performed, [
+      { action: "update-branch", command: `gh ${UPDATE.join(" ")}`, exit: 0, ok: null }
+    ])
+    assert.deepEqual(run.calls, [AUTH, READ, UPDATE, READ, BASE_COMPARE])
+  })
+
   it("answers exit 2 naming each Action that ran when the read after it fails, its gh exit beside it", () => {
     const failed = { exit: 1, stderr: "Post https://api.github.com/graphql: context deadline exceeded\n" }
     const scenario = { graphql: [served(GREEN), failed], commands: { "pr merge": { exit: 0 } } }
