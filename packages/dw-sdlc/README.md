@@ -48,23 +48,26 @@ its `roots` to `maxProseLines` lines of prose, 3 by default.
 `dw-sdlc pr ship [<n>] [-R owner/name]` reads one pull request through an authenticated `gh` and
 answers the one Action it needs next, as a line or, with `--json`, one document. The exit code says
 whose turn it is: 0 done, 10 the agent's, 20 wait, 30 the dev's, 2 it cannot run. The script
-performs its own Actions: it updates a branch behind its base, marks a draft ready once nothing else
-holds it back, and squash merges a pull request that is green, reviewed and opened by the `gh`
-account, when the merge is its own. `--dry-run` performs nothing: it answers the first Action the
+performs its own Actions: it updates a branch behind its base, marks the head reviewed when the
+Review depth is `off`, marks a draft ready once nothing else holds it back, and squash merges a pull
+request that is green, reviewed and opened by the `gh` account, when the merge is its own. `--dry-run` performs nothing: it answers the first Action the
 script would perform as the dev's. It never deletes a branch; a merged pull request answers with
 the delete command for the dev.
 
 `pr.merge` in the committed `.ai/agentic.config.json` says who merges: the script under `auto`, the
-dev under `ask`, the default. The local layer may tighten it and never loosen it, and `--merge` acts
-as `auto` for one call. A pull request the `gh` account did not open is always the dev's to merge.
+dev under `ask`, the default. `pr.review` says how closely a head no one has reviewed is read: the
+agent reviews it under `full`, the default, and no one does under `off`. The local layer may tighten
+either and never loosen it; `--merge` acts as `auto` and `--review full|off` sets the depth for one
+call. A pull request the `gh` account did not open is always the dev's to merge.
 
 ```json
-{ "pr": { "merge": "auto" } }
+{ "pr": { "merge": "auto", "review": "full" } }
 ```
 
-`pr ship` answers `review` until the head carries the commit status `dw-sdlc/review`, which
-`dw-sdlc pr reviewed <n> --head <sha>` posts after a clean review. It posts nothing and exits 2 once
-a push moved the head, so a new head needs a fresh review.
+`pr ship` answers `review`, its depth under `details`, until the head carries the commit status
+`dw-sdlc/review`, which `dw-sdlc pr reviewed <n> --head <sha>` posts after a clean review. It posts
+nothing and exits 2 once a push moved the head, so a new head needs a fresh review. Under `off` the
+script posts that status itself, its description saying why, and goes on.
 
 ## Commands
 

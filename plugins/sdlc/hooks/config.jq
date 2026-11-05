@@ -8,7 +8,8 @@ def strictness: {
   forcePush: ["deny", "ask", "lease"],
   commitOnProtected: ["deny", "allow"],
   envFiles: ["deny", "git"],
-  merge: ["ask", "auto"]
+  merge: ["ask", "auto"],
+  review: ["full", "off"]
 };
 
 def strictest: {
@@ -18,11 +19,12 @@ def strictest: {
   protectedBranches: ["master", "main", "production"]
 };
 
-# pr.merge while any layer is invalid, and with nothing declared: the Ship script merges nothing itself.
-def strictest_pr_merge: "ask";
+# pr while any layer is invalid, and with nothing declared: the Ship script merges nothing itself and
+# the agent reviews every head.
+def strictest_pr: {merge: "ask", review: "full"};
 
 # A resolved config as it runs while any layer is invalid.
-def on_strictest: .guardrails = strictest | .pr.merge = strictest_pr_merge;
+def on_strictest: .guardrails = strictest | .pr = strictest_pr;
 
 # The preset each commit.convention names. `ticket-key` is a ticket key ahead of a short type list;
 # `conventional` is Conventional Commits. Both POSIX ERE, because `grep -E` runs them.
@@ -43,7 +45,7 @@ def defaults($inferred): {
   },
   commit: {convention: $inferred.commit.convention},
   gate: ({steps: [], drift: "fail", checks: {run: []}} + ($inferred.gate // {})),
-  pr: {merge: strictest_pr_merge},
+  pr: strictest_pr,
   worktree: {setup: []}
 };
 
@@ -101,10 +103,12 @@ def loosenings($base; $local):
           "drops \($dropped | map(tojson) | join(", ")); the local file may add protected branches, never remove them"))
   ] end;
 
-# A local pr.merge less strict than the one it would override: auto over ask.
+# Each local pr key less strict than the one it would override: merge auto over ask, review off over full.
 def pr_loosenings($base; $local):
-  [select($local != null and _rank("merge"; $local) > _rank("merge"; $base))
-    | _problem("pr.merge"; "\($local | tojson) loosens \($base | tojson); the local file may tighten pr.merge, never loosen it")];
+  [("merge", "review") as $key
+    | select($local[$key] != null and _rank($key; $local[$key]) > _rank($key; $base[$key]))
+    | _problem("pr.\($key)";
+        "\($local[$key] | tojson) loosens \($base[$key] | tojson); the local file may tighten pr.\($key), never loosen it")];
 
 # commit.pattern from the convention's preset when no layer set one; a set pattern wins.
 def finalize: .commit.pattern //= commit_patterns[.commit.convention];
@@ -113,7 +117,7 @@ def finalize: .commit.pattern //= commit_patterns[.commit.convention];
 # layer is null when absent or invalid. On any problem the caller runs `on_strictest`.
 def resolve($inferred; $committed; $local):
   (defaults($inferred) | if $committed != null then apply($committed) else . end) as $base
-  | (loosenings($base.guardrails; $local.guardrails) + pr_loosenings($base.pr.merge; $local.pr.merge)) as $problems
+  | (loosenings($base.guardrails; $local.guardrails) + pr_loosenings($base.pr; $local.pr // {})) as $problems
   | {
       config: ((if $local != null and ($problems | length) == 0 then $base | apply($local) else $base end) | finalize),
       problems: $problems

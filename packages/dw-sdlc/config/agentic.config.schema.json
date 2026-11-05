@@ -393,6 +393,10 @@
         "merge": {
           "description": "Who merges a pull request that is green, reviewed and authored by the account `gh` runs as. `auto`: the script squash merges it, naming the head it read. `ask`: it parks with the merge command for the dev. Default `ask`, which an invalid layer runs too. Strictest first: ask, auto.",
           "enum": ["ask", "auto"]
+        },
+        "review": {
+          "description": "The Review depth of a head the Ship script finds unreviewed, which the dev's `--review` overrides for one call. `full`: the agent reviews the changes. `off`: the script posts the `dw-sdlc/review` success itself and no one reads them. Default `full`, which an invalid layer runs too. Strictest first: full, off.",
+          "enum": ["full", "off"]
         }
       },
       "additionalProperties": false

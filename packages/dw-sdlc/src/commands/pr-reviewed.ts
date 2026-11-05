@@ -3,6 +3,7 @@
 
 import { parseArgs } from "node:util"
 
+import { REVIEW, REVIEW_STATE, reviewStatusArgs } from "../pr/decide.ts"
 import { CannotRun, gh, namedProblem, read, said } from "../pr/read.ts"
 
 export const summary = "pin a clean review to the head it read, as a commit status"
@@ -16,9 +17,6 @@ Needs an authenticated gh.
 
 Exit 0 posted, 2 when it cannot run or the head moved.`
 
-const CONTEXT = "dw-sdlc/review"
-/** The one state it posts: a failure or a pending status would turn the pull request unstable. */
-const STATE = "success"
 const DESCRIPTION = "a clean review of this head"
 
 type Cli = { json: boolean; number: number; repo: string | undefined; head: string }
@@ -71,24 +69,10 @@ function post({ number, repo, head }: Cli): void {
       "review the new head, then call again with its sha"
     )
   }
-  const posted = gh([
-    "api",
-    `repos/${pr.repo}/statuses/${head}`,
-    "--method",
-    "POST",
-    "--silent",
-    "-f",
-    `state=${STATE}`,
-    "-f",
-    `context=${CONTEXT}`,
-    "-f",
-    `target_url=${pr.url}`,
-    "-f",
-    `description=${DESCRIPTION}`
-  ])
+  const posted = gh(reviewStatusArgs(pr, DESCRIPTION))
   if (posted.status !== 0) {
     throw new CannotRun(
-      `${pr.repo}#${number}: posting ${CONTEXT} failed: ${said(posted.stderr)}`,
+      `${pr.repo}#${number}: posting ${REVIEW} failed: ${said(posted.stderr)}`,
       `check that gh's token may write commit statuses to ${pr.repo}, then call again`
     )
   }
@@ -115,8 +99,8 @@ export function run(argv: string[]): number {
   }
   const { head } = cli
   const answer = cli.json
-    ? JSON.stringify({ head, context: CONTEXT, state: STATE }, null, 2)
-    : `posted ${CONTEXT} ${STATE} on ${head}`
+    ? JSON.stringify({ head, context: REVIEW, state: REVIEW_STATE }, null, 2)
+    : `posted ${REVIEW} ${REVIEW_STATE} on ${head}`
   process.stdout.write(`${answer}\n`)
   return 0
 }
