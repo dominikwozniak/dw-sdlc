@@ -80,6 +80,26 @@ _Avoid_: approval (a person's verdict on GitHub), code review (the skill that ma
 How closely a Review reads the changes: full, light, or off, where no one reads them.
 _Avoid_: tier, level, mode (a permission mode says what the agent may do unasked)
 
+### Sessions
+
+**Lead**:
+The session that cuts the dev's work into Briefs, hands each to a Worker and answers the dev for all of them.
+_Avoid_: orchestrator, coordinator
+
+**Worker**:
+A session that carries one Brief to its end itself and reports back to its Lead; it starts no other session.
+_Avoid_: subagent (a helper inside one session), child, agent
+
+**Brief**:
+What a Worker starts from: the goal, a pointer to its source, what it may write, what it must not do,
+the proof it is done and where it reports. It points at the source and never retells it.
+_Avoid_: prompt, task, handoff
+
+**Recap**:
+What a session tells the dev who did not follow it: a verdict, what happened, what waits on whom, the
+questions for the dev and the follow-ups. A Worker reports to its Lead with the same.
+_Avoid_: status report, summary, handoff
+
 ### Gate
 
 **Check**:
