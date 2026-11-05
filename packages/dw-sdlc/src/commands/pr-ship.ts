@@ -35,9 +35,11 @@ gets the Review depth --review names for this call, else pr.review: under full, 
 agent reviews it with the command pr.reviewCommand names, /code-review by default; under light one
 sdlc-reviewer subagent reads the diff; under off the script posts the success itself, its
 description saying why.
---dry-run performs nothing: it parks at the first Action the script would perform, listed under
-performed. One line, or one document with --json; --verbose adds the state as read to the document
-under facts. Needs an authenticated gh.
+Each Action the call runs is listed under performed: ok when the read after it shows the Action took
+effect, whatever gh's exit status, which it keeps beside ok with gh's stderr. --dry-run performs
+nothing: it parks at the first Action the script would perform, listed under performed with ok null.
+One line, or one document with --json; --verbose adds the state as read to the document under
+facts. Needs an authenticated gh.
 
 Exit 0 done, 10 the agent's turn, 20 wait, 30 the dev's turn, 2 when it cannot run.`
 
@@ -59,8 +61,11 @@ type Cli = {
   repo: string | undefined
 }
 
-/** A host action the call ran, `ok` whether gh succeeded; null under --dry-run, which runs nothing. */
-type Performed = { action: ScriptAction; command: string; ok: boolean | null }
+/**
+ * A host action the call ran: `ok` whether the read after it shows the Action took effect, beside gh's
+ * exit status and its stderr when it wrote any. Under --dry-run, which runs nothing, `ok` is null alone.
+ */
+type Performed = { action: ScriptAction; command: string; ok: boolean | null; exit?: number; stderr?: string }
 
 function parseCli(argv: string[]): Cli | { error: string } {
   try {
@@ -132,6 +137,19 @@ const NAMED: Record<ScriptAction, { would: string; act: string; still: string }>
   merge: { would: "merge it", act: "the merge", still: "the pull request still reads open" }
 }
 
+/**
+ * Whether the read after a script Action shows it took effect. gh's exit status cannot tell: a reply
+ * lost on the way back exits non-zero after GitHub applied the Action.
+ */
+const TOOK: Record<ScriptAction, (before: PrState, after: PrState) => boolean> = {
+  "update-branch": (before, after) => after.head !== before.head,
+  "mark-ready": (_, after) => !after.draft,
+  // The post names the head it read: a head moved since carries none of it.
+  "mark-reviewed": (before, after) =>
+    after.head === before.head && after.checks.some((check) => check.name === REVIEW && check.bucket === "pass"),
+  merge: (_, after) => after.state === "MERGED"
+}
+
 /** A script Action the call leaves to the dev, `reason` saying why; a merge parks as ready-to-merge. */
 function handedOver(pr: PrState, policy: Policy, answer: Answer, action: ScriptAction, reason: string): Answer {
   if (action === "merge") {
@@ -147,7 +165,6 @@ function handedOver(pr: PrState, policy: Policy, answer: Answer, action: ScriptA
 function ship(cli: Cli, policy: Policy): { pr: PrState; answer: Answer; performed: Performed[] } {
   let pr = read(cli, "pr ship")
   const performed: Performed[] = []
-  const refusals: Partial<Record<ScriptAction, string>> = {}
   for (;;) {
     const answer = decide(pr, now(), policy)
     const { action } = answer
@@ -166,17 +183,26 @@ function ship(cli: Cli, policy: Policy): { pr: PrState; answer: Answer; performe
         performed
       }
     }
-    if (performed.some((done) => done.action === action)) {
-      const refusal = refusals[action]
-      const reason = refusal === undefined ? `${act} ran, and ${still}` : `gh refused ${act}: ${refusal}`
+    const done = performed.find((earlier) => earlier.action === action)
+    if (done !== undefined) {
+      const { ok, exit = 0, stderr = "" } = done
+      const reason =
+        ok === true || exit === 0
+          ? `${act} ran, and ${still}`
+          : `gh refused ${act}: ${said(stderr) || `gh exited ${exit}`}`
       return { pr, answer: handedOver(pr, policy, answer, action, reason), performed }
     }
-    const result = gh(args)
-    performed.push({ action, command, ok: result.status === 0 })
-    if (result.status !== 0) {
-      refusals[action] = said(result.stderr) || `gh exited ${result.status}`
-    }
+    const { status, stderr } = gh(args)
+    const before = pr
     pr = readAgain(pr)
+    const wrote = stderr.trim()
+    performed.push({
+      action,
+      command,
+      ok: TOOK[action](before, pr),
+      exit: status,
+      ...(wrote === "" ? {} : { stderr: wrote })
+    })
   }
 }
 

@@ -855,14 +855,26 @@ const UPDATE = ["pr", "update-branch", "40", "-R", "byarcadia-app/foundation"]
 const READY = ["pr", "ready", "40", "-R", "byarcadia-app/foundation"]
 const RUNS = { "update-branch": UPDATE, "mark-ready": READY, merge: MERGE }
 
-/** A script Action under `performed`, `ok` as gh answered; null under --dry-run. */
-function ran(action: keyof typeof RUNS, ok: boolean | null): unknown {
-  return { action, command: `gh ${RUNS[action].join(" ")}`, ok }
+/**
+ * A command under `performed`: `ok` whether the read after it shows the Action took effect, beside gh's
+ * exit status and stderr, as `response` gives them; under --dry-run `ok` is null and gh never ran.
+ */
+function performedRun(command: string, ok: boolean | null, response: Response): Record<string, unknown> {
+  if (ok === null) {
+    return { command, ok }
+  }
+  const stderr = response.stderr?.trim() ?? ""
+  return { command, ok, exit: response.exit ?? 0, ...(stderr === "" ? {} : { stderr }) }
 }
 
-/** `performed` once the call ran the merge, `ok` as gh answered; null under --dry-run. */
-function performedMerge(ok: boolean | null): unknown[] {
-  return [ran("merge", ok)]
+/** A script Action under `performed`, as `performedRun` records it. */
+function ran(action: keyof typeof RUNS, ok: boolean | null, response: Response = {}): unknown {
+  return { action, ...performedRun(`gh ${RUNS[action].join(" ")}`, ok, response) }
+}
+
+/** `performed` once the call ran the merge, as `performedRun` records it. */
+function performedMerge(ok: boolean | null, response: Response = {}): unknown[] {
+  return [ran("merge", ok, response)]
 }
 
 describe("dw-sdlc pr ship ends a pull request", () => {
@@ -1040,7 +1052,7 @@ describe("dw-sdlc pr ship ends a pull request", () => {
       status: "act",
       action: "review",
       reason: "no dw-sdlc/review success on 0d6c3f4",
-      performed: performedMerge(false)
+      performed: performedMerge(false, { exit: 1, stderr })
     })
     assert.deepEqual(run.calls, [AUTH, READ, MERGE, READ])
   })
@@ -1070,10 +1082,24 @@ describe("dw-sdlc pr ship ends a pull request", () => {
         actor: "dev",
         reason,
         command: DEV_MERGE,
-        performed: performedMerge(merged.exit === undefined)
+        performed: performedMerge(false, merged)
       })
       assert.deepEqual(run.calls, [AUTH, READ, MERGE, READ], reason)
     }
+  })
+
+  it("records a merge as ok when the read after it shows it merged, though gh exited non-zero, its stderr beside it", () => {
+    // GitHub merged, and the reply never reached gh: the machine slept while the request was in flight.
+    const lost = { exit: 1, stderr: 'Post "https://api.github.com/graphql": context deadline exceeded\n' }
+    const scenario = { graphql: [served(GREEN), served(MERGED)], commands: { "pr merge": lost } }
+    const run = ship([...TARGET, "--json"], scenario, {}, AUTO)
+    assert.equal(run.status, 0, run.stderr)
+    assert.deepEqual(fieldsOf(JSON.parse(run.stdout), ["status", "reason", "performed"]), {
+      status: "done",
+      reason: "merged as b04365a",
+      performed: performedMerge(true, lost)
+    })
+    assert.deepEqual(run.calls, [AUTH, READ, MERGE, READ])
   })
 })
 
@@ -1140,7 +1166,7 @@ describe("dw-sdlc pr ship updates a branch and marks a draft ready", () => {
       reason: "pr.merge is ask: the merge is the dev's",
       command: DEV_MERGE,
       blockers: [],
-      performed: [ran("mark-ready", true)]
+      performed: [ran("mark-ready", true, warned)]
     })
     assert.deepEqual(run.calls, [AUTH, READ, READY, READ])
   })
@@ -1201,7 +1227,7 @@ describe("dw-sdlc pr ship updates a branch and marks a draft ready", () => {
       action: "fix-conflicts",
       actor: "agent",
       reason: "conflicts with main",
-      performed: [ran("update-branch", false)]
+      performed: [ran("update-branch", false, refused)]
     })
     assert.deepEqual(run.calls, [AUTH, READ, UPDATE, READ])
   })
@@ -1244,11 +1270,25 @@ describe("dw-sdlc pr ship updates a branch and marks a draft ready", () => {
           actor: "dev",
           reason,
           command,
-          performed: [ran(action, response.exit === undefined)]
+          performed: [ran(action, false, response)]
         }
       )
       assert.deepEqual(run.calls, [AUTH, READ, RUNS[action], READ], reason)
     }
+  })
+
+  it("hands an update that took effect to the dev as one that ran when the base moved again, whatever gh's exit", () => {
+    const lost = { exit: 1, stderr: 'Post "https://api.github.com/graphql": context deadline exceeded\n' }
+    const updated: Pr = { ...BEHIND, head: "5f0c2a7e9d4b1c3a6e8f0d2b4a6c8e0f1a3b5c7d" }
+    const scenario = { graphql: [served(BEHIND), served(updated)], commands: { "pr update-branch": lost } }
+    const run = ship([...TARGET, "--json"], scenario, {}, AUTO)
+    assert.equal(run.status, 30, run.stderr)
+    assert.deepEqual(fieldsOf(JSON.parse(run.stdout), ["action", "reason", "performed"]), {
+      action: "update-branch",
+      reason: "the update ran, and the branch still reads behind its base",
+      performed: [ran("update-branch", true, lost)]
+    })
+    assert.deepEqual(run.calls, [AUTH, READ, UPDATE, READ])
   })
 
   it("stops at the first script Action with --dry-run and parks it for the dev with its command, running nothing", () => {
@@ -1303,9 +1343,9 @@ function markedCommand(why: string): string {
   return `gh api ${STATUSES} --method POST --silent ${fields}`
 }
 
-/** The post under `performed`, `ok` as gh answered; null under --dry-run. */
-function markedRun(why: string, ok: boolean | null): unknown {
-  return { action: "mark-reviewed", command: markedCommand(why), ok }
+/** The post under `performed`, as `performedRun` records it. */
+function markedRun(why: string, ok: boolean | null, response: Response = {}): unknown {
+  return { action: "mark-reviewed", ...performedRun(markedCommand(why), ok, response) }
 }
 
 /** pr.review off, and the merge the script's. */
@@ -1561,10 +1601,39 @@ describe("dw-sdlc pr ship at a Review depth", () => {
           actor: "dev",
           reason,
           command: markedCommand("off: pr.review"),
-          performed: [markedRun("off: pr.review", response.exit === undefined)]
+          performed: [markedRun("off: pr.review", false, response)]
         }
       )
       assert.deepEqual(run.calls, [AUTH, READ, marked("off: pr.review"), READ], reason)
+    }
+  })
+
+  it("records an update, a mark-ready and a post as ok when the read after shows them, though gh exited non-zero", () => {
+    const lost = { exit: 1, stderr: 'Post "https://api.github.com/graphql": context deadline exceeded\n' }
+    const updated: Pr = { ...GREEN, head: "5f0c2a7e9d4b1c3a6e8f0d2b4a6c8e0f1a3b5c7d" }
+    const cases: [string, Pr, Pr, string[], string, string[], unknown][] = [
+      ["update-branch", BEHIND, updated, [], "pr update-branch", UPDATE, ran("update-branch", true, lost)],
+      ["mark-ready", DRAFT, GREEN, [], "pr ready", READY, ran("mark-ready", true, lost)],
+      [
+        "mark-reviewed",
+        UNREVIEWED,
+        GREEN,
+        ["--review", "off"],
+        `api ${STATUSES}`,
+        marked("off: --review off"),
+        markedRun("off: --review off", true, lost)
+      ]
+    ]
+    for (const [name, before, after, flags, key, call, performed] of cases) {
+      const scenario = { graphql: [served(before), served(after)], commands: { [key]: lost } }
+      const run = ship([...TARGET, "--json", ...flags], scenario)
+      assert.equal(run.status, 30, `${name}: ${run.stderr}`)
+      assert.deepEqual(
+        fieldsOf(JSON.parse(run.stdout), ["action", "reason", "performed"]),
+        { action: "ready-to-merge", reason: "pr.merge is ask: the merge is the dev's", performed: [performed] },
+        name
+      )
+      assert.deepEqual(run.calls, [AUTH, READ, call, READ], name)
     }
   })
 
