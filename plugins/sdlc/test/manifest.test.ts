@@ -1,6 +1,6 @@
 // The plugin as Claude Code loads it: each hook script wired to its event and matcher or run by
-// another hook, each skill present under its name and user-invoked, the package linked, and the
-// marketplace listing this plugin alone at the manifest's version.
+// another hook, each skill present under its name and user-invoked, each subagent under its name and
+// read-only, the package linked, and the marketplace listing this plugin alone at the manifest's version.
 
 import assert from "node:assert/strict"
 import { readdirSync, readFileSync, realpathSync, statSync } from "node:fs"
@@ -33,6 +33,10 @@ const DISPATCHED = [
 /** A git hook a repository wires itself, never Claude Code. */
 const GIT_HOOKS = ["commit-msg.sh"]
 const SKILLS = ["sdlc-doctor", "sdlc-pr-ship", "sdlc-references-add", "sdlc-setup"]
+/** The subagents under `agents/`, each a file named as its `name`, spawned as `sdlc:<name>`. */
+const AGENTS = ["sdlc-reviewer"]
+/** What a subagent of the plugin may use: it reads the repository, and Bash only for git's reads. */
+const READ_ONLY_TOOLS = new Set(["Read", "Grep", "Glob", "Bash"])
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
@@ -102,6 +106,27 @@ describe("the sdlc plugin", () => {
       const text = readFileSync(join(PLUGIN_ROOT, "skills", name, "SKILL.md"), "utf8")
       const frontmatter = /^---\n([\s\S]*?)\n---\n/.exec(text)?.[1] ?? ""
       assert.match(frontmatter, /^disable-model-invocation: true$/m, `${name} is user-invoked`)
+    }
+  })
+
+  it("ships each subagent under its name, read-only at medium effort on the session's model", () => {
+    assert.deepEqual(
+      readdirSync(join(PLUGIN_ROOT, "agents")).toSorted(),
+      AGENTS.map((name) => `${name}.md`)
+    )
+    for (const name of AGENTS) {
+      const text = readFileSync(join(PLUGIN_ROOT, "agents", `${name}.md`), "utf8")
+      const frontmatter = /^---\n([\s\S]*?)\n---\n/.exec(text)?.[1] ?? ""
+      const field = (key: string) => new RegExp(`^${key}: (.+)$`, "m").exec(frontmatter)?.[1]
+      assert.equal(field("name"), name)
+      assert.ok((field("description") ?? "").length > 0, `${name} has a description`)
+      assert.equal(field("effort"), "medium", `${name} runs at medium effort`)
+      assert.equal(field("model"), "inherit", `${name} runs on the session's model`)
+      const tools = (field("tools") ?? "").split(",").map((tool) => tool.trim())
+      assert.ok(
+        tools.length > 0 && tools.every((tool) => READ_ONLY_TOOLS.has(tool)),
+        `${name} tools: ${tools.join(", ")}`
+      )
     }
   })
 

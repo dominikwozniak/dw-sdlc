@@ -20,7 +20,8 @@ is its long form: how a guard works, why the design, adopting and releasing.
 - `plugins/sdlc/` — the one plugin `.claude-plugin/marketplace.json` publishes, enabled at user
   scope: `hooks/` the bash guards on a shared `lib.sh` plus the jq config contract, and the session
   hooks, the report and the Sync; `skills/` the user-invoked `sdlc-setup`, `sdlc-doctor`,
-  `sdlc-references-add` and `sdlc-pr-ship`; `dw-sdlc` a link to the package, whose bin the hooks and
+  `sdlc-references-add` and `sdlc-pr-ship`; `agents/` the `sdlc-reviewer` subagent a `light` Review
+  spawns; `dw-sdlc` a link to the package, whose bin the hooks and
   skills run; `test/` the hook tests, mirroring `hooks/`, each spawning a hook on the real stdin
   payload, and the manifest test
 - `.ai/` — `agentic.config.json`, this repo's agent rules against the package's schema;
@@ -91,7 +92,7 @@ pnpm check                      # dw-sdlc gate: the gate.steps of .ai/agentic.co
 pnpm exec dw-sdlc gate [--json] [--verbose] [--update-baseline | --cache] # a line per Step and Check, a failure's last 50 lines (--json: tail), --verbose streams all; exit 0 green, 1 failed or a Step wrote the tree (Drift), 2 cannot run; --update-baseline tightens baselines, --cache skips a tree already green
 pnpm exec dw-sdlc check <name> [--json] # one Check of the Gate by name, no Step; off in the config, it runs on its defaults
 pnpm exec dw-sdlc primitives --paths <files> [--json] # the Primitives that own each path: summary, docs to read
-pnpm exec dw-sdlc pr ship [<n>] [-R owner/name] [--merge] [--review full|off] [--dry-run] [--json] [--verbose] # the Action one pull request needs next; the script updates a branch behind, marks a head reviewed under off, marks a draft ready and merges under pr.merge auto; exit 0 done, 10 act, 20 wait, 30 park, 2 cannot run
+pnpm exec dw-sdlc pr ship [<n>] [-R owner/name] [--merge] [--review full|light|off] [--dry-run] [--json] [--verbose] # the Action one pull request needs next; the script updates a branch behind, marks a head reviewed under off, marks a draft ready and merges under pr.merge auto; exit 0 done, 10 act, 20 wait, 30 park, 2 cannot run
 pnpm exec dw-sdlc pr reviewed <n> [-R owner/name] --head <sha> [--json] # post dw-sdlc/review success on that head; exit 2 when it moved or cannot run
 pnpm exec vp check [--fix]      # Vite+: oxfmt, oxlint and the type check from vite.config.ts; --fix writes
 pnpm test                       # node --test over every *.test.ts under packages/*/test/ and plugins/*/test/, in one run

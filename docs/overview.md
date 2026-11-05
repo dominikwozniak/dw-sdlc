@@ -362,13 +362,14 @@ the review read and refuses once a push moved it, so a new head needs a fresh re
 `dw-sdlc/` never count as CI. The script never deletes a branch: a merged pull request answers
 `done` with the deletion command for the dev.
 
-How closely a head is read is its Review depth: the dev's `--review full|off` for one call, else
-`pr.review`, and `details` names it under `depth` and where it came from under `source`, `flag` or
-`config`. Under `full` the agent reviews the head with the slash command `pr.reviewCommand` names,
-which `details.reviewCommand` carries. Under `off` no one reads it: the script posts the
+How closely a head is read is its Review depth: the dev's `--review full|light|off` for one call,
+else `pr.review`, and `details` names it under `depth` and where it came from under `source`, `flag`
+or `config`. Under `full` the agent reviews the head with the slash command `pr.reviewCommand`
+names, which `details.reviewCommand` carries. Under `light` one `sdlc-reviewer` subagent the plugin
+ships reads the diff at medium effort. Under `off` no one reads it: the script posts the
 `dw-sdlc/review` success itself as `mark-reviewed`, its description `off: --review off` or
-`off: pr.review`, so a green pull request merges with no agent turn. Every other row holds at
-either depth: conflicts, failing CI, threads and who merges.
+`off: pr.review`, so a green pull request merges with no agent turn. Every other row holds at every
+depth: conflicts, failing CI, threads and who merges.
 
 The `sdlc-pr-ship` skill is the agent's side: it calls the script, does the agent's Action, calls
 again, and stops at a wait, a park or done, as the

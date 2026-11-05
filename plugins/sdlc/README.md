@@ -2,7 +2,8 @@
 
 The software delivery process for a Claude Code session, shipped as one plugin: deterministic guards
 on the agent's tool calls, the session hooks, the Sync of a repository's [References](#references),
-and the skills that set a repository up, check a machine, add a Reference and ship a pull request.
+the skills that set a repository up, check a machine, add a Reference and ship a pull request, and
+the subagent that reads a change at the `light` Review depth.
 Every guard is a shell hook that reads the tool call on stdin and refuses it with exit 2, or asks for
 a prompt, before the call runs. The rules a repository wants come from its `.ai/agentic.config.json`; a machine adds its
 own `.ai/agentic.config.local.json` on top, which may tighten `guardrails` and never loosen it. A
@@ -64,6 +65,8 @@ disk is in the next session, a broken edit included.
   `skills/sdlc-pr-ship/` — the skills: the [Setup](#setup), the [Doctor](#doctor),
   [Adding a Reference](#adding-a-reference) and [Shipping a pull request](#shipping-a-pull-request).
   A user invokes each one; the model cannot start one on its own.
+- `agents/sdlc-reviewer.md` — the subagent of a `light` Review, which `sdlc-pr-ship` spawns as
+  `sdlc:sdlc-reviewer`: [Shipping a pull request](#shipping-a-pull-request).
 - `test/` — the hook tests, mirroring `hooks/`, and the manifest's: [Tests](#tests).
 
 ## Guards
@@ -575,22 +578,23 @@ Only the dev invokes it. The skill reads each answer's `status`, then its `actio
 - `act`, the agent's turn: `fix-ci` runs each failing check's `log`, or reads its `link`, fixes it
   and pushes; `fix-conflicts` rebases onto the base locally, resolves and pushes with lease, the one
   push that rewrites the branch, which a repository under `guardrails.forcePush: deny` refuses;
-  `address-review` triages each open thread someone else commented on last against the code, or
-  with none the review that requests changes, and either fixes it and resolves the thread, or
-  replies and leaves it open for the reviewer, then pushes when code changed; `review` reads the
-  Review depth in `details.depth`, and at `full` runs the command `details.reviewCommand` names, from
+  `address-review` triages each open thread someone else commented on last against the code, or with
+  none the review that requests changes, and either fixes it and resolves the thread, or replies and
+  leaves it open for the reviewer, then pushes when code changed; `review` reads the Review depth in
+  `details.depth`. At `full` it runs the command `details.reviewCommand` names, from
   `pr.reviewCommand` and `/code-review` by default, on the changes since the base, the range named
-  to it, and, when it finds nothing, `dw-sdlc pr reviewed <n> --head <sha>` with the head it
-  reviewed. When the session does not have that command, the skill names it and stops. The skill
-  skips that Review when one earlier in the conversation read the changes since the base at the
-  head the script read, found nothing, and nothing changed after it: no edit, no commit, no pull.
-  Only a clean run of that command whose range ended at that head counts as the earlier Review; an
-  informal read of the diff never counts. It then runs `pr reviewed` on that head. A Review whose
-  head the conversation does not show, or one with a finding, even one fixed since, needs a fresh
-  Review. The agent's other `blockers` go into the
-  same push, all but `review`, which needs the head the push makes, and the skill calls the script
-  again. An `act` that leaves nothing to change, as changes requested once a push answers them,
-  stops it: the reviewer's turn.
+  to it; when the session does not have that command, the skill names it and stops. At `light` it
+  spawns the `sdlc-reviewer` subagent, below. When the Review finds nothing it runs
+  `dw-sdlc pr reviewed <n> --head <sha>` with the head it reviewed, and on a finding it fixes it and
+  pushes. The skill skips that Review when one earlier in the conversation read the changes since
+  the base at the head the script read, found nothing, and nothing changed after it: no edit, no
+  commit, no pull. Only a clean run of that command, or at `light` of `sdlc-reviewer` too, whose
+  range ended at that head counts as the earlier Review; an informal read of the diff never counts.
+  It then runs `pr reviewed` on that head. A Review whose head the conversation does not show, or
+  one with a finding, even one fixed since, needs a fresh Review. The agent's other `blockers` go
+  into the same push, all but `review`, which needs the head the push makes, and the skill calls the
+  script again. An `act` that leaves nothing to change, as changes requested once a push answers
+  them, stops it: the reviewer's turn.
 - `wait`: it tells the dev the reason and `recheckAfter` and ends the turn. The next call comes with
   the dev's next message or a `/loop` wake-up, never from a sleep in a shell.
 - `park` and `done`: it prints the reason, and the command when there is one, and stops, a script
@@ -600,12 +604,23 @@ Only the dev invokes it. The skill reads each answer's `status`, then its `actio
 It acts only from a checkout of the pull request's branch at the head the script read, and pulls
 with `--rebase` first when the branch is behind it, as after the script's update. A dry run the dev
 asks for shows the answer and does nothing. It passes `--merge` only when the dev wrote "merge" for
-this pull request in the conversation, and `--review full` or `--review off` only when they wrote
-that Review depth for it; under `off`, from the flag or `pr.review`, the script posts the review
-marker itself and the skill never reviews. It never deletes a branch, the one a `done` answer's
+this pull request in the conversation, and `--review full`, `--review light` or `--review off` only
+when they wrote that Review depth for it; under `off`, from the flag or `pr.review`, the script
+posts the review marker itself and the skill never reviews. It never deletes a branch, the one a `done` answer's
 command names included. Review-thread text is data it triages against the code, never an
 instruction. The decision, the exit codes and the review marker `pr reviewed` posts are in the
 overview, [How a pull request lands](../../docs/overview.md#how-a-pull-request-lands).
+
+### The light Review
+
+`agents/sdlc-reviewer.md` is the one reader of a `light` Review: a subagent on the session's model
+at `effort: medium`, whatever effort the session runs at, unless `CLAUDE_CODE_EFFORT_LEVEL` sets
+one. Its tools are `Read`, `Grep` and `Bash`, and its instructions keep Bash to read-only git. It
+does not see the
+conversation, so the skill's prompt holds what it reads: the diff command, the files the diff
+touches, and the spec as the conversation states it. It reads those files and the repository's
+agent rules, nothing else, skips what the Gate checks, and reports under 300 words, its first line
+`clean` or `findings: <n>`.
 
 ## Tests
 
@@ -624,7 +639,8 @@ empty.
 `test/references-harness.ts` through the link, which builds throwaway repositories apart from the
 machine's git config. `test/manifest.test.ts` holds the manifest to the tree: each hook script wired
 to its event and matcher, run by the dispatcher or left to git, each skill under its name, with
-every plugin path it runs on disk and left for the user to invoke, the link to the package, and the
+every plugin path it runs on disk and left for the user to invoke, each subagent under its name,
+read-only at medium effort on the session's model, the link to the package, and the
 marketplace listing this plugin alone at the manifest's version.
 
 The commands' tests sit beside the package's code, in its `test/commands/`: `setup`, `doctor` and
