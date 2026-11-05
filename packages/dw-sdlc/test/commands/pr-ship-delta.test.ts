@@ -250,7 +250,7 @@ describe("dw-sdlc pr ship after a push to a reviewed pull request", () => {
     }
   })
 
-  it("asks for the Review under the dev's --review full over a head that would carry the status", () => {
+  it("asks for a Review of the whole diff under the dev's --review full over a head that would carry", () => {
     const run = ship(["--json", "--review", "full"], [MERGED_IN], {
       ...compared(REVIEWED, [READ_THEN]),
       ...compared(HEAD, [SHIFTED])
@@ -258,7 +258,7 @@ describe("dw-sdlc pr ship after a push to a reviewed pull request", () => {
     assert.equal(run.status, 10, run.stderr)
     assert.deepEqual(documentOf(run.stdout, ["action", "details", "performed"]), {
       action: "review",
-      details: { depth: "full", source: "flag", reviewCommand: "/code-review", since: REVIEWED },
+      details: { depth: "full", source: "flag", reviewCommand: "/code-review" },
       performed: []
     })
   })

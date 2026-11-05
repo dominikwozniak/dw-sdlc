@@ -106,12 +106,22 @@ export function reviewStatusArgs(pr: PrState, description: string): string[] {
   return ["api", `repos/${pr.repo}/statuses/${pr.head}`, "--method", "POST", "--silent", ...flags]
 }
 
+/** Whether the dev's --review full asks for a Review of a head that would carry the status. */
+function fullOverCarry(pr: PrState, { review }: Policy): boolean {
+  return pr.carried && review.source === "flag" && review.depth === "full"
+}
+
 /** The reviewed commit whose success the head carries, if it does and the dev did not ask for full. */
-function carriedFrom(pr: PrState, { review }: Policy): string | null {
-  if (!pr.carried || (review.source === "flag" && review.depth === "full")) {
-    return null
-  }
-  return pr.lastReviewed?.commit ?? null
+function carriedFrom(pr: PrState, policy: Policy): string | null {
+  return pr.carried && !fullOverCarry(pr, policy) ? (pr.lastReviewed?.commit ?? null) : null
+}
+
+/**
+ * The commit the Review reads from: the last reviewed one. Over a carry the dev's full reads the whole
+ * diff, since the changes after that commit are only the base's.
+ */
+function sinceOf(pr: PrState, policy: Policy): string | null {
+  return fullOverCarry(pr, policy) ? null : (pr.lastReviewed?.commit ?? null)
 }
 
 /** Why the head carries the success the script posts: the Review it carries, else the dev's word or the config. */
@@ -236,7 +246,7 @@ const ROWS: Row[] = [
         details: {
           ...review,
           ...(review.depth === "full" ? { reviewCommand } : {}),
-          ...(pr.lastReviewed === null ? {} : { since: pr.lastReviewed.commit })
+          ...(sinceOf(pr, policy) === null ? {} : { since: sinceOf(pr, policy) })
         }
       }
     }

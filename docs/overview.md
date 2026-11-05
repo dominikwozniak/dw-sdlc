@@ -391,10 +391,11 @@ the branch's own changes, and both must pass:
   Hunk positions and context lines are left out, since a base that moved shifts them.
 
 When both pass, the script posts the status as `mark-reviewed`, described as `carried from <sha>`.
-The dev's `--review full` asks for the Review anyway. A conflict resolved by hand changes the
-branch's own lines, so it never carries. Neither does a file the compare shows no patch for, such as
-a binary one, or a compare at GitHub's limit of 300 files. A merge made by hand that moves one of the
-branch's own lines within a file, keeping their order, does carry: the test leaves positions out.
+The dev's `--review full` asks for a Review of the whole diff instead. A conflict resolved by hand
+changes the branch's own lines, so it never carries. Neither does a file the compare shows no patch
+for, such as a binary one, or a compare at GitHub's limit of 300 files. A merge made by hand that
+moves one of the branch's own lines within a file, keeping their order, does carry: the test leaves
+positions out.
 
 The `sdlc-pr-ship` skill is the agent's side: it calls the script, does the agent's Action, calls
 again, and stops at a wait, a park or done, as the

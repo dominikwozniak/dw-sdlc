@@ -68,7 +68,7 @@ export type PrState = {
   checks: CiCheck[]
   /** The threads neither resolved nor outdated. */
   unresolvedThreads: Thread[]
-  /** The last commit before the head with a review success, among the pull request's last 100. */
+  /** The last commit before the head with a review success not posted under off, of the last 100. */
   lastReviewed: LastReviewed | null
   /** Whether the head carries the success of `lastReviewed`: the read decides it from two compares. */
   carried: boolean
@@ -281,7 +281,7 @@ function isReviewed(commit: Node): boolean {
   return !(stringOrNull(context, "description") ?? "").startsWith(OFF_PREFIX)
 }
 
-/** The last commit before `head` whose review context reads SUCCESS, the history oldest first. */
+/** The last commit before `head` that `isReviewed` takes, the history oldest first. */
 function lastReviewedOf(pr: Node, head: string): LastReviewed | null {
   const commits = nodes(pr, "history").map((node) => child(node, "commit"))
   const index = commits.findLastIndex((commit) => string(commit, "oid") !== head && isReviewed(commit))
