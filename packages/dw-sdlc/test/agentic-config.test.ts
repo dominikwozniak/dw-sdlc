@@ -495,7 +495,7 @@ describe("pr.review", () => {
       files: { [COMMITTED_FILE]: { pr: { review: "off" } }, [LOCAL_FILE]: { pr: { review: "light" } } }
     })
     assert.deepEqual(resolveConfig(tighter).problems, [])
-    assert.deepEqual(resolveConfig(tighter).config.pr, { merge: "ask", review: "light" })
+    assert.deepEqual(resolveConfig(tighter).config.pr, { merge: "ask", review: "light", reviewCommand: "/code-review" })
 
     const cases: [string, string, string][] = [
       ["light", "off", '"off" loosens "light"; the local file may tighten pr.review, never loosen it'],
