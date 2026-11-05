@@ -85,9 +85,10 @@ export type Pr = {
 
 /**
  * A commit of the pull request: `review` null is a commit with statuses but no dw-sdlc/review among
- * them, left out one with none; `parents` 2 is a merge, 1 when left out.
+ * them, left out one with none; `described` its description, a clean review's when left out; `parents`
+ * 2 is a merge, 1 when left out.
  */
-export type Commit = { oid: string; review?: string | null; parents?: number }
+export type Commit = { oid: string; review?: string | null; described?: string; parents?: number }
 
 export const HEAD = "e36732e33915969ef4449becafeecd2e2846d544"
 export const BASE_OID = "8ba44d6f750333be72a05ca309e37b5984e3a0b9"
@@ -150,8 +151,9 @@ function threadOf(thread: Thread): object {
 }
 
 /** A commit node of the history the reply carries: no status, a status without the review, or the review's state. */
-function commitOf({ oid, review, parents = 1 }: Commit): object {
-  const status = review === undefined ? null : { context: review === null ? null : { state: review } }
+function commitOf({ oid, review, described = "a clean review of this head", parents = 1 }: Commit): object {
+  const context = review === null || review === undefined ? null : { state: review, description: described }
+  const status = review === undefined ? null : { context }
   return { commit: { oid, parents: { totalCount: parents }, status } }
 }
 

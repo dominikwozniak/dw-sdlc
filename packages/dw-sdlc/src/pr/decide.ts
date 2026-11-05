@@ -3,7 +3,7 @@
 // blockers. The last rows say who merges what no row before them holds back.
 
 import type { PrMerge, PrReview } from "../agentic-config.ts"
-import { type CiCheck, type PrState, REVIEW, type Thread } from "./state.ts"
+import { awaitsReview, type CiCheck, OFF_PREFIX, type PrState, REVIEW, type Thread } from "./state.ts"
 
 export { REVIEW }
 
@@ -82,11 +82,6 @@ function failingOf(pr: PrState): CiCheck[] {
   return ciOf(pr).filter((check) => check.bucket === "fail")
 }
 
-/** The viewer's own pull request without a review success on its head: the one a Review reads. */
-export function awaitsReview(pr: Pick<PrState, "viewerDidAuthor" | "checks">): boolean {
-  return pr.viewerDidAuthor && !pr.checks.some((check) => check.name === REVIEW && check.bucket === "pass")
-}
-
 /** A failing check as the agent reads it: its link, and the command that prints a GitHub Actions job's log. */
 function failure({ name, link, log }: CiCheck): Record<string, unknown> {
   return { name, link, ...(log === null ? {} : { log: shellLine(log) }) }
@@ -111,18 +106,21 @@ export function reviewStatusArgs(pr: PrState, description: string): string[] {
   return ["api", `repos/${pr.repo}/statuses/${pr.head}`, "--method", "POST", "--silent", ...flags]
 }
 
-/** The reviewed commit whose success the head carries, if it carries one. */
-function carriedFrom(pr: PrState): string | undefined {
-  return pr.carried ? pr.lastReviewed?.commit : undefined
+/** The reviewed commit whose success the head carries, if it does and the dev did not ask for full. */
+function carriedFrom(pr: PrState, { review }: Policy): string | null {
+  if (!pr.carried || (review.source === "flag" && review.depth === "full")) {
+    return null
+  }
+  return pr.lastReviewed?.commit ?? null
 }
 
 /** Why the head carries the success the script posts: the Review it carries, else the dev's word or the config. */
 function markedDescription(pr: PrState, policy: Policy): string {
-  const carried = carriedFrom(pr)
-  if (carried !== undefined) {
+  const carried = carriedFrom(pr, policy)
+  if (carried !== null) {
     return `carried from ${carried.slice(0, 7)}`
   }
-  return `off: ${policy.review.source === "flag" ? "--review off" : "pr.review"}`
+  return `${OFF_PREFIX} ${policy.review.source === "flag" ? "--review off" : "pr.review"}`
 }
 
 /** A script Action's gh arguments; `repo` is `-R` and the repository when the call names it, else empty. */
@@ -227,8 +225,9 @@ const ROWS: Row[] = [
     // the head, and a head that only merged the base in since the last reviewed commit carries its
     // success: the script posts the success itself. Otherwise the Review reads from that commit.
     when: awaitsReview,
-    answer: (pr, _, { review, reviewCommand }) => {
-      const byScript = review.depth === "off" || carriedFrom(pr) !== undefined
+    answer: (pr, _, policy) => {
+      const { review, reviewCommand } = policy
+      const byScript = review.depth === "off" || carriedFrom(pr, policy) !== null
       return {
         status: "act",
         action: byScript ? "mark-reviewed" : "review",

@@ -3,6 +3,8 @@
 
 /** The commit status a clean review of the head leaves on it. */
 export const REVIEW = "dw-sdlc/review"
+/** How the description of a success the script posts under off begins: no one read that head. */
+export const OFF_PREFIX = "off:"
 
 export const QUERY = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
@@ -16,7 +18,7 @@ export const QUERY = `query($owner: String!, $name: String!, $number: Int!) {
         contexts(first: 50) { nodes {
           ... on CheckRun { name status conclusion detailsUrl startedAt isRequired(pullRequestNumber: $number) }
           ... on StatusContext { context state targetUrl createdAt isRequired(pullRequestNumber: $number) } } } } } } }
-      history: commits(last: 100) { nodes { commit { oid parents { totalCount } status { context(name: "${REVIEW}") { state } } } } }
+      history: commits(last: 100) { nodes { commit { oid parents { totalCount } status { context(name: "${REVIEW}") { state description } } } } }
     }
   }
 }`
@@ -264,10 +266,19 @@ function threadOf(thread: Node): Thread {
   }
 }
 
+/** The viewer's own pull request without a review success on its head: the one a Review reads. */
+export function awaitsReview(pr: Pick<PrState, "viewerDidAuthor" | "checks">): boolean {
+  return pr.viewerDidAuthor && !pr.checks.some((check) => check.name === REVIEW && check.bucket === "pass")
+}
+
+/** A commit whose review success says someone read it: a status posted under off never does. */
 function isReviewed(commit: Node): boolean {
   const status = childOrNull(commit, "status")
   const context = status === null ? null : childOrNull(status, "context")
-  return context !== null && string(context, "state") === "SUCCESS"
+  if (context === null || string(context, "state") !== "SUCCESS") {
+    return false
+  }
+  return !(stringOrNull(context, "description") ?? "").startsWith(OFF_PREFIX)
 }
 
 /** The last commit before `head` whose review context reads SUCCESS, the history oldest first. */

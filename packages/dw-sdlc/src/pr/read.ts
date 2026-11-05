@@ -4,9 +4,8 @@
 
 import { spawnSync } from "node:child_process"
 
-import { awaitsReview } from "./decide.ts"
 import { changesOf, compareArgs, sameChanges } from "./delta.ts"
-import { parsePr, parseView, type PrState, QUERY, ReplyError } from "./state.ts"
+import { awaitsReview, parsePr, parseView, type PrState, QUERY, ReplyError } from "./state.ts"
 
 /** What stops a pr command before it answers: exit 2, the problem and its remedy on one line. */
 export class CannotRun extends Error {

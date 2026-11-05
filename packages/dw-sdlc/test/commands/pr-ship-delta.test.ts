@@ -220,6 +220,49 @@ describe("dw-sdlc pr ship after a push to a reviewed pull request", () => {
     }
   })
 
+  it("reads past a status the script posted under off, and takes a carried one as reviewed", () => {
+    const cases: [string, Commit[], string][] = [
+      [
+        "off",
+        [
+          { oid: EARLIER, review: "SUCCESS" },
+          { oid: REVIEWED, review: "SUCCESS", described: "off: --review off" }
+        ],
+        EARLIER
+      ],
+      [
+        "carried",
+        [
+          { oid: EARLIER, review: "SUCCESS" },
+          { oid: REVIEWED, review: "SUCCESS", described: "carried from ad212a6" }
+        ],
+        REVIEWED
+      ]
+    ]
+    for (const [name, history, since] of cases) {
+      const run = ship(["--json"], [{ ...PUSHED_ON, history }])
+      assert.equal(run.status, 10, `${name}: ${run.stderr}`)
+      assert.deepEqual(
+        documentOf(run.stdout, ["action", "details"]),
+        { action: "review", details: { depth: "full", source: "config", reviewCommand: "/code-review", since } },
+        name
+      )
+    }
+  })
+
+  it("asks for the Review under the dev's --review full over a head that would carry the status", () => {
+    const run = ship(["--json", "--review", "full"], [MERGED_IN], {
+      ...compared(REVIEWED, [READ_THEN]),
+      ...compared(HEAD, [SHIFTED])
+    })
+    assert.equal(run.status, 10, run.stderr)
+    assert.deepEqual(documentOf(run.stdout, ["action", "details", "performed"]), {
+      action: "review",
+      details: { depth: "full", source: "flag", reviewCommand: "/code-review", since: REVIEWED },
+      performed: []
+    })
+  })
+
   it("reads no compare for another author's pull request, which parks for the dev", () => {
     const run = ship(["--json"], [{ ...PUSHED_ON, viewerDidAuthor: false }])
     assert.equal(run.status, 30, run.stderr)
