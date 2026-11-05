@@ -17,3 +17,5 @@ node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" doctor
 It installs nothing and exits 1 on a FAIL. Each WARN and FAIL names its remedy; run one only when the
 user asks for it. A `package` line that starts with `drift:` means the plugin's hooks and skills run
 another `dw-sdlc` than the repository's Gate; the line names the update that brings the two in step.
+The `sessions` line reports the optional `sdlc-sessions` plugin; its `drift:` compares the two plugins'
+copies of the package, and it too names the update.
