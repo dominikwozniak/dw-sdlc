@@ -395,8 +395,8 @@
           "enum": ["ask", "auto"]
         },
         "review": {
-          "description": "The Review depth of a head the Ship script finds unreviewed, which the dev's `--review` overrides for one call. `full`: the agent reviews the changes. `off`: the script posts the `dw-sdlc/review` success itself and no one reads them. Default `full`, which an invalid layer runs too. Strictest first: full, off.",
-          "enum": ["full", "off"]
+          "description": "The Review depth of a head the Ship script finds unreviewed, which the dev's `--review` overrides for one call. `full`: the agent runs the command `pr.reviewCommand` names over the changes. `light`: one `sdlc-reviewer` subagent reads the diff at medium effort. `off`: the script posts the `dw-sdlc/review` success itself and no one reads them. Default `full`, which an invalid layer runs too. Strictest first: full, light, off.",
+          "enum": ["full", "light", "off"]
         },
         "reviewCommand": {
           "description": "The slash command a `full` Review runs over the pull request's changes, as `/pr-review-toolkit:review-pr code errors`. Default `/code-review`. No strictness order: the local override sets it freely.",

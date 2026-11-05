@@ -490,11 +490,32 @@ describe("pr.review", () => {
     }
   })
 
-  it("is full or off, nothing else", () => {
+  it("takes light between full and off: a local light tightens off, and loosens full", () => {
+    const tighter = repo({
+      files: { [COMMITTED_FILE]: { pr: { review: "off" } }, [LOCAL_FILE]: { pr: { review: "light" } } }
+    })
+    assert.deepEqual(resolveConfig(tighter).problems, [])
+    assert.deepEqual(resolveConfig(tighter).config.pr, { merge: "ask", review: "light" })
+
+    const cases: [string, string, string][] = [
+      ["light", "off", '"off" loosens "light"; the local file may tighten pr.review, never loosen it'],
+      ["full", "light", '"light" loosens "full"; the local file may tighten pr.review, never loosen it']
+    ]
+    for (const [committed, local, message] of cases) {
+      const root = repo({
+        files: { [COMMITTED_FILE]: { pr: { review: committed } }, [LOCAL_FILE]: { pr: { review: local } } }
+      })
+      const { config, problems } = resolveConfig(root)
+      assert.deepEqual(problems, [{ file: LOCAL_FILE, path: "pr.review", message }])
+      assert.equal(config.pr.review, "full", `${local} over ${committed}`)
+    }
+  })
+
+  it("is full, light or off, nothing else", () => {
     const result = validateDocument("agentic.config.json", JSON.stringify({ pr: { review: "auto" } }))
     assert.ok("problems" in result)
     assert.deepEqual(result.problems, [
-      { file: "agentic.config.json", path: "pr.review", message: '"auto" is not one of "full", "off"' }
+      { file: "agentic.config.json", path: "pr.review", message: '"auto" is not one of "full", "light", "off"' }
     ])
   })
 })
