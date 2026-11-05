@@ -411,7 +411,7 @@
       "type": "object",
       "properties": {
         "command": {
-          "description": "The command a Worker starts with: the words that start its Claude Code session, before the flags `dw-sdlc worker start` adds. Default `claude`. It belongs to one machine, so it sits in the local layer, where `dw-sdlc setup` writes `cswap run -- --dangerously-skip-permissions` when `cswap` is on PATH.",
+          "description": "The command a Worker starts with: the words that start its Claude Code session, before the flags of its own, such as `--model` and `--effort`. Default `claude`. It belongs to one machine, so it sits in the local layer, where `dw-sdlc setup` writes `cswap run -- --dangerously-skip-permissions` when `cswap` is on PATH.",
           "type": "string",
           "minLength": 1
         },
