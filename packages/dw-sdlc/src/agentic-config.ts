@@ -27,8 +27,11 @@ export type PrMerge = "ask" | "auto"
 /** How closely a Review reads an unreviewed head: the agent reads it under `full`, no one under `off`. */
 export type PrReview = "full" | "off"
 
-/** How the Ship script ends a pull request: who merges it and how closely it is reviewed. */
-export type PrConfig = { merge: PrMerge; review: PrReview }
+/**
+ * How the Ship script ends a pull request: who merges it, how closely it is reviewed, and the slash
+ * command a `full` Review runs.
+ */
+export type PrConfig = { merge: PrMerge; review: PrReview; reviewCommand: string }
 
 export type Guardrails = {
   forcePush: ForcePush
@@ -62,7 +65,7 @@ export type AgenticConfig = {
   guardrails?: GuardrailsLayer
   commit?: { convention?: CommitConvention; pattern?: string; trailer?: string }
   gate?: GateLayer
-  pr?: { merge?: PrMerge; review?: PrReview }
+  pr?: Partial<PrConfig>
   worktree?: { setup?: string[] }
 }
 
@@ -120,7 +123,9 @@ export const STRICTEST_GUARDRAILS: Guardrails = {
 export const STRICTEST_PR_MERGE: PrMerge = "ask"
 /** The Review depth while any layer is invalid, and with nothing declared: the agent reads every head. */
 export const STRICTEST_PR_REVIEW: PrReview = "full"
-const STRICTEST_PR: PrConfig = { merge: STRICTEST_PR_MERGE, review: STRICTEST_PR_REVIEW }
+const STRICTEST_PR = { merge: STRICTEST_PR_MERGE, review: STRICTEST_PR_REVIEW } as const satisfies Partial<PrConfig>
+/** The command a `full` Review runs with nothing declared; it has no strictness order. */
+export const DEFAULT_REVIEW_COMMAND = "/code-review"
 
 /** What a repository gets with nothing declared. */
 export const DEFAULT_GUARDRAILS: Guardrails = {
@@ -309,7 +314,7 @@ export function inferConfig(root: string): Merged {
     guardrails: cloneGuardrails(DEFAULT_GUARDRAILS),
     commit: { convention: "conventional" },
     gate: inferGate(root),
-    pr: { ...STRICTEST_PR },
+    pr: { ...STRICTEST_PR, reviewCommand: DEFAULT_REVIEW_COMMAND },
     worktree: { setup: [] }
   }
 }
@@ -439,7 +444,8 @@ export function resolveConfig(root: string): Resolution {
     }
   }
   if (problems.length > 0) {
-    config = { ...config, guardrails: cloneGuardrails(STRICTEST_GUARDRAILS), pr: { ...STRICTEST_PR } }
+    // `reviewCommand` has no strictest value: it keeps what the valid layers name.
+    config = { ...config, guardrails: cloneGuardrails(STRICTEST_GUARDRAILS), pr: { ...config.pr, ...STRICTEST_PR } }
   }
   return {
     config: finalize(config),

@@ -55,7 +55,7 @@ describe("inference, with no config file", () => {
       protectedBranches: ["master", "main", "production"]
     })
     assert.deepEqual(config.gate, { steps: [], drift: "fail", checks: { run: [] } })
-    assert.deepEqual(config.pr, { merge: "ask", review: "full" })
+    assert.deepEqual(config.pr, { merge: "ask", review: "full", reviewCommand: "/code-review" })
     assert.deepEqual(config.worktree, { setup: [] })
     assert.equal(config.baseBranch, "auto")
   })
@@ -449,13 +449,17 @@ describe("pr.review", () => {
   it("takes off from the committed file, and a local full over it, pr.merge left as it was", () => {
     const committed = repo({ files: { [COMMITTED_FILE]: { pr: { merge: "auto", review: "off" } } } })
     assert.deepEqual(resolveConfig(committed).problems, [])
-    assert.deepEqual(resolveConfig(committed).config.pr, { merge: "auto", review: "off" })
+    assert.deepEqual(resolveConfig(committed).config.pr, {
+      merge: "auto",
+      review: "off",
+      reviewCommand: "/code-review"
+    })
 
     const tighter = repo({
       files: { [COMMITTED_FILE]: { pr: { merge: "auto", review: "off" } }, [LOCAL_FILE]: { pr: { review: "full" } } }
     })
     assert.deepEqual(resolveConfig(tighter).problems, [])
-    assert.deepEqual(resolveConfig(tighter).config.pr, { merge: "auto", review: "full" })
+    assert.deepEqual(resolveConfig(tighter).config.pr, { merge: "auto", review: "full", reviewCommand: "/code-review" })
   })
 
   it("may not be loosened by the local file: off over a committed or a default full drops the file and runs full", () => {
@@ -467,7 +471,7 @@ describe("pr.review", () => {
       const { config, problems, layers } = resolveConfig(root)
       assert.deepEqual(problems, [{ file: LOCAL_FILE, path: "pr.review", message }])
       assert.deepEqual(layers, { committed: "valid", local: "invalid" })
-      assert.deepEqual(config.pr, { merge: "ask", review: "full" })
+      assert.deepEqual(config.pr, { merge: "ask", review: "full", reviewCommand: "/code-review" })
       assert.equal(config.baseBranch, "auto")
     }
   })
@@ -492,6 +496,56 @@ describe("pr.review", () => {
     assert.deepEqual(result.problems, [
       { file: "agentic.config.json", path: "pr.review", message: '"auto" is not one of "full", "off"' }
     ])
+  })
+})
+
+describe("pr.reviewCommand", () => {
+  const TOOLKIT = "/pr-review-toolkit:review-pr code errors"
+
+  it("takes the committed command, and a local one over it, which no strictness order holds back", () => {
+    const committed = repo({ files: { [COMMITTED_FILE]: { pr: { reviewCommand: "/review" } } } })
+    assert.deepEqual(resolveConfig(committed).problems, [])
+    assert.equal(resolveConfig(committed).config.pr.reviewCommand, "/review")
+
+    for (const files of [
+      { [COMMITTED_FILE]: { pr: { reviewCommand: "/review" } }, [LOCAL_FILE]: { pr: { reviewCommand: TOOLKIT } } },
+      { [LOCAL_FILE]: { pr: { reviewCommand: TOOLKIT } } }
+    ]) {
+      const { config, problems, layers } = resolveConfig(repo({ files }))
+      assert.deepEqual(problems, [], JSON.stringify(files))
+      assert.equal(layers.local, "valid")
+      assert.deepEqual(config.pr, { merge: "ask", review: "full", reviewCommand: TOOLKIT })
+    }
+  })
+
+  it("keeps the command the valid layers name while a layer is invalid, the local one dropped whole", () => {
+    const cases: [Record<string, string | object>, string][] = [
+      [{ [COMMITTED_FILE]: { pr: { reviewCommand: "/review" } }, [LOCAL_FILE]: "{ not json" }, "/review"],
+      [
+        {
+          [COMMITTED_FILE]: { pr: { reviewCommand: "/review" } },
+          [LOCAL_FILE]: { pr: { review: "off", reviewCommand: TOOLKIT } }
+        },
+        "/review"
+      ],
+      [{ [COMMITTED_FILE]: { pr: { reviewCommand: "/review" }, guardrails: { extra: 1 } } }, "/code-review"]
+    ]
+    for (const [files, command] of cases) {
+      const { config, problems } = resolveConfig(repo({ files }))
+      assert.notDeepEqual(problems, [])
+      assert.deepEqual(config.pr, { merge: "ask", review: "full", reviewCommand: command }, JSON.stringify(files))
+    }
+  })
+
+  it("is a non-empty string", () => {
+    for (const [value, message] of [
+      ["", "must not be empty"],
+      [3, "expected string, got 3"]
+    ] as const) {
+      const result = validateDocument("agentic.config.json", JSON.stringify({ pr: { reviewCommand: value } }))
+      assert.ok("problems" in result)
+      assert.deepEqual(result.problems, [{ file: "agentic.config.json", path: "pr.reviewCommand", message }])
+    }
   })
 })
 

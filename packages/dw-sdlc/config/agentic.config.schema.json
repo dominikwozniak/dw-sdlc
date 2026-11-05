@@ -387,7 +387,7 @@
       "additionalProperties": false
     },
     "pr": {
-      "description": "How the Ship script, `dw-sdlc pr ship`, ends a pull request. The local override may tighten it and never loosen it.",
+      "description": "How the Ship script, `dw-sdlc pr ship`, ends a pull request. The local override may tighten `merge` and `review` and never loosen them.",
       "type": "object",
       "properties": {
         "merge": {
@@ -397,6 +397,11 @@
         "review": {
           "description": "The Review depth of a head the Ship script finds unreviewed, which the dev's `--review` overrides for one call. `full`: the agent reviews the changes. `off`: the script posts the `dw-sdlc/review` success itself and no one reads them. Default `full`, which an invalid layer runs too. Strictest first: full, off.",
           "enum": ["full", "off"]
+        },
+        "reviewCommand": {
+          "description": "The slash command a `full` Review runs over the pull request's changes, as `/pr-review-toolkit:review-pr code errors`. Default `/code-review`. No strictness order: the local override sets it freely.",
+          "type": "string",
+          "minLength": 1
         }
       },
       "additionalProperties": false

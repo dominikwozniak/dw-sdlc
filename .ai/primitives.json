@@ -191,7 +191,7 @@
       "id": "config.pr",
       "name": "pr key",
       "group": "config",
-      "summary": "pr.merge: auto, the script merges, or ask, the dev does; pr.review: full or off, the Review depth. Local only tightens.",
+      "summary": "pr.merge, who merges, and pr.review, the Review depth: local only tightens them; pr.reviewCommand, what full runs.",
       "code": ["packages/dw-sdlc/config/agentic.config.schema.json"],
       "docs": ["docs/overview.md#where-the-rules-come-from", "docs/adr/0003-invalid-config-layer-runs-strictest.md"]
     },
