@@ -123,6 +123,7 @@ export const STRICTEST_GUARDRAILS: Guardrails = {
 export const STRICTEST_PR_MERGE: PrMerge = "ask"
 /** The Review depth while any layer is invalid, and with nothing declared: the agent reads every head. */
 export const STRICTEST_PR_REVIEW: PrReview = "full"
+const STRICTEST_PR = { merge: STRICTEST_PR_MERGE, review: STRICTEST_PR_REVIEW } as const satisfies Partial<PrConfig>
 /** The command a `full` Review runs with nothing declared; it has no strictness order. */
 export const DEFAULT_REVIEW_COMMAND = "/code-review"
 
@@ -313,7 +314,7 @@ export function inferConfig(root: string): Merged {
     guardrails: cloneGuardrails(DEFAULT_GUARDRAILS),
     commit: { convention: "conventional" },
     gate: inferGate(root),
-    pr: { merge: STRICTEST_PR_MERGE, review: STRICTEST_PR_REVIEW, reviewCommand: DEFAULT_REVIEW_COMMAND },
+    pr: { ...STRICTEST_PR, reviewCommand: DEFAULT_REVIEW_COMMAND },
     worktree: { setup: [] }
   }
 }
@@ -444,8 +445,7 @@ export function resolveConfig(root: string): Resolution {
   }
   if (problems.length > 0) {
     // `reviewCommand` has no strictest value: it keeps what the valid layers name.
-    const pr = { ...config.pr, merge: STRICTEST_PR_MERGE, review: STRICTEST_PR_REVIEW }
-    config = { ...config, guardrails: cloneGuardrails(STRICTEST_GUARDRAILS), pr }
+    config = { ...config, guardrails: cloneGuardrails(STRICTEST_GUARDRAILS), pr: { ...config.pr, ...STRICTEST_PR } }
   }
   return {
     config: finalize(config),

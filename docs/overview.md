@@ -38,13 +38,14 @@ a pull request the Ship script finds ready: the script under `auto`, the dev und
 default; `pr.review`, the Review depth of a head no one has reviewed: `full`, the default, or
 `off`; and `pr.reviewCommand`, the slash command a `full` Review runs, `/code-review` by default. A
 machine may add `.ai/agentic.config.local.json` on top, which can tighten `guardrails`, `pr.merge`
-and `pr.review` and never loosen them, and sets `pr.reviewCommand` freely, since it has no
+and `pr.review` and never loosen them. It sets `pr.reviewCommand` freely: the key has no
 strictness order. Any key neither file sets is inferred: pnpm from
 the lockfile, and the `conventional` commit convention. A repository whose subjects start with a
 ticket key sets `commit.convention: ticket-key` in either file. A linked worktree reads a layer it
 lacks from its main checkout, so a repository that keeps `.ai/` out of git needs no copy per
 worktree. An invalid layer is dropped whole and the guards run on the strictest set, `pr.merge: ask`
-and `pr.review: full` with it, `pr.reviewCommand` as the valid layers name it, until it is fixed; the session start hook names each problem.
+and `pr.review: full` with it, until it is fixed; the session start hook names each problem.
+`pr.reviewCommand` stays as the valid layers name it.
 
 The guards judge the agent's tool calls only. A commit typed in a terminal meets the subject rule
 through git's `commit-msg` hook: `hooks/commit-msg.sh` resolves the same config and refuses a subject

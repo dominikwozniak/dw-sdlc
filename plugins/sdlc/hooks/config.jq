@@ -19,8 +19,8 @@ def strictest: {
   protectedBranches: ["master", "main", "production"]
 };
 
-# pr while any layer is invalid, and with nothing declared: the Ship script merges nothing itself and
-# the agent reviews every head.
+# pr.merge and pr.review while any layer is invalid, and with nothing declared: the Ship script merges
+# nothing itself and the agent reviews every head.
 def strictest_pr: {merge: "ask", review: "full"};
 
 # A resolved config as it runs while any layer is invalid; pr.reviewCommand has no strictest value

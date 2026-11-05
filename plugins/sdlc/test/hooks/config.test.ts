@@ -248,6 +248,10 @@ describe("hooks/lib.sh agrees with resolveConfig", () => {
             [LOCAL_FILE]: { pr: { review: "off", reviewCommand: "/other" } }
           }
         })
+    ],
+    [
+      "on a committed pr.reviewCommand in a file the schema refuses",
+      () => repo({ files: { [COMMITTED_FILE]: { pr: { reviewCommand: "/review", draft: true } } } })
     ]
   ]
   for (const [name, make] of cases) {

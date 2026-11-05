@@ -581,12 +581,13 @@ Only the dev invokes it. The skill reads each answer's `status`, then its `actio
   Review depth in `details.depth`, and at `full` runs the command `details.reviewCommand` names, from
   `pr.reviewCommand` and `/code-review` by default, on the changes since the base, the range named
   to it, and, when it finds nothing, `dw-sdlc pr reviewed <n> --head <sha>` with the head it
-  reviewed. A command the session does not have stops it, named. The skill skips that Review when
-  one earlier in the conversation read the changes since the base at the head the script read,
-  found nothing, and nothing changed after it: no edit, no commit, no pull. Only a clean run of that
-  command whose range ended at that head counts as the earlier Review; an informal read of the diff never counts. It then runs
-  `pr reviewed` on that head. A Review whose head the conversation does not show, or one with a
-  finding, even one fixed since, needs a fresh Review. The agent's other `blockers` go into the
+  reviewed. When the session does not have that command, the skill names it and stops. The skill
+  skips that Review when one earlier in the conversation read the changes since the base at the
+  head the script read, found nothing, and nothing changed after it: no edit, no commit, no pull.
+  Only a clean run of that command whose range ended at that head counts as the earlier Review; an
+  informal read of the diff never counts. It then runs `pr reviewed` on that head. A Review whose
+  head the conversation does not show, or one with a finding, even one fixed since, needs a fresh
+  Review. The agent's other `blockers` go into the
   same push, all but `review`, which needs the head the push makes, and the skill calls the script
   again. An `act` that leaves nothing to change, as changes requested once a push answers them,
   stops it: the reviewer's turn.

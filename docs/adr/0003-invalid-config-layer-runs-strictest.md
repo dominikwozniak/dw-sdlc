@@ -10,7 +10,8 @@ one answer nobody can predict. A layer with any problem is not applied at all, a
 loosens `guardrails.*`, `pr.merge` or `pr.review` counts as invalid, and while any problem exists
 the guardrails are one fixed strictest set: `forcePush: deny`, `commitOnProtected: deny`,
 `envFiles: deny`, `protectedBranches` master, main, production, and the Ship script runs
-`pr.merge: ask` and `pr.review: full`. The session-start report and the doctor name every problem by
+`pr.merge: ask` and `pr.review: full`; `pr.reviewCommand`, which has no strictness order, keeps what
+the valid layers name. The session-start report and the doctor name every problem by
 file, path and message.
 
 ## Consequences
