@@ -308,7 +308,7 @@ describe("dw-sdlc pr ship", () => {
     const run = ship(["--help"], {})
     assert.equal(run.status, 0, run.stderr)
     const usage =
-      "Usage: dw-sdlc pr ship [<n>] [-R owner/name] [--merge] [--review full|off] [--dry-run] [--json] [--verbose]\n"
+      "Usage: dw-sdlc pr ship [<n>] [-R owner/name] [--merge] [--review full|light|off] [--dry-run] [--json] [--verbose]\n"
     assert.ok(run.stdout.startsWith(usage), run.stdout)
     assert.deepEqual(run.calls, [])
   })
@@ -1366,6 +1366,27 @@ describe("dw-sdlc pr ship at a Review depth", () => {
     }
   })
 
+  it("asks the agent for a light Review under pr.review light or --review light, each source named", () => {
+    const light: Files = { [COMMITTED_FILE]: { pr: { review: "light" } } }
+    const cases: [string[], Files, string][] = [
+      [[], light, "config"],
+      [["--review", "light"], OFF, "flag"],
+      [["--review", "light"], {}, "flag"]
+    ]
+    for (const [args, files, source] of cases) {
+      const run = json(UNREVIEWED, args, {}, files)
+      assert.equal(run.status, 10, run.stderr)
+      assert.deepEqual(fieldsOf(run.document, ["status", "action", "actor", "details", "performed"]), {
+        status: "act",
+        action: "review",
+        actor: "agent",
+        details: { depth: "light", source },
+        performed: []
+      })
+      assert.deepEqual(run.calls, [AUTH, READ], JSON.stringify(args))
+    }
+  })
+
   it("posts the dw-sdlc/review success itself under --review off, reads again and answers what that read gives", () => {
     const run = ship([...TARGET, "--json", "--review", "off"], { graphql: [served(UNREVIEWED), served(GREEN)] })
     assert.equal(run.status, 30, run.stderr)
@@ -1548,11 +1569,11 @@ describe("dw-sdlc pr ship at a Review depth", () => {
   })
 
   it("exits 2 with the usage on a depth it does not take, before any gh call", () => {
-    for (const depth of ["light", "auto", "FULL"]) {
+    for (const depth of ["auto", "FULL", "Light"]) {
       const run = ship([...TARGET, "--review", depth], {})
       assert.equal(run.status, 2, depth)
       const [first = "", ...rest] = lines(run.stderr)
-      assert.equal(first, `dw-sdlc pr ship: --review takes full or off, not ${JSON.stringify(depth)}`)
+      assert.equal(first, `dw-sdlc pr ship: --review takes full, light or off, not ${JSON.stringify(depth)}`)
       assert.ok(
         rest.some((line) => line.startsWith("Usage: dw-sdlc pr ship")),
         run.stderr

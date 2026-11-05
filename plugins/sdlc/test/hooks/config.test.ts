@@ -223,6 +223,14 @@ describe("hooks/lib.sh agrees with resolveConfig", () => {
       () => repo({ files: { [LOCAL_FILE]: { pr: { merge: "auto", review: "off" } } } })
     ],
     [
+      "on a committed pr.review off, and a local light over it",
+      () => repo({ files: { [COMMITTED_FILE]: { pr: { review: "off" } }, [LOCAL_FILE]: { pr: { review: "light" } } } })
+    ],
+    [
+      "on a local pr.review light over a committed full",
+      () => repo({ files: { [COMMITTED_FILE]: { pr: { review: "full" } }, [LOCAL_FILE]: { pr: { review: "light" } } } })
+    ],
+    [
       "on a committed pr.review off beside an invalid local file",
       () =>
         repo({

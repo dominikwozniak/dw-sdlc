@@ -9,7 +9,7 @@ def strictness: {
   commitOnProtected: ["deny", "allow"],
   envFiles: ["deny", "git"],
   merge: ["ask", "auto"],
-  review: ["full", "off"]
+  review: ["full", "light", "off"]
 };
 
 def strictest: {
@@ -104,7 +104,7 @@ def loosenings($base; $local):
           "drops \($dropped | map(tojson) | join(", ")); the local file may add protected branches, never remove them"))
   ] end;
 
-# Each local pr key less strict than the one it would override: merge auto over ask, review off over full.
+# Each local pr key less strict than the one it would override: merge auto over ask, review off over light over full.
 def pr_loosenings($base; $local):
   [("merge", "review") as $key
     | select($local[$key] != null and _rank($key; $local[$key]) > _rank($key; $base[$key]))

@@ -24,8 +24,11 @@ export type EnvPolicy = "deny" | "git"
 export type EnvFiles = { policy: EnvPolicy; allow: string[]; deny: string[] }
 /** Who merges a pull request the Ship script finds ready: the script under `auto`, the dev under `ask`. */
 export type PrMerge = "ask" | "auto"
-/** How closely a Review reads an unreviewed head: the agent reads it under `full`, no one under `off`. */
-export type PrReview = "full" | "off"
+/**
+ * How closely a Review reads an unreviewed head: the command `pr.reviewCommand` names under `full`,
+ * one `sdlc-reviewer` subagent under `light`, no one under `off`.
+ */
+export type PrReview = "full" | "light" | "off"
 
 /**
  * How the Ship script ends a pull request: who merges it, how closely it is reviewed, and the slash
@@ -102,7 +105,7 @@ export const STRICTNESS = {
   commitOnProtected: ["deny", "allow"],
   envFiles: ["deny", "git"],
   merge: ["ask", "auto"],
-  review: ["full", "off"]
+  review: ["full", "light", "off"]
 } as const satisfies {
   forcePush: readonly ForcePush[]
   commitOnProtected: readonly CommitOnProtected[]
@@ -396,7 +399,7 @@ function loosenings(base: Guardrails, local: GuardrailsLayer | undefined): Probl
   return problems
 }
 
-/** Each local `pr` key less strict than the one it would override: `merge` auto over ask, `review` off over full. */
+/** Each local `pr` key less strict than the one it would override: `merge` auto over ask, `review` off over light over full. */
 function prLoosenings(base: PrConfig, local: Partial<PrConfig> | undefined): Problem[] {
   const keys = ["merge", "review"] as const
   return keys.flatMap((key) => {

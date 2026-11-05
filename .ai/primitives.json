@@ -6,6 +6,7 @@
     { "id": "config", "name": "Agentic config" },
     { "id": "tools", "name": "Scripts" },
     { "id": "skills", "name": "Skills" },
+    { "id": "agents", "name": "Subagents" },
     { "id": "distribution", "name": "Distribution" },
     { "id": "gate", "name": "Gate" }
   ],
@@ -313,6 +314,17 @@
       "summary": "The user-invoked skill that calls the Ship script, does the agent's Action and calls again until a wait, a park or done.",
       "code": ["plugins/sdlc/skills/sdlc-pr-ship/SKILL.md"],
       "docs": ["plugins/sdlc/README.md#shipping-a-pull-request", "docs/overview.md#how-a-pull-request-lands"]
+    },
+    {
+      "id": "agents.reviewer",
+      "name": "sdlc-reviewer",
+      "group": "agents",
+      "summary": "The light Review: one subagent at medium effort over a diff, the files it touches and the Agent map; Bash for git reads.",
+      "code": ["plugins/sdlc/agents/sdlc-reviewer.md"],
+      "docs": [
+        "plugins/sdlc/README.md#shipping-a-pull-request",
+        "docs/adr/0013-review-depth-follows-the-change-the-devs-word-overrides.md"
+      ]
     },
     {
       "id": "distribution.marketplace",

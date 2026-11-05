@@ -23,7 +23,7 @@ import type { PrState } from "../pr/state.ts"
 
 export const summary = "decide the Action one pull request needs next, as a line or JSON"
 
-const USAGE = `Usage: dw-sdlc pr ship [<n>] [-R owner/name] [--merge] [--review full|off] [--dry-run] [--json] [--verbose]
+const USAGE = `Usage: dw-sdlc pr ship [<n>] [-R owner/name] [--merge] [--review full|light|off] [--dry-run] [--json] [--verbose]
 
 Reads pull request <n> through gh, the one of the current branch as gh pr view resolves it when <n>
 is omitted, and answers the Action it needs next: the status, the action, whose turn it is and why.
@@ -32,13 +32,17 @@ behind its base, marks a draft ready once nothing else holds it back, and squash
 request ready to merge under pr.merge auto in .ai/agentic.config.json or with --merge for this call;
 under ask, the default, it parks with the merge command. A head without a ${REVIEW} success
 gets the Review depth --review names for this call, else pr.review: under full, the default, the
-agent reviews it with the command pr.reviewCommand names, /code-review by default; under off the
-script posts the success itself, its description saying why.
+agent reviews it with the command pr.reviewCommand names, /code-review by default; under light one
+sdlc-reviewer subagent reads the diff; under off the script posts the success itself, its
+description saying why.
 --dry-run performs nothing: it parks at the first Action the script would perform, listed under
 performed. One line, or one document with --json; --verbose adds the state as read to the document
 under facts. Needs an authenticated gh.
 
 Exit 0 done, 10 the agent's turn, 20 wait, 30 the dev's turn, 2 when it cannot run.`
+
+/** The depths --review takes, strictest first, as a sentence lists them. */
+const DEPTHS_SENTENCE = `${STRICTNESS.review.slice(0, -1).join(", ")} or ${STRICTNESS.review.at(-1)}`
 
 const EXIT: Record<Status, number> = { done: 0, act: 10, wait: 20, park: 30 }
 
@@ -85,7 +89,7 @@ function parseCli(argv: string[]): Cli | { error: string } {
         return { error: problem }
       }
       if (values.review !== undefined && review === undefined) {
-        return { error: `--review takes ${STRICTNESS.review.join(" or ")}, not ${JSON.stringify(values.review)}` }
+        return { error: `--review takes ${DEPTHS_SENTENCE}, not ${JSON.stringify(values.review)}` }
       }
     }
     return {

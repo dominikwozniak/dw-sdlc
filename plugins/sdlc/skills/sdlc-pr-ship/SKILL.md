@@ -15,13 +15,13 @@ node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" pr ship [<n>] --json
 ```
 
 Add `--merge` only when the dev wrote "merge" for this pull request in the conversation, and
-`--review full` or `--review off` only when they wrote that Review depth for it. Add `--dry-run`
-only when they asked for one, then show the answer and stop. Exit 1, a bug, or 2, cannot
-run: show what it printed and stop. Otherwise read `status`, then `action`; `<base>` and `<head>`
-are the answer's. Before an `act`, the checkout must be the pull request's branch at `<head>`:
-behind it, `git pull --rebase`, since the script may have updated the branch; anything else, say so
-and stop. Fix the agent's other `blockers` in the same push, all but `review`, which needs the head
-the push makes.
+`--review full`, `--review light` or `--review off` only when they wrote that Review depth for it.
+Add `--dry-run` only when they asked for one, then show the answer and stop. Exit 1, a bug, or 2,
+cannot run: show what it printed and stop. Otherwise read `status`, then `action`; `<base>` and
+`<head>` are the answer's. Before an `act`, the checkout must be the pull request's branch at
+`<head>`: behind it, `git pull --rebase`, since the script may have updated the branch; anything
+else, say so and stop. Fix the agent's other `blockers` in the same push, all but `review`, which
+needs the head the push makes.
 
 - `act fix-ci`: run each `log` under `details.checks`, or read its `link`; fix, then `git push`.
 - `act fix-conflicts`: `git fetch origin <base>`, rebase onto `origin/<base>`, resolve, then
@@ -33,13 +33,18 @@ the push makes.
   and leave it open for the reviewer; `git push` when code changed.
 - `act review`: `details.depth` is the Review depth. At `full`, run the slash command
   `details.reviewCommand` names, with its arguments, on the changes since `origin/<base>`, naming
-  that range to it: `origin/<base>..<head>`. A command this session does not have ends the run:
-  name it and stop. Skip it when a Review earlier in this conversation read the changes since
-  `origin/<base>` at `<head>`, found nothing, and nothing changed after it: no edit, no commit, no
-  pull. Only a clean run of `details.reviewCommand` whose range ended at `<head>` counts as that
-  earlier Review; an informal read of the diff never counts. A Review whose
-  head the conversation does not show, or one with a finding, even one fixed since, needs a fresh
-  Review. After the skip, or a fresh Review that finds nothing, run
+  that range to it: `origin/<base>..<head>`. A command this session does not have ends the run: name
+  it and stop. At `light`, `git fetch origin <base>`, then spawn the `sdlc:sdlc-reviewer` subagent.
+  It does not see this conversation, so its prompt holds all it reads: the diff command
+  `git diff origin/<base>...<head>`, the files `git diff --name-only origin/<base>...<head>` lists,
+  and the spec as this conversation states it, the issue or the dev's ask, else "none stated". Its
+  report's first line, `clean` or `findings: <n>`, is the result. Skip either when a Review earlier
+  in this conversation read the changes since `origin/<base>` at `<head>`, found nothing, and
+  nothing changed after it: no edit, no commit, no pull. Only a clean run of
+  `details.reviewCommand`, or at `light` of `sdlc-reviewer` too, whose range ended at `<head>`
+  counts as that earlier Review; an informal read of the diff never counts. A Review whose head the
+  conversation does not show, or one with a finding, even one fixed since, needs a fresh Review.
+  After the skip, or a fresh Review that finds nothing, run
   `node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" pr reviewed <n> --head <head>`; its exit 2 says
   whether the head moved or it cannot run. Fix a finding and `git push`. At `off` the script marks
   the head reviewed itself, so no `act review` comes.
