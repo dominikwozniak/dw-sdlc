@@ -38,6 +38,17 @@ const PUSHED_ON: Pr = {
   ]
 }
 
+/** The same, every commit after the reviewed one a merge of the base in, as update-branch makes. */
+const MERGED_IN: Pr = {
+  ...PUSHED_ON,
+  history: [
+    { oid: EARLIER, review: "SUCCESS" },
+    { oid: REVIEWED, review: "SUCCESS" },
+    { oid: PUSHED, review: null, parents: 2 }
+  ],
+  headParents: 2
+}
+
 /** A file as GitHub's compare lists it. */
 type File = { filename: string; status: string; patch?: string; previous_filename?: string }
 
@@ -74,6 +85,7 @@ function marked(why: string): string[] {
   return ["api", `repos/byarcadia-app/foundation/statuses/${HEAD}`, "--method", "POST", "--silent", ...flags]
 }
 
+/** The command line of `args`, each word with a space single-quoted, as the script prints it. */
 function commandOf(args: string[]): string {
   return ["gh", ...args.map((arg) => (arg.includes(" ") ? `'${arg}'` : arg))].join(" ")
 }
@@ -92,24 +104,31 @@ function documentOf(stdout: string, keys: string[]): Record<string, unknown> {
 }
 
 describe("dw-sdlc pr ship after a push to a reviewed pull request", () => {
-  it("names the last reviewed commit in details.since when the head brings changes of its own", () => {
-    const run = ship(["--json"], [PUSHED_ON], {
-      ...compared(REVIEWED, [READ_THEN]),
-      ...compared(HEAD, [READ_THEN, ADDED])
-    })
-    assert.equal(run.status, 10, run.stderr)
-    assert.deepEqual(documentOf(run.stdout, ["action", "actor", "details", "performed"]), {
-      action: "review",
-      actor: "agent",
-      details: { depth: "full", source: "config", since: REVIEWED },
-      performed: []
-    })
-    assert.deepEqual(run.calls, [AUTH, READ, compare(REVIEWED), compare(HEAD)])
+  it("names the last reviewed commit in details.since after a commit of the branch's own, reading no compare", () => {
+    const pushed: [string, Pr][] = [
+      ["a commit, then the head", PUSHED_ON],
+      ["a merge, then a commit as the head", { ...MERGED_IN, headParents: 1 }]
+    ]
+    for (const [name, pr] of pushed) {
+      const run = ship(["--json"], [pr], { ...compared(REVIEWED, [READ_THEN]), ...compared(HEAD, [SHIFTED]) })
+      assert.equal(run.status, 10, `${name}: ${run.stderr}`)
+      assert.deepEqual(
+        documentOf(run.stdout, ["action", "actor", "details", "performed"]),
+        {
+          action: "review",
+          actor: "agent",
+          details: { depth: "full", source: "config", reviewCommand: "/code-review", since: REVIEWED },
+          performed: []
+        },
+        name
+      )
+      assert.deepEqual(run.calls, [AUTH, READ], name)
+    }
   })
 
   it("carries the status over a head that only merged the base in, then answers what the next read gives", () => {
-    const after: Pr = { ...PUSHED_ON, checks: GREEN.checks }
-    const run = ship(["--json"], [PUSHED_ON, after], {
+    const after: Pr = { ...MERGED_IN, checks: GREEN.checks }
+    const run = ship(["--json"], [MERGED_IN, after], {
       ...compared(REVIEWED, [READ_THEN]),
       ...compared(HEAD, [SHIFTED])
     })
@@ -123,11 +142,11 @@ describe("dw-sdlc pr ship after a push to a reviewed pull request", () => {
   })
 
   it("carries the status under pr.review off too, naming the Review it carries", () => {
-    const after: Pr = { ...PUSHED_ON, checks: GREEN.checks }
+    const after: Pr = { ...MERGED_IN, checks: GREEN.checks }
     const off = { [COMMITTED_FILE]: { pr: { review: "off" } } }
     const run = ship(
       ["--json"],
-      [PUSHED_ON, after],
+      [MERGED_IN, after],
       { ...compared(REVIEWED, [READ_THEN]), ...compared(HEAD, [SHIFTED]) },
       off
     )
@@ -136,7 +155,7 @@ describe("dw-sdlc pr ship after a push to a reviewed pull request", () => {
   })
 
   it("parks the carried status for the dev with its command under --dry-run, posting nothing", () => {
-    const run = ship(["--json", "--dry-run"], [PUSHED_ON], {
+    const run = ship(["--json", "--dry-run"], [MERGED_IN], {
       ...compared(REVIEWED, [READ_THEN]),
       ...compared(HEAD, [SHIFTED])
     })
@@ -149,7 +168,7 @@ describe("dw-sdlc pr ship after a push to a reviewed pull request", () => {
         action: "mark-reviewed",
         actor: "dev",
         reason: "the script would mark it reviewed; --dry-run performs nothing",
-        details: { depth: "full", source: "config", since: REVIEWED },
+        details: { depth: "full", source: "config", reviewCommand: "/code-review", since: REVIEWED },
         command,
         performed: [{ action: "mark-reviewed", command, ok: null }]
       }
@@ -163,7 +182,7 @@ describe("dw-sdlc pr ship after a push to a reviewed pull request", () => {
     assert.equal(run.status, 10, run.stderr)
     assert.deepEqual(documentOf(run.stdout, ["action", "details"]), {
       action: "review",
-      details: { depth: "full", source: "config" }
+      details: { depth: "full", source: "config", reviewCommand: "/code-review" }
     })
     assert.deepEqual(run.calls, [AUTH, READ])
   })
@@ -188,11 +207,14 @@ describe("dw-sdlc pr ship after a push to a reviewed pull request", () => {
       ["300 files, GitHub's limit", many, many]
     ]
     for (const [name, before, now] of cases) {
-      const run = ship(["--json"], [PUSHED_ON], { ...compared(REVIEWED, before), ...compared(HEAD, now) })
+      const run = ship(["--json"], [MERGED_IN], { ...compared(REVIEWED, before), ...compared(HEAD, now) })
       assert.equal(run.status, 10, `${name}: ${run.stderr}`)
       assert.deepEqual(
         documentOf(run.stdout, ["action", "details"]),
-        { action: "review", details: { depth: "full", source: "config", since: REVIEWED } },
+        {
+          action: "review",
+          details: { depth: "full", source: "config", reviewCommand: "/code-review", since: REVIEWED }
+        },
         name
       )
     }
@@ -220,7 +242,7 @@ describe("dw-sdlc pr ship after a push to a reviewed pull request", () => {
       ]
     ]
     for (const [name, response, line] of cases) {
-      const run = ship(["--json"], [PUSHED_ON], {
+      const run = ship(["--json"], [MERGED_IN], {
         [compare(REVIEWED).join(" ")]: response,
         ...compared(HEAD, [READ_THEN])
       })

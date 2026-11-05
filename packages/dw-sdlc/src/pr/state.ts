@@ -1,7 +1,8 @@
 // One pull request as the Ship script reads it: the one GraphQL query, and its reply parsed into the
 // state the decision reads. Every field the state needs is checked; a reply that fails names the field.
 
-import { REVIEW } from "./decide.ts"
+/** The commit status a clean review of the head leaves on it. */
+export const REVIEW = "dw-sdlc/review"
 
 export const QUERY = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
@@ -15,7 +16,7 @@ export const QUERY = `query($owner: String!, $name: String!, $number: Int!) {
         contexts(first: 50) { nodes {
           ... on CheckRun { name status conclusion detailsUrl startedAt isRequired(pullRequestNumber: $number) }
           ... on StatusContext { context state targetUrl createdAt isRequired(pullRequestNumber: $number) } } } } } } }
-      history: commits(last: 100) { nodes { commit { oid status { context(name: "${REVIEW}") { state } } } } }
+      history: commits(last: 100) { nodes { commit { oid parents { totalCount } status { context(name: "${REVIEW}") { state } } } } }
     }
   }
 }`
@@ -65,12 +66,14 @@ export type PrState = {
   checks: CiCheck[]
   /** The threads neither resolved nor outdated. */
   unresolvedThreads: Thread[]
-  /**
-   * The last commit before the head with a review success, among the pull request's last 100, and
-   * whether the head carries the same own changes; a rewritten history holds none.
-   */
-  lastReviewed: { commit: string; carried: boolean } | null
+  /** The last commit before the head with a review success, among the pull request's last 100. */
+  lastReviewed: LastReviewed | null
+  /** Whether the head carries the success of `lastReviewed`: the read decides it from two compares. */
+  carried: boolean
 }
+
+/** A reviewed commit, and whether every commit after it, the head included, is a merge. */
+export type LastReviewed = { commit: string; mergesOnly: boolean }
 
 /** A reply that is not the shape the query asks for; the message names the field. */
 export class ReplyError extends Error {}
@@ -261,18 +264,23 @@ function threadOf(thread: Node): Thread {
   }
 }
 
+function isReviewed(commit: Node): boolean {
+  const status = childOrNull(commit, "status")
+  const context = status === null ? null : childOrNull(status, "context")
+  return context !== null && string(context, "state") === "SUCCESS"
+}
+
 /** The last commit before `head` whose review context reads SUCCESS, the history oldest first. */
-function lastReviewedOf(pr: Node, head: string): string | null {
-  const reviewed = nodes(pr, "history")
-    .map((node) => child(node, "commit"))
-    .filter((commit) => {
-      const status = childOrNull(commit, "status")
-      const context = status === null ? null : childOrNull(status, "context")
-      return context !== null && string(context, "state") === "SUCCESS"
-    })
-    .map((commit) => string(commit, "oid"))
-    .filter((oid) => oid !== head)
-  return reviewed.at(-1) ?? null
+function lastReviewedOf(pr: Node, head: string): LastReviewed | null {
+  const commits = nodes(pr, "history").map((node) => child(node, "commit"))
+  const index = commits.findLastIndex((commit) => string(commit, "oid") !== head && isReviewed(commit))
+  const reviewed = commits[index]
+  if (reviewed === undefined) {
+    return null
+  }
+  const after = commits.slice(index + 1)
+  const mergesOnly = after.every((commit) => integer(child(commit, "parents"), "totalCount") > 1)
+  return { commit: string(reviewed, "oid"), mergesOnly }
 }
 
 /** The repository and number of the pull request whose URL `gh pr view --json url` printed. */
@@ -286,13 +294,12 @@ export function parseView(reply: string): { repo: string; number: number } {
 }
 
 /** The state of the pull request in `reply`, the text `gh api graphql` printed for QUERY on `repo`. */
-export function parsePr(reply: string, repo: string): PrState {
+export function parsePr(reply: string, repo: string): Omit<PrState, "carried"> {
   const pr = child(child(child(rootOf(reply, "the reply"), "data"), "repository"), "pullRequest")
   const commit = child(firstNode(pr, "commits"), "commit")
   const rollup = childOrNull(commit, "statusCheckRollup")
   const mergeCommit = childOrNull(pr, "mergeCommit")
   const head = string(pr, "headRefOid")
-  const lastReviewed = lastReviewedOf(pr, head)
   return {
     url: string(pr, "url"),
     repo,
@@ -313,6 +320,6 @@ export function parsePr(reply: string, repo: string): PrState {
     unresolvedThreads: nodes(pr, "reviewThreads")
       .filter((thread) => !boolean(thread, "isResolved") && !boolean(thread, "isOutdated"))
       .map(threadOf),
-    lastReviewed: lastReviewed === null ? null : { commit: lastReviewed, carried: false }
+    lastReviewed: lastReviewedOf(pr, head)
   }
 }

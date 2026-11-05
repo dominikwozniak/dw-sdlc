@@ -3,7 +3,9 @@
 // blockers. The last rows say who merges what no row before them holds back.
 
 import type { PrMerge, PrReview } from "../agentic-config.ts"
-import type { CiCheck, PrState, Thread } from "./state.ts"
+import { type CiCheck, type PrState, REVIEW, type Thread } from "./state.ts"
+
+export { REVIEW }
 
 export type Status = "act" | "wait" | "park" | "done"
 export type Actor = "script" | "agent" | "dev"
@@ -60,8 +62,6 @@ const GRACE_SECONDS = 120
 const BUDGET_MINUTES = 40
 /** The prefix of the contexts the script posts itself, as `dw-sdlc/review`: never CI. */
 const OWN_PREFIX = "dw-sdlc/"
-/** The commit status a clean review of the head leaves on it. */
-export const REVIEW = "dw-sdlc/review"
 /** Its one state: a failure or a pending status would turn the pull request unstable. */
 export const REVIEW_STATE = "success"
 
@@ -83,7 +83,7 @@ function failingOf(pr: PrState): CiCheck[] {
 }
 
 /** The viewer's own pull request without a review success on its head: the one a Review reads. */
-export function awaitsReview(pr: PrState): boolean {
+export function awaitsReview(pr: Pick<PrState, "viewerDidAuthor" | "checks">): boolean {
   return pr.viewerDidAuthor && !pr.checks.some((check) => check.name === REVIEW && check.bucket === "pass")
 }
 
@@ -111,10 +111,16 @@ export function reviewStatusArgs(pr: PrState, description: string): string[] {
   return ["api", `repos/${pr.repo}/statuses/${pr.head}`, "--method", "POST", "--silent", ...flags]
 }
 
+/** The reviewed commit whose success the head carries, if it carries one. */
+function carriedFrom(pr: PrState): string | undefined {
+  return pr.carried ? pr.lastReviewed?.commit : undefined
+}
+
 /** Why the head carries the success the script posts: the Review it carries, else the dev's word or the config. */
 function markedDescription(pr: PrState, policy: Policy): string {
-  if (pr.lastReviewed?.carried === true) {
-    return `carried from ${pr.lastReviewed.commit.slice(0, 7)}`
+  const carried = carriedFrom(pr)
+  if (carried !== undefined) {
+    return `carried from ${carried.slice(0, 7)}`
   }
   return `off: ${policy.review.source === "flag" ? "--review off" : "pr.review"}`
 }
@@ -218,11 +224,11 @@ const ROWS: Row[] = [
   },
   {
     // The dev merges another author's pull request, so it needs no Review. Under off no one reads
-    // the head, and a head with the own changes of the last reviewed commit carries its success: the
-    // script posts the success itself. Otherwise the Review reads from that commit, when there is one.
+    // the head, and a head that only merged the base in since the last reviewed commit carries its
+    // success: the script posts the success itself. Otherwise the Review reads from that commit.
     when: awaitsReview,
     answer: (pr, _, { review, reviewCommand }) => {
-      const byScript = review.depth === "off" || pr.lastReviewed?.carried === true
+      const byScript = review.depth === "off" || carriedFrom(pr) !== undefined
       return {
         status: "act",
         action: byScript ? "mark-reviewed" : "review",

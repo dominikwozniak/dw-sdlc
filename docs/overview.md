@@ -371,19 +371,27 @@ ships reads the diff at medium effort. Under `off` no one reads it: the script p
 `off: pr.review`, so a green pull request merges with no agent turn. Every other row holds at every
 depth: conflicts, failing CI, threads and who merges.
 
-A push reads as the changes since the last reviewed head. Among the pull request's last 100
-commits the script finds the last one before the head that carries a `dw-sdlc/review` success,
-through the same GraphQL query, and names it under `details.since`, the point the Review reads from.
-A history that no longer holds it, after a rebase or a force push, names none, and the Review reads
-the whole diff since the base. A merge of the base in is told from the branch's own changes by
-content: the script reads GitHub's compare from the base's head to the reviewed commit and to the
-head, two `gh api` calls that need no checkout. Each lists the pull request's own changes against
-the merge base, the diff the pull request shows. When both list the same files, each with the same
-status, names and added and removed lines in the same order, the head adds nothing of its own: the
-script carries the status and posts it as `mark-reviewed`, its description `carried from <sha>`.
-Hunk positions and context lines are left out, since a base that moved shifts them. A file the
-compare shows no patch for, as a binary one, or a compare at GitHub's limit of 300 files, never
-carries, and neither does a conflict resolved by hand, which changes the branch's own lines.
+After a push, the Review reads only what changed since the last reviewed commit. The same GraphQL
+query reads the pull request's last 100 commits. The last one before the head with a
+`dw-sdlc/review` success goes under `details.since`, the point the Review reads from. A rebase or a
+force push drops that commit from the history. Then no `details.since` comes, and the Review reads
+the whole diff since the base.
+
+A head that only merged the base in carries the earlier status. Two tests tell such a merge from
+the branch's own changes, and both must pass:
+
+- Every commit after the reviewed one, the head included, is a merge. The GraphQL query reads each
+  commit's parent count.
+- The pull request's own changes are the same at the head as at the reviewed commit. The script
+  reads GitHub's compare from the base's head to each of the two commits. That takes two `gh api`
+  calls and no checkout. Each compare is the diff the pull request shows. Both must list the same
+  files, with the same status and names, and the same added and removed lines in the same order.
+  Hunk positions and context lines are left out, since a base that moved shifts them.
+
+When both pass, the script posts the status as `mark-reviewed`, described as `carried from <sha>`.
+A conflict resolved by hand changes the branch's own lines, so it never carries. Neither does a
+file the compare shows no patch for, such as a binary one, or a compare at GitHub's limit of 300
+files.
 
 The `sdlc-pr-ship` skill is the agent's side: it calls the script, does the agent's Action, calls
 again, and stops at a wait, a park or done, as the

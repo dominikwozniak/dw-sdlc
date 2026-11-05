@@ -79,10 +79,15 @@ export type Pr = {
   threads: Thread[]
   /** The pull request's commits before the head, oldest first, each with its dw-sdlc/review state. */
   history: Commit[]
+  /** How many parents the head has: 2 for a merge; 1 when left out. */
+  headParents?: number
 }
 
-/** A commit of the pull request; `review` null is a commit with statuses but no dw-sdlc/review among them. */
-export type Commit = { oid: string; review?: string | null }
+/**
+ * A commit of the pull request: `review` null is a commit with statuses but no dw-sdlc/review among
+ * them, left out one with none; `parents` 2 is a merge, 1 when left out.
+ */
+export type Commit = { oid: string; review?: string | null; parents?: number }
 
 export const HEAD = "e36732e33915969ef4449becafeecd2e2846d544"
 export const BASE_OID = "8ba44d6f750333be72a05ca309e37b5984e3a0b9"
@@ -145,9 +150,9 @@ function threadOf(thread: Thread): object {
 }
 
 /** A commit node of the history the reply carries: no status, a status without the review, or the review's state. */
-function commitOf({ oid, review }: Commit): object {
+function commitOf({ oid, review, parents = 1 }: Commit): object {
   const status = review === undefined ? null : { context: review === null ? null : { state: review } }
-  return { commit: { oid, status } }
+  return { commit: { oid, parents: { totalCount: parents }, status } }
 }
 
 /** The `pullRequest` node of the reply, an object a test may break before serving it. */
@@ -169,7 +174,7 @@ export function pullRequestOf(pr: Pr): Record<string, unknown> {
     mergeCommit: pr.mergeCommit === null ? null : { oid: pr.mergeCommit },
     reviewThreads: { nodes: pr.threads.map(threadOf) },
     commits: { nodes: [{ commit: { committedDate: pr.committedAt, statusCheckRollup: rollup } }] },
-    history: { nodes: [...pr.history, { oid: pr.head }].map(commitOf) }
+    history: { nodes: [...pr.history, { oid: pr.head, parents: pr.headParents ?? 1 }].map(commitOf) }
   }
 }
 

@@ -1,5 +1,6 @@
 // The read both pr commands make: gh as a child process, its auth on the host gh api reads from, the
-// pull request a command names, and that pull request's state from one GraphQL request.
+// pull request a command names, and that pull request's state from one GraphQL request, with the two
+// compares that tell whether its head carries an earlier Review.
 
 import { spawnSync } from "node:child_process"
 
@@ -107,7 +108,7 @@ export function readAgain(pr: PrState): PrState {
 }
 
 /** The own changes of `pr` at `commit`, from the compare with its base; null when it cannot show them whole. */
-function ownChanges(pr: PrState, commit: string): string[] | null {
+function ownChanges(pr: Omit<PrState, "carried">, commit: string): string[] | null {
   const reply = gh(compareArgs(pr.repo, pr.baseOid, commit))
   if (reply.status !== 0) {
     const problem = `the compare with ${commit.slice(0, 7)}: ${said(reply.stderr)}`
@@ -116,14 +117,16 @@ function ownChanges(pr: PrState, commit: string): string[] | null {
   return parseOrCannotRun(() => changesOf(reply.stdout))
 }
 
-/** `pr`, its head carrying the last reviewed commit's status or not; read only when a Review awaits it. */
-function withCarried(pr: PrState): PrState {
+/**
+ * `pr` and whether its head carries the last reviewed commit's status: only merges since it, and the
+ * same own changes at both. The compares run only when a Review awaits the head.
+ */
+function withCarried(pr: Omit<PrState, "carried">): PrState {
   const last = pr.lastReviewed
-  if (last === null || pr.state !== "OPEN" || !awaitsReview(pr)) {
-    return pr
+  if (last === null || !last.mergesOnly || pr.state !== "OPEN" || !awaitsReview(pr)) {
+    return { ...pr, carried: false }
   }
-  const carried = sameChanges(ownChanges(pr, last.commit), ownChanges(pr, pr.head))
-  return { ...pr, lastReviewed: { commit: last.commit, carried } }
+  return { ...pr, carried: sameChanges(ownChanges(pr, last.commit), ownChanges(pr, pr.head)) }
 }
 
 /** The state of pull request `number` of `repo`, from one GraphQL request and the compares a Review needs. */
