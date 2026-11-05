@@ -45,7 +45,9 @@ const DEV_MERGE = `gh pr merge 40 --squash --match-head-commit ${HEAD}`
 
 /** The files of a test's checkout: a relative path and its text, an object written as JSON. */
 type Files = Record<string, string | object>
-const AUTO: Files = { [COMMITTED_FILE]: { pr: { merge: "auto" } } }
+/** pr.review full, so a head no one reviewed asks for a Review with no compare to read; `pr-ship-route` reads auto. */
+const FULL: Files = { [COMMITTED_FILE]: { pr: { review: "full" } } }
+const AUTO: Files = { [COMMITTED_FILE]: { pr: { merge: "auto", review: "full" } } }
 
 /** As GitHub reports a merged pull request: mergeability no longer computed. */
 const MERGED: Pr = {
@@ -111,13 +113,13 @@ const MIXED: Pr = {
  * `dw-sdlc pr ship <args>` against a fake gh playing `scenario`, from a repository with no pull request
  * whose checkout holds `files`, its agentic config among them.
  */
-function ship(args: string[], scenario: Scenario, env: NodeJS.ProcessEnv = {}, files: Files = {}) {
+function ship(args: string[], scenario: Scenario, env: NodeJS.ProcessEnv = {}, files: Files = FULL) {
   const gh = fakeGh(scenario)
   const run = runBin(["pr", "ship", ...args], repo({ files }), { ...gh.env, ...env })
   return { ...run, calls: gh.calls() }
 }
 
-function json(pr: Pr, flags: string[] = [], env: NodeJS.ProcessEnv = {}, files: Files = {}) {
+function json(pr: Pr, flags: string[] = [], env: NodeJS.ProcessEnv = {}, files: Files = FULL) {
   const run = ship([...TARGET, "--json", ...flags], { graphql: [served(pr)] }, env, files)
   assert.notEqual(run.stdout, "", `no document; exit ${run.status}: ${run.stderr}`)
   return { ...run, document: JSON.parse(run.stdout) as unknown }
@@ -288,7 +290,8 @@ describe("dw-sdlc pr ship", () => {
         }
       ],
       lastReviewed: null,
-      carried: false
+      carried: false,
+      changed: null
     })
     const bare = json({ ...GREEN, checks: [] }, ["--verbose"]).document
     assert.ok(typeof bare === "object" && bare !== null && "facts" in bare)
@@ -1382,7 +1385,7 @@ const OFF: Files = { [COMMITTED_FILE]: { pr: { merge: "auto", review: "off" } } 
 const UNREVIEWED: Pr = { ...GREEN, checks: [PASSING] }
 
 describe("dw-sdlc pr ship at a Review depth", () => {
-  it("asks the agent for a full Review by default, the depth and where it came from under details", () => {
+  it("asks the agent for a full Review under pr.review full, the depth and where it came from under details", () => {
     const run = json(UNREVIEWED)
     assert.equal(run.status, 10, run.stderr)
     assert.deepEqual(run.document, {
@@ -1415,9 +1418,12 @@ describe("dw-sdlc pr ship at a Review depth", () => {
   it("names the command pr.reviewCommand sets for a full Review, the local layer's over the committed one", () => {
     const toolkit = "/pr-review-toolkit:review-pr code errors"
     const cases: [Files, string[], string][] = [
-      [{ [COMMITTED_FILE]: { pr: { reviewCommand: "/review" } } }, [], "/review"],
+      [{ [COMMITTED_FILE]: { pr: { review: "full", reviewCommand: "/review" } } }, [], "/review"],
       [
-        { [COMMITTED_FILE]: { pr: { reviewCommand: "/review" } }, [LOCAL_FILE]: { pr: { reviewCommand: toolkit } } },
+        {
+          [COMMITTED_FILE]: { pr: { review: "full", reviewCommand: "/review" } },
+          [LOCAL_FILE]: { pr: { reviewCommand: toolkit } }
+        },
         [],
         toolkit
       ],

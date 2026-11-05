@@ -4,7 +4,7 @@
 
 import { parseArgs } from "node:util"
 
-import { type PrReview, repositoryRoot, resolveConfig, STRICTNESS } from "../agentic-config.ts"
+import { repositoryRoot, resolveConfig, REVIEW_DEPTHS, type ReviewDepth } from "../agentic-config.ts"
 import {
   type Answer,
   decide,
@@ -31,12 +31,16 @@ The script performs its own Actions, each at most once and then reads again: it 
 behind its base, marks a draft ready once nothing else holds it back, and squash merges a pull
 request ready to merge under pr.merge auto in .ai/agentic.config.json or with --merge for this call;
 under ask, the default, it parks with the merge command. A head without a ${REVIEW} success
-gets the Review depth --review names for this call, else pr.review: under full, the default, the
-agent reviews it with the command pr.reviewCommand names, /code-review by default; under light one
-sdlc-reviewer subagent reads the diff; under off the script posts the success itself, its
-description saying why. After a push it names the last reviewed commit under details.since, where
-the Review reads from. It carries that commit's success over a head whose only commits since are
-merges of the base, unless --review full asks for the Review.
+gets the Review depth --review names for this call, else pr.review: under full the agent reviews it
+with the command pr.reviewCommand names, /code-review by default; under light one sdlc-reviewer
+subagent reads the diff; under off the script posts the success itself, its description saying
+why. Under auto, the default, the script routes the depth from the changes the Review would read:
+lockfiles alone off; a file under .github/workflows/, more than 100 changed lines outside
+lockfiles, or a change it cannot size, more files than GitHub's compare lists or a file outside
+lockfiles with no patch, full; the rest light. After a push it names
+the last reviewed commit under details.since, where the Review reads from and auto routes from. It
+carries that commit's success over a head whose only commits since are merges of the base, unless
+--review names a depth for the call.
 Each Action the call runs is listed under performed. Its ok says whether the read after it shows the
 Action took effect, whatever gh's exit status; gh's exit status and stderr stand beside it. --dry-run
 performs nothing: it parks at the first Action the script would perform, under performed with ok null.
@@ -46,7 +50,7 @@ facts. Needs an authenticated gh.
 Exit 0 done, 10 the agent's turn, 20 wait, 30 the dev's turn, 2 when it cannot run.`
 
 /** The depths --review takes, strictest first, as a sentence lists them. */
-const DEPTHS_SENTENCE = `${STRICTNESS.review.slice(0, -1).join(", ")} or ${STRICTNESS.review.at(-1)}`
+const DEPTHS_SENTENCE = `${REVIEW_DEPTHS.slice(0, -1).join(", ")} or ${REVIEW_DEPTHS.at(-1)}`
 
 const EXIT: Record<Status, number> = { done: 0, act: 10, wait: 20, park: 30 }
 
@@ -57,7 +61,7 @@ type Cli = {
   json: boolean
   verbose: boolean
   merge: boolean
-  review: PrReview | undefined
+  review: ReviewDepth | undefined
   dryRun: boolean
   number: number | undefined
   repo: string | undefined
@@ -89,7 +93,7 @@ function parseCli(argv: string[]): Cli | { error: string } {
     })
     const [number, ...more] = positionals
     const { repo } = values
-    const review = STRICTNESS.review.find((depth) => depth === values.review)
+    const review = REVIEW_DEPTHS.find((depth) => depth === values.review)
     if (values.help !== true) {
       if (more.length > 0) {
         return { error: `name one pull request, not ${positionals.length}` }
@@ -168,7 +172,9 @@ function handedOver(pr: PrState, policy: Policy, answer: Answer, action: ScriptA
  * pull request is read again; under --dry-run, or when an Action comes round again, it is the dev's.
  */
 function ship(cli: Cli, policy: Policy): { pr: PrState; answer: Answer; performed: Performed[] } {
-  let pr = read(cli, "pr ship")
+  // Only pr.review auto routes the depth from the changes, so only it reads them.
+  const sized = policy.review.depth === "auto"
+  let pr = read(cli, "pr ship", sized)
   const performed: Performed[] = []
   for (;;) {
     const answer = decide(pr, now(), policy)
@@ -198,7 +204,7 @@ function ship(cli: Cli, policy: Policy): { pr: PrState; answer: Answer; performe
     }
     const { status, stderr } = gh(args)
     const before = pr
-    pr = readAgain(pr)
+    pr = readAgain(pr, sized)
     const message = stderr.trim()
     performed.push({
       action,

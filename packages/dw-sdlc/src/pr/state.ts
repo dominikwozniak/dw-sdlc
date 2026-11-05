@@ -72,7 +72,18 @@ export type PrState = {
   lastReviewed: LastReviewed | null
   /** Whether the head carries the success of `lastReviewed`: the read decides it from two compares. */
   carried: boolean
+  /**
+   * The files a Review would read, from `lastReviewed` or the base to the head, read only for `pr.review:
+   * auto` to route on: `unsized` when the compare cannot list them all, null when not read.
+   */
+  changed: ChangedFile[] | "unsized" | null
 }
+
+/**
+ * A file a Review would read: its name, its name before a rename, and the lines it adds and removes,
+ * null when the compare shows no patch for it, as for a binary file.
+ */
+export type ChangedFile = { path: string; previous: string | null; lines: number | null }
 
 /** A reviewed commit, and whether every commit after it, the head included, is a merge. */
 export type LastReviewed = { commit: string; mergesOnly: boolean }
@@ -146,7 +157,7 @@ function boolean(node: Node, key: string): boolean {
   return value
 }
 
-function integer(node: Node, key: string): number {
+export function integer(node: Node, key: string): number {
   const { value, at } = fieldOf(node, key)
   if (typeof value !== "number" || !Number.isInteger(value)) {
     throw new ReplyError(`${at} is ${shown(value)}, not an integer`)
@@ -305,7 +316,7 @@ export function parseView(reply: string): { repo: string; number: number } {
 }
 
 /** The state of the pull request in `reply`, the text `gh api graphql` printed for QUERY on `repo`. */
-export function parsePr(reply: string, repo: string): Omit<PrState, "carried"> {
+export function parsePr(reply: string, repo: string): Omit<PrState, "carried" | "changed"> {
   const pr = child(child(child(rootOf(reply, "the reply"), "data"), "repository"), "pullRequest")
   const commit = child(firstNode(pr, "commits"), "commit")
   const rollup = childOrNull(commit, "statusCheckRollup")

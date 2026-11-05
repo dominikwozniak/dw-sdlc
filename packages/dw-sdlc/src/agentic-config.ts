@@ -28,7 +28,11 @@ export type PrMerge = "ask" | "auto"
  * How closely a Review reads an unreviewed head: the command `pr.reviewCommand` names under `full`,
  * one `sdlc-reviewer` subagent under `light`, no one under `off`.
  */
-export type PrReview = "full" | "light" | "off"
+export type ReviewDepth = "full" | "light" | "off"
+/** The Review depths, strictest first: what the dev's `--review` names. */
+export const REVIEW_DEPTHS = ["full", "light", "off"] as const satisfies readonly ReviewDepth[]
+/** `pr.review`: a Review depth, or `auto`, which routes one from the changes by built-in rules. */
+export type PrReview = ReviewDepth | "auto"
 
 /**
  * How the Ship script ends a pull request: who merges it, how closely it is reviewed, and the slash
@@ -105,7 +109,7 @@ export const STRICTNESS = {
   commitOnProtected: ["deny", "allow"],
   envFiles: ["deny", "git"],
   merge: ["ask", "auto"],
-  review: ["full", "light", "off"]
+  review: ["full", "auto", "light", "off"]
 } as const satisfies {
   forcePush: readonly ForcePush[]
   commitOnProtected: readonly CommitOnProtected[]
@@ -124,11 +128,13 @@ export const STRICTEST_GUARDRAILS: Guardrails = {
 
 /** What the Ship script runs on while any layer is invalid, and with nothing declared: it merges nothing itself. */
 export const STRICTEST_PR_MERGE: PrMerge = "ask"
-/** The Review depth while any layer is invalid, and with nothing declared: the agent reads every head. */
+/** The Review depth while any layer is invalid: the agent reads every head in full. */
 export const STRICTEST_PR_REVIEW: PrReview = "full"
 const STRICTEST_PR = { merge: STRICTEST_PR_MERGE, review: STRICTEST_PR_REVIEW } as const satisfies Partial<PrConfig>
 /** The command a `full` Review runs with nothing declared; it has no strictness order. */
 export const DEFAULT_REVIEW_COMMAND = "/code-review"
+/** What a repository gets with nothing declared: the merge the dev's, the depth routed from the changes. */
+const DEFAULT_PR: PrConfig = { merge: STRICTEST_PR_MERGE, review: "auto", reviewCommand: DEFAULT_REVIEW_COMMAND }
 
 /** What a repository gets with nothing declared. */
 export const DEFAULT_GUARDRAILS: Guardrails = {
@@ -317,7 +323,7 @@ export function inferConfig(root: string): Merged {
     guardrails: cloneGuardrails(DEFAULT_GUARDRAILS),
     commit: { convention: "conventional" },
     gate: inferGate(root),
-    pr: { ...STRICTEST_PR, reviewCommand: DEFAULT_REVIEW_COMMAND },
+    pr: { ...DEFAULT_PR },
     worktree: { setup: [] }
   }
 }
@@ -399,7 +405,7 @@ function loosenings(base: Guardrails, local: GuardrailsLayer | undefined): Probl
   return problems
 }
 
-/** Each local `pr` key less strict than the one it would override: `merge` auto over ask, `review` off over light over full. */
+/** Each local `pr` key less strict than the one it would override: `merge` auto over ask, `review` off over light over auto over full. */
 function prLoosenings(base: PrConfig, local: Partial<PrConfig> | undefined): Problem[] {
   const keys = ["merge", "review"] as const
   return keys.flatMap((key) => {

@@ -200,7 +200,7 @@ export const CASES: Case[] = [
     name: "the agentic schema refuses any other pr.review",
     schema: AGENTIC_SCHEMA,
     value: { pr: { review: "none" } },
-    problems: [{ path: "pr.review", message: '"none" is not one of "full", "light", "off"' }]
+    problems: [{ path: "pr.review", message: '"none" is not one of "full", "auto", "light", "off"' }]
   },
   {
     name: "the agentic schema refuses a Check name the package does not ship",

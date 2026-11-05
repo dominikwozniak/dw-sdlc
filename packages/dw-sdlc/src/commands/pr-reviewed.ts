@@ -62,7 +62,7 @@ function parseCli(argv: string[]): Cli | "help" | { error: string } {
 
 /** Posts the review status on `head` once the read shows it is still the pull request's head. */
 function post({ number, repo, head }: Cli): void {
-  const pr = read({ number, repo }, "pr reviewed")
+  const pr = read({ number, repo }, "pr reviewed", false)
   if (pr.head !== head) {
     throw new CannotRun(
       `${pr.repo}#${number}: the head is ${pr.head}, not ${head}: a push landed since the review`,

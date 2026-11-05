@@ -1,10 +1,10 @@
 // The read both pr commands make: gh as a child process, its auth on the host gh api reads from, the
 // pull request a command names, and that pull request's state from one GraphQL request, with the two
-// compares that tell whether its head carries an earlier Review.
+// compares that tell whether its head carries an earlier Review and the one that sizes its changes.
 
 import { spawnSync } from "node:child_process"
 
-import { changesOf, compareArgs, sameChanges } from "./delta.ts"
+import { changedOf, changesOf, compareArgs, sameChanges } from "./delta.ts"
 import { awaitsReview, parsePr, parseView, type PrState, QUERY, ReplyError } from "./state.ts"
 
 /** What stops a pr command before it answers: exit 2, the problem and its remedy on one line. */
@@ -90,37 +90,45 @@ function targetOf({ number, repo }: Named, command: string): { repo: string; num
   return parseOrCannotRun(() => parseView(view.stdout))
 }
 
-/** The state of the pull request `named`; `command`, as `pr ship`, names the call in a remedy. */
-export function read(named: Named, command: string): PrState {
+/**
+ * The state of the pull request `named`; `command`, as `pr ship`, names the call in a remedy. With
+ * `sized`, as `pr.review: auto` needs, the read sizes the changes a Review would read.
+ */
+export function read(named: Named, command: string, sized: boolean): PrState {
   // The host gh api reads from: an account on any other host has no say in this call.
   const host = process.env.GH_HOST?.trim() || "github.com"
   const auth = gh(["auth", "status", "--active", "--hostname", host])
   if (auth.status !== 0) {
     throw new CannotRun(`gh auth status failed: ${authProblem(auth.stderr)}`, REMEDIES.auth)
   }
-  return query(targetOf(named, command))
+  return query(targetOf(named, command), sized)
 }
 
 /** The state of `pr` once more, after an action the script performed on it: the same pull request. */
-export function readAgain(pr: PrState): PrState {
-  return query(pr)
+export function readAgain(pr: PrState, sized: boolean): PrState {
+  return query(pr, sized)
+}
+
+/** The reply of the compare from `from` to `commit`; `what` names it when gh refuses it. */
+function compared(pr: Pick<PrState, "repo" | "number">, from: string, commit: string, what: string): string {
+  const reply = gh(compareArgs(pr.repo, from, commit))
+  if (reply.status !== 0) {
+    throw new CannotRun(`${pr.repo}#${pr.number}: ${what}: ${said(reply.stderr)}`, REMEDIES.read)
+  }
+  return reply.stdout
 }
 
 /** The own changes of `pr` at `commit`, from the compare with its base; null when it cannot show them whole. */
-function ownChanges(pr: Omit<PrState, "carried">, commit: string): string[] | null {
-  const reply = gh(compareArgs(pr.repo, pr.baseOid, commit))
-  if (reply.status !== 0) {
-    const problem = `the compare with ${commit.slice(0, 7)}: ${said(reply.stderr)}`
-    throw new CannotRun(`${pr.repo}#${pr.number}: ${problem}`, REMEDIES.read)
-  }
-  return parseOrCannotRun(() => changesOf(reply.stdout))
+function ownChanges(pr: Omit<PrState, "carried" | "changed">, commit: string): string[] | null {
+  const reply = compared(pr, pr.baseOid, commit, `the compare with ${commit.slice(0, 7)}`)
+  return parseOrCannotRun(() => changesOf(reply))
 }
 
 /**
  * `pr` and whether its head carries the last reviewed commit's status: only merges since it, and the
  * same own changes at both. The compares run only when a Review awaits the head.
  */
-function withCarried(pr: Omit<PrState, "carried">): PrState {
+function withCarried(pr: Omit<PrState, "carried" | "changed">): Omit<PrState, "changed"> {
   const last = pr.lastReviewed
   if (last === null || !last.mergesOnly || pr.state !== "OPEN" || !awaitsReview(pr)) {
     return { ...pr, carried: false }
@@ -128,8 +136,21 @@ function withCarried(pr: Omit<PrState, "carried">): PrState {
   return { ...pr, carried: sameChanges(ownChanges(pr, last.commit), ownChanges(pr, pr.head)) }
 }
 
+/**
+ * `pr` and, when `sized` and a Review awaits a head that carries none, the files the Review would read:
+ * the compare from the last reviewed commit, else from the base, to the head.
+ */
+function withChanged(pr: Omit<PrState, "changed">, sized: boolean): PrState {
+  if (!sized || pr.carried || pr.state !== "OPEN" || !awaitsReview(pr)) {
+    return { ...pr, changed: null }
+  }
+  const from = pr.lastReviewed?.commit ?? pr.baseOid
+  const reply = compared(pr, from, pr.head, `the compare of ${from.slice(0, 7)}...${pr.head.slice(0, 7)}`)
+  return { ...pr, changed: parseOrCannotRun(() => changedOf(reply)) }
+}
+
 /** The state of pull request `number` of `repo`, from one GraphQL request and the compares a Review needs. */
-function query({ repo, number }: { repo: string; number: number }): PrState {
+function query({ repo, number }: { repo: string; number: number }, sized: boolean): PrState {
   const [owner = "", name = ""] = repo.split("/")
   const reply = gh([
     "api",
@@ -148,5 +169,5 @@ function query({ repo, number }: { repo: string; number: number }): PrState {
     const remedy = problem.startsWith("Could not resolve to a") ? REMEDIES.target : REMEDIES.read
     throw new CannotRun(`${repo}#${number}: ${problem}`, remedy)
   }
-  return withCarried(parseOrCannotRun(() => parsePr(reply.stdout, repo)))
+  return withChanged(withCarried(parseOrCannotRun(() => parsePr(reply.stdout, repo))), sized)
 }

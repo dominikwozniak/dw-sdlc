@@ -9,7 +9,7 @@ def strictness: {
   commitOnProtected: ["deny", "allow"],
   envFiles: ["deny", "git"],
   merge: ["ask", "auto"],
-  review: ["full", "light", "off"]
+  review: ["full", "auto", "light", "off"]
 };
 
 def strictest: {
@@ -19,8 +19,8 @@ def strictest: {
   protectedBranches: ["master", "main", "production"]
 };
 
-# pr.merge and pr.review while any layer is invalid, and with nothing declared: the Ship script merges
-# nothing itself and the agent reviews every head.
+# pr.merge and pr.review while any layer is invalid: the Ship script merges nothing itself and the
+# agent reviews every head in full.
 def strictest_pr: {merge: "ask", review: "full"};
 
 # A resolved config as it runs while any layer is invalid; pr.reviewCommand has no strictest value
@@ -46,7 +46,7 @@ def defaults($inferred): {
   },
   commit: {convention: $inferred.commit.convention},
   gate: ({steps: [], drift: "fail", checks: {run: []}} + ($inferred.gate // {})),
-  pr: (strictest_pr + {reviewCommand: "/code-review"}),
+  pr: {merge: "ask", review: "auto", reviewCommand: "/code-review"},
   worktree: {setup: []}
 };
 
@@ -104,7 +104,7 @@ def loosenings($base; $local):
           "drops \($dropped | map(tojson) | join(", ")); the local file may add protected branches, never remove them"))
   ] end;
 
-# Each local pr key less strict than the one it would override: merge auto over ask, review off over light over full.
+# Each local pr key less strict than the one it would override: merge auto over ask, review off over light over auto over full.
 def pr_loosenings($base; $local):
   [("merge", "review") as $key
     | select($local[$key] != null and _rank($key; $local[$key]) > _rank($key; $base[$key]))

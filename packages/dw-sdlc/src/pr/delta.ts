@@ -1,14 +1,24 @@
-// Whether a head carries the Review of an earlier commit: the pull request's own changes, each read as
-// GitHub's compare from the base, are the same at both. A merge of the base in adds none of its own.
+// GitHub's compare of two commits, read two ways: whether a head carries the Review of an earlier commit,
+// the pull request's own changes from the base the same at both, since a merge of the base in adds none
+// of its own; and the files a Review would read, with their changed lines, for `pr.review: auto`.
 
-import { fieldOf, type Node, object, ReplyError, rootOf, shown, string } from "./state.ts"
+import { type ChangedFile, fieldOf, integer, type Node, object, ReplyError, rootOf, shown, string } from "./state.ts"
 
 /** GitHub's compare lists at most this many files; one that lists as many may hold back the rest. */
 const FILE_LIMIT = 300
 
-/** The gh arguments of the compare from the base at `baseOid` to `commit`, the files on its one page. */
-export function compareArgs(repo: string, baseOid: string, commit: string): string[] {
-  return ["api", `repos/${repo}/compare/${baseOid}...${commit}?per_page=1`]
+/** The gh arguments of the compare from `from` to `commit`, the files on its one page. */
+export function compareArgs(repo: string, from: string, commit: string): string[] {
+  return ["api", `repos/${repo}/compare/${from}...${commit}?per_page=1`]
+}
+
+/** The files a compare reply lists. */
+function filesOf(reply: string): Node[] {
+  const { value, at } = fieldOf(rootOf(reply, "the compare"), "files")
+  if (!Array.isArray(value)) {
+    throw new ReplyError(`${at} is ${shown(value)}, not a list`)
+  }
+  return value.map((item: unknown, index) => object(item, `${at}[${index}]`))
 }
 
 /** A field the compare may leave out, as a file's patch or its previous name. */
@@ -31,13 +41,19 @@ function changeOf(file: Node): string | null {
 
 /** The own changes a compare reply lists, file by file; null when it cannot show them whole. */
 export function changesOf(reply: string): string[] | null {
-  const { value, at } = fieldOf(rootOf(reply, "the compare"), "files")
-  if (!Array.isArray(value)) {
-    throw new ReplyError(`${at} is ${shown(value)}, not a list`)
-  }
-  const changes = value.map((item: unknown, index) => changeOf(object(item, `${at}[${index}]`)))
+  const changes = filesOf(reply).map(changeOf)
   const whole = changes.filter((change) => change !== null)
   return changes.length >= FILE_LIMIT || whole.length < changes.length ? null : whole
+}
+
+/** The files a compare reply lists with their changed lines; `unsized` when it may hold some back. */
+export function changedOf(reply: string): ChangedFile[] | "unsized" {
+  const files = filesOf(reply).map((file) => ({
+    path: string(file, "filename"),
+    previous: optional(file, "previous_filename"),
+    lines: optional(file, "patch") === null ? null : integer(file, "additions") + integer(file, "deletions")
+  }))
+  return files.length >= FILE_LIMIT ? "unsized" : files
 }
 
 /** Whether the own changes at the head are those at the reviewed commit; unknown changes never are. */

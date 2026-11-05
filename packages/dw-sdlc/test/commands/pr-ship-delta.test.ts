@@ -91,8 +91,12 @@ function commandOf(args: string[]): string {
 }
 
 const CARRIED = `carried from ${REVIEWED.slice(0, 7)}`
+/** The files of a test's checkout: a relative path and its text, an object written as JSON. */
+type Files = Record<string, string | object>
+/** pr.review full: no compare beyond the two a carry reads; `pr-ship-route` reads auto. */
+const FULL: Files = { [COMMITTED_FILE]: { pr: { review: "full" } } }
 
-function ship(args: string[], graphql: Pr[], commands: Record<string, Response> = {}, files = {}) {
+function ship(args: string[], graphql: Pr[], commands: Record<string, Response> = {}, files: Files = FULL) {
   const gh = fakeGh({ graphql: graphql.map(served), commands })
   const run = runBin(["pr", "ship", ...TARGET, ...args], repo({ files }), gh.env)
   return { ...run, calls: gh.calls() }
@@ -168,7 +172,7 @@ describe("dw-sdlc pr ship after a push to a reviewed pull request", () => {
         action: "mark-reviewed",
         actor: "dev",
         reason: "the script would mark it reviewed; --dry-run performs nothing",
-        details: { depth: "full", source: "config", reviewCommand: "/code-review", since: REVIEWED },
+        details: { since: REVIEWED },
         command,
         performed: [{ action: "mark-reviewed", command, ok: null }]
       }
@@ -260,6 +264,32 @@ describe("dw-sdlc pr ship after a push to a reviewed pull request", () => {
       action: "review",
       details: { depth: "full", source: "flag", reviewCommand: "/code-review" },
       performed: []
+    })
+  })
+
+  it("asks for a light Review of the whole diff under the dev's --review light over a head that would carry", () => {
+    const run = ship(["--json", "--review", "light"], [MERGED_IN], {
+      ...compared(REVIEWED, [READ_THEN]),
+      ...compared(HEAD, [SHIFTED])
+    })
+    assert.equal(run.status, 10, run.stderr)
+    assert.deepEqual(documentOf(run.stdout, ["action", "details", "performed"]), {
+      action: "review",
+      details: { depth: "light", source: "flag" },
+      performed: []
+    })
+  })
+
+  it("posts the status as the dev's off, not as a carry, under --review off over a head that would carry", () => {
+    const after: Pr = { ...MERGED_IN, checks: GREEN.checks }
+    const run = ship(["--json", "--review", "off"], [MERGED_IN, after], {
+      ...compared(REVIEWED, [READ_THEN]),
+      ...compared(HEAD, [SHIFTED])
+    })
+    assert.equal(run.status, 30, run.stderr)
+    assert.deepEqual(documentOf(run.stdout, ["action", "performed"]), {
+      action: "ready-to-merge",
+      performed: [{ action: "mark-reviewed", command: commandOf(marked("off: --review off")), exit: 0, ok: true }]
     })
   })
 
