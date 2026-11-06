@@ -1,5 +1,27 @@
 # dw-sdlc
 
+## 0.10.0
+
+### Minor Changes
+
+- 77e12d0: `pr.review` takes `auto`, the new default, between `full` and `light`: strictest first full, auto, light, off. Under `auto` the Ship script routes the Review depth from the changes the Review would read, read through GitHub's compare from `details.since`, else the base, to the head. Lockfiles alone route `off`, posted as `off: lockfiles only`. A file under `.github/workflows/`, more than 100 changed lines outside lockfiles, or a change the script cannot size routes `full`: 300 files, more than the compare lists, or a file outside lockfiles the compare shows no patch for, such as a binary one. The rest routes `light`. The answer names `source: auto` and `details.reviewCommand` at every depth, so the agent may raise a routed `light` to `full`. An invalid layer still runs `full`. A carried status's `details` name only `since`: a carry reads at no depth.
+
+  A depth the dev names with `--review` beats a carried status: `full` and `light` read the whole diff since the base, and `off` posts the status as `off: --review off`.
+
+- ad33b95: `pr.review` and `pr ship --review` take `light`, between `full` and `off`: the `review` answer carries `depth: light`, and the plugin's `sdlc-pr-ship` meets it with one `sdlc-reviewer` subagent at medium effort over the diff, the files it touches and the Agent map. Strictest first: full, light, off; a local `light` tightens `off` and loosens `full`.
+- df5040e: `dw-sdlc pr ship` names the last commit of the pull request that carries a `dw-sdlc/review` success under `details.since`, so the Review after a push reads only the changes from it to the head. A success posted under `off` does not count.
+
+  A head that only merged the base in carries the status, as after `update-branch`. Every commit since the reviewed one must be a merge, and the pull request's own changes since the base must be the same at both. The script then posts `dw-sdlc/review` as `mark-reviewed`, described as `carried from <sha>`. Under `--dry-run` it parks with that command. The dev's `--review full` asks for a Review of the whole diff instead.
+
+  A history that no longer holds a reviewed commit, after a rebase or a force push, names none, and the Review reads the whole diff since the base. Both reads go through `gh`, so they work under `-R` without a checkout.
+
+- b3e78cd: The agentic config takes a `worker` key: `command`, the words that start a Worker's Claude Code session before its own flags (default `claude`), `model` (default `sonnet`) and `effort`, one of Claude Code's levels `low`, `medium`, `high`, `xhigh` and `max` (default `high`). Any layer sets any key; the key has no strictness order, and an invalid layer keeps what the valid layers name. `dw-sdlc config` shows the resolved key. `dw-sdlc setup` writes `worker.command` as `cswap run -- --dangerously-skip-permissions` into the local layer when `cswap` is on PATH, keeps a command already there, writes nothing without `cswap`, and shows the write on `--dry-run`.
+
+### Patch Changes
+
+- dd4d310: `dw-sdlc pr ship` exits 2 naming each Action that ran when the read after it fails, with `performed` on stdout under `--json`. An update counts when the head carries the base it read. A reason says "gh accepted" when gh exited 0 and the read does not show the Action yet, and a `mark-reviewed` whose head moved names both heads.
+- 4bdd322: `dw-sdlc pr ship` records an Action under `performed` as `ok` when the read after it shows the Action took effect, whatever gh's exit status, and keeps gh's `exit` and `stderr` beside `ok`.
+
 ## 0.9.0
 
 ### Minor Changes
