@@ -24,7 +24,7 @@ it, for a machine that wants the session helpers too. The hooks need `jq`. Witho
 0 and guards nothing; the doctor says so.
 
 Added from GitHub, the plugin is a snapshot of `main` that `claude plugin update` refreshes, and
-`--sparse` keeps the clone to the catalogue, the plugin and the package the `dw-sdlc` link points
+`--sparse` keeps the clone to the catalogue, the plugins and the package the `dw-sdlc` links point
 at; without `packages` the plugin installs without the package. Added from a clone
 (`claude plugin marketplace add ./` in the checkout), it runs live from that checkout: a change on
 disk is in the next session, a broken edit included.

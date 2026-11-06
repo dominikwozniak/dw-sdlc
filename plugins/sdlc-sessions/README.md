@@ -75,8 +75,14 @@ so it can close. A commit an open or merged pull request holds counts as pushed,
 remote ref is gone still closes. A pull request closed without merging lands nothing, and a detached HEAD
 names no pull request, so there a commit counts as pushed only on a remote branch. The command asks the
 remote which branches still stand, because a deleted branch stays in the local tracking refs until a
-fetch. An upstream that is a local branch counts as none. A branch `guardrails.protectedBranches` names takes changes through pull requests,
-so it needs none of its own; a long-lived branch the config does not name reads as `no-pull-request`.
+fetch. An upstream that is a local branch counts as none. A branch `guardrails.protectedBranches` names
+takes changes through pull requests, so it needs none of its own; a long-lived branch the config does not
+name reads as `no-pull-request`.
+
+The command writes nothing, so it does not fetch, and some states read as yes until a fetch shows them:
+another remote branch force-pushed off the head, and an upstream deleted or force-pushed on a branch that
+needs no pull request. Run `git fetch --prune` first to be exact. Treating every moved branch as stale
+would answer no each time the base moves on.
 
 A detached HEAD or a repository with no remote asks `gh` nothing, and the `clean` reason says so rather
 than claim nothing is open. Elsewhere the command needs an authenticated `gh` and a remote it can read: a

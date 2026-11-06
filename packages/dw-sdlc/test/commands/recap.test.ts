@@ -2,6 +2,7 @@
 // fact, each reason of the close verdict, the exit code and the gh calls it made, none of them a write.
 
 import assert from "node:assert/strict"
+import { readFileSync, utimesSync } from "node:fs"
 import { join } from "node:path"
 import { describe, it } from "node:test"
 
@@ -475,6 +476,42 @@ describe("dw-sdlc recap", () => {
     const { status, doc } = document(linked, noPr)
     assert.equal(status, 1)
     assert.deepEqual(blocking(doc), ["paused"])
+  })
+
+  it("reads each of git's records of a paused operation", () => {
+    const cases = [
+      ["rebase-apply", "rebase or am"],
+      ["REVERT_HEAD", "revert"],
+      ["sequencer", "cherry-pick or revert"]
+    ]
+    for (const [record = "", paused] of cases) {
+      const doc = pausedOn((root) => write(join(root, ".git", record), ""))
+      assert.equal(doc.paused, paused)
+    }
+  })
+
+  it("a paused rebase on a detached HEAD answers no with the remote out of reach: nothing it knows needs it", () => {
+    const root = clone()
+    branch(root, 2)
+    git(root, "push", "-q", "-u", "origin", "feat")
+    pauseRebase(root)
+    git(root, "remote", "set-url", "origin", join(scratch("gone"), "nowhere"))
+    const { status, doc } = document(root, noPr)
+    assert.equal(status, 1)
+    assert.deepEqual(blocking(doc), ["paused"])
+  })
+
+  it("writes nothing to the checkout, not even the refresh of the index git status would do", () => {
+    const root = clone()
+    write(join(root, "tracked.txt"), "one\n")
+    git(root, "add", "tracked.txt")
+    commit(root, "-m", "add a file")
+    git(root, "push", "-q")
+    const index = join(root, ".git", "index")
+    const before = readFileSync(index)
+    utimesSync(join(root, "tracked.txt"), new Date(), new Date(Date.now() + 60_000))
+    assert.equal(document(root, noPr).status, 0)
+    assert.deepEqual(readFileSync(index), before)
   })
 
   it("an untracked file counts whatever status.showUntrackedFiles says", () => {

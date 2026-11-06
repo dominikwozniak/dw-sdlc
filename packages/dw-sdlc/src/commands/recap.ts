@@ -20,13 +20,21 @@ and whether the session sits in a linked worktree, and answers whether the sessi
 every reason. It writes nothing: the pull request's Action is the one dw-sdlc pr ship would answer, read
 and never performed.
 
-The session cannot be closed over a paused rebase, merge, cherry-pick, revert or bisect, an uncommitted
-change, a commit pushed nowhere or only part of the way, an open pull request whatever its Action, or
-commits on top of the base that no pull request holds; the default branch and a branch
-guardrails.protectedBranches names need no pull request. A pull request closed without merging holds
-nothing, and a detached HEAD names no pull request: there a commit counts as pushed only on a remote
-branch that still stands, which the remote answers. A linked worktree is a reason beside the verdict,
-never against it: the session cannot remove the directory it runs in.
+The session cannot be closed over any of these:
+  a paused rebase, merge, cherry-pick, revert or bisect;
+  an uncommitted change;
+  a commit pushed nowhere or only part of the way;
+  an open pull request, whatever its Action;
+  commits on top of the base that no pull request holds. The default branch and a branch
+  guardrails.protectedBranches names need no pull request.
+
+A pull request closed without merging holds nothing, and a detached HEAD names no pull request. There a
+commit counts as pushed only on a remote branch that still stands, which the remote answers. A branch
+force-pushed since the last fetch can still read as holding it, so fetch first to be exact.
+
+A linked worktree is a reason beside the verdict, never against it: the session cannot remove the
+directory it runs in.
+
 One line a fact, or one document with --json. Needs an authenticated gh and a remote it can read. A
 detached HEAD or a repository with no remote asks gh nothing, and the verdict says so.
 
@@ -105,24 +113,25 @@ function upstreamOf(root: string, branch: string): string | null {
 
 /** Git's own record of each paused operation, in the git directory a linked worktree keeps apart. */
 const PAUSES = [
-  ["rebase-merge", "rebase"],
-  ["rebase-apply", "rebase or am"],
-  ["MERGE_HEAD", "merge"],
-  ["CHERRY_PICK_HEAD", "cherry-pick"],
-  ["REVERT_HEAD", "revert"],
-  ["sequencer", "cherry-pick or revert"],
-  ["BISECT_LOG", "bisect"]
+  { record: "rebase-merge", name: "rebase" },
+  { record: "rebase-apply", name: "rebase or am" },
+  { record: "MERGE_HEAD", name: "merge" },
+  { record: "CHERRY_PICK_HEAD", name: "cherry-pick" },
+  { record: "REVERT_HEAD", name: "revert" },
+  { record: "sequencer", name: "cherry-pick or revert" },
+  { record: "BISECT_LOG", name: "bisect" }
 ]
 
 function pausedIn(root: string): string | null {
   const gitDir = must(root, ["rev-parse", "--absolute-git-dir"])
-  return PAUSES.find(([record = ""]) => existsSync(join(gitDir, record)))?.[1] ?? null
+  return PAUSES.find(({ record }) => existsSync(join(gitDir, record)))?.name ?? null
 }
 
 function readLocal(root: string): Local {
   const branch = asked(root, ["symbolic-ref", "--quiet", "--short", "HEAD"]) ?? null
   const head = asked(root, ["rev-parse", "--verify", "--quiet", "HEAD"]) ?? null
-  const status = must(root, ["status", "--porcelain", "--untracked-files=normal"])
+  // Without the flag, git status refreshes the index, a write under a session working in this checkout.
+  const status = must(root, ["--no-optional-locks", "status", "--porcelain", "--untracked-files=normal"])
   const upstream = branch === null ? null : upstreamOf(root, branch)
   const pushed = upstream === null ? ["HEAD", "--not", "--remotes"] : ["@{upstream}..HEAD"]
   return {
@@ -147,7 +156,7 @@ function readShipped(root: string): Shipped | null {
 /**
  * The tracking refs, as `--remotes` names them, that the remote contradicts, which only a fetch would show:
  * a branch it no longer has, its `HEAD`, and the session's own branch where it moved. Any other branch that
- * moved, such as the base, still holds what it held.
+ * moved, such as the base, counts as holding what it held; its README says why.
  */
 function staleTracking(root: string, { branch, upstream }: Local): string[] {
   return remotesOf(root).flatMap((remote) => {
@@ -173,10 +182,10 @@ function staleTracking(root: string, { branch, upstream }: Local): string[] {
 /**
  * Where the head stands once the pull request is read. A commit an open or merged one holds is on GitHub,
  * whatever became of the upstream. A closed one lands nothing and a detached HEAD names none, so there only
- * a remote branch that still stands counts for the head.
+ * a remote branch that still stands counts for the head. A paused operation has answered already.
  */
 function standing(root: string, read: Local, shipped: Shipped | null, held: boolean): Local {
-  const asksRemote = read.branch === null || shipped?.pr.state === "CLOSED"
+  const asksRemote = read.paused === null && (read.branch === null || shipped?.pr.state === "CLOSED")
   if (!asksRemote || read.head === null) {
     return held ? { ...read, unpushed: 0 } : read
   }

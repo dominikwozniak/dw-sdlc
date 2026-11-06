@@ -1,6 +1,6 @@
-// The read the pr commands and recap make: gh as a child process, its auth on the host gh api reads from,
-// the pull request a command names, and that pull request's state from one GraphQL request, with the two
-// compares that tell whether its head carries an earlier Review and the one that sizes its changes.
+// The read the pr commands and recap make: gh as a child process, its auth, the pull request a command names,
+// its state from one GraphQL request with the compares that tell whether its head carries an earlier Review
+// and that size its changes, and beside them the default branch and the clock the decision reads.
 
 import { spawnSync } from "node:child_process"
 
