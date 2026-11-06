@@ -376,6 +376,20 @@ describe("dw-sdlc recap", () => {
     assert.deepEqual(ids(kept.doc), ["clean", "closed"])
   })
 
+  it("a closed pull request's branch deleted with no fetch since, on a branch with no upstream: the remote is asked too", () => {
+    const root = clone()
+    branch(root, 1)
+    git(root, "push", "-q", "origin", "feat")
+    const closed: Pr = { ...GREEN, head: head(root), branch: "feat", state: "CLOSED" }
+    const remote = git(root, "remote", "get-url", "origin").trim()
+    assert.equal(document(root, withPr(closed)).status, 0, "the branch stands on the remote, upstream or not")
+    git(remote, "branch", "-q", "-D", "feat")
+    const { status, doc } = document(root, withPr(closed))
+    assert.equal(status, 1, JSON.stringify(doc.close))
+    assert.equal(doc.unpushed, 1)
+    assert.deepEqual(blocking(doc), ["no-upstream"])
+  })
+
   it("a linked worktree is a fact and no block: the session cannot remove the directory it runs in", () => {
     const root = clone()
     const linked = join(scratch("linked"), "tree")

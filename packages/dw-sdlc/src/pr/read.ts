@@ -7,7 +7,7 @@ import { spawnSync } from "node:child_process"
 import { behindOf, changedOf, changesOf, compareArgs, sameChanges } from "./delta.ts"
 import { awaitsReview, parseDefaultBranch, parsePr, parseView, type PrState, QUERY, ReplyError } from "./state.ts"
 
-/** What stops a command that reads a pull request before it answers: exit 2, the problem and its remedy on one line. */
+/** What stops a pr command or recap before it answers: exit 2, the problem and its remedy on one line. */
 export class CannotRun extends Error {
   remedy: string
   constructor(message: string, remedy: string) {

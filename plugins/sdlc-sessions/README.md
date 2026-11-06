@@ -72,8 +72,8 @@ wrong "no" costs less than a wrong "yes". A linked worktree does not block, sinc
 remove the directory it runs in. A branch with no upstream and no commit of its own has nothing to lose,
 so it can close. A commit an open or merged pull request holds counts as pushed, so a merged branch whose
 remote ref is gone still closes. A pull request closed without merging lands nothing: its commits count
-as pushed only on a remote branch, and the command asks the remote whether the upstream still stands,
-since no fetch may have said it is gone. A branch `guardrails.protectedBranches` names takes changes through pull requests,
+as pushed only on a remote branch, and the command asks the remote which of its branches still stand,
+since no fetch may have said one is gone. A branch `guardrails.protectedBranches` names takes changes through pull requests,
 so it needs none of its own; a long-lived branch the config does not name reads as `no-pull-request`.
 
 A detached HEAD or a repository with no remote asks `gh` nothing, and the `clean` reason says so rather

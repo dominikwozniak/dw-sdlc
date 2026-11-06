@@ -318,7 +318,7 @@ for editors; the guards always validate against the schema the plugin ships.
 ## From GitHub or from a clone
 
 Added from GitHub with `--sparse .claude-plugin plugins packages`, the plugin is a snapshot of `main`
-that `claude plugin update` refreshes, and the clone holds only the catalogue, the plugin and the
+that `claude plugin update` refreshes, and the clone holds only the catalogue, the plugins and the
 `dw-sdlc` package. The plugin reaches the package through its `dw-sdlc` link, which
 `claude plugin install` copies as a real directory, so a hook and a skill run the package's
 `dw-sdlc` bin. A clone without `packages` installs the plugin without it: the guards then drop

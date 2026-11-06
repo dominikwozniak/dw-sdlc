@@ -15,7 +15,7 @@ claude plugin marketplace add dominikwozniak/dw-sdlc --sparse .claude-plugin plu
 claude plugin install sdlc@dw-sdlc --scope user
 ```
 
-`--sparse` checks out only the catalogue, the plugin and the `dw-sdlc` package it links to, not the
+`--sparse` checks out only the catalogue, the plugins and the `dw-sdlc` package they link to, not the
 docs and tooling around them. The repository is private, so the clone uses your git credentials.
 
 > [!NOTE]

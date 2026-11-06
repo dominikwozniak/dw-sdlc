@@ -24,7 +24,7 @@ The session cannot be closed over a paused rebase, an uncommitted change, a comm
 part of the way, an open pull request whatever its Action, or commits on top of the base that no pull
 request holds; the default branch and a branch guardrails.protectedBranches names need no pull request.
 A pull request closed without merging holds nothing: its commits count as pushed only on a remote branch,
-and the remote is asked whether its branch still stands. A linked worktree is a reason beside the
+and the remote is asked which of its branches still stand. A linked worktree is a reason beside the
 verdict, never against it: the session cannot remove the directory it runs in.
 One line a fact, or one document with --json. Needs an authenticated gh and a remote it can read. A
 detached HEAD or a repository with no remote asks gh nothing, and the verdict says so.
@@ -90,7 +90,7 @@ function count(root: string, args: string[]): number {
 
 /** The upstream of `branch`, unless git reports its ref gone. */
 function upstreamOf(root: string, branch: string): string | null {
-  const format = "%(upstream:short) %(upstream:track)"
+  const format = "%(upstream:lstrip=2) %(upstream:track)"
   const [name = "", track] = must(root, ["for-each-ref", `--format=${format}`, `refs/heads/${branch}`]).split(" ")
   return name === "" || track === "[gone]" ? null : name
 }
@@ -126,12 +126,18 @@ function readShipped(root: string): Shipped | null {
   return pr === null ? null : { pr, answer: decide(pr, now(), policy) }
 }
 
-/** The upstream of `branch`, as `--remotes` names it, when the remote no longer has it; a fetch may not have said so. */
-function staleUpstream(root: string, branch: string): string | null {
-  const format = "%(upstream:lstrip=2) %(upstream:remotename) %(upstream:remoteref)"
-  const line = must(root, ["for-each-ref", `--format=${format}`, `refs/heads/${branch}`])
-  const [tracking = "", remote = "", ref = ""] = line.split(" ")
-  return must(root, ["ls-remote", remote, ref]) === "" ? tracking : null
+/** The tracking refs, as `--remotes` names them, of branches their remote no longer has; a fetch may not have said so. */
+function staleTracking(root: string): string[] {
+  return must(root, ["remote"])
+    .split("\n")
+    .flatMap((remote) => {
+      const live = must(root, ["ls-remote", "--heads", remote])
+        .split("\n")
+        .map((line) => line.split("\t")[1]?.replace("refs/heads/", `${remote}/`))
+      return must(root, ["for-each-ref", "--format=%(refname:lstrip=2)", `refs/remotes/${remote}`])
+        .split("\n")
+        .filter((tracking) => tracking !== "" && tracking !== `${remote}/HEAD` && !live.includes(tracking))
+    })
 }
 
 /**
@@ -139,18 +145,16 @@ function staleUpstream(root: string, branch: string): string | null {
  * whatever became of the upstream. A closed one lands nothing, so only a remote branch that still stands
  * counts for its commits.
  */
-function standing(root: string, read: Local, shipped: Shipped | null): Local {
-  if (shipped === null || read.head === null) {
+function standing(root: string, read: Local, shipped: Shipped | null, held: boolean): Local {
+  if (shipped?.pr.state !== "CLOSED" || read.head === null) {
+    return held ? { ...read, unpushed: 0 } : read
+  }
+  const stale = staleTracking(root)
+  if (read.upstream !== null && !stale.includes(read.upstream)) {
     return read
   }
-  if (shipped.pr.state !== "CLOSED") {
-    return shipped.pr.commits.includes(read.head) ? { ...read, unpushed: 0 } : read
-  }
-  const stale = read.branch === null || read.upstream === null ? null : staleUpstream(root, read.branch)
-  if (stale === null) {
-    return read
-  }
-  return { ...read, upstream: null, unpushed: count(root, ["HEAD", "--not", `--exclude=${stale}`, "--remotes"]) }
+  const excluded = stale.map((tracking) => `--exclude=${tracking}`)
+  return { ...read, upstream: null, unpushed: count(root, ["HEAD", "--not", ...excluded, "--remotes"]) }
 }
 
 /** How many commits sit on top of `base`, the branch a pull request for them would land on. */
@@ -273,8 +277,8 @@ function report(json: boolean): number {
   // A detached HEAD names no branch for gh to look up, and a repository with no remote has no GitHub.
   const asksGh = branch !== null && must(root, ["remote"]) !== ""
   const shipped = asksGh ? readShipped(root) : null
-  const local = standing(root, read, shipped)
   const held = shipped !== null && head !== null && shipped.pr.commits.includes(head)
+  const local = standing(root, read, shipped, held)
   // An open pull request can still take the head, and a commit-less repository has nothing to land.
   const nothingToLand = held || shipped?.pr.state === "OPEN" || head === null
   const ahead = asksGh && !nothingToLand ? aheadOf(root, branch, shipped) : null
