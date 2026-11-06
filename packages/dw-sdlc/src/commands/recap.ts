@@ -28,9 +28,9 @@ The session cannot be closed over any of these:
   commits on top of the base that no pull request holds. The default branch and a branch
   guardrails.protectedBranches names need no pull request.
 
-A pull request closed without merging holds nothing, and a detached HEAD names no pull request. There a
-commit counts as pushed only on a remote branch that still stands, which the remote answers. A branch
-force-pushed since the last fetch can still read as holding it, so fetch first to be exact.
+A pull request closed without merging lands nothing, and a detached HEAD names no pull request. There a
+commit counts as pushed only on a remote branch, and the command asks the remote which branches still
+stand. A branch force-pushed since the last fetch can still read as holding it, so fetch first to be exact.
 
 A linked worktree is a reason beside the verdict, never against it: the session cannot remove the
 directory it runs in.
@@ -63,7 +63,7 @@ type Local = {
   uncommitted: number
   /** Null when none is set, it is a local branch or its ref is gone from the remote. */
   upstream: string | null
-  /** The commits past the upstream or, without one, on no remote; none when a pull request holds the head. */
+  /** The commits past the upstream or, without one, on no remote; none when an open or merged pull request holds the head. */
   unpushed: number
   /** What git stands paused in, whose tree can read clean at a pushed commit; null when nothing is. */
   paused: string | null
@@ -156,7 +156,7 @@ function readShipped(root: string): Shipped | null {
 /**
  * The tracking refs, as `--remotes` names them, that the remote contradicts, which only a fetch would show:
  * a branch it no longer has, its `HEAD`, and the session's own branch where it moved. Any other branch that
- * moved, such as the base, counts as holding what it held; its README says why.
+ * moved, such as the base, counts as holding what it held; plugins/sdlc-sessions/README.md says why.
  */
 function staleTracking(root: string, { branch, upstream }: Local): string[] {
   return remotesOf(root).flatMap((remote) => {

@@ -66,7 +66,7 @@ one recommended disposition, the lightest that closes it:
 
 - `now`: do it here. The default when it fits this session, since small things filed are small things lost.
 - `issue`: file it, with a short description.
-- `worker`: start a session for it, with a short description.
+- `worker`: a session of its own, with a short description.
 - `drop`: not worth doing, and say why.
 
 End this section with one line telling the dev that "go" carries out every recommendation, and that
@@ -76,7 +76,8 @@ End this section with one line telling the dev that "go" carries out every recom
 
 The Recap changes nothing. Do not commit, push, file an issue or start anything in the same turn: the
 dev has not seen it yet. Their "go" carries out every recommended disposition in order, with any change
-they named; a question they did not answer stays open. A command the document names, such as deleting a
+they named; a question they did not answer stays open. This skill starts no session, so a `worker` goes
+back to the dev as its description, for them to start. A command the document names, such as deleting a
 branch, stays theirs to run.
 
 When a Brief tells you to deliver the Recap to a Lead, follow the Brief after writing it.
