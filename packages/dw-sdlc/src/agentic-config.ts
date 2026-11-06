@@ -41,7 +41,7 @@ export type PrReview = ReviewDepth | "auto"
 export type PrConfig = { merge: PrMerge; review: PrReview; reviewCommand: string }
 
 /** Claude Code's effort levels, lowest first: what `worker.effort` takes. */
-export const WORKER_EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const
+const WORKER_EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const
 export type WorkerEffort = (typeof WORKER_EFFORTS)[number]
 /** How a Worker's Claude Code session starts: the words that start it, its model and its effort. */
 export type WorkerConfig = { command: string; model: string; effort: WorkerEffort }
@@ -145,7 +145,7 @@ export const DEFAULT_REVIEW_COMMAND = "/code-review"
 const DEFAULT_PR: PrConfig = { merge: STRICTEST_PR_MERGE, review: "auto", reviewCommand: DEFAULT_REVIEW_COMMAND }
 
 /** What a Worker starts with when no layer says otherwise; no key has a strictness order. */
-export const DEFAULT_WORKER: WorkerConfig = { command: "claude", model: "sonnet", effort: "high" }
+const DEFAULT_WORKER: WorkerConfig = { command: "claude", model: "sonnet", effort: "high" }
 
 /** What a repository gets with nothing declared. */
 export const DEFAULT_GUARDRAILS: Guardrails = {

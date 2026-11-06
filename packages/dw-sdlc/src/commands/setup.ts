@@ -29,7 +29,7 @@ import {
 import { isObject, type JsonObject, parseObject, render } from "../json-text.ts"
 import { type Change, withGate, withPackage } from "../setup-gate.ts"
 import { GLOBAL_DENY, LEASE_RULE, RETIRED_DENY, repositoryDeny } from "../setup-rules.ts"
-import { CSWAP_WORKER_COMMAND, keptWorker, pinnedWorker } from "../setup-worker.ts"
+import { keptWorker, pinnedWorker } from "../setup-worker.ts"
 
 /** `by hand` is an edit the setup names and leaves to the user. */
 export type Outcome = "wrote" | "unchanged" | "refused" | "by hand"
@@ -344,12 +344,12 @@ export function setup(options: SetupOptions): Step[] {
   if ("refusal" in pinned) {
     writer.refuse(LOCAL_FILE, pinned.refusal)
   } else {
-    const { worker, added } = pinnedWorker(keptWorker(existing), options.path ?? process.env.PATH)
+    const { worker, detail } = pinnedWorker(keptWorker(existing), options.path ?? process.env.PATH)
     const local = localConfig(checkout, claudeDir, convention, pinned.guardrails, worker)
     if (localCurrent !== undefined && !sameContent(existing, local) && !options.force) {
       writer.refuse(LOCAL_FILE, "exists with other content; pass --force to overwrite it")
     } else {
-      writer.put(LOCAL_FILE, localPath, render(local), added ? `worker.command: ${CSWAP_WORKER_COMMAND}` : undefined)
+      writer.put(LOCAL_FILE, localPath, render(local), detail)
     }
   }
 

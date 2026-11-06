@@ -7,10 +7,10 @@ import { delimiter, join } from "node:path"
 import { isObject, type JsonObject } from "./json-text.ts"
 
 /** The command that starts a Worker on the account `cswap` maps to the repository, prompts bypassed. */
-export const CSWAP_WORKER_COMMAND = "cswap run -- --dangerously-skip-permissions"
+const CSWAP_WORKER_COMMAND = "cswap run -- --dangerously-skip-permissions"
 
 /** Whether an executable file `name` sits in a directory of `pathVariable`, a PATH as the shell reads it. */
-export function onPath(name: string, pathVariable: string | undefined): boolean {
+function onPath(name: string, pathVariable: string | undefined): boolean {
   return (pathVariable ?? "").split(delimiter).some((dir) => {
     if (dir === "") {
       return false
@@ -37,9 +37,9 @@ export function keptWorker(existing: unknown): JsonObject | undefined {
 export function pinnedWorker(
   kept: JsonObject | undefined,
   pathVariable: string | undefined
-): { worker: JsonObject | undefined; added: boolean } {
+): { worker: JsonObject | undefined; detail?: string } {
   if ((kept !== undefined && "command" in kept) || !onPath("cswap", pathVariable)) {
-    return { worker: kept, added: false }
+    return { worker: kept }
   }
-  return { worker: { ...kept, command: CSWAP_WORKER_COMMAND }, added: true }
+  return { worker: { ...kept, command: CSWAP_WORKER_COMMAND }, detail: `worker.command: ${CSWAP_WORKER_COMMAND}` }
 }
