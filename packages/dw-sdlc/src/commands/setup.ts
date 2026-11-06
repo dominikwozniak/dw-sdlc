@@ -29,6 +29,7 @@ import {
 import { isObject, type JsonObject, parseObject, render } from "../json-text.ts"
 import { type Change, withGate, withPackage } from "../setup-gate.ts"
 import { GLOBAL_DENY, LEASE_RULE, RETIRED_DENY, repositoryDeny } from "../setup-rules.ts"
+import { keptWorker, pinnedWorker } from "../setup-worker.ts"
 
 /** `by hand` is an edit the setup names and leaves to the user. */
 export type Outcome = "wrote" | "unchanged" | "refused" | "by hand"
@@ -48,6 +49,8 @@ export type SetupOptions = {
   commitOnProtected?: CommitOnProtected | undefined
   /** The owner's yes to pinning dw-sdlc as a devDependency where package.json lacks it. */
   addPackage?: boolean
+  /** The PATH the setup looks for `cswap` on; `$PATH` when absent. */
+  path?: string | undefined
 }
 
 export const summary =
@@ -66,7 +69,9 @@ written only when it would change; --convention ticket-key | conventional pins c
 the local config, and a run without it keeps the pin as it is; a guardrails block in the local config
 is kept, and --force-push and --commit-on-protected pin those two keys in it, refused where they would
 loosen what the committed config sets; --force overwrites a local config that differs in anything
-else; --dry-run reports without writing.
+else; --dry-run reports without writing. Where cswap is on PATH, the local config also gets
+worker.command, the command a Worker starts with: cswap run -- --dangerously-skip-permissions. A
+worker block the file holds is kept as it is, and without cswap nothing is written.
 
 Where the repository has a package.json, the setup adopts the Gate. --add-package pins dw-sdlc
 there as a devDependency, at the version running the setup; a new dependency needs the owner's yes,
@@ -149,16 +154,19 @@ function keptGuardrails(existing: unknown): JsonObject | undefined {
 }
 
 /** The machine's layer as the setup writes it; `guardrails` is the file's own block, uninterpreted. */
-type LocalLayer = Omit<AgenticConfig, "guardrails"> & { guardrails?: JsonObject }
+type LocalLayer = Omit<AgenticConfig, "guardrails" | "worker"> & { guardrails?: JsonObject; worker?: JsonObject }
 
 /**
  * A layer without the keys the setup owns: `$schema`, which moves with the clone, a pinned
- * convention, which `--convention` may replace, and a `guardrails` object, which the setup carries
- * and the flags pin keys in. Everything left is someone's content.
+ * convention, which `--convention` may replace, and a `guardrails` and a `worker` object, which the
+ * setup carries and adds keys to. Everything left is someone's content.
  */
 function unowned(layer: JsonObject): JsonObject {
-  const { $schema: _schema, commit, guardrails, ...other } = layer
-  const rest = guardrails === undefined || isObject(guardrails) ? other : { ...other, guardrails }
+  const { $schema: _schema, commit, ...other } = layer
+  const blocks = ["guardrails", "worker"]
+  const rest = Object.fromEntries(
+    Object.entries(other).filter(([key, value]) => !blocks.includes(key) || !isObject(value))
+  )
   if (!isObject(commit) || pinnedConvention(layer) === undefined) {
     return commit === undefined ? rest : { ...rest, commit }
   }
@@ -205,13 +213,14 @@ function sameContent(existing: unknown, config: LocalLayer): boolean {
 
 /**
  * The machine's layer: what inference finds, minus every key the committed config already sets, which an
- * inferred key here would override, plus the `guardrails` block the file holds and the convention asked for.
+ * inferred key here would override, plus the `guardrails` and `worker` blocks and the convention asked for.
  */
 function localConfig(
   root: string,
   claudeDir: string,
   convention: CommitConvention | undefined,
-  guardrails: JsonObject | undefined
+  guardrails: JsonObject | undefined,
+  worker: JsonObject | undefined
 ): LocalLayer {
   const inferred = inferConfig(root)
   const committed = committedConfig(root)
@@ -225,6 +234,9 @@ function localConfig(
   }
   if (guardrails !== undefined) {
     config.guardrails = guardrails
+  }
+  if (worker !== undefined) {
+    config.worker = worker
   }
   // Only one asked for, by `--convention` or the file's pin: inference always gives `conventional`, and
   // pinning it here would override a convention the repository commits later.
@@ -332,11 +344,12 @@ export function setup(options: SetupOptions): Step[] {
   if ("refusal" in pinned) {
     writer.refuse(LOCAL_FILE, pinned.refusal)
   } else {
-    const local = localConfig(checkout, claudeDir, convention, pinned.guardrails)
+    const { worker, detail } = pinnedWorker(keptWorker(existing), options.path ?? process.env.PATH)
+    const local = localConfig(checkout, claudeDir, convention, pinned.guardrails, worker)
     if (localCurrent !== undefined && !sameContent(existing, local) && !options.force) {
       writer.refuse(LOCAL_FILE, "exists with other content; pass --force to overwrite it")
     } else {
-      writer.put(LOCAL_FILE, localPath, render(local))
+      writer.put(LOCAL_FILE, localPath, render(local), detail)
     }
   }
 

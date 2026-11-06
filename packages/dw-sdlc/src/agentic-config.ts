@@ -40,6 +40,12 @@ export type PrReview = ReviewDepth | "auto"
  */
 export type PrConfig = { merge: PrMerge; review: PrReview; reviewCommand: string }
 
+/** Claude Code's effort levels, lowest first: what `worker.effort` takes. */
+const WORKER_EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const
+export type WorkerEffort = (typeof WORKER_EFFORTS)[number]
+/** How a Worker's Claude Code session starts: the words that start it, its model and its effort. */
+export type WorkerConfig = { command: string; model: string; effort: WorkerEffort }
+
 export type Guardrails = {
   forcePush: ForcePush
   commitOnProtected: CommitOnProtected
@@ -73,6 +79,7 @@ export type AgenticConfig = {
   commit?: { convention?: CommitConvention; pattern?: string; trailer?: string }
   gate?: GateLayer
   pr?: Partial<PrConfig>
+  worker?: Partial<WorkerConfig>
   worktree?: { setup?: string[] }
 }
 
@@ -85,6 +92,7 @@ export type ResolvedConfig = {
   commit: { convention: CommitConvention; pattern: string; trailer?: string }
   gate: Gate
   pr: PrConfig
+  worker: WorkerConfig
   worktree: { setup: string[] }
 }
 
@@ -135,6 +143,9 @@ const STRICTEST_PR = { merge: STRICTEST_PR_MERGE, review: STRICTEST_PR_REVIEW } 
 export const DEFAULT_REVIEW_COMMAND = "/code-review"
 /** What a repository gets with nothing declared: the merge the dev's, the depth routed from the changes. */
 const DEFAULT_PR: PrConfig = { merge: STRICTEST_PR_MERGE, review: "auto", reviewCommand: DEFAULT_REVIEW_COMMAND }
+
+/** What a Worker starts with when no layer says otherwise; no key has a strictness order. */
+const DEFAULT_WORKER: WorkerConfig = { command: "claude", model: "sonnet", effort: "high" }
 
 /** What a repository gets with nothing declared. */
 export const DEFAULT_GUARDRAILS: Guardrails = {
@@ -324,6 +335,7 @@ export function inferConfig(root: string): Merged {
     commit: { convention: "conventional" },
     gate: inferGate(root),
     pr: { ...DEFAULT_PR },
+    worker: { ...DEFAULT_WORKER },
     worktree: { setup: [] }
   }
 }
@@ -341,6 +353,7 @@ function applyLayer(base: Merged, layer: AgenticConfig): Merged {
     commit: { ...base.commit, ...layer.commit },
     gate: { ...base.gate, ...layer.gate, checks: { ...base.gate.checks, ...layer.gate?.checks } },
     pr: { ...base.pr, ...layer.pr },
+    worker: { ...base.worker, ...layer.worker },
     worktree: { setup: layer.worktree?.setup ?? base.worktree.setup }
   }
 }
@@ -453,7 +466,7 @@ export function resolveConfig(root: string): Resolution {
     }
   }
   if (problems.length > 0) {
-    // `reviewCommand` has no strictest value: it keeps what the valid layers name.
+    // `reviewCommand` and `worker` have no strictest value: they keep what the valid layers name.
     config = { ...config, guardrails: cloneGuardrails(STRICTEST_GUARDRAILS), pr: { ...config.pr, ...STRICTEST_PR } }
   }
   return {

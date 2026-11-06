@@ -197,6 +197,17 @@
       "docs": ["docs/overview.md#where-the-rules-come-from", "docs/adr/0003-invalid-config-layer-runs-strictest.md"]
     },
     {
+      "id": "config.worker",
+      "name": "worker key",
+      "group": "config",
+      "summary": "The command a Worker starts with, its model and effort; setup writes the command locally when cswap is on PATH.",
+      "code": ["packages/dw-sdlc/config/agentic.config.schema.json", "packages/dw-sdlc/src/setup-worker.ts"],
+      "docs": [
+        "docs/overview.md#where-the-rules-come-from",
+        "docs/adr/0014-session-helpers-ship-as-sdlc-sessions-beside-sdlc.md"
+      ]
+    },
+    {
       "id": "config.worktree",
       "name": "worktree key",
       "group": "config",

@@ -603,6 +603,54 @@ describe("pr.reviewCommand", () => {
   })
 })
 
+describe("worker", () => {
+  const CSWAP = "cswap run -- --dangerously-skip-permissions"
+
+  it("is claude on sonnet at high with nothing declared", () => {
+    const { config, problems } = resolveConfig(repo())
+    assert.deepEqual(problems, [])
+    assert.deepEqual(config.worker, { command: "claude", model: "sonnet", effort: "high" })
+  })
+
+  it("takes each key from any layer, the local one over the committed one, key by key", () => {
+    const files = {
+      [COMMITTED_FILE]: { worker: { model: "opus", effort: "max" } },
+      [LOCAL_FILE]: { worker: { command: CSWAP, effort: "low" } }
+    }
+    const { config, problems, layers } = resolveConfig(repo({ files }))
+    assert.deepEqual(problems, [])
+    assert.equal(layers.local, "valid", "no strictness order holds the local layer back")
+    assert.deepEqual(config.worker, { command: CSWAP, model: "opus", effort: "low" })
+  })
+
+  it("keeps what the valid layers name while a layer is invalid, the local one dropped whole", () => {
+    const files = {
+      [COMMITTED_FILE]: { worker: { model: "opus" } },
+      [LOCAL_FILE]: { worker: { command: CSWAP }, pr: { review: "off" }, guardrails: { forcePush: "lease" } }
+    }
+    const invalid = resolveConfig(repo({ files: { ...files, [LOCAL_FILE]: { ...files[LOCAL_FILE], extra: 1 } } }))
+    assert.notDeepEqual(invalid.problems, [])
+    assert.deepEqual(invalid.config.worker, { command: "claude", model: "opus", effort: "high" })
+  })
+
+  it("refuses an empty command or model, a value off the effort levels, and a key it does not know", () => {
+    const cases: [object, string, string][] = [
+      [{ command: "" }, "worker.command", "must not be empty"],
+      [{ model: "" }, "worker.model", "must not be empty"],
+      [{ effort: "extreme" }, "worker.effort", '"extreme" is not one of "low", "medium", "high", "xhigh", "max"'],
+      [{ command: 3 }, "worker.command", "expected string, got 3"]
+    ]
+    for (const [worker, path, message] of cases) {
+      const result = validateDocument("agentic.config.json", JSON.stringify({ worker }))
+      assert.ok("problems" in result, JSON.stringify(worker))
+      assert.deepEqual(result.problems, [{ file: "agentic.config.json", path, message }])
+    }
+    const unknown = validateDocument("agentic.config.json", JSON.stringify({ worker: { launcher: "x" } }))
+    assert.ok("problems" in unknown)
+    assert.equal(unknown.problems[0]?.path, "worker")
+  })
+})
+
 describe("matchesEnvGlob", () => {
   it("anchors a plain entry at the root and lets `**/` reach any depth", () => {
     assert.ok(matchesEnvGlob(".env", ".env"))

@@ -406,6 +406,27 @@
       },
       "additionalProperties": false
     },
+    "worker": {
+      "description": "How a Worker's Claude Code session starts: the command, the model and the effort. No strictness order, as with `pr.reviewCommand`: any layer sets any key freely.",
+      "type": "object",
+      "properties": {
+        "command": {
+          "description": "The command a Worker starts with: the words that start its Claude Code session, before the flags of its own, such as `--model` and `--effort`. Default `claude`. It belongs to one machine, so it sits in the local layer, where `dw-sdlc setup` writes `cswap run -- --dangerously-skip-permissions` when `cswap` is on PATH.",
+          "type": "string",
+          "minLength": 1
+        },
+        "model": {
+          "description": "The model a Worker runs on, as Claude Code's `--model` takes it. Default `sonnet`.",
+          "type": "string",
+          "minLength": 1
+        },
+        "effort": {
+          "description": "The effort a Worker runs at, one of Claude Code's effort levels. Default `high`.",
+          "enum": ["low", "medium", "high", "xhigh", "max"]
+        }
+      },
+      "additionalProperties": false
+    },
     "worktree": {
       "type": "object",
       "properties": {

@@ -26,6 +26,10 @@ config already holds stays without one:
   `--force-push lease`;
 - no commit on a protected branch: `--commit-on-protected deny`, or `allow`.
 
+Where `cswap` is on PATH, the run also writes `worker.command`, the command a Worker starts with, into
+the local config and shows it on the dry run's `would write` line; a `worker` block the file holds stays.
+Without `cswap` nothing is written. No flag asks for it.
+
 A repository where every change goes through a pull request and lease pushes need a prompt, as an
 AirHelp one, is `--convention ticket-key --force-push ask --commit-on-protected deny`. A pin that
 loosens what the committed config sets is refused.
