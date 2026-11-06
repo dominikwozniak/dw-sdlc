@@ -27,7 +27,7 @@ docs and tooling around them. The repository is private, so the clone uses your 
 - **A guard judges each call before it runs.** It says no, asks, or stays silent. Nothing else changes.
 - **The rules come from the repository.** `.ai/agentic.config.json` declares them; a machine may tighten, never loosen.
 - **A broken config runs the strictest set.** A typo can never quietly switch a guard off.
-- **One plugin, one line to enable.** No hooks copied into every repository, nothing to drift.
+- **The `sdlc` plugin, one line to enable.** No hooks copied into every repository, nothing to drift.
 
 ## Setup
 

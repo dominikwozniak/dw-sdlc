@@ -2,7 +2,7 @@
 // gh. It writes nothing: the Action of the branch's pull request is the Ship script's decision, read.
 
 import { existsSync } from "node:fs"
-import { resolve } from "node:path"
+import { join } from "node:path"
 import { parseArgs } from "node:util"
 
 import { findRepository, mainCheckout, resolveConfig } from "../agentic-config.ts"
@@ -20,19 +20,20 @@ and whether the session sits in a linked worktree, and answers whether the sessi
 every reason. It writes nothing: the pull request's Action is the one dw-sdlc pr ship would answer, read
 and never performed.
 
-The session cannot be closed over a paused rebase, an uncommitted change, a commit pushed nowhere or only
-part of the way, an open pull request whatever its Action, or commits on top of the base that no pull
-request holds; the default branch and a branch guardrails.protectedBranches names need no pull request.
-A pull request closed without merging holds nothing: its commits count as pushed only on a remote branch,
-and the remote is asked which of its branches still stand. A linked worktree is a reason beside the
-verdict, never against it: the session cannot remove the directory it runs in.
+The session cannot be closed over a paused rebase, merge, cherry-pick, revert or bisect, an uncommitted
+change, a commit pushed nowhere or only part of the way, an open pull request whatever its Action, or
+commits on top of the base that no pull request holds; the default branch and a branch
+guardrails.protectedBranches names need no pull request. A pull request closed without merging holds
+nothing, and a detached HEAD names no pull request: there a commit counts as pushed only on a remote
+branch that still stands, which the remote answers. A linked worktree is a reason beside the verdict,
+never against it: the session cannot remove the directory it runs in.
 One line a fact, or one document with --json. Needs an authenticated gh and a remote it can read. A
 detached HEAD or a repository with no remote asks gh nothing, and the verdict says so.
 
 Exit 0 the session can be closed, 1 it cannot, 2 when it cannot run.`
 
 type ReasonId =
-  | "rebase"
+  | "paused"
   | "uncommitted"
   | "unpushed"
   | "no-upstream"
@@ -52,12 +53,12 @@ type Local = {
   /** Null before the first commit. */
   head: string | null
   uncommitted: number
-  /** Null when none is set or its ref is gone from the remote. */
+  /** Null when none is set, it is a local branch or its ref is gone from the remote. */
   upstream: string | null
-  /** The commits past the upstream or, without one, on no remote. */
+  /** The commits past the upstream or, without one, on no remote; none when a pull request holds the head. */
   unpushed: number
-  /** A rebase or `git am` stands paused: its tree can read clean at a pushed commit. */
-  rebasing: boolean
+  /** What git stands paused in, whose tree can read clean at a pushed commit; null when nothing is. */
+  paused: string | null
   /** The checkout's top level, and whether it is a linked worktree. */
   worktree: { linked: boolean; path: string }
 }
@@ -88,23 +89,40 @@ function count(root: string, args: string[]): number {
   return Number(must(root, ["rev-list", "--count", ...args]))
 }
 
-/** The upstream of `branch`, unless git reports its ref gone. */
-function upstreamOf(root: string, branch: string): string | null {
-  const format = "%(upstream:lstrip=2) %(upstream:track)"
-  const [name = "", track] = must(root, ["for-each-ref", `--format=${format}`, `refs/heads/${branch}`]).split(" ")
-  return name === "" || track === "[gone]" ? null : name
+function remotesOf(root: string): string[] {
+  return must(root, ["remote"])
+    .split("\n")
+    .filter((remote) => remote !== "")
 }
 
-/** Git's own record of a paused rebase or `git am`, in the git directory a linked worktree keeps apart. */
-function isRebasing(root: string): boolean {
-  const records = ["rebase-merge", "rebase-apply"]
-  return records.some((record) => existsSync(resolve(root, must(root, ["rev-parse", "--git-path", record]))))
+/** The remote-tracking upstream of `branch`, as `--remotes` names it, unless git reports its ref gone. */
+function upstreamOf(root: string, branch: string): string | null {
+  const prefix = "refs/remotes/"
+  const format = "%(upstream) %(upstream:track)"
+  const [ref = "", track] = must(root, ["for-each-ref", `--format=${format}`, `refs/heads/${branch}`]).split(" ")
+  return ref.startsWith(prefix) && track !== "[gone]" ? ref.slice(prefix.length) : null
+}
+
+/** Git's own record of each paused operation, in the git directory a linked worktree keeps apart. */
+const PAUSES = [
+  ["rebase-merge", "rebase"],
+  ["rebase-apply", "rebase or am"],
+  ["MERGE_HEAD", "merge"],
+  ["CHERRY_PICK_HEAD", "cherry-pick"],
+  ["REVERT_HEAD", "revert"],
+  ["sequencer", "cherry-pick or revert"],
+  ["BISECT_LOG", "bisect"]
+]
+
+function pausedIn(root: string): string | null {
+  const gitDir = must(root, ["rev-parse", "--absolute-git-dir"])
+  return PAUSES.find(([record = ""]) => existsSync(join(gitDir, record)))?.[1] ?? null
 }
 
 function readLocal(root: string): Local {
   const branch = asked(root, ["symbolic-ref", "--quiet", "--short", "HEAD"]) ?? null
   const head = asked(root, ["rev-parse", "--verify", "--quiet", "HEAD"]) ?? null
-  const status = must(root, ["status", "--porcelain"])
+  const status = must(root, ["status", "--porcelain", "--untracked-files=normal"])
   const upstream = branch === null ? null : upstreamOf(root, branch)
   const pushed = upstream === null ? ["HEAD", "--not", "--remotes"] : ["@{upstream}..HEAD"]
   return {
@@ -113,7 +131,7 @@ function readLocal(root: string): Local {
     uncommitted: status === "" ? 0 : status.split("\n").length,
     upstream,
     unpushed: head === null ? 0 : count(root, pushed),
-    rebasing: isRebasing(root),
+    paused: pausedIn(root),
     worktree: { linked: mainCheckout(root) !== undefined, path: root }
   }
 }
@@ -126,30 +144,43 @@ function readShipped(root: string): Shipped | null {
   return pr === null ? null : { pr, answer: decide(pr, now(), policy) }
 }
 
-/** The tracking refs, as `--remotes` names them, of branches their remote no longer has; a fetch may not have said so. */
-function staleTracking(root: string): string[] {
-  return must(root, ["remote"])
-    .split("\n")
-    .flatMap((remote) => {
-      const live = must(root, ["ls-remote", "--heads", remote])
+/**
+ * The tracking refs, as `--remotes` names them, that the remote contradicts, which only a fetch would show:
+ * a branch it no longer has, its `HEAD`, and the session's own branch where it moved. Any other branch that
+ * moved, such as the base, still holds what it held.
+ */
+function staleTracking(root: string, { branch, upstream }: Local): string[] {
+  return remotesOf(root).flatMap((remote) => {
+    const live = new Map(
+      must(root, ["ls-remote", "--heads", remote])
         .split("\n")
-        .map((line) => line.split("\t")[1]?.replace("refs/heads/", `${remote}/`))
-      return must(root, ["for-each-ref", "--format=%(refname:lstrip=2)", `refs/remotes/${remote}`])
-        .split("\n")
-        .filter((tracking) => tracking !== "" && tracking !== `${remote}/HEAD` && !live.includes(tracking))
-    })
+        .map((line): [string, string] => {
+          const [oid = "", ref = ""] = line.split("\t")
+          return [ref.replace("refs/heads/", `${remote}/`), oid]
+        })
+    )
+    return must(root, ["for-each-ref", "--format=%(refname:lstrip=2) %(objectname)", `refs/remotes/${remote}`])
+      .split("\n")
+      .map((line) => line.split(" "))
+      .filter(([tracking = "", oid]) => {
+        const own = tracking === upstream || tracking === `${remote}/${branch}`
+        return tracking !== "" && (!live.has(tracking) || (own && live.get(tracking) !== oid))
+      })
+      .map(([tracking = ""]) => tracking)
+  })
 }
 
 /**
  * Where the head stands once the pull request is read. A commit an open or merged one holds is on GitHub,
- * whatever became of the upstream. A closed one lands nothing, so only a remote branch that still stands
- * counts for its commits.
+ * whatever became of the upstream. A closed one lands nothing and a detached HEAD names none, so there only
+ * a remote branch that still stands counts for the head.
  */
 function standing(root: string, read: Local, shipped: Shipped | null, held: boolean): Local {
-  if (shipped?.pr.state !== "CLOSED" || read.head === null) {
+  const asksRemote = read.branch === null || shipped?.pr.state === "CLOSED"
+  if (!asksRemote || read.head === null) {
     return held ? { ...read, unpushed: 0 } : read
   }
-  const stale = staleTracking(root)
+  const stale = staleTracking(root, read)
   if (read.upstream !== null && !stale.includes(read.upstream)) {
     return read
   }
@@ -172,8 +203,7 @@ function aheadOf(root: string, branch: string, shipped: Shipped | null): Ahead |
   if (branch === base) {
     return null
   }
-  const refs = must(root, ["remote"])
-    .split("\n")
+  const refs = remotesOf(root)
     .map((remote) => `refs/remotes/${remote}/${base}`)
     .filter((ref) => asked(root, ["rev-parse", "--verify", "--quiet", ref]) !== undefined)
   return { base, commits: count(root, ["HEAD", "--not", ...refs]) }
@@ -206,8 +236,8 @@ function cleanReason(askedGh: boolean): Reason {
 
 function reasonsOf(local: Local, shipped: Shipped | null, ahead: Ahead | null, askedGh: boolean): Reason[] {
   const all: Reason[] = []
-  if (local.rebasing) {
-    all.push({ id: "rebase", blocks: true, text: "a rebase or am is paused" })
+  if (local.paused !== null) {
+    all.push({ id: "paused", blocks: true, text: `a ${local.paused} is paused` })
   }
   if (local.uncommitted > 0) {
     all.push({ id: "uncommitted", blocks: true, text: plural(local.uncommitted, "uncommitted change") })
@@ -275,7 +305,7 @@ function report(json: boolean): number {
   const read = readLocal(root)
   const { branch, head } = read
   // A detached HEAD names no branch for gh to look up, and a repository with no remote has no GitHub.
-  const asksGh = branch !== null && must(root, ["remote"]) !== ""
+  const asksGh = branch !== null && remotesOf(root).length > 0
   const shipped = asksGh ? readShipped(root) : null
   const held = shipped !== null && head !== null && shipped.pr.commits.includes(head)
   const local = standing(root, read, shipped, held)

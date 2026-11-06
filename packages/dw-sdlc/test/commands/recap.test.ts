@@ -37,7 +37,7 @@ type Document = {
   uncommitted: number
   upstream: string | null
   unpushed: number
-  rebasing: boolean
+  paused: string | null
   pullRequest: { url: string; state: string; status: string; action: string; actor: string; reason: string } | null
   worktree: { linked: boolean; path: string }
   close: { verdict: "yes" | "no"; line: string; reasons: Reason[] }
@@ -107,6 +107,19 @@ function withPr(pr: Pr): Scenario {
   return { commands: { "pr view": FOUND }, graphql: [served(pr)] }
 }
 
+/** The document on main at a pushed commit, with a branch `other` to pick from, once `pause` has run: it must block. */
+function pausedOn(pause: (root: string) => void): Document {
+  const root = clone()
+  git(root, "switch", "-q", "-c", "other")
+  commit(root, "--allow-empty", "-m", "on other")
+  git(root, "switch", "-q", "main")
+  pause(root)
+  const { status, doc } = document(root, noPr)
+  assert.equal(status, 1, JSON.stringify(doc.close))
+  assert.equal(doc.uncommitted, 0)
+  return doc
+}
+
 describe("dw-sdlc recap", () => {
   it("clean and pushed on the default branch, no pull request: it can close", () => {
     const root = clone()
@@ -118,7 +131,7 @@ describe("dw-sdlc recap", () => {
       uncommitted: 0,
       upstream: "origin/main",
       unpushed: 0,
-      rebasing: false,
+      paused: null,
       pullRequest: null,
       worktree: { linked: false, path: root },
       close: {
@@ -433,12 +446,22 @@ describe("dw-sdlc recap", () => {
     assert.equal(doc.branch, null)
     assert.equal(doc.uncommitted, 0)
     assert.equal(doc.unpushed, 0)
-    assert.equal(doc.rebasing, true)
-    assert.deepEqual(doc.close.reasons, [{ id: "rebase", blocks: true, text: "a rebase or am is paused" }])
-    assert.equal(doc.close.line, "Close the session: no, because a rebase or am is paused")
+    assert.equal(doc.paused, "rebase")
+    assert.deepEqual(doc.close.reasons, [{ id: "paused", blocks: true, text: "a rebase is paused" }])
+    assert.equal(doc.close.line, "Close the session: no, because a rebase is paused")
     assert.deepEqual(calls, [])
     git(root, "rebase", "--abort")
-    assert.equal(document(root, withPr({ ...GREEN, head: head(root), branch: "feat" })).doc.rebasing, false)
+    assert.equal(document(root, withPr({ ...GREEN, head: head(root), branch: "feat" })).doc.paused, null)
+  })
+
+  it("a paused merge, cherry-pick or bisect blocks it, on a clean tree and at a pushed commit", () => {
+    const merge = pausedOn((root) => git(root, "merge", "-q", "--no-commit", "--no-ff", "-s", "ours", "other"))
+    assert.deepEqual(merge.close.reasons, [{ id: "paused", blocks: true, text: "a merge is paused" }])
+    const pick = pausedOn((root) => {
+      assert.throws(() => git(root, "-c", "user.email=t@example.com", "-c", "user.name=t", "cherry-pick", "other"))
+    })
+    assert.equal(pick.paused, "cherry-pick")
+    assert.equal(pausedOn((root) => git(root, "bisect", "start")).paused, "bisect")
   })
 
   it("a paused rebase in a linked worktree, whose git directory lies elsewhere, blocks it", () => {
@@ -451,7 +474,82 @@ describe("dw-sdlc recap", () => {
     pauseRebase(linked)
     const { status, doc } = document(linked, noPr)
     assert.equal(status, 1)
-    assert.deepEqual(blocking(doc), ["rebase"])
+    assert.deepEqual(blocking(doc), ["paused"])
+  })
+
+  it("an untracked file counts whatever status.showUntrackedFiles says", () => {
+    const root = clone()
+    git(root, "config", "status.showUntrackedFiles", "no")
+    write(join(root, "new.txt"), "new\n")
+    const { status, doc } = document(root, noPr)
+    assert.equal(status, 1)
+    assert.equal(doc.uncommitted, 1)
+  })
+
+  it("an upstream that is a local branch is no upstream: its commits reach no remote", () => {
+    const root = clone()
+    git(root, "branch", "backup")
+    git(root, "branch", "--set-upstream-to=backup", "main")
+    commit(root, "--allow-empty", "-m", "on main alone")
+    git(root, "branch", "-f", "backup", "main")
+    const { status, doc } = document(root, noPr)
+    assert.equal(status, 1, JSON.stringify(doc.close))
+    assert.equal(doc.upstream, null)
+    assert.equal(doc.unpushed, 1)
+    assert.deepEqual(blocking(doc), ["no-upstream"])
+  })
+
+  it("a detached HEAD at a commit whose branch the remote lost, with no fetch since, blocks it", () => {
+    const root = clone()
+    branch(root, 1)
+    git(root, "push", "-q", "-u", "origin", "feat")
+    git(root, "switch", "-q", "--detach")
+    git(git(root, "remote", "get-url", "origin").trim(), "branch", "-q", "-D", "feat")
+    const { status, doc, calls } = document(root, noPr)
+    assert.equal(status, 1, JSON.stringify(doc.close))
+    assert.deepEqual(doc.close.reasons, [
+      { id: "no-upstream", blocks: true, text: "1 commit on a detached HEAD, on no remote" }
+    ])
+    assert.deepEqual(calls, [])
+  })
+
+  it("a closed pull request's branch moved off the head on the remote, with no fetch since, blocks it", () => {
+    const root = clone()
+    const base = head(root)
+    branch(root, 1)
+    git(root, "push", "-q", "-u", "origin", "feat")
+    const closed: Pr = { ...GREEN, head: head(root), branch: "feat", state: "CLOSED" }
+    git(git(root, "remote", "get-url", "origin").trim(), "update-ref", "refs/heads/feat", base)
+    const { status, doc } = document(root, withPr(closed))
+    assert.equal(status, 1, JSON.stringify(doc.close))
+    assert.equal(doc.unpushed, 1)
+    assert.deepEqual(blocking(doc), ["no-upstream"])
+  })
+
+  it("a closed pull request's commit reached only through origin/HEAD, a symref to the deleted branch, blocks it", () => {
+    const root = clone()
+    branch(root, 1)
+    git(root, "push", "-q", "-u", "origin", "feat")
+    const closed: Pr = { ...GREEN, head: head(root), branch: "feat", state: "CLOSED" }
+    git(root, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/feat")
+    git(git(root, "remote", "get-url", "origin").trim(), "branch", "-q", "-D", "feat")
+    const { status, doc } = document(root, withPr(closed))
+    assert.equal(status, 1, JSON.stringify(doc.close))
+    assert.deepEqual(blocking(doc), ["no-upstream"])
+  })
+
+  it("a closed pull request stays closable when the base moved on the remote with no fetch since", () => {
+    const root = clone()
+    branch(root, 1)
+    git(root, "push", "-q", "-u", "origin", "feat")
+    const closed: Pr = { ...GREEN, head: head(root), branch: "feat", state: "CLOSED" }
+    const other = join(scratch("other"), "checkout")
+    git(root, "clone", "-q", git(root, "remote", "get-url", "origin").trim(), other)
+    commit(other, "--allow-empty", "-m", "main moves on")
+    git(other, "push", "-q", "origin", "HEAD:main")
+    const { status, doc } = document(root, withPr(closed))
+    assert.equal(status, 0, JSON.stringify(doc.close))
+    assert.deepEqual(ids(doc), ["clean", "closed"])
   })
 
   it("a repository with no remote asks gh nothing; its commits block it", () => {
