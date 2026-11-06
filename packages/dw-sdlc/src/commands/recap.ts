@@ -1,6 +1,8 @@
 // `dw-sdlc recap`: the facts a Recap rests on and whether the session can be closed, read from git and
 // gh. It writes nothing: the Action of the branch's pull request is the Ship script's decision, read.
 
+import { existsSync } from "node:fs"
+import { resolve } from "node:path"
 import { parseArgs } from "node:util"
 
 import { findRepository, mainCheckout, resolveConfig } from "../agentic-config.ts"
@@ -18,16 +20,19 @@ and whether the session sits in a linked worktree, and answers whether the sessi
 every reason. It writes nothing: the pull request's Action is the one dw-sdlc pr ship would answer, read
 and never performed.
 
-The session cannot be closed over an uncommitted change, a commit pushed nowhere or only part of the way,
-an open pull request whatever its Action, or commits on top of the base that no pull request holds; the
-default branch and a branch guardrails.protectedBranches names need no pull request. A linked worktree
-is a reason beside the verdict, never against it: the session cannot remove the directory it runs in.
+The session cannot be closed over a paused rebase, an uncommitted change, a commit pushed nowhere or only
+part of the way, an open pull request whatever its Action, or commits on top of the base that no pull
+request holds; the default branch and a branch guardrails.protectedBranches names need no pull request.
+A pull request closed without merging holds nothing: its commits count as pushed only on a remote branch,
+and the remote is asked whether its branch still stands. A linked worktree is a reason beside the
+verdict, never against it: the session cannot remove the directory it runs in.
 One line a fact, or one document with --json. Needs an authenticated gh and a remote it can read. A
 detached HEAD or a repository with no remote asks gh nothing, and the verdict says so.
 
 Exit 0 the session can be closed, 1 it cannot, 2 when it cannot run.`
 
 type ReasonId =
+  | "rebase"
   | "uncommitted"
   | "unpushed"
   | "no-upstream"
@@ -51,6 +56,8 @@ type Local = {
   upstream: string | null
   /** The commits past the upstream or, without one, on no remote. */
   unpushed: number
+  /** A rebase or `git am` stands paused: its tree can read clean at a pushed commit. */
+  rebasing: boolean
   /** The checkout's top level, and whether it is a linked worktree. */
   worktree: { linked: boolean; path: string }
 }
@@ -88,6 +95,12 @@ function upstreamOf(root: string, branch: string): string | null {
   return name === "" || track === "[gone]" ? null : name
 }
 
+/** Git's own record of a paused rebase or `git am`, in the git directory a linked worktree keeps apart. */
+function isRebasing(root: string): boolean {
+  const records = ["rebase-merge", "rebase-apply"]
+  return records.some((record) => existsSync(resolve(root, must(root, ["rev-parse", "--git-path", record]))))
+}
+
 function readLocal(root: string): Local {
   const branch = asked(root, ["symbolic-ref", "--quiet", "--short", "HEAD"]) ?? null
   const head = asked(root, ["rev-parse", "--verify", "--quiet", "HEAD"]) ?? null
@@ -100,6 +113,7 @@ function readLocal(root: string): Local {
     uncommitted: status === "" ? 0 : status.split("\n").length,
     upstream,
     unpushed: head === null ? 0 : count(root, pushed),
+    rebasing: isRebasing(root),
     worktree: { linked: mainCheckout(root) !== undefined, path: root }
   }
 }
@@ -110,6 +124,33 @@ function readShipped(root: string): Shipped | null {
   const policy = declaredPolicy(resolveConfig(root).config.pr)
   const pr = readBranch(policy.review.depth === "auto")
   return pr === null ? null : { pr, answer: decide(pr, now(), policy) }
+}
+
+/** The upstream of `branch`, as `--remotes` names it, when the remote no longer has it; a fetch may not have said so. */
+function staleUpstream(root: string, branch: string): string | null {
+  const format = "%(upstream:lstrip=2) %(upstream:remotename) %(upstream:remoteref)"
+  const line = must(root, ["for-each-ref", `--format=${format}`, `refs/heads/${branch}`])
+  const [tracking = "", remote = "", ref = ""] = line.split(" ")
+  return must(root, ["ls-remote", remote, ref]) === "" ? tracking : null
+}
+
+/**
+ * Where the head stands once the pull request is read. A commit an open or merged one holds is on GitHub,
+ * whatever became of the upstream. A closed one lands nothing, so only a remote branch that still stands
+ * counts for its commits.
+ */
+function standing(root: string, read: Local, shipped: Shipped | null): Local {
+  if (shipped === null || read.head === null) {
+    return read
+  }
+  if (shipped.pr.state !== "CLOSED") {
+    return shipped.pr.commits.includes(read.head) ? { ...read, unpushed: 0 } : read
+  }
+  const stale = read.branch === null || read.upstream === null ? null : staleUpstream(root, read.branch)
+  if (stale === null) {
+    return read
+  }
+  return { ...read, upstream: null, unpushed: count(root, ["HEAD", "--not", `--exclude=${stale}`, "--remotes"]) }
 }
 
 /** How many commits sit on top of `base`, the branch a pull request for them would land on. */
@@ -161,6 +202,9 @@ function cleanReason(askedGh: boolean): Reason {
 
 function reasonsOf(local: Local, shipped: Shipped | null, ahead: Ahead | null, askedGh: boolean): Reason[] {
   const all: Reason[] = []
+  if (local.rebasing) {
+    all.push({ id: "rebase", blocks: true, text: "a rebase or am is paused" })
+  }
   if (local.uncommitted > 0) {
     all.push({ id: "uncommitted", blocks: true, text: plural(local.uncommitted, "uncommitted change") })
   }
@@ -229,9 +273,8 @@ function report(json: boolean): number {
   // A detached HEAD names no branch for gh to look up, and a repository with no remote has no GitHub.
   const asksGh = branch !== null && must(root, ["remote"]) !== ""
   const shipped = asksGh ? readShipped(root) : null
-  // A commit the pull request holds is on GitHub, whatever became of the upstream.
+  const local = standing(root, read, shipped)
   const held = shipped !== null && head !== null && shipped.pr.commits.includes(head)
-  const local = held ? { ...read, unpushed: 0 } : read
   // An open pull request can still take the head, and a commit-less repository has nothing to land.
   const nothingToLand = held || shipped?.pr.state === "OPEN" || head === null
   const ahead = asksGh && !nothingToLand ? aheadOf(root, branch, shipped) : null
