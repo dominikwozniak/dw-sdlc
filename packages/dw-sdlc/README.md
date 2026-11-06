@@ -86,6 +86,7 @@ script posts that status itself, its description saying why, and goes on.
 | `references setup` | the Router, its table and the ignore rules a repository needs to declare References |
 | `pr ship [<n>]`    | the Action one pull request needs next, performing the script's own                 |
 | `pr reviewed <n>`  | a clean review pinned to the head it read, as a commit status                       |
+| `recap`            | the facts a Recap rests on and whether the session can be closed                    |
 
 `dw-sdlc <command> --help` gives each one's options.
 

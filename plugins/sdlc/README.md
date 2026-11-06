@@ -19,11 +19,12 @@ claude plugin install sdlc@dw-sdlc --scope user
 ```
 
 The install is that one plugin, `"sdlc@dw-sdlc": true` under `enabledPlugins` in
-`~/.claude/settings.json`, and the marketplace lists no other. The hooks need `jq`. Without it every
-guard exits 0 and guards nothing; the doctor says so.
+`~/.claude/settings.json`. The marketplace lists [`sdlc-sessions`](../sdlc-sessions/README.md) beside
+it, for a machine that wants the session helpers too. The hooks need `jq`. Without it every guard exits
+0 and guards nothing; the doctor says so.
 
 Added from GitHub, the plugin is a snapshot of `main` that `claude plugin update` refreshes, and
-`--sparse` keeps the clone to the catalogue, the plugin and the package the `dw-sdlc` link points
+`--sparse` keeps the clone to the catalogue, the plugins and the package the `dw-sdlc` links point
 at; without `packages` the plugin installs without the package. Added from a clone
 (`claude plugin marketplace add ./` in the checkout), it runs live from that checkout: a change on
 disk is in the next session, a broken edit included.
@@ -389,7 +390,7 @@ the key.
 
 `dw-sdlc doctor` prints one PASS / WARN / FAIL line per machine check and installs
 nothing: `jq`, the plugin enabled, the package the plugin links against the one the repository pins,
-rtk not wired by hand beside the plugin's hook and the filters that misbehave on the installed
+the session helpers' plugin and its copy of the package, rtk not wired by hand beside the plugin's hook and the filters that misbehave on the installed
 release excluded (`find` below rtk 0.46.0), Safe Chain visible to the agent's login shell with `npm`
 going through it (a WARN when absent), pnpm's global `minimumReleaseAge`, commit signing, and the
 resolved config of the repository holding `--root` or the current directory. A check that does not
@@ -402,6 +403,12 @@ for `workspace:` or a range the copy installed under `node_modules`. Equal versi
 ones are a WARN that starts with `drift:`, since the hooks and skills then run other code than the
 repository's Gate, and it names the fix: `claude plugin update sdlc@dw-sdlc` when the plugin is
 behind, the exact pin when the repository is. A repository that pins no `dw-sdlc` gets INFO.
+
+The `sessions` line reports [`sdlc-sessions`](../sdlc-sessions/README.md), which a machine may go
+without, so it never fails: INFO when it is not installed, a WARN when it is disabled or carries no
+package. Its own copy of the package is compared with the copy `sdlc` runs, which the `package` line holds
+to the repository's pin. Different versions are a WARN that starts with `drift:` and names the plugin
+to update.
 
 The `sdlc-doctor` skill runs it as `node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" doctor` from the
 repository, and the setup skill runs it last; a terminal runs
@@ -657,7 +664,7 @@ machine's git config. `test/manifest.test.ts` holds the manifest to the tree: ea
 to its event and matcher, run by the dispatcher or left to git, each skill under its name, with
 every plugin path it runs on disk and left for the user to invoke, each subagent under its name, at
 medium effort on the session's model with no tool that edits a file, the link to the package, and
-the marketplace listing this plugin alone at the manifest's version.
+the marketplace listing this plugin at the manifest's version.
 
 The commands' tests sit beside the package's code, in its `test/commands/`: `setup`, `doctor` and
 `config`, `references-sync.test.ts`, which drives the Sync against upstreams served over `file://`,

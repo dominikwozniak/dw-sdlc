@@ -3,8 +3,10 @@
 **The software delivery process Dominik works by, and the Claude Code tooling that carries it.**
 
 A plugin marketplace and the code behind it. The process is proven in this repository before it goes
-wider. The marketplace ships one plugin, `sdlc`: the guards, the Sync of the repositories an agent
-reads for prior art, and the skills that set a repository up and check a machine.
+wider. The marketplace ships two plugins. `sdlc` carries the guards, the Sync of the repositories an
+agent reads for prior art, and the skills that set a repository up and check a machine.
+[`sdlc-sessions`](plugins/sdlc-sessions/README.md) depends on it and carries `/sdlc-recap`, which says
+where a session stands and whether it can be closed.
 
 ## Install
 
@@ -13,7 +15,7 @@ claude plugin marketplace add dominikwozniak/dw-sdlc --sparse .claude-plugin plu
 claude plugin install sdlc@dw-sdlc --scope user
 ```
 
-`--sparse` checks out only the catalogue, the plugin and the `dw-sdlc` package it links to, not the
+`--sparse` checks out only the catalogue, the plugins and the `dw-sdlc` package they link to, not the
 docs and tooling around them. The repository is private, so the clone uses your git credentials.
 
 > [!NOTE]
@@ -25,7 +27,7 @@ docs and tooling around them. The repository is private, so the clone uses your 
 - **A guard judges each call before it runs.** It says no, asks, or stays silent. Nothing else changes.
 - **The rules come from the repository.** `.ai/agentic.config.json` declares them; a machine may tighten, never loosen.
 - **A broken config runs the strictest set.** A typo can never quietly switch a guard off.
-- **One plugin, one line to enable.** No hooks copied into every repository, nothing to drift.
+- **The `sdlc` plugin, one line to enable.** No hooks copied into every repository, nothing to drift.
 
 ## Setup
 

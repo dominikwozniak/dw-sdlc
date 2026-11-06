@@ -47,6 +47,16 @@ const RTK_CONFIG = rtkConfigPath(HOME)
 /** The key for a command the doctor has to run from the home directory. */
 const atHome = (command: string): string => `in ${HOME}: ${command}`
 
+const SDLC_ENTRY = { id: "sdlc@dw-sdlc", version: "0.1.0", enabled: true, installPath: "/cache/sdlc/0.1.0" }
+const SESSIONS_ENTRY = {
+  id: "sdlc-sessions@dw-sdlc",
+  version: "0.3.0",
+  scope: "user",
+  enabled: true,
+  installPath: "/cache/sdlc-sessions/0.3.0"
+}
+const SESSIONS_COPY = "/src/dw-sdlc/plugins/sdlc-sessions/dw-sdlc/package.json"
+
 const HEALTHY: Fake = {
   commands: {
     "jq --version": { stdout: "jq-1.8.2\n" },
@@ -58,7 +68,8 @@ const HEALTHY: Fake = {
           scope: "user",
           enabled: true,
           installPath: "/cache/sdlc/0.1.0"
-        }
+        },
+        SESSIONS_ENTRY
       ])
     },
     [atHome("pnpm config get minimumReleaseAge")]: { stdout: "10080\n" },
@@ -69,6 +80,7 @@ const HEALTHY: Fake = {
     [`${HOME}/.claude/settings.json`]: "{}",
     "/src/dw-sdlc/plugins/sdlc/hooks/rtk-rewrite.sh": "#!/bin/bash\n",
     "/src/dw-sdlc/plugins/sdlc/dw-sdlc/package.json": JSON.stringify({ name: "dw-sdlc", version: "0.2.0" }),
+    [SESSIONS_COPY]: JSON.stringify({ name: "dw-sdlc", version: "0.2.0" }),
     [`${ROOT}/package.json`]: JSON.stringify({ devDependencies: { "dw-sdlc": "0.2.0" } }),
     [`${HOME}/.claude/plugins/known_marketplaces.json`]: JSON.stringify({
       "dw-sdlc": { source: { source: "directory", path: "/src/dw-sdlc" }, installLocation: "/src/dw-sdlc" }
@@ -113,6 +125,14 @@ function line(checks: Check[], name: string): Check {
 
 const CONFIG = { config: { commit: { convention: "ticket-key" } }, problems: [] as string[] }
 
+function sessions(machine: Fake): Check {
+  return line(diagnose({ root: ROOT, home: HOME, probe: fake(machine), config: CONFIG }), "sessions")
+}
+
+function listing(...entries: object[]): Fake {
+  return withCommand(HEALTHY, "claude plugin list --json", { stdout: JSON.stringify(entries) })
+}
+
 function rtkLine(machine: Fake): Check {
   return line(diagnose({ root: ROOT, home: HOME, probe: fake(machine), config: CONFIG }), "rtk")
 }
@@ -122,7 +142,7 @@ describe("diagnose", () => {
     const checks = diagnose({ root: ROOT, home: HOME, probe: fake(HEALTHY), config: CONFIG })
     assert.deepEqual(
       checks.map((check) => check.name),
-      ["jq", "plugin", "package", "rtk", "safe chain", "pnpm release age", "commit signing", "config"]
+      ["jq", "plugin", "package", "sessions", "rtk", "safe chain", "pnpm release age", "commit signing", "config"]
     )
     assert.deepEqual(new Set(checks.map((check) => check.level)), new Set(["PASS"]))
     assert.match(line(checks, "jq").detail, /jq-1\.8\.2/)
@@ -204,6 +224,66 @@ describe("diagnose", () => {
     )
     const check = line(diagnose({ root: ROOT, home: HOME, probe: fake(fromGit), config: CONFIG }), "package")
     assert.match(check.detail, /^drift: the plugin runs dw-sdlc 0\.1\.0 and the repository pins 0\.2\.0/)
+  })
+
+  describe("sessions", () => {
+    it("passes with its version and its copy of the package", () => {
+      const check = sessions(HEALTHY)
+      assert.equal(check.level, "PASS")
+      assert.equal(check.detail, "0.3.0 enabled, on dw-sdlc 0.2.0")
+    })
+
+    it("is INFO when absent, or when claude plugin list does not answer: a machine may go without it", () => {
+      const absent = sessions(listing(SDLC_ENTRY))
+      assert.equal(absent.level, "INFO")
+      assert.equal(absent.detail, "no sdlc-sessions@dw-sdlc, so no /sdlc-recap")
+      const silent = sessions(withCommand(HEALTHY, "claude plugin list --json", undefined))
+      assert.equal(silent.level, "INFO")
+      assert.equal(silent.detail, "claude plugin list did not answer")
+    })
+
+    it("warns when disabled, naming the command that enables it", () => {
+      const check = sessions(listing(SDLC_ENTRY, { ...SESSIONS_ENTRY, enabled: false }))
+      assert.equal(check.level, "WARN")
+      assert.equal(check.detail, "0.3.0 installed but disabled. claude plugin enable sdlc-sessions@dw-sdlc")
+    })
+
+    it("warns when it carries no copy of the package", () => {
+      const check = sessions(withFile(HEALTHY, SESSIONS_COPY, undefined))
+      assert.equal(check.level, "WARN")
+      assert.match(check.detail, /carries no dw-sdlc: an install from GitHub needs packages in its --sparse set/)
+    })
+
+    it("names the drift of its copy and the plugin that is behind", () => {
+      const behind = sessions(withFile(HEALTHY, SESSIONS_COPY, JSON.stringify({ version: "0.1.0" })))
+      assert.equal(behind.level, "WARN")
+      assert.equal(
+        behind.detail,
+        "drift: sdlc-sessions runs dw-sdlc 0.1.0 and sdlc runs 0.2.0. claude plugin update sdlc-sessions@dw-sdlc"
+      )
+      const ahead = sessions(withFile(HEALTHY, SESSIONS_COPY, JSON.stringify({ version: "0.3.0" })))
+      assert.equal(
+        ahead.detail,
+        "drift: sdlc-sessions runs dw-sdlc 0.3.0 and sdlc runs 0.2.0. claude plugin update sdlc@dw-sdlc"
+      )
+    })
+
+    it("reads a snapshot install at its installPath", () => {
+      const fromGit = withFile(
+        withFile(
+          withFile(
+            HEALTHY,
+            `${HOME}/.claude/plugins/known_marketplaces.json`,
+            JSON.stringify({ "dw-sdlc": { source: { source: "github", repo: "dominikwozniak/dw-sdlc" } } })
+          ),
+          "/cache/sdlc/0.1.0/dw-sdlc/package.json",
+          JSON.stringify({ version: "0.2.0" })
+        ),
+        "/cache/sdlc-sessions/0.3.0/dw-sdlc/package.json",
+        JSON.stringify({ version: "0.2.0" })
+      )
+      assert.equal(sessions(fromGit).level, "PASS")
+    })
   })
 
   it("jq missing is a FAIL that names the consequence", () => {

@@ -15,9 +15,9 @@ export default defineConfig({
       correctness: "error",
       suspicious: "error"
     },
-    // The plugin's link to the package: no tsconfig includes a path through it, so the type check would
+    // The plugins' links to the package: no tsconfig includes a path through one, so the type check would
     // read those files without the repo's compiler options. The package is linted at its own path.
-    ignorePatterns: ["node_modules/**", "references/*/**", "plugins/sdlc/dw-sdlc"],
+    ignorePatterns: ["node_modules/**", "references/*/**", "plugins/*/dw-sdlc"],
     options: {
       denyWarnings: true,
       // The type check needs `typeAware`, which also turns on the type-aware rules of the categories above.

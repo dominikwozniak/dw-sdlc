@@ -235,6 +235,7 @@ describe("dw-sdlc pr ship", () => {
       base: "main",
       baseOid: BASE_OID,
       mergeCommit: null,
+      commits: [HEAD],
       checks: [
         {
           name: "Check",

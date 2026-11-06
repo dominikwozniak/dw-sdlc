@@ -50,6 +50,9 @@ export function claudeConfigDir(env: Record<string, string | undefined>, home: s
 export const MARKETPLACE = "dw-sdlc"
 export const PLUGIN = "sdlc"
 export const PLUGIN_ID = `${PLUGIN}@${MARKETPLACE}`
+/** The plugin of the session helpers: optional, and it links a copy of the package of its own. */
+const SESSIONS = "sdlc-sessions"
+const SESSIONS_ID = `${SESSIONS}@${MARKETPLACE}`
 export const PACKAGE = "dw-sdlc"
 /** rtk find passes -exec through verbatim from this release; before it, `rtk find … -exec` exits 1. */
 export const RTK_FIND_EXEC_FIXED = "0.46.0"
@@ -93,8 +96,6 @@ function checkJq(probe: Probe): Check {
   return { name: "jq", level: "FAIL", detail: "missing: every guard is silent without it. brew install jq" }
 }
 
-/** Where the plugin's hooks run: live from the checkout for a marketplace added from a directory, a
- *  cached snapshot for one added from git. A marker placed in only one of the two settled it. */
 /** The checkout a directory marketplace runs the plugin from, or undefined for a snapshot. */
 function liveCheckout(probe: Probe, claude: string): string | undefined {
   const known = parseJson(probe.read(join(claude, "plugins", "known_marketplaces.json")))
@@ -111,28 +112,29 @@ function pluginOrigin(probe: Probe, claude: string, installPath: string): string
   return `installed at ${installPath}; a change reaches it through claude plugin update`
 }
 
-/** The directory whose hooks run on this machine: the checkout of a directory marketplace, else the installed snapshot. */
-function runningPluginRoot(probe: Probe, claude: string): string | undefined {
-  const checkout = liveCheckout(probe, claude)
-  if (checkout !== undefined) {
-    return join(checkout, "plugins", PLUGIN)
-  }
+/** What `claude plugin list --json` prints, one object a plugin, or undefined when it does not answer. */
+function listedPlugins(probe: Probe): Record<string, unknown>[] | undefined {
   const { status, stdout } = probe.run("claude", ["plugin", "list", "--json"])
   const list: unknown = status === 0 ? parseJson(stdout) : undefined
-  if (!Array.isArray(list)) {
-    return undefined
+  return Array.isArray(list) ? list.filter(isObject) : undefined
+}
+
+/** The directory `plugin` runs from on this machine: the checkout of a directory marketplace, else the installed snapshot. */
+function runningPluginRoot(probe: Probe, claude: string, plugin: string = PLUGIN): string | undefined {
+  const checkout = liveCheckout(probe, claude)
+  if (checkout !== undefined) {
+    return join(checkout, "plugins", plugin)
   }
-  const entry = list.find((item): item is Record<string, unknown> => isObject(item) && item.id === PLUGIN_ID)
+  const entry = listedPlugins(probe)?.find((item) => item.id === `${plugin}@${MARKETPLACE}`)
   return entry !== undefined && typeof entry.installPath === "string" ? entry.installPath : undefined
 }
 
 function checkPlugin(probe: Probe, claude: string): Check {
-  const { status, stdout } = probe.run("claude", ["plugin", "list", "--json"])
-  const list: unknown = status === 0 ? parseJson(stdout) : undefined
-  if (!Array.isArray(list)) {
+  const list = listedPlugins(probe)
+  if (list === undefined) {
     return { name: "plugin", level: "FAIL", detail: "claude plugin list did not answer; is Claude Code installed?" }
   }
-  const entry = list.find((item): item is Record<string, unknown> => isObject(item) && item.id === PLUGIN_ID)
+  const entry = list.find((item) => item.id === PLUGIN_ID)
   if (entry === undefined) {
     return {
       name: "plugin",
@@ -206,6 +208,44 @@ function checkPackage(probe: Probe, claude: string, root: string | undefined): C
     }
   }
   return { name, level: "PASS", detail: `${PACKAGE} ${linked} in the plugin and in the repository` }
+}
+
+/**
+ * `sdlc-sessions`, which a machine may go without, so it never fails. Its copy of the package against
+ * the sdlc plugin's copy: the `package` line holds that one to the repository's pin.
+ */
+function checkSessions(probe: Probe, claude: string): Check {
+  const name = "sessions"
+  const list = listedPlugins(probe)
+  const entry = list?.find((item) => item.id === SESSIONS_ID)
+  if (entry === undefined) {
+    const detail = list === undefined ? "claude plugin list did not answer" : `no ${SESSIONS_ID}, so no /sdlc-recap`
+    return { name, level: "INFO", detail }
+  }
+  const version = typeof entry.version === "string" ? entry.version : "?"
+  if (entry.enabled !== true) {
+    return { name, level: "WARN", detail: `${version} installed but disabled. claude plugin enable ${SESSIONS_ID}` }
+  }
+  const root = runningPluginRoot(probe, claude, SESSIONS)
+  const copy = root === undefined ? undefined : manifestVersion(probe, join(root, PACKAGE))
+  if (copy === undefined) {
+    return {
+      name,
+      level: "WARN",
+      detail: `${version} carries no ${PACKAGE}: an install from GitHub needs packages in its --sparse set`
+    }
+  }
+  const guards = runningPluginRoot(probe, claude)
+  const other = guards === undefined ? undefined : manifestVersion(probe, join(guards, PACKAGE))
+  if (other !== undefined && other !== copy) {
+    const behind = versionBefore(copy, other) ? SESSIONS_ID : PLUGIN_ID
+    return {
+      name,
+      level: "WARN",
+      detail: `drift: ${SESSIONS} runs ${PACKAGE} ${copy} and ${PLUGIN} runs ${other}. claude plugin update ${behind}`
+    }
+  }
+  return { name, level: "PASS", detail: `${version} enabled, on ${PACKAGE} ${copy}` }
 }
 
 /** Every hook command string in a settings file, whatever the event and matcher. */
@@ -398,6 +438,7 @@ export function diagnose(inputs: Inputs): Check[] {
     checkJq(probe),
     checkPlugin(probe, claude),
     checkPackage(probe, claude, inputs.config === undefined ? undefined : inputs.root),
+    checkSessions(probe, claude),
     checkRtk(probe, home, claude),
     checkSafeChain(probe),
     checkPnpmReleaseAge(probe, home),

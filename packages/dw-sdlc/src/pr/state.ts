@@ -68,6 +68,8 @@ export type PrState = {
   checks: CiCheck[]
   /** The threads neither resolved nor outdated. */
   unresolvedThreads: Thread[]
+  /** The oids of the pull request's last 100 commits, oldest first, the head last. */
+  commits: string[]
   /** The last commit before the head with a review success not posted under off, of the last 100. */
   lastReviewed: LastReviewed | null
   /** Whether the head carries the success of `lastReviewed`: the read decides it from two compares. */
@@ -315,6 +317,11 @@ export function parseView(reply: string): { repo: string; number: number } {
   return { repo, number: Number(number) }
 }
 
+/** The default branch of the repository whose `gh repo view --json defaultBranchRef` printed `reply`. */
+export function parseDefaultBranch(reply: string): string {
+  return string(child(rootOf(reply, "the reply of gh repo view"), "defaultBranchRef"), "name")
+}
+
 /** The state of the pull request in `reply`, the text `gh api graphql` printed for QUERY on `repo`. */
 export function parsePr(reply: string, repo: string): Omit<PrState, "carried" | "changed"> {
   const pr = child(child(child(rootOf(reply, "the reply"), "data"), "repository"), "pullRequest")
@@ -342,6 +349,7 @@ export function parsePr(reply: string, repo: string): Omit<PrState, "carried" | 
     unresolvedThreads: nodes(pr, "reviewThreads")
       .filter((thread) => !boolean(thread, "isResolved") && !boolean(thread, "isOutdated"))
       .map(threadOf),
+    commits: nodes(pr, "history").map((node) => string(child(node, "commit"), "oid")),
     lastReviewed: lastReviewedOf(pr, head)
   }
 }
