@@ -51,8 +51,8 @@ export const MARKETPLACE = "dw-sdlc"
 export const PLUGIN = "sdlc"
 export const PLUGIN_ID = `${PLUGIN}@${MARKETPLACE}`
 /** The plugin of the session helpers: optional, and it links a copy of the package of its own. */
-export const SESSIONS = "sdlc-sessions"
-export const SESSIONS_ID = `${SESSIONS}@${MARKETPLACE}`
+const SESSIONS = "sdlc-sessions"
+const SESSIONS_ID = `${SESSIONS}@${MARKETPLACE}`
 export const PACKAGE = "dw-sdlc"
 /** rtk find passes -exec through verbatim from this release; before it, `rtk find … -exec` exits 1. */
 export const RTK_FIND_EXEC_FIXED = "0.46.0"

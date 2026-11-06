@@ -47,7 +47,7 @@ The facts a Recap rests on, tested like the Ship script. Read-only: `dw-sdlc rec
 - the uncommitted changes, untracked files among them;
 - the upstream and the unpushed commits: past the upstream or, without one, on no remote, and none when
   an open or merged pull request holds the head;
-- what git stands paused in: a rebase, `git am`, merge, cherry-pick, revert or bisect;
+- the operation git has paused: a rebase, `git am`, merge, cherry-pick, revert or bisect;
 - the branch's pull request and the Action the Ship script's decision gives it, read and never performed;
 - whether the session sits in a linked worktree.
 
@@ -62,17 +62,19 @@ Exit 0 means the session can be closed, 1 that it cannot, and 2 that the command
 | `unpushed`          | yes    | commits past the upstream                                                                                       |
 | `no-upstream`       | yes    | commits on no remote, on a branch with no upstream or a detached HEAD                                           |
 | `open-pull-request` | yes    | the pull request is open, whatever its Action                                                                   |
+| `orphaned`          | yes    | commits of a closed pull request left the branch, as by a reset, and no remote branch holds them                |
 | `no-pull-request`   | yes    | commits on top of the base, no pull request holds the head, and the branch is neither the default nor protected |
 | `merged`            | no     | the pull request merged                                                                                         |
 | `closed`            | no     | the pull request closed without merging; commits only it holds read as `no-upstream`                            |
 | `worktree`          | no     | a linked worktree, left to remove                                                                               |
 | `clean`             | no     | no reason blocks                                                                                                |
 
-An open pull request blocks even when it is parked on the dev: the session's work has not landed, and a
+An open pull request blocks even when it is parked on the dev: the session's work has not merged, and a
 wrong "no" costs less than a wrong "yes". A linked worktree does not block, since the session cannot
 remove the directory it runs in. A branch with no upstream and no commit of its own has nothing to lose,
-so it can close. A commit an open or merged pull request holds counts as pushed, so a merged branch whose
-remote ref is gone still closes. A pull request closed without merging lands nothing, and a detached HEAD
+so it can close. A commit an open or merged pull request holds counts as pushed, so a branch whose pull
+request merged and whose remote ref is gone still closes. A pull request closed without merging merges
+nothing, and a detached HEAD
 names no pull request, so there a commit counts as pushed only on a remote branch. The command asks the
 remote which branches still stand, because a deleted branch stays in the local tracking refs until a
 fetch. An upstream that is a local branch counts as none. A branch `guardrails.protectedBranches` names
@@ -84,7 +86,8 @@ another remote branch force-pushed off the head, and an upstream deleted or forc
 needs no pull request. Run `git fetch --prune` first to be exact. Treating every moved branch as stale
 would answer no each time the base moves on.
 
-A detached HEAD or a repository with no remote asks `gh` nothing, and the `clean` reason says so rather
+A detached HEAD or a repository with no remote asks `gh` nothing. `askedGh` is false, the `pull request`
+line reads `gh not asked`, and the `clean` reason says so rather
 than claim nothing is open. Elsewhere the command needs an authenticated `gh` and a remote it can read: a
 remote on another host exits 2. It counts from the pull request's base, or from the default branch when
 there is no pull request.

@@ -28,7 +28,7 @@ The session cannot be closed over any of these:
   commits on top of the base that no pull request holds. The default branch and a branch
   guardrails.protectedBranches names need no pull request.
 
-A pull request closed without merging lands nothing, and a detached HEAD names no pull request. There a
+A pull request closed without merging merges nothing, and a detached HEAD names no pull request. There a
 commit counts as pushed only on a remote branch, and the command asks the remote which branches still
 stand. A branch force-pushed since the last fetch can still read as holding it, so fetch first to be exact.
 
@@ -36,7 +36,7 @@ A linked worktree is a reason beside the verdict, never against it: the session 
 directory it runs in.
 
 One line a fact, or one document with --json. Needs an authenticated gh and a remote it can read. A
-detached HEAD or a repository with no remote asks gh nothing, and the verdict says so.
+detached HEAD or a repository with no remote asks gh nothing, and the pull request fact says so.
 
 Exit 0 the session can be closed, 1 it cannot, 2 when it cannot run.`
 
@@ -47,6 +47,7 @@ type ReasonId =
   | "no-upstream"
   | "no-pull-request"
   | "open-pull-request"
+  | "orphaned"
   | "merged"
   | "closed"
   | "worktree"
@@ -65,7 +66,7 @@ type Local = {
   upstream: string | null
   /** The commits past the upstream or, without one, on no remote; none when an open or merged pull request holds the head. */
   unpushed: number
-  /** What git stands paused in, whose tree can read clean at a pushed commit; null when nothing is. */
+  /** The operation git has paused, whose tree can read clean at a pushed commit; null when none is. */
   paused: string | null
   /** The checkout's top level, and whether it is a linked worktree. */
   worktree: { linked: boolean; path: string }
@@ -181,7 +182,7 @@ function staleTracking(root: string, { branch, upstream }: Local): string[] {
 
 /**
  * Where the head stands once the pull request is read. A commit an open or merged one holds is on GitHub,
- * whatever became of the upstream. A closed one lands nothing and a detached HEAD names none, so there only
+ * whatever became of the upstream. A closed one merges nothing and a detached HEAD names none, so there only
  * a remote branch that still stands counts for the head. A paused operation has answered already.
  */
 function standing(root: string, read: Local, shipped: Shipped | null, held: boolean): Local {
@@ -193,11 +194,27 @@ function standing(root: string, read: Local, shipped: Shipped | null, held: bool
   if (read.upstream !== null && !stale.includes(read.upstream)) {
     return read
   }
-  const excluded = stale.map((tracking) => `--exclude=${tracking}`)
-  return { ...read, upstream: null, unpushed: count(root, ["HEAD", "--not", ...excluded, "--remotes"]) }
+  const unpushed = count(root, ["HEAD", ...notOnRemotes(stale)])
+  return { ...read, upstream: null, unpushed }
 }
 
-/** How many commits sit on top of `base`, the branch a pull request for them would land on. */
+/** `rev-list` arguments that leave out what a remote branch holds, by the tracking refs still true. */
+function notOnRemotes(stale: string[]): string[] {
+  return ["--not", ...stale.map((tracking) => `--exclude=${tracking}`), "--remotes"]
+}
+
+/**
+ * The commits of a closed pull request that left the branch, as by a reset, and that no remote branch holds.
+ * A head this checkout never had was never this session's to lose.
+ */
+function orphanedOf(root: string, read: Local, shipped: Shipped | null, held: boolean): number {
+  if (shipped?.pr.state !== "CLOSED" || held || read.paused !== null) {
+    return 0
+  }
+  return Number(asked(root, ["rev-list", "--count", shipped.pr.head, ...notOnRemotes(staleTracking(root, read))]) ?? 0)
+}
+
+/** How many commits sit on top of `base`, the branch a pull request for them would merge into. */
 type Ahead = { base: string; commits: number }
 
 /**
@@ -243,7 +260,13 @@ function cleanReason(askedGh: boolean): Reason {
   return { id: "clean", blocks: false, text }
 }
 
-function reasonsOf(local: Local, shipped: Shipped | null, ahead: Ahead | null, askedGh: boolean): Reason[] {
+function reasonsOf(
+  local: Local,
+  shipped: Shipped | null,
+  ahead: Ahead | null,
+  orphaned: number,
+  askedGh: boolean
+): Reason[] {
   const all: Reason[] = []
   if (local.paused !== null) {
     all.push({ id: "paused", blocks: true, text: `a ${local.paused} is paused` })
@@ -257,6 +280,10 @@ function reasonsOf(local: Local, shipped: Shipped | null, ahead: Ahead | null, a
   if (ahead !== null && ahead.commits > 0) {
     const text = `${plural(ahead.commits, "commit")} on top of ${ahead.base} in no pull request`
     all.push({ id: "no-pull-request", blocks: true, text })
+  }
+  if (shipped !== null && orphaned > 0) {
+    const text = `${plural(orphaned, "commit")} of pull request #${shipped.pr.number} on no remote branch`
+    all.push({ id: "orphaned", blocks: true, text })
   }
   if (shipped !== null) {
     all.push(pullRequestReason(shipped))
@@ -279,12 +306,13 @@ function closeOf(reasons: Reason[]): { verdict: "yes" | "no"; line: string; reas
   return { verdict, line, reasons }
 }
 
-function linesOf(local: Local, shipped: Shipped | null, line: string): string {
+function linesOf(local: Local, shipped: Shipped | null, askedGh: boolean, line: string): string {
+  const none = askedGh ? "none" : "gh not asked"
   return [
     `branch: ${local.branch ?? "detached HEAD"}`,
     `uncommitted: ${local.uncommitted}`,
     `upstream: ${local.upstream ?? "none"}, ${local.unpushed} unpushed`,
-    `pull request: ${shipped === null ? "none" : `${shipped.pr.url} ${lineOf(shipped.answer)}`}`,
+    `pull request: ${shipped === null ? none : `${shipped.pr.url} ${lineOf(shipped.answer)}`}`,
     `worktree: ${local.worktree.linked ? `linked at ${local.worktree.path}` : "main checkout"}`,
     line
   ].join("\n")
@@ -318,15 +346,18 @@ function report(json: boolean): number {
   const shipped = asksGh ? readShipped(root) : null
   const held = shipped !== null && head !== null && shipped.pr.commits.includes(head)
   const local = standing(root, read, shipped, held)
-  // An open pull request can still take the head, and a commit-less repository has nothing to land.
-  const nothingToLand = held || shipped?.pr.state === "OPEN" || head === null
-  const ahead = asksGh && !nothingToLand ? aheadOf(root, branch, shipped) : null
-  const close = closeOf(reasonsOf(local, shipped, ahead, asksGh))
+  // An open pull request can still take the head, and a commit-less repository has nothing to merge.
+  const nothingToMerge = held || shipped?.pr.state === "OPEN" || head === null
+  const ahead = asksGh && !nothingToMerge ? aheadOf(root, branch, shipped) : null
+  const orphaned = orphanedOf(root, read, shipped, held)
+  const close = closeOf(reasonsOf(local, shipped, ahead, orphaned, asksGh))
   const pullRequest =
     shipped === null
       ? null
       : { url: shipped.pr.url, number: shipped.pr.number, state: shipped.pr.state, ...shipped.answer }
-  const output = json ? JSON.stringify({ ...local, pullRequest, close }, null, 2) : linesOf(local, shipped, close.line)
+  const output = json
+    ? JSON.stringify({ ...local, askedGh: asksGh, pullRequest, close }, null, 2)
+    : linesOf(local, shipped, asksGh, close.line)
   process.stdout.write(`${output}\n`)
   return close.verdict === "yes" ? 0 : 1
 }

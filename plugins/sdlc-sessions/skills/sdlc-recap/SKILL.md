@@ -22,7 +22,8 @@ state of the tree and the pull request is unverified.
 
 Check every "merged" or "green" you write live with `gh`, for each pull request the session touched,
 not only the current branch's: `gh pr view <n> --json state,mergedAt,statusCheckRollup`. Your memory of
-a pull request is older than the pull request. Word what you could not check as unchecked.
+a pull request is older than the pull request. Word what you could not check as unchecked, and that
+includes the branch's pull request when `askedGh` is false.
 
 ## The shape
 
@@ -36,7 +37,7 @@ below opens with its heading, translated; the close line stands alone, with no h
 The first line is the verdict: one Action word and one sentence, with no heading above it.
 
 - `done`: the session's work is finished and nothing is left to do.
-- `act`: the next step is this session's to take.
+- `act`: the next Action is this session's to take.
 - `wait`: something outside the session is running, and the session resumes on it.
 - `park`: it stops here until the dev answers or does something.
 
@@ -50,7 +51,7 @@ what changed for the dev, never the tool calls or the files: links carry the det
 | --------------------------------- | ---- |
 | `dw-sdlc recap` answers the close | #222 |
 
-**Decided without you.** Each choice the session made alone that the dev might have made differently,
+**Decisions without you.** Each choice the session made alone that the dev might have made differently,
 one line each, with why. A routine call no one would question does not belong here.
 
 **Questions.** Numbered, each with your recommended answer, so that the dev can reply in one line:
@@ -70,7 +71,8 @@ one recommended disposition, the lightest that closes it:
 - `drop`: not worth doing, and say why.
 
 End this section with one line telling the dev that "go" carries out every recommendation, and that
-"go, but 2 issue" changes one.
+"go, but 2 issue" changes one. When a follow-up is `worker`, add that "go" hands it to them as its
+description, for them to start.
 
 ## Then stop
 
