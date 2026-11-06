@@ -1,5 +1,13 @@
 # dw-sdlc
 
+## 0.11.0
+
+### Minor Changes
+
+- a7090bf: `dw-sdlc recap [--json]` reads the facts a Recap rests on and writes nothing. They are the branch, uncommitted changes, unpushed commits or a missing upstream, a paused rebase, merge, cherry-pick, revert or bisect, and whether the session sits in a linked worktree. It also reads the branch's pull request with the Action the Ship script's decision gives it, without performing that Action. It answers whether the session can be closed, with every reason: exit 0 yes, 1 no, 2 cannot run. The `sdlc-recap` skill of the new `sdlc-sessions` plugin rests on it.
+
+  `dw-sdlc doctor` adds a `sessions` line for the `sdlc-sessions` plugin and the drift of its copy of the package. The state `dw-sdlc pr ship --verbose` shows under `facts` lists the pull request's `commits`.
+
 ## 0.10.0
 
 ### Minor Changes
