@@ -73,9 +73,11 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       # GITHUB_TOKEN opens it, so the quality gate does not run on this pull request; the pack job
-      # runs `pnpm check` before anything is published.
+      # runs `pnpm check` before anything is published. The script formats the changelog
+      # `changeset version` writes: a changeset of more than one paragraph reaches it in a shape oxfmt rewrites.
       - uses: changesets/action/version@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
         with:
+          script: pnpm release:version
           commit-message: "chore(release): version packages"
           pr-title: "chore(release): version packages"
 

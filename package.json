@@ -10,6 +10,7 @@
     "guardrails:doctor": "dw-sdlc doctor",
     "references:sync": "dw-sdlc references sync",
     "references:setup": "dw-sdlc references setup",
+    "release:version": "changeset version && vp fmt packages/*/CHANGELOG.md",
     "prepare": "vp config --no-agent"
   },
   "devDependencies": {
