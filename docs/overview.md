@@ -345,6 +345,14 @@ head is reviewed. It squash merges with `--match-head-commit`, so a push during 
 merges blind. Each runs at most once per call; one that comes round again, and every one under
 `--dry-run`, parks with its command for the dev.
 
+`performed` lists each Action a call ran, with `ok`, `exit` and `stderr` when `gh` wrote any. `ok` is
+whether the read after the Action shows its effect; `exit` is what `gh` answered. The pair `ok: false`
+with `exit: 0` means `gh` accepted the Action and the read does not show it yet, and the reason says
+so. An update counts when the head carries the base read before it, not for a moved head alone. A
+`mark-reviewed` whose head moved names both heads. When the read after an Action fails, the call exits
+2 and names each Action that ran with `gh`'s exit, and `--json` puts them under `performed`: the
+Action may have landed, so a caller does not run it blind again.
+
 The agent owns four: `fix-conflicts`, `fix-ci`, `address-review` and `review`. Under `details`,
 `fix-ci` lists each failing check with its link and, for a GitHub Actions job, the command that
 prints its log; `address-review` lists each open thread someone else commented on last, and with

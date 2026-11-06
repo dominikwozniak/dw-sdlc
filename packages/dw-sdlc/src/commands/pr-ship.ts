@@ -18,7 +18,7 @@ import {
   shellLine,
   type Status
 } from "../pr/decide.ts"
-import { CannotRun, gh, namedProblem, read, readAgain, said } from "../pr/read.ts"
+import { CannotRun, carriesBase, gh, namedProblem, read, readAgain, said } from "../pr/read.ts"
 import type { PrState } from "../pr/state.ts"
 
 export const summary = "decide the Action one pull request needs next, as a line or JSON"
@@ -42,8 +42,12 @@ the last reviewed commit under details.since, where the Review reads from and au
 carries that commit's success over a head whose only commits since are merges of the base, unless
 --review names a depth for the call.
 Each Action the call runs is listed under performed. Its ok says whether the read after it shows the
-Action took effect, whatever gh's exit status; gh's exit status and stderr stand beside it. --dry-run
-performs nothing: it parks at the first Action the script would perform, under performed with ok null.
+Action took effect, whatever gh's exit status; gh's exit status and stderr stand beside it, so an ok
+false with exit 0 is an Action gh accepted that the read does not show yet. An update counts when
+the head carries the base it read. When the read after an Action fails, the call exits 2 and names
+each Action that ran with gh's exit, under performed too with --json: it may have landed, so do not
+run it blind again. --dry-run performs nothing: it parks at the first Action the script would
+perform, under performed with ok null.
 One line, or one document with --json; --verbose adds the state as read to the document under
 facts. Needs an authenticated gh.
 
@@ -73,8 +77,17 @@ type Cli = {
  */
 type Performed = { action: ScriptAction; command: string } & (
   | { ok: boolean; exit: number; stderr?: string }
-  | { ok: null }
+  | { ok: null; exit?: number; stderr?: string }
 )
+
+/** A call that stopped after it ran Actions: what it ran stands in `performed`, `ok` null where no read followed. */
+class Interrupted extends CannotRun {
+  performed: Performed[]
+  constructor({ message, remedy }: CannotRun, performed: Performed[]) {
+    super(message, remedy)
+    this.performed = performed
+  }
+}
 
 function parseCli(argv: string[]): Cli | { error: string } {
   try {
@@ -151,12 +164,34 @@ const NAMED: Record<ScriptAction, { would: string; act: string; still: string }>
  * lost on the way back exits non-zero after GitHub applied the Action.
  */
 const TOOK: Record<ScriptAction, (before: PrState, after: PrState) => boolean> = {
-  "update-branch": (before, after) => after.head !== before.head,
+  // A moved head alone may be a push: the update took effect when the head carries the base it read.
+  "update-branch": (before, after) => after.head !== before.head && carriesBase(before, after),
   "mark-ready": (_, after) => !after.draft,
   // The post names the head it read: a head moved since carries none of it.
   "mark-reviewed": (before, after) =>
     after.head === before.head && after.checks.some((check) => check.name === REVIEW && check.bucket === "pass"),
   merge: (_, after) => after.state === "MERGED"
+}
+
+/**
+ * Why an Action that ran comes round again. A head that moved after a mark-reviewed names both heads;
+ * otherwise gh refused it, or accepted it and the read shows nothing yet, or the effect is gone again.
+ */
+function reasonOf(
+  { action, ok, exit, stderr = "" }: { action: ScriptAction; ok: boolean; exit: number; stderr?: string },
+  pr: PrState,
+  ranOn: string | undefined,
+  { act, still }: { act: string; still: string }
+): string {
+  if (action === "mark-reviewed" && exit === 0 && ranOn !== undefined && ranOn !== pr.head) {
+    return `${act} posted on ${ranOn.slice(0, 7)}, and the head moved to ${pr.head.slice(0, 7)}`
+  }
+  if (ok) {
+    return `${act} ran, and ${still}`
+  }
+  return exit === 0
+    ? `gh accepted ${act}; the read does not show it yet`
+    : `gh refused ${act}: ${said(stderr) || `gh exited ${exit}`}`
 }
 
 /** A script Action the call leaves to the dev, `reason` saying why; a merge parks as ready-to-merge. */
@@ -176,6 +211,8 @@ function ship(cli: Cli, policy: Policy): { pr: PrState; answer: Answer; performe
   const sized = policy.review.depth === "auto"
   let pr = read(cli, "pr ship", sized)
   const performed: Performed[] = []
+  // The head each Action ran on.
+  const postedOn = new Map<ScriptAction, string>()
   for (;;) {
     const answer = decide(pr, now(), policy)
     const { action } = answer
@@ -185,7 +222,7 @@ function ship(cli: Cli, policy: Policy): { pr: PrState; answer: Answer; performe
     // -R names the repository, so the checkout the script runs in plays no part.
     const args = hostArgs(pr, action, policy, true)
     const command = shellLine(["gh", ...args])
-    const { would, act, still } = NAMED[action]
+    const { would } = NAMED[action]
     if (cli.dryRun) {
       performed.push({ action, command, ok: null })
       return {
@@ -197,22 +234,24 @@ function ship(cli: Cli, policy: Policy): { pr: PrState; answer: Answer; performe
     const done = performed.find((earlier) => earlier.action === action)
     // --dry-run returns before any Action runs, so an earlier one always carries gh's exit.
     if (done !== undefined && done.ok !== null) {
-      const { ok, exit, stderr = "" } = done
-      const reason =
-        ok || exit === 0 ? `${act} ran, and ${still}` : `gh refused ${act}: ${said(stderr) || `gh exited ${exit}`}`
+      const reason = reasonOf(done, pr, postedOn.get(action), NAMED[action])
       return { pr, answer: handedOver(pr, policy, answer, action, reason), performed }
     }
     const { status, stderr } = gh(args)
     const before = pr
-    pr = readAgain(pr, sized)
     const message = stderr.trim()
-    performed.push({
-      action,
-      command,
-      ok: TOOK[action](before, pr),
-      exit: status,
-      ...(message === "" ? {} : { stderr: message })
-    })
+    const record = { action, command, exit: status, ...(message === "" ? {} : { stderr: message }) }
+    postedOn.set(action, before.head)
+    try {
+      pr = readAgain(pr, sized)
+      performed.push({ ...record, ok: TOOK[action](before, pr) })
+    } catch (error) {
+      if (error instanceof CannotRun) {
+        // The Action may have landed: the caller must not run it blind again.
+        throw new Interrupted(error, [...performed, { ...record, ok: null }])
+      }
+      throw error
+    }
   }
 }
 
@@ -251,7 +290,14 @@ export function run(argv: string[]): number {
     shipped = ship(cli, policy)
   } catch (error) {
     if (error instanceof CannotRun) {
-      process.stderr.write(`dw-sdlc pr ship: ${error.message} — ${error.remedy}\n`)
+      const ran = error instanceof Interrupted ? error.performed : []
+      const named = ran.map(({ action, ...rest }) => `${action} ran (gh exit ${rest.exit ?? "unknown"})\n`)
+      process.stderr.write(`dw-sdlc pr ship: ${error.message} — ${error.remedy}\n${named.join("")}`)
+      if (cli.json && ran.length > 0) {
+        process.stdout.write(
+          `${JSON.stringify({ error: error.message, remedy: error.remedy, performed: ran }, null, 2)}\n`
+        )
+      }
       return 2
     }
     throw error

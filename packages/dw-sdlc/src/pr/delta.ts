@@ -21,6 +21,11 @@ function filesOf(reply: string): Node[] {
   return value.map((item: unknown, index) => object(item, `${at}[${index}]`))
 }
 
+/** How many commits of the compare's base its head lacks: 0 when the head carries all of it. */
+export function behindOf(reply: string): number {
+  return integer(rootOf(reply, "the compare"), "behind_by")
+}
+
 /** A field the compare may leave out, as a file's patch or its previous name. */
 function optional(file: Node, key: string): string | null {
   return file.value[key] === undefined || file.value[key] === null ? null : string(file, key)

@@ -4,7 +4,7 @@
 
 import { spawnSync } from "node:child_process"
 
-import { changedOf, changesOf, compareArgs, sameChanges } from "./delta.ts"
+import { behindOf, changedOf, changesOf, compareArgs, sameChanges } from "./delta.ts"
 import { awaitsReview, parsePr, parseView, type PrState, QUERY, ReplyError } from "./state.ts"
 
 /** What stops a pr command before it answers: exit 2, the problem and its remedy on one line. */
@@ -116,6 +116,12 @@ function compared(pr: Pick<PrState, "repo" | "number">, from: string, commit: st
     throw new CannotRun(`${pr.repo}#${pr.number}: ${what}: ${said(reply.stderr)}`, REMEDIES.read)
   }
   return reply.stdout
+}
+
+/** Whether the head of `after` carries the base `before` read: the compare shows it behind by none. */
+export function carriesBase(before: PrState, after: PrState): boolean {
+  const reply = compared(after, before.baseOid, after.head, `the compare with ${before.baseOid.slice(0, 7)}`)
+  return parseOrCannotRun(() => behindOf(reply)) === 0
 }
 
 /** The own changes of `pr` at `commit`, from the compare with its base; null when it cannot show them whole. */

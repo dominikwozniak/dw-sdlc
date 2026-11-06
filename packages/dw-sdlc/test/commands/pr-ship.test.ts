@@ -863,8 +863,16 @@ const READY = ["pr", "ready", "40", "-R", "byarcadia-app/foundation"]
 const RUNS = { "update-branch": UPDATE, "mark-ready": READY, merge: MERGE }
 /** gh's answer as a test stands it in for an Action whose reply was lost after GitHub applied it. */
 const LOST: Response = { exit: 1, stderr: 'Post "https://api.github.com/graphql": context deadline exceeded\n' }
+/** The base a later push to the base branch leaves. */
+const MOVED_BASE = "0c1d2e3f4a5b60718293a4b5c6d7e8f9a0b1c2d3"
 /** The head an update of the branch leaves. */
 const UPDATED = "5f0c2a7e9d4b1c3a6e8f0d2b4a6c8e0f1a3b5c7d"
+/** The compare that tells whether `head` carries the base the update read: the one call after an update. */
+const BASE_COMPARE = ["api", `repos/byarcadia-app/foundation/compare/${BASE_OID}...${UPDATED}?per_page=1`]
+/** What that compare answers when the head is `behind` commits behind the base read before the update. */
+function comparedBase(behind: number): Record<string, Response> {
+  return { [BASE_COMPARE.join(" ")]: { stdout: JSON.stringify({ status: "ahead", ahead_by: 1, behind_by: behind }) } }
+}
 
 /**
  * A command under `performed`: `ok` whether the read after it shows the Action took effect, beside gh's
@@ -1081,7 +1089,7 @@ describe("dw-sdlc pr ship ends a pull request", () => {
         `gh refused the merge: ${blocked}`
       ],
       [{ exit: 1 }, "gh refused the merge: gh exited 1"],
-      [{}, "the merge ran, and the pull request still reads open"]
+      [{}, "gh accepted the merge; the read does not show it yet"]
     ]
     const ready: Pr = { ...GREEN, mergeStateStatus: "BLOCKED" }
     for (const [merged, reason] of cases) {
@@ -1123,7 +1131,8 @@ describe("dw-sdlc pr ship updates a branch and marks a draft ready", () => {
     const updated = UPDATED
     const running: Context = { kind: "run", name: "Check", state: "IN_PROGRESS", link: RUN, startedAt: STARTED }
     const after: Pr = { ...GREEN, head: updated, mergeStateStatus: "BLOCKED", checks: [running] }
-    const run = ship([...TARGET, "--json"], { graphql: [served(BEHIND), served(after)] }, clockAt(STARTED, 60), AUTO)
+    const scenario = { graphql: [served(BEHIND), served(after)], commands: comparedBase(0) }
+    const run = ship([...TARGET, "--json"], scenario, clockAt(STARTED, 60), AUTO)
     assert.equal(run.status, 10, run.stderr)
     assert.deepEqual(JSON.parse(run.stdout), {
       pr: URL,
@@ -1137,7 +1146,7 @@ describe("dw-sdlc pr ship updates a branch and marks a draft ready", () => {
       blockers: [{ action: "wait", actor: "script", reason: "ci-pending" }],
       performed: [ran("update-branch", true)]
     })
-    assert.deepEqual(run.calls, [AUTH, READ, UPDATE, READ])
+    assert.deepEqual(run.calls, [AUTH, READ, UPDATE, READ, BASE_COMPARE])
   })
 
   it("marks a green, reviewed draft ready, then merges it under pr.merge auto, both under performed in order", () => {
@@ -1251,13 +1260,7 @@ describe("dw-sdlc pr ship updates a branch and marks a draft ready", () => {
         "gh refused the update: Cannot update PR branch due to conflicts",
         "gh pr update-branch 40"
       ],
-      [
-        BEHIND,
-        "update-branch",
-        {},
-        "the update ran, and the branch still reads behind its base",
-        "gh pr update-branch 40"
-      ],
+      [BEHIND, "update-branch", {}, "gh accepted the update; the read does not show it yet", "gh pr update-branch 40"],
       [
         DRAFT,
         "mark-ready",
@@ -1265,7 +1268,7 @@ describe("dw-sdlc pr ship updates a branch and marks a draft ready", () => {
         "gh refused the mark-ready: GraphQL: Resource not accessible by integration (markPullRequestReadyForReview)",
         "gh pr ready 40"
       ],
-      [DRAFT, "mark-ready", {}, "the mark-ready ran, and the pull request still reads as a draft", "gh pr ready 40"]
+      [DRAFT, "mark-ready", {}, "gh accepted the mark-ready; the read does not show it yet", "gh pr ready 40"]
     ]
     for (const [pr, action, response, reason, command] of cases) {
       const key = action === "update-branch" ? "pr update-branch" : "pr ready"
@@ -1289,7 +1292,8 @@ describe("dw-sdlc pr ship updates a branch and marks a draft ready", () => {
 
   it("hands an update that took effect to the dev as one that ran when the base moved again, whatever gh's exit", () => {
     const updated: Pr = { ...BEHIND, head: UPDATED }
-    const scenario = { graphql: [served(BEHIND), served(updated)], commands: { "pr update-branch": LOST } }
+    const commands = { "pr update-branch": LOST, ...comparedBase(0) }
+    const scenario = { graphql: [served(BEHIND), served({ ...updated, baseOid: MOVED_BASE })], commands }
     const run = ship([...TARGET, "--json"], scenario, {}, AUTO)
     assert.equal(run.status, 30, run.stderr)
     assert.deepEqual(fieldsOf(JSON.parse(run.stdout), ["action", "reason", "performed"]), {
@@ -1297,7 +1301,7 @@ describe("dw-sdlc pr ship updates a branch and marks a draft ready", () => {
       reason: "the update ran, and the branch still reads behind its base",
       performed: [ran("update-branch", true, LOST)]
     })
-    assert.deepEqual(run.calls, [AUTH, READ, UPDATE, READ])
+    assert.deepEqual(run.calls, [AUTH, READ, UPDATE, READ, BASE_COMPARE])
   })
 
   it("records an update and a mark-ready as ok when the read after shows them, though gh exited non-zero", () => {
@@ -1306,7 +1310,8 @@ describe("dw-sdlc pr ship updates a branch and marks a draft ready", () => {
       [DRAFT, GREEN, "mark-ready", "pr ready"]
     ]
     for (const [before, after, action, key] of cases) {
-      const scenario = { graphql: [served(before), served(after)], commands: { [key]: LOST } }
+      const commands = { [key]: LOST, ...comparedBase(0) }
+      const scenario = { graphql: [served(before), served(after)], commands }
       const run = ship([...TARGET, "--json"], scenario)
       assert.equal(run.status, 30, `${action}: ${run.stderr}`)
       assert.deepEqual(
@@ -1318,7 +1323,8 @@ describe("dw-sdlc pr ship updates a branch and marks a draft ready", () => {
         },
         action
       )
-      assert.deepEqual(run.calls, [AUTH, READ, RUNS[action], READ], action)
+      const compares = action === "update-branch" ? [BASE_COMPARE] : []
+      assert.deepEqual(run.calls, [AUTH, READ, RUNS[action], READ, ...compares], action)
     }
   })
 
@@ -1618,7 +1624,7 @@ describe("dw-sdlc pr ship at a Review depth", () => {
     const refusal = { exit: 1, stderr: "gh: Resource not accessible by integration (HTTP 403)\n" }
     const cases: [Response, string][] = [
       [refusal, "gh refused the mark-reviewed: Resource not accessible by integration (HTTP 403)"],
-      [{}, "the mark-reviewed ran, and the head still carries no dw-sdlc/review success"]
+      [{}, "gh accepted the mark-reviewed; the read does not show it yet"]
     ]
     for (const [response, reason] of cases) {
       const scenario = {
@@ -1666,5 +1672,93 @@ describe("dw-sdlc pr ship at a Review depth", () => {
       )
       assert.deepEqual(run.calls, [], depth)
     }
+  })
+})
+
+describe("dw-sdlc pr ship records what an Action did when the read cannot show it or shows it half", () => {
+  it("judges an update by the base it merged in: a moved head that is still behind that base did not take effect", () => {
+    const pushed: Pr = { ...BEHIND, head: UPDATED }
+    const scenario = { graphql: [served(BEHIND), served(pushed)], commands: comparedBase(2) }
+    const run = ship([...TARGET, "--json"], scenario, {}, AUTO)
+    assert.equal(run.status, 30, run.stderr)
+    assert.deepEqual(fieldsOf(JSON.parse(run.stdout), ["action", "reason", "performed"]), {
+      action: "update-branch",
+      reason: "gh accepted the update; the read does not show it yet",
+      performed: [ran("update-branch", false)]
+    })
+    assert.deepEqual(run.calls, [AUTH, READ, UPDATE, READ, BASE_COMPARE])
+  })
+
+  it("names both heads when the head moved after a mark-reviewed, the same reason when it did not", () => {
+    const off: Files = { [COMMITTED_FILE]: { pr: { review: "off" } } }
+    const post = ["api", `repos/byarcadia-app/foundation/statuses/${HEAD}`]
+    const posted = `gh ${[...post, "--method", "POST", "--silent"].join(" ")}`
+    const unreviewed: Pr = { ...GREEN, checks: [] }
+    const cases: [Pr, string][] = [
+      [
+        { ...unreviewed, head: UPDATED },
+        `the mark-reviewed posted on ${HEAD.slice(0, 7)}, and the head moved to ${UPDATED.slice(0, 7)}`
+      ],
+      [unreviewed, "gh accepted the mark-reviewed; the read does not show it yet"]
+    ]
+    for (const [after, reason] of cases) {
+      const run = ship([...TARGET, "--json"], { graphql: [served(unreviewed), served(after)] }, {}, off)
+      assert.equal(run.status, 30, run.stderr)
+      const document = JSON.parse(run.stdout) as { action: string; reason: string; performed: { command: string }[] }
+      assert.equal(document.action, "mark-reviewed")
+      assert.equal(document.reason, reason)
+      assert.ok(document.performed[0]?.command.startsWith(posted), document.performed[0]?.command)
+    }
+  })
+
+  it("keeps gh's refusal as the reason when the head moved after a mark-reviewed gh refused", () => {
+    const off: Files = { [COMMITTED_FILE]: { pr: { review: "off" } } }
+    const unreviewed: Pr = { ...GREEN, checks: [] }
+    const refused = { exit: 1, stderr: "X HTTP 422: Validation Failed\n" }
+    const post = `api repos/byarcadia-app/foundation/statuses/${HEAD}`
+    const scenario = {
+      graphql: [served(unreviewed), served({ ...unreviewed, head: UPDATED })],
+      commands: { [post]: refused }
+    }
+    const run = ship([...TARGET, "--json"], scenario, {}, off)
+    assert.equal(run.status, 30, run.stderr)
+    const { reason } = JSON.parse(run.stdout) as { reason: string }
+    assert.equal(reason, "gh refused the mark-reviewed: HTTP 422: Validation Failed")
+  })
+
+  it("answers exit 2 when the compare after an update fails, the update named as run with ok null", () => {
+    const scenario = {
+      graphql: [served(BEHIND), served({ ...BEHIND, head: UPDATED })],
+      commands: { [BASE_COMPARE.join(" ")]: { exit: 1, stderr: "gh: Not Found (HTTP 404)\n" } }
+    }
+    const run = ship([...TARGET, "--json"], scenario, {}, AUTO)
+    assert.equal(run.status, 2)
+    assert.deepEqual(lines(run.stderr).at(-1), "update-branch ran (gh exit 0)")
+    assert.deepEqual(JSON.parse(run.stdout).performed, [
+      { action: "update-branch", command: `gh ${UPDATE.join(" ")}`, exit: 0, ok: null }
+    ])
+    assert.deepEqual(run.calls, [AUTH, READ, UPDATE, READ, BASE_COMPARE])
+  })
+
+  it("answers exit 2 naming each Action that ran when the read after it fails, its gh exit beside it", () => {
+    const failed = { exit: 1, stderr: "Post https://api.github.com/graphql: context deadline exceeded\n" }
+    const scenario = { graphql: [served(GREEN), failed], commands: { "pr merge": { exit: 0 } } }
+    const stderr = [
+      `dw-sdlc pr ship: byarcadia-app/foundation#40: Post https://api.github.com/graphql: context deadline exceeded — check gh auth status and the network, then call again`,
+      "merge ran (gh exit 0)"
+    ]
+    const text = ship(TARGET, scenario, {}, AUTO)
+    assert.equal(text.status, 2)
+    assert.deepEqual(lines(text.stderr), stderr)
+    assert.equal(text.stdout, "")
+    const run = ship([...TARGET, "--json"], scenario, {}, AUTO)
+    assert.equal(run.status, 2)
+    assert.deepEqual(lines(run.stderr), stderr)
+    assert.deepEqual(JSON.parse(run.stdout), {
+      error: "byarcadia-app/foundation#40: Post https://api.github.com/graphql: context deadline exceeded",
+      remedy: "check gh auth status and the network, then call again",
+      performed: [{ action: "merge", command: `gh ${MERGE.join(" ")}`, ok: null, exit: 0 }]
+    })
+    assert.deepEqual(run.calls, [AUTH, READ, MERGE, READ])
   })
 })
