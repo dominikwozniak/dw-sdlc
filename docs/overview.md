@@ -463,9 +463,9 @@ the bump and the line the changelog gets. On every push to `main`, `.github/work
 picks one of two modes:
 
 - **version**, while a changeset is pending: it opens or updates the
-  `chore(release): version packages` pull request, which bumps the version, writes `CHANGELOG.md`
-  and deletes the changesets. GitHub opens it only when Settings → Actions → General allows GitHub
-  Actions to create pull requests.
+  `chore(release): version packages` pull request. `pnpm release:version` bumps the version, writes
+  and formats `CHANGELOG.md` and deletes the changesets. GitHub opens it only when Settings → Actions →
+  General allows GitHub Actions to create pull requests.
 - **publish**, when npm lacks the version on `main`, which is what merging the version pull request
   makes true: one job runs `pnpm check` and packs the tarball with no secret in reach; the next
   publishes it, pushes the `dw-sdlc@x.y.z` tag and creates the GitHub release.
