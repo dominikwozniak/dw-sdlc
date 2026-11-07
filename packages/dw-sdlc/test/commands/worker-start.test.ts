@@ -6,7 +6,7 @@ import { join } from "node:path"
 import { describe, it } from "node:test"
 
 import { COMMITTED_FILE, LOCAL_FILE } from "../../src/agentic-config.ts"
-import { repo, runBin, scratch, write } from "../harness.ts"
+import { commit, git, repo, runBin, scratch, write } from "../harness.ts"
 import { fakeHerdr, layout, listing, type Listed, type Scenario, type Table, terminal } from "../hc-harness.ts"
 
 const BRIEF = "/implement #9\n\nGoal: do the thing.\nReport: dw-sdlc worker report --to t1\n"
@@ -197,6 +197,46 @@ describe("dw-sdlc worker start", () => {
     const errored = start([], scenario({ got: { status: "error" } }))
     assert.equal(errored.status, 1)
     assert.match(errored.stderr, /not delivered: .*error/)
+  })
+
+  it("fails when the Worker is still idle or silent once the wait is up, as a plain launch leaves no first message to read", () => {
+    for (const status of ["idle", null]) {
+      const run = start(["--wait", "0"], scenario({ got: { status } }))
+      assert.equal(run.status, 1, String(status))
+      assert.match(run.stderr, /not delivered: the Worker showed no sign of work within 0 s/)
+      assert.equal(run.hc.at(-1)?.[0], "get")
+    }
+  })
+
+  it("reads the terminal again until the Worker shows work", () => {
+    const scene = scenario()
+    scene.hc["get t7"] = [
+      terminal("t7", { name: NAME, parent: LEAD, status: "idle" }),
+      terminal("t7", { name: NAME, parent: LEAD, status: "working" })
+    ]
+    const run = start(["--wait", "5"], scene)
+    assert.equal(run.status, 0, run.stderr)
+    assert.deepEqual(
+      run.hc.filter((call) => call[0] === "get" && call[1] === "t7"),
+      [
+        ["get", "t7", "--json"],
+        ["get", "t7", "--json"]
+      ]
+    )
+  })
+
+  it("starts the Worker in the main checkout when the Lead sits in a linked worktree", () => {
+    const herdr = fakeHerdr(scenario(), LEAD)
+    const main = repo()
+    write(join(main, "README.md"), "x\n")
+    git(main, "add", "README.md")
+    commit(main, "-m", "init")
+    const linked = join(scratch("linked"), "wt")
+    git(main, "worktree", "add", "-q", linked, "-b", "feature")
+    write(join(linked, "brief.md"), BRIEF)
+    const run = runBin(["worker", "start", "--brief", "brief.md", "--name", NAME], linked, herdr.env)
+    assert.equal(run.status, 0, run.stderr)
+    assert.deepEqual(herdr.hcCalls()[2], runCall(main))
   })
 
   it("stops with hc's own words when hc run fails, and when hc is not installed", () => {

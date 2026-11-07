@@ -2,7 +2,7 @@
 
 import { parseArgs } from "node:util"
 
-import { lead, Refusal, table, workersOf } from "../worker/herdr.ts"
+import { describe, lead, refuse, table, workersOf } from "../worker/herdr.ts"
 
 export const summary = "list the Workers this Lead started and their states"
 
@@ -32,7 +32,7 @@ export function run(argv: string[]): number {
     }
     json = values.json === true
   } catch (error) {
-    process.stderr.write(`dw-sdlc worker ls: ${error instanceof Error ? error.message : String(error)}\n\n${USAGE}\n`)
+    process.stderr.write(`dw-sdlc worker ls: ${describe(error)}\n\n${USAGE}\n`)
     return 2
   }
   try {
@@ -47,12 +47,6 @@ export function run(argv: string[]): number {
     }
     return 0
   } catch (error) {
-    if (error instanceof Refusal) {
-      process.stderr.write(
-        `dw-sdlc worker ls: ${error.message}${error.remedy === undefined ? "" : ` — ${error.remedy}`}\n`
-      )
-      return 2
-    }
-    throw error
+    return refuse("worker ls", error)
   }
 }

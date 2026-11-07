@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
 import { parseArgs } from "node:util"
 
-import { call, lead, Refusal, said } from "../worker/herdr.ts"
+import { call, describe, lead, refuse, Refusal, said, wholeNumber } from "../worker/herdr.ts"
 
 export const summary = "deliver a Recap to the Lead, retrying while it is blocked"
 
@@ -53,17 +53,17 @@ function parseCli(argv: string[]): Cli | "help" | { error: string } {
     if (recap === undefined) {
       return { error: "name the Recap file: --recap <file>" }
     }
-    const attempts = values.attempts === undefined ? DEFAULT_ATTEMPTS : Number(values.attempts)
-    if (!Number.isInteger(attempts) || attempts < 1) {
-      return { error: `--attempts takes a whole number from 1, not ${JSON.stringify(values.attempts)}` }
+    const attempts = wholeNumber("--attempts", values.attempts, DEFAULT_ATTEMPTS, 1)
+    const interval = wholeNumber("--interval", values.interval, DEFAULT_INTERVAL, 0)
+    if (typeof attempts === "object") {
+      return attempts
     }
-    const interval = values.interval === undefined ? DEFAULT_INTERVAL : Number(values.interval)
-    if (!Number.isFinite(interval) || interval < 0) {
-      return { error: `--interval takes seconds from 0, not ${JSON.stringify(values.interval)}` }
+    if (typeof interval === "object") {
+      return interval
     }
     return { to, recap, attempts, interval }
   } catch (error) {
-    return { error: error instanceof Error ? error.message : String(error) }
+    return { error: describe(error) }
   }
 }
 
@@ -74,7 +74,7 @@ function messageFor(file: string): { message: string; path: string } {
   try {
     text = readFileSync(path, "utf8").trim()
   } catch (error) {
-    throw new Refusal(`cannot read the Recap ${file}: ${error instanceof Error ? error.message : String(error)}`)
+    throw new Refusal(`cannot read the Recap ${file}: ${describe(error)}`)
   }
   if (text === "") {
     throw new Refusal(`the Recap ${file} is empty`)
@@ -123,12 +123,6 @@ export async function run(argv: string[]): Promise<number> {
   try {
     return await report(cli)
   } catch (error) {
-    if (error instanceof Refusal) {
-      process.stderr.write(
-        `dw-sdlc worker report: ${error.message}${error.remedy === undefined ? "" : ` — ${error.remedy}`}\n`
-      )
-      return 2
-    }
-    throw error
+    return refuse("worker report", error)
   }
 }

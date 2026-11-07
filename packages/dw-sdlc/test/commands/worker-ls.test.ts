@@ -8,13 +8,15 @@ import { repo, runBin } from "../harness.ts"
 import { fakeHerdr, listing, type Listed } from "../hc-harness.ts"
 
 const LEAD = "t1"
+/** A Worker of another Lead. */
+const THEIRS: Listed = { address: "t9", name: "worker-14-theirs", parent: "t0", status: "working", cwd: "/work/repo" }
 const WORKERS: Listed[] = [
   { address: "t4", name: "worker-9-demo", parent: LEAD, status: "working", cwd: "/work/repo" },
   { address: "t5", name: "worker-10-other", parent: LEAD, status: "blocked", cwd: "/work/repo" },
   { address: "t6", name: "worker-11-done", parent: LEAD, status: "done", cwd: "/work/repo" },
   { address: "t7", name: "worker-12-gone", parent: LEAD, state: "finished", cwd: "/work/repo" },
   { address: "t8", name: "worker-13-quiet", parent: LEAD, cwd: "/work/repo" },
-  { address: "t9", name: "worker-14-theirs", parent: "t0", status: "working", cwd: "/work/repo" }
+  THEIRS
 ]
 
 function ls(args: string[], terminals: Listed[] = WORKERS, env: NodeJS.ProcessEnv = {}) {
@@ -55,7 +57,7 @@ describe("dw-sdlc worker ls", () => {
   })
 
   it("says so when the Lead has no Workers", () => {
-    const text = ls([], [WORKERS[5] as Listed])
+    const text = ls([], [THEIRS])
     assert.equal(text.status, 0, text.stderr)
     assert.equal(text.stdout, "no Workers\n")
     assert.deepEqual(JSON.parse(ls(["--json"], []).stdout), [])

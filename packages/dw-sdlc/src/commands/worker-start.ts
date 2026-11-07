@@ -1,18 +1,19 @@
 // `dw-sdlc worker start`: puts a Brief in a herdr terminal as a Worker's first message, on the command, model
-// and effort the config names, and reads back whether herdr delivered it.
+// and effort the config names, and reads back whether the Worker took it.
 
 import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
 import { parseArgs } from "node:util"
 
-import { repositoryRoot, resolveConfig, WORKER_EFFORTS } from "../agentic-config.ts"
+import { mainCheckout, repositoryRoot, resolveConfig, WORKER_EFFORTS } from "../agentic-config.ts"
 import { isObject } from "../json-text.ts"
-import { call, hcObject, lead, Refusal, said, workersOf } from "../worker/herdr.ts"
+import { describe, hcObject, lead, refuse, Refusal, wholeNumber, workersOf } from "../worker/herdr.ts"
+import { nameTab } from "../worker/tabs.ts"
 
 export const summary = "start a Worker on a Brief in a herdr terminal"
 
 const USAGE = `Usage: dw-sdlc worker start --brief <file> --name <name> [--model <model>] [--effort <effort>]
-                            [--max-workers <n>] [--json]
+                            [--max-workers <n>] [--wait <seconds>] [--json]
 
 Starts a Worker in the background and gives it the Brief as its first message. It runs hc run with the name,
 the label role=worker, --outlive-parent and the repository as the folder, then worker.command of the config
@@ -20,8 +21,10 @@ with --worktree <name>, --model, --effort and the Brief. --model and --effort de
 worker.effort. When the Lead sits in a herdr space the Worker joins it, and its tab, which herdr numbers,
 takes the Worker's name.
 
-It reads the terminal back and fails when herdr did not deliver the first message, the terminal has ended
-or the Worker reports an error. It does not send the Brief again: read the terminal first.
+It then reads the terminal back, for up to --wait seconds (default 30), until the Worker shows work: its status
+turns working, blocked or done. It fails when herdr reports the first message as unsent, the terminal has
+ended, the Worker reports an error, or the Worker is still idle or silent when the time is up. It never sends
+the Brief again: read the terminal with hc read first.
 
 It refuses outside herdr ($HC_TERMINAL_ID unset) and when the Lead already has --max-workers live
 Workers (default 3). The name is 1-32 of a-z, 0-9, - and _; it names the worktree too.
@@ -31,7 +34,12 @@ One line, or one JSON document with --json.
 Exit 0 started and delivered, 1 started but not delivered, 2 when it cannot run.`
 
 const DEFAULT_MAX_WORKERS = 3
+const DEFAULT_WAIT = 30
 const NAME = /^[a-z0-9][a-z0-9_-]{0,31}$/
+/** What a Worker reports once it has taken its first message. */
+const WORKING = new Set(["working", "blocked", "done"])
+/** How long the read-back waits between two reads of the terminal. */
+const POLL_MS = 1000
 
 type Cli = {
   brief: string
@@ -39,6 +47,7 @@ type Cli = {
   model: string | undefined
   effort: string | undefined
   max: number
+  wait: number
   json: boolean
 }
 
@@ -53,7 +62,8 @@ function parseCli(argv: string[]): Cli | "help" | { error: string } {
         name: { type: "string" },
         model: { type: "string" },
         effort: { type: "string" },
-        "max-workers": { type: "string" }
+        "max-workers": { type: "string" },
+        wait: { type: "string" }
       }
     })
     if (values.help === true) {
@@ -72,13 +82,17 @@ function parseCli(argv: string[]): Cli | "help" | { error: string } {
     if (effort !== undefined && !(WORKER_EFFORTS as readonly string[]).includes(effort)) {
       return { error: `--effort takes one of ${WORKER_EFFORTS.join(", ")}, not ${JSON.stringify(effort)}` }
     }
-    const max = values["max-workers"] === undefined ? DEFAULT_MAX_WORKERS : Number(values["max-workers"])
-    if (!Number.isInteger(max) || max < 1) {
-      return { error: `--max-workers takes a whole number from 1, not ${JSON.stringify(values["max-workers"])}` }
+    const max = wholeNumber("--max-workers", values["max-workers"], DEFAULT_MAX_WORKERS, 1)
+    const wait = wholeNumber("--wait", values.wait, DEFAULT_WAIT, 0)
+    if (typeof max === "object") {
+      return max
     }
-    return { brief, name, model, effort, max, json: values.json === true }
+    if (typeof wait === "object") {
+      return wait
+    }
+    return { brief, name, model, effort, max, wait, json: values.json === true }
   } catch (error) {
-    return { error: error instanceof Error ? error.message : String(error) }
+    return { error: describe(error) }
   }
 }
 
@@ -88,7 +102,7 @@ function readBrief(file: string): string {
   try {
     text = readFileSync(resolve(file), "utf8")
   } catch (error) {
-    throw new Refusal(`cannot read the Brief ${file}: ${error instanceof Error ? error.message : String(error)}`)
+    throw new Refusal(`cannot read the Brief ${file}: ${describe(error)}`)
   }
   if (text.trim() === "") {
     throw new Refusal(`the Brief ${file} is empty`)
@@ -96,19 +110,41 @@ function readBrief(file: string): string {
   return text
 }
 
-/** Why herdr did not take the first message, or undefined when it did. */
-function undelivered(terminal: Record<string, unknown>): string | undefined {
-  const { first_message: first, state, status } = terminal
+/** The status a Worker reports, if it has reported one. */
+function reportedStatus(terminal: Record<string, unknown>): string | undefined {
+  const { status } = terminal
+  return isObject(status) && typeof status.state === "string" ? status.state : undefined
+}
+
+/** Why the Worker can no longer take the Brief, or undefined while it still may. */
+function failure(terminal: Record<string, unknown>): string | undefined {
+  const { first_message: first, state } = terminal
   if (isObject(first) && first.sent === false) {
     return typeof first.reason === "string" ? first.reason : "herdr gave no reason"
   }
   if (state !== "live") {
     return "the terminal has finished"
   }
-  if (isObject(status) && status.state === "error") {
-    return "the Worker reports its status as error"
+  return reportedStatus(terminal) === "error" ? "the Worker reports its status as error" : undefined
+}
+
+/** Reads the terminal until the Worker shows work, for up to `wait` seconds; why it did not, or undefined once it did. */
+async function delivery(address: string, wait: number): Promise<string | undefined> {
+  const deadline = Date.now() + wait * 1000
+  for (;;) {
+    const terminal = hcObject(["get", address, "--json"])
+    const failed = failure(terminal)
+    if (failed !== undefined) {
+      return failed
+    }
+    if (WORKING.has(reportedStatus(terminal) ?? "")) {
+      return undefined
+    }
+    if (Date.now() >= deadline) {
+      return `the Worker showed no sign of work within ${wait} s`
+    }
+    await new Promise((done) => setTimeout(done, POLL_MS))
   }
-  return undefined
 }
 
 /** The id of the herdr space the Lead sits in, if it sits in one. */
@@ -118,70 +154,13 @@ function spaceOf(leadId: string): string | undefined {
   return typeof space === "string" ? space : undefined
 }
 
-/** Names the Worker's tab, which herdr numbers; a tab that stays numbered is a warning, never a failure. */
-function nameTab(address: string, name: string): "renamed" | { kept: string } {
-  try {
-    const layout = tabsOf()
-    const tab = layout.find((candidate) => candidate.terminals.includes(address))
-    if (tab === undefined) {
-      return { kept: `the tab of ${address} is not in herdr-app ls, so it keeps herdr's name` }
-    }
-    const renamed = call("herdr-app", ["do", "tab.rename", "--id", tab.id, "--name", name])
-    if (renamed.status !== 0) {
-      return { kept: `herdr-app could not rename the tab of ${address}: ${errorOf(renamed.stdout) ?? said(renamed)}` }
-    }
-    return "renamed"
-  } catch (error) {
-    if (error instanceof Refusal) {
-      return { kept: `the tab of ${address} keeps herdr's name: ${error.message}` }
-    }
-    throw error
-  }
-}
-
-/** The `error` of a herdr-app reply `{ "error": "..." }`. */
-function errorOf(stdout: string): string | undefined {
-  try {
-    const parsed: unknown = JSON.parse(stdout)
-    return isObject(parsed) && typeof parsed.error === "string" ? parsed.error : undefined
-  } catch {
-    return undefined
-  }
-}
-
-type Tab = { id: string; terminals: string[] }
-
-/** The tabs `herdr-app ls` shows, each with the addresses of its terminals. */
-function tabsOf(): Tab[] {
-  const listed = call("herdr-app", ["ls"])
-  if (listed.status !== 0) {
-    throw new Refusal(`herdr-app ls failed: ${said(listed)}`)
-  }
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(listed.stdout)
-  } catch {
-    throw new Refusal("herdr-app ls answered no JSON")
-  }
-  const spaces = isObject(parsed) && Array.isArray(parsed.spaces) ? parsed.spaces : []
-  return spaces
-    .flatMap((space: unknown) => (isObject(space) && Array.isArray(space.tabs) ? space.tabs : []))
-    .flatMap((tab: unknown) => {
-      if (!isObject(tab) || typeof tab.id !== "string" || !Array.isArray(tab.terminals)) {
-        return []
-      }
-      const terminals = tab.terminals.flatMap((entry: unknown) =>
-        isObject(entry) && typeof entry.terminal === "string" ? [entry.terminal] : []
-      )
-      return [{ id: tab.id, terminals }]
-    })
-}
-
-function start(cli: Cli): number {
+async function start(cli: Cli): Promise<number> {
   const brief = readBrief(cli.brief)
   const leadId = lead()
-  const root = repositoryRoot(process.cwd())
-  const worker = resolveConfig(root).config.worker
+  const checkout = repositoryRoot(process.cwd())
+  // The Worker's --worktree makes a worktree of the repository itself, never of a linked one.
+  const root = mainCheckout(checkout) ?? checkout
+  const worker = resolveConfig(checkout).config.worker
   const command = worker.command.split(/\s+/).filter(Boolean)
   if (command.length === 0) {
     throw new Refusal("worker.command holds no command", "set it in .ai/agentic.config.local.json, or remove the key")
@@ -198,7 +177,7 @@ function start(cli: Cli): number {
   }
 
   const space = spaceOf(leadId)
-  const ran = hcObject([
+  const { address } = hcObject([
     "run",
     "--bg",
     "--json",
@@ -220,26 +199,20 @@ function start(cli: Cli): number {
     effort,
     brief
   ])
-  const { address } = ran
   if (typeof address !== "string") {
     throw new Refusal("hc run answered no address for the terminal it started", "check hc ls before starting it again")
   }
 
-  const tab = space === undefined ? "none" : nameTab(address, cli.name)
-  if (typeof tab === "object") {
-    process.stderr.write(`dw-sdlc worker start: warning: ${tab.kept}\n`)
+  const named = space === undefined ? "none" : nameTab(address, cli.name)
+  if (typeof named === "object") {
+    process.stderr.write(`dw-sdlc worker start: warning: ${named.kept}\n`)
   }
-  const reason = undelivered(hcObject(["get", address, "--json"]))
+  const reason = await delivery(address, cli.wait)
 
-  const started = { name: cli.name, address, command: worker.command, model, effort, cwd: root }
   if (cli.json) {
-    const tabState = typeof tab === "object" ? "kept" : tab
-    const document = {
-      ...started,
-      delivered: reason === undefined,
-      ...(reason === undefined ? {} : { reason }),
-      tab: tabState
-    }
+    const tab = typeof named === "object" ? "kept" : named
+    const started = { name: cli.name, address, command: worker.command, model, effort, cwd: root }
+    const document = { ...started, delivered: reason === undefined, ...(reason === undefined ? {} : { reason }), tab }
     process.stdout.write(`${JSON.stringify(document, null, 2)}\n`)
   }
   if (reason !== undefined) {
@@ -255,7 +228,7 @@ function start(cli: Cli): number {
   return 0
 }
 
-export function run(argv: string[]): number {
+export async function run(argv: string[]): Promise<number> {
   const cli = parseCli(argv)
   if (cli === "help") {
     process.stdout.write(`${USAGE}\n`)
@@ -266,14 +239,8 @@ export function run(argv: string[]): number {
     return 2
   }
   try {
-    return start(cli)
+    return await start(cli)
   } catch (error) {
-    if (error instanceof Refusal) {
-      process.stderr.write(
-        `dw-sdlc worker start: ${error.message}${error.remedy === undefined ? "" : ` — ${error.remedy}`}\n`
-      )
-      return 2
-    }
-    throw error
+    return refuse("worker start", error)
   }
 }

@@ -40,15 +40,45 @@ export function hcObject(args: string[]): JsonObject {
   if (called.status !== 0) {
     throw new Refusal(`hc ${args[0] ?? ""} failed: ${said(called)}`)
   }
+  let parsed: unknown
   try {
-    const parsed: unknown = JSON.parse(called.stdout)
-    if (isObject(parsed)) {
-      return parsed
-    }
+    parsed = JSON.parse(called.stdout)
   } catch {
-    // Falls through to the refusal below.
+    parsed = undefined
   }
-  throw new Refusal(`hc ${args[0] ?? ""} answered something that is no JSON object`, "check hc --version")
+  if (!isObject(parsed)) {
+    throw new Refusal(`hc ${args[0] ?? ""} answered something that is no JSON object`, "check hc --version")
+  }
+  return parsed
+}
+
+/** What an error says, whatever was thrown. */
+export function describe(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
+/** Reports a `Refusal` of `command` on stderr and answers exit 2; any other error is a bug and goes on up. */
+export function refuse(command: string, error: unknown): number {
+  if (!(error instanceof Refusal)) {
+    throw error
+  }
+  process.stderr.write(
+    `dw-sdlc ${command}: ${error.message}${error.remedy === undefined ? "" : ` — ${error.remedy}`}\n`
+  )
+  return 2
+}
+
+/** The option `flag` as a whole number from `min`, `fallback` when the command line leaves it out. */
+export function wholeNumber(
+  flag: string,
+  value: string | undefined,
+  fallback: number,
+  min: number
+): number | { error: string } {
+  const number = value === undefined ? fallback : Number(value)
+  return Number.isInteger(number) && number >= min
+    ? number
+    : { error: `${flag} takes a whole number from ${min}, not ${JSON.stringify(value)}` }
 }
 
 /** The terminal the command runs in, which is the Lead of the Workers it starts or reads. */
