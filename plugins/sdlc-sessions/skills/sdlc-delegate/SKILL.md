@@ -93,8 +93,8 @@ Read each Recap whole. Its verdict decides:
   `hc run --bg --name wake-<address> -- sleep <seconds>`. On its exit, remove it with `hc rm wake-<address>`
   and wake the Worker with `hc send <address> "<seconds> s have passed: call the Ship script again"`. The
   Ship script decides again: a run still going is another `wait`, and one stuck past its budget is a
-  `park` the Worker reports. When the dev wants the answer sooner, wait once with
-  `hc wait wake-<address> --timeout 180`; if it returns before the timer ends, say so and end your turn.
+  `park` the Worker reports. When the dev wants the answer sooner, kill and remove the timer and wake the
+  Worker now.
 
 The dev's own words come with these: answer them in plain text, then end your turn.
 
@@ -107,7 +107,8 @@ The dev's own words come with these: answer them in plain text, then end your tu
 - Never answer a Worker's question that lies outside its Brief: the decision is the dev's.
 - The dev may answer a Worker in its own terminal. Its next Recap says what the dev decided; take that as
   the dev's word.
-- `hc wait` only for a short, bounded wait, a CI run or the dev's word, with `--timeout` of 180 or less.
+- `hc wait` only for a short, bounded wait, a CI run or the dev's word, and never past `--timeout 180`.
+  A Worker's wait needs none: its timer wakes you.
   Never poll `gh` in a loop; one read to check a claim is fine.
 - Never `hc send --force` and never press keys in a Worker's terminal: typing into a blocked one answers
   its dialog.
