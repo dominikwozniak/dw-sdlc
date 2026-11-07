@@ -13,11 +13,11 @@ import {
   checkPackage,
   checkPlugin,
   checkSessions,
-  isObject,
   parseJson,
   runningPluginRoot,
   versionBefore
 } from "../doctor-plugins.ts"
+import { isObject } from "../json-text.ts"
 
 export type Level = "PASS" | "WARN" | "FAIL" | "INFO"
 export type Check = { name: string; level: Level; detail: string }

@@ -4,6 +4,7 @@
 import { join } from "node:path"
 
 import type { Check, Probe } from "./commands/doctor.ts"
+import { isObject } from "./json-text.ts"
 import { EXACT_VERSION, parseCatalog, parsePins } from "./pins.ts"
 
 /** The marketplace Claude Code registers this repository under, the plugin in it, and the package the plugin links to. */
@@ -15,10 +16,7 @@ const SESSIONS = "sdlc-sessions"
 const SESSIONS_ID = `${SESSIONS}@${MARKETPLACE}`
 export const PACKAGE = "dw-sdlc"
 
-export function isObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
-
+/** The JSON `text` holds, whatever its kind: `claude plugin list --json` prints an array. */
 export function parseJson(text: string | undefined): unknown {
   if (text === undefined) {
     return undefined

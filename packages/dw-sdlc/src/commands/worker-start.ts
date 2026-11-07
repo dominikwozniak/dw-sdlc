@@ -21,7 +21,8 @@ the label role=worker, --outlive-parent and the repository as the folder, then w
 with --worktree <name>, --model, --effort and the Brief. worker.command is split on whitespace, so it holds
 no quoted word. --model and --effort default to worker.model and worker.effort. When the Lead sits in a
 herdr space the Worker joins it, and its tab, which herdr numbers, takes the Worker's name: the window lists
-the tab a moment after hc run, so the command looks for it for up to 10 seconds, or --wait when shorter.
+the tab a moment after hc run, so the command looks for it for up to 10 seconds, or --wait when shorter,
+before the read-back below.
 
 It then reads the terminal back, for up to --wait seconds (default 30), until the Worker shows work: its status
 turns working, blocked or done. It fails when herdr reports the first message as unsent, the terminal has
@@ -37,7 +38,7 @@ Exit 0 started and delivered, 1 started but not delivered, 2 when it cannot run.
 
 const DEFAULT_MAX_WORKERS = 3
 const DEFAULT_WAIT = 30
-/** The most seconds the command looks for the Worker's tab in the window, within --wait. */
+/** The most seconds the command looks for the Worker's tab in the window, before the read-back's --wait. */
 const TAB_WAIT = 10
 /** hc names a terminal with 1-32 of a-z, 0-9, - and _. */
 const NAME = /^[a-z0-9][a-z0-9_-]{0,31}$/

@@ -11,10 +11,10 @@ const USAGE = `Usage: dw-sdlc worker ls [--json]
 Lists the Workers the calling Lead started (terminals labelled role=worker whose parent is this
 terminal): name, address, herdr's state, status and folder. A live Worker's folder is the one it works
 in, its worktree, as hc get reports it; a finished one, or one herdr cannot tell it for, shows the folder
-it was launched in. The status is what
-the Worker reports, one of idle, working, done, blocked, error, or finished once its terminal has ended;
-unknown before it reports. herdr's done means a turn ended, not the task: the Worker's Recap says whether
-the task is done. Finished Workers stay listed until they are removed with hc rm.
+it was launched in. The status is what the Worker reports, one of idle, working, done, blocked, error, or
+finished once its terminal has ended; unknown before it reports. herdr's done means a turn ended, not the
+task: the Worker's Recap says whether the task is done. Finished Workers stay listed until they are
+removed with hc rm.
 
 Needs a terminal herdr started ($HC_TERMINAL_ID) and hc on PATH. One line a Worker, or one JSON array
 with --json.

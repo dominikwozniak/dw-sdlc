@@ -42,13 +42,17 @@ function errorOf(stdout: string): string | undefined {
 const RETRY_MS = 250
 
 /**
- * Names the tab holding `address`, reading `herdr-app ls` again for up to `bound` seconds, since the window
+ * Names the tab holding `address`, reading `herdr-app ls` again for up to `boundSeconds`, since the window
  * lists a terminal's tab a moment after `hc run` returns. `kept` says why the tab stays numbered, which is a
  * warning and never a failure.
  */
-export async function nameTab(address: string, name: string, bound: number): Promise<"renamed" | { kept: string }> {
+export async function nameTab(
+  address: string,
+  name: string,
+  boundSeconds: number
+): Promise<"renamed" | { kept: string }> {
   try {
-    const deadline = Date.now() + bound * 1000
+    const deadline = Date.now() + boundSeconds * 1000
     const find = (): Tab | undefined => tabsOf().find((candidate) => candidate.terminals.includes(address))
     let tab = find()
     while (tab === undefined && Date.now() < deadline) {
@@ -56,7 +60,7 @@ export async function nameTab(address: string, name: string, bound: number): Pro
       tab = find()
     }
     if (tab === undefined) {
-      return { kept: `the tab of ${address} is not in herdr-app ls within ${bound} s, so it keeps herdr's name` }
+      return { kept: `the tab of ${address} is not in herdr-app ls within ${boundSeconds} s, so it keeps herdr's name` }
     }
     const renamed = call("herdr-app", ["do", "tab.rename", "--id", tab.id, "--name", name])
     if (renamed.status !== 0) {
