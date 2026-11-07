@@ -391,7 +391,7 @@ the key.
 `dw-sdlc doctor` prints one PASS / WARN / FAIL line per machine check and installs
 nothing: `jq`, the plugin enabled, the package the plugin links against the one the repository pins,
 the session helpers' plugin and its copy of the package, rtk not wired by hand beside the plugin's hook and the filters that misbehave on the installed
-release excluded (`find` below rtk 0.46.0), Safe Chain visible to the agent's login shell with `npm`
+release excluded (`find` below rtk 0.46.0), herdr's `hc` on the agent's PATH (INFO when absent), Safe Chain visible to the agent's login shell with `npm`
 going through it (a WARN when absent), pnpm's global `minimumReleaseAge`, commit signing, and the
 resolved config of the repository holding `--root` or the current directory. A check that does not
 apply here is INFO, the config outside any repository among them. Exit 1 on a FAIL.
@@ -409,6 +409,11 @@ without, so it never fails: INFO when it is not installed, a WARN when it is dis
 package. Its own copy of the package is compared with the copy `sdlc` runs, which the `package` line holds
 to the repository's pin. Different versions are a WARN that starts with `drift:` and names the plugin
 to update.
+
+The `hc` line reports herdr's `hc`, which a Lead starts its Workers through. It asks the agent's login
+shell for `command -v hc`: PASS with the path it finds, so a Lead can start Workers; INFO when there is
+none, since a machine may go without herdr, and the line says to install herdr to run Workers. It never
+warns or fails.
 
 The `sdlc-doctor` skill runs it as `node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" doctor` from the
 repository, and the setup skill runs it last; a terminal runs
