@@ -352,11 +352,12 @@ The script owns four Actions, one `gh` command each. It updates a branch behind 
 merging the base in. It judges "behind" itself, from the compare of the base with the head: a head
 that lacks one commit of the base or more is behind, and so is one GitHub reports `BEHIND`. GitHub
 reports `BEHIND` only where a rule asks a branch to be up to date before it merges, so without the
-compare a branch behind its base would merge with no CI run on the tree the merge makes. It marks the head of the viewer's own pull request reviewed when the Review
-depth is `off`. It marks the viewer's own draft ready once CI is green, no thread is open and the
-head is reviewed. It squash merges with `--match-head-commit`, so a push during the decision never
-merges blind. Each runs at most once per call; one that comes round again, and every one under
-`--dry-run`, parks with its command for the dev.
+compare a branch behind its base would merge with no CI run on the tree the merge makes. It marks
+the head of the viewer's own pull request reviewed when the Review depth is `off`. It marks the
+viewer's own draft ready once CI is green, no thread is open and the head is reviewed. It squash
+merges with `--match-head-commit`, so a push during the decision never merges blind. Each runs at
+most once per call; one that comes round again, and every one under `--dry-run`, parks with its
+command for the dev.
 
 `performed` lists each Action a call ran, with `ok`, `exit` and `stderr` when `gh` wrote any. `ok` is
 whether the read after the Action shows its effect; `exit` is what `gh` answered. The pair `ok: false`

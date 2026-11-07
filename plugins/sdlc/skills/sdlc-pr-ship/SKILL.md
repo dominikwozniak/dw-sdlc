@@ -20,8 +20,8 @@ cannot run: show what it printed and stop. Otherwise read `status`, then `action
 `<head>` are the answer's. Before an `act`, the checkout must be the pull request's branch at
 `<head>`: behind it, `git pull --rebase`, since the script may have updated the branch; anything
 else, say so and stop. The script updates a branch behind `<base>` itself: it judges that from the
-compare of `<base>` with `<head>`, so it updates one GitHub never reports `BEHIND` too. Fix the agent's other `blockers` in the same push, all but `review`, which
-needs the head the push makes.
+compare of `<base>` with `<head>`, so it updates one GitHub never reports `BEHIND` too. Fix the
+agent's other `blockers` in the same push, all but `review`, which needs the head the push makes.
 
 - `act fix-ci`: run each `log` under `details.checks`, or read its `link`; fix, then `git push`.
 - `act fix-conflicts`: `git fetch origin <base>`, rebase onto `origin/<base>`, resolve, then

@@ -83,8 +83,8 @@ export type PrState = {
    */
   changed: ChangedFile[] | "unsized" | null
   /**
-   * How many commits of the base the head lacks, from the compare of the base with the head: read only
-   * by the Ship script, for an open, mergeable pull request GitHub does not report BEHIND; null when not read.
+   * How many commits of the base the head lacks, from the compare of the base with the head; null when
+   * not read.
    */
   behindBy: number | null
 }
