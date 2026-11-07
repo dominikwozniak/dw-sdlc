@@ -10,7 +10,7 @@ export const QUERY = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
     pullRequest(number: $number) {
       url number state isDraft mergeable mergeStateStatus reviewDecision headRefOid headRefName baseRefName baseRefOid
-      viewerDidAuthor mergeCommit { oid }
+      baseRef { target { oid } } viewerDidAuthor mergeCommit { oid }
       reviewThreads(first: 100) { nodes { id isResolved isOutdated path line
         comments(first: 1) { nodes { author { login } body } }
         latest: comments(last: 1) { nodes { viewerDidAuthor } } } }
@@ -62,7 +62,10 @@ export type PrState = {
   headCommittedAt: string
   branch: string
   base: string
-  /** The commit the base branch points at. */
+  /**
+   * The commit the base branch points at, read from the branch itself: GitHub's `baseRefOid` lags a
+   * base that just moved. A deleted base branch leaves `baseRefOid`.
+   */
   baseOid: string
   mergeCommit: string | null
   checks: CiCheck[]
@@ -334,6 +337,7 @@ export function parsePr(reply: string, repo: string): Omit<PrState, "carried" | 
   const rollup = childOrNull(commit, "statusCheckRollup")
   const mergeCommit = childOrNull(pr, "mergeCommit")
   const head = string(pr, "headRefOid")
+  const baseRef = childOrNull(pr, "baseRef")
   return {
     url: string(pr, "url"),
     repo,
@@ -348,7 +352,7 @@ export function parsePr(reply: string, repo: string): Omit<PrState, "carried" | 
     headCommittedAt: time(commit, "committedDate"),
     branch: string(pr, "headRefName"),
     base: string(pr, "baseRefName"),
-    baseOid: string(pr, "baseRefOid"),
+    baseOid: baseRef === null ? string(pr, "baseRefOid") : string(child(baseRef, "target"), "oid"),
     mergeCommit: mergeCommit === null ? null : string(mergeCommit, "oid"),
     checks: rollup === null ? [] : nodes(rollup, "contexts").map((context) => checkOf(context, repo)),
     unresolvedThreads: nodes(pr, "reviewThreads")

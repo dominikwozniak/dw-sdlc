@@ -152,7 +152,10 @@ export function readAgain(pr: PrState, sized: boolean): PrState {
   return query(pr, sized)
 }
 
-/** The compares this process has read, by repository and the two commits: a compare of two commits never changes. */
+/**
+ * The compares this process has read, by repository and the two commits, so reads that share one ask gh
+ * once: a compare of two commits never changes.
+ */
 const COMPARES = new Map<string, string>()
 
 /** The reply of the compare from `from` to `commit`, read once per process; `what` names it when gh refuses it. */
