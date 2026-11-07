@@ -95,10 +95,11 @@
     {
       "id": 7,
       "name": "written-for-a-named-lead",
-      "prompt": "/sdlc-brief #77\n\nThe dev writes English. They wrote: \"this one goes to the Lead in terminal t2j, write it for that Lead\". In place of running them, take these as what the commands printed.\n\n`gh issue view 77 --comments`:\ntitle: Add --json to the export command\nbody: ## Acceptance criteria\n- [ ] `export --json` prints a JSON array with the fields id, name, total.\ncomments: none\n\n`dw-sdlc config`, exit 0:\ncommitted  .ai/agentic.config.json  valid\nlocal      .ai/agentic.config.local.json  absent\n{\"gate\":{\"command\":\"pnpm check\"},\"worker\":{\"command\":\"claude\",\"model\":\"sonnet\",\"effort\":\"high\"}}\n\n`git worktree list --porcelain` first line: worktree /repo/tool\n\nThe repository has the /implement skill. Give your answer as the skill says, and save it as brief.md. Run nothing else.",
-      "expected_output": "The Brief's Questions and Report lines both deliver to the Lead in terminal t2j, by the path the skill runs dw-sdlc from.",
+      "prompt": "/sdlc-brief #77\n\nThe dev writes English. They wrote: \"this one goes to the Lead in terminal t2j, write it for that Lead\". In place of running them, take these as what the commands printed.\n\n`gh issue view 77 --comments`:\ntitle: Add --json to the export command\nbody: ## Acceptance criteria\n- [ ] `export --json` prints a JSON array with the fields id, name, total.\ncomments: none\n\n`dw-sdlc config`, exit 0:\ncommitted  .ai/agentic.config.json  valid\nlocal      .ai/agentic.config.local.json  absent\n{\"gate\":{\"command\":\"pnpm check\"},\"worker\":{\"command\":\"claude\",\"model\":\"haiku\",\"effort\":\"medium\"}}\n\n`git worktree list --porcelain` first line: worktree /repo/tool\n\nThe repository has the /implement skill. Give your answer as the skill says, and save it as brief.md. Run nothing else.",
+      "expected_output": "The Brief's Questions and Report lines both deliver to the Lead in terminal t2j, by the path the skill runs dw-sdlc from, and the clear spec runs on the config's haiku and medium.",
       "files": [],
       "expectations": [
+        "The Model and effort line says haiku and medium, the config's worker values, with a clear spec as the reason",
         "The Report line says to end with /sdlc-recap and deliver it with worker report to the Lead in terminal t2j",
         "The Report line says that a wait from /sdlc-pr-ship goes to the Lead the same way, and that the Worker ends its turn",
         "The Questions line says to commit nothing more and deliver the question to the Lead, not to ask in the terminal alone",

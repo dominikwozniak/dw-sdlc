@@ -106,10 +106,8 @@ model and effort, and the start line. `/sdlc-recap` reads it too, for a follow-u
 or `worker`.
 
 A Brief is in English. It points at its source and never retells it, and what only the conversation holds
-counts as no source, so an idea's Goal says all it needs to. Its fields are the kickoff line, the goal, the
-source and the command that reads it, "you are the Worker: do it yourself, start no other session", what it
-may write, what it must not do, the proof, the way to ship, what to do with a question, the report
-instruction, and the model and effort with the reason. The Worker is named `worker-<issue>-<slug>`.
+counts as no source, so an idea's Goal says all it needs to. The template lists its fields, and the Worker
+is named `worker-<issue>-<slug>`.
 
 The Brief's kind sets the model and effort, never the size of the change: the template's table routes a clear
 spec to the config's `worker` values and work that needs decisions to a stronger model, with the dev's word
@@ -118,8 +116,8 @@ over both.
 A Brief comes with three ways out, the lightest that fits recommended. The start line holds `worker.command`
 with `--worktree`, `--model` and `--effort`, and the Brief as the first message, for the dev to paste into a
 new terminal. A new issue takes the Brief as its body and starts later with `/implement #N`. A Lead, in herdr,
-starts the Worker and names its own terminal in the Questions and Report lines, because a Worker that ends its
-turn looks finished to its Lead.
+starts the Worker. A Brief for a Lead names the Lead's terminal in its Questions and Report lines, because a
+Worker that ends its turn looks finished to its Lead.
 
 A Worker carries its pull request through `/sdlc-pr-ship`, which it may start because a Brief tells it to;
 `pr.merge` decides whether it ends at merged or parked for the dev.

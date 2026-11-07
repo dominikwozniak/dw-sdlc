@@ -20,21 +20,23 @@ any terminal, and it starts nothing itself.
 3. The config, as the template says: `node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" config`.
 
 When you cannot tell what the work is, ask one question and stop. A model or an effort in the dev's words,
-in `$ARGUMENTS` or the conversation, is their word on the routing.
+in `$ARGUMENTS` or the conversation, is their word on the routing. A Lead's terminal in their words makes
+the Brief one for that Lead: its Questions and Report lines take the template's Lead form.
 
 ## Answer
 
 Write it in the conversation's language around the Brief; the Brief itself stays English. A line naming the
 Worker, its model and effort with the reason, then the three ways out, recommending the lightest that fits:
-the start line, unless the dev said not now, when it is the issue, or the Brief is one of several to run
-together, when it is a Lead.
+the start line, unless the dev said not now, when it is the issue, or they named a Lead or the Brief is one
+of several to run together, when it is a Lead.
 
 1. **Start line.** The block the template describes, at the left margin, since an indent would enter the
    Brief. The Brief is inside it, printed once, so the dev pastes one block and reads the Brief there.
 2. **Issue.** A new issue whose body is the Brief, startable later with `/implement #N`. When the source is
    already an issue, the new one points at it.
-3. **Lead.** The dev pastes the Brief, the text between the quotes, into a Lead's session, in herdr. The Lead
-   starts the Worker and writes the Questions and Report lines for a Lead, naming its own terminal.
+3. **Lead.** The dev pastes the Brief, the text between the quotes, into a Lead's session, in herdr, and the
+   Lead starts the Worker. A Brief that names no Lead yet would have its Worker report to no one, so this way
+   asks for the Lead's terminal and gives the Brief again in the Lead form.
 
 End with one line: which word picks each way.
 

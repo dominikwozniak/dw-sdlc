@@ -20,7 +20,7 @@ is its long form: how a guard works, why the design, adopting and releasing.
   a `dw-sdlc` link, the manifest test
 - `plugins/sdlc/` — the plugin `.claude-plugin/marketplace.json` lists first, enabled at user
   scope: `hooks/` the bash guards on a shared `lib.sh` plus the jq config contract, and the session
-  hooks, the report and the Sync; `skills/` `sdlc-setup`, `sdlc-doctor`,
+  hooks, the report and the Sync; `skills/` the skills `sdlc-setup`, `sdlc-doctor`,
   `sdlc-references-add` and `sdlc-pr-ship`; `agents/` the `sdlc-reviewer` subagent a `light` Review
   spawns; `dw-sdlc` a link to the package, whose bin the hooks and skills run; `test/` the hook
   tests, mirroring `hooks/`, each spawning a hook on the real stdin payload, and the manifest test
