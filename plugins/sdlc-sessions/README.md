@@ -111,24 +111,18 @@ source and the command that reads it, "you are the Worker: do it yourself, start
 may write, what it must not do, the proof, the way to ship, what to do with a question, the report
 instruction, and the model and effort with the reason. The Worker is named `worker-<issue>-<slug>`.
 
-The Brief's kind sets the model and effort, never the size of the change:
-
-| the Brief's kind                                    | model          | effort          |
-| --------------------------------------------------- | -------------- | --------------- |
-| a clear spec: the work is decided, its proof stated | `worker.model` | `worker.effort` |
-| it needs decisions, design or reading unclear code  | `opus`         | `high`          |
-| the dev named a model or an effort                  | as they said   | as they said    |
-
-`xhigh`, `max` or `fable` run only on the dev's word.
+The Brief's kind sets the model and effort, never the size of the change: the template's table routes a clear
+spec to the config's `worker` values and work that needs decisions to a stronger model, with the dev's word
+over both.
 
 A Brief comes with three ways out, the lightest that fits recommended. The start line holds `worker.command`
 with `--worktree`, `--model` and `--effort`, and the Brief as the first message, for the dev to paste into a
-new terminal. An issue takes the Brief as its body and starts later with `/implement #N`; when the source is
-already an issue, the Brief goes on it as a comment. A Lead, in herdr, starts the Worker and names its own
-terminal in the Report line.
+new terminal. A new issue takes the Brief as its body and starts later with `/implement #N`. A Lead, in herdr,
+starts the Worker and names its own terminal in the Questions and Report lines, because a Worker that ends its
+turn looks finished to its Lead.
 
 A Worker carries its pull request through `/sdlc-pr-ship`, which it may start because a Brief tells it to;
-`pr.merge` still decides whether it ends at merged or parked for the dev.
+`pr.merge` decides whether it ends at merged or parked for the dev.
 
 ## Evals
 

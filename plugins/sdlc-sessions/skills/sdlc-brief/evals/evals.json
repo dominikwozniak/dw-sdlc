@@ -20,7 +20,7 @@
         "The Worker's name has the form worker-77-<slug>",
         "The start line starts from cd /repo/tool and holds cswap run -- --dangerously-skip-permissions with --worktree worker-77-, --model sonnet and --effort high, and the Brief in single quotes",
         "Three ways out appear: the start line, an issue and a Lead, with the start line recommended",
-        "The issue way adds the Brief to issue 77 as a comment rather than filing a new issue",
+        "The issue way files a new issue whose body is the Brief and which points at issue 77",
         "Nothing was started, filed or commented on"
       ]
     },
@@ -90,6 +90,22 @@
       "expectations": [
         "The issue way is the one recommended, because the dev said not now",
         "No issue was filed and no gh command was run"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "written-for-a-named-lead",
+      "prompt": "/sdlc-brief #77\n\nThe dev writes English. They wrote: \"this one goes to the Lead in terminal t2j, write it for that Lead\". In place of running them, take these as what the commands printed.\n\n`gh issue view 77 --comments`:\ntitle: Add --json to the export command\nbody: ## Acceptance criteria\n- [ ] `export --json` prints a JSON array with the fields id, name, total.\ncomments: none\n\n`dw-sdlc config`, exit 0:\ncommitted  .ai/agentic.config.json  valid\nlocal      .ai/agentic.config.local.json  absent\n{\"gate\":{\"command\":\"pnpm check\"},\"worker\":{\"command\":\"claude\",\"model\":\"sonnet\",\"effort\":\"high\"}}\n\n`git worktree list --porcelain` first line: worktree /repo/tool\n\nThe repository has the /implement skill. Give your answer as the skill says, and save it as brief.md. Run nothing else.",
+      "expected_output": "The Brief's Questions and Report lines both deliver to the Lead in terminal t2j, by the path the skill runs dw-sdlc from.",
+      "files": [],
+      "expectations": [
+        "The Report line says to end with /sdlc-recap and deliver it with worker report to the Lead in terminal t2j",
+        "The Report line says that a wait from /sdlc-pr-ship goes to the Lead the same way, and that the Worker ends its turn",
+        "The Questions line says to commit nothing more and deliver the question to the Lead, not to ask in the terminal alone",
+        "The Questions line says the answer comes from the Lead or from the dev in this terminal",
+        "The worker report command is written as a path ending in dw-sdlc/src/cli.ts, not a bare dw-sdlc",
+        "The Lead way is the one recommended",
+        "Nothing was started"
       ]
     }
   ]

@@ -327,7 +327,7 @@
       "id": "skills.brief",
       "name": "sdlc-brief",
       "group": "skills",
-      "summary": "The user-invoked skill that gives a Worker's start: a Brief, its model and effort, and three ways to start it.",
+      "summary": "The user-invoked skill that writes a Brief, with the model and effort it runs on and three ways out.",
       "code": ["plugins/sdlc-sessions/skills/sdlc-brief/"],
       "docs": ["plugins/sdlc-sessions/README.md#the-brief", "GLOSSARY.md"]
     },

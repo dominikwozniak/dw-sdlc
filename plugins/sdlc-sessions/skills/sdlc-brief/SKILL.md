@@ -1,6 +1,6 @@
 ---
 name: sdlc-brief
-description: Turn an issue, a spec, a Recap's follow-up or an idea from the conversation into a Brief, the fixed-shape start of a Worker session, with the model and effort it runs on and three ways to start it.
+description: Turn an issue, a spec, a Recap's follow-up or an idea from the conversation into a Brief, the fixed-shape start of a Worker session, with the model and effort it runs on and three ways out.
 argument-hint: "[#issue | spec path | follow-up | idea] [model or effort]"
 disable-model-invocation: true
 ---
@@ -31,16 +31,16 @@ together, when it is a Lead.
 
 1. **Start line.** The block the template describes, at the left margin, since an indent would enter the
    Brief. The Brief is inside it, printed once, so the dev pastes one block and reads the Brief there.
-2. **Issue.** The body is the Brief, startable later with `/implement #N`. When the source is already an
-   issue, this way adds the Brief to it as a comment and files nothing.
-3. **Lead.** The dev pastes the Brief into a Lead's session, in herdr; the Lead starts the Worker and names
-   its own terminal in the Report line.
+2. **Issue.** A new issue whose body is the Brief, startable later with `/implement #N`. When the source is
+   already an issue, the new one points at it.
+3. **Lead.** The dev pastes the Brief, the text between the quotes, into a Lead's session, in herdr. The Lead
+   starts the Worker and writes the Questions and Report lines for a Lead, naming its own terminal.
 
 End with one line: which word picks each way.
 
 ## Then stop
 
 Nothing runs before the dev's word. On "issue", file it with `gh issue create --title <title> --body-file
-<file>`, or `gh issue comment`, using the Brief as the template says for an issue's body, then give the
-`/implement #N` line and a start line whose first message is that line. The start line and the Lead are
-theirs to run: this session starts no other session.
+<file>`, using the Brief as the template says for an issue's body, then give the `/implement #N` line and a
+start line whose first message is that line. The start line and the Lead are theirs to run: this session
+starts no other session.

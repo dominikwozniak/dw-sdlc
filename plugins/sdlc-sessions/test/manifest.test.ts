@@ -95,6 +95,7 @@ describe("the sdlc-sessions plugin", () => {
       "Must not:",
       "Proof:",
       "/sdlc-pr-ship",
+      "deliver it to the Lead the way Report says",
       "Report:",
       "/sdlc-recap",
       "dw-sdlc worker report",
