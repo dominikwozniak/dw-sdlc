@@ -39,7 +39,13 @@ taste: a finding names a concrete failure, never a preference.
 
 ## What you report
 
-Under 300 words. The first line is `clean` or `findings: <n>`. Then, one finding each:
+Under 300 words. The first line is `clean` or `findings: <n>`: the change is `clean` when no hard
+violation and no Spec finding remains, a hard violation being a bug in a changed line, a missing
+test or a broken rule of the Agent map, and a Spec finding the change missing what the spec asks
+for or doing what it rules out. A known limit counts as `clean` only when the spec says the dev
+accepted it; otherwise it is a finding. A judgement-call smell, a labelled heuristic such as
+`possible Feature Envy`, is no finding: list it after the first line as
+`smell: <file>:<line> — <what>`, and it does not change the count. Then, one finding each:
 
 ```
 <file>:<line> — <what is wrong>
@@ -47,4 +53,5 @@ Under 300 words. The first line is `clean` or `findings: <n>`. Then, one finding
   fix: <the change, in a line>
 ```
 
-A finding you are unsure of is one you leave out. `clean` means you found nothing to fix.
+A finding you are unsure of is one you leave out. `clean` means no hard violation and no Spec
+finding remains.
