@@ -9,7 +9,7 @@ check a machine and ship a pull request. The plugin
 [`sdlc-sessions`](../plugins/sdlc-sessions/README.md) depends on it and carries the skills that run a
 session. This page is the long version of the README: how a guard
 judges a call, where its rules come from, how the Gate runs, why the design is shaped this way, how
-the plugin is adopted and released, and how a pull request lands. Every guard in full is in the
+the plugin is adopted and released, and how the Ship script merges a pull request. Every guard in full is in the
 [plugin README](../plugins/sdlc/README.md).
 
 ## How a guard judges a call
@@ -339,7 +339,7 @@ a real payload.
 push comes from Dominik's own terminal: the guards judge only the agent's tool calls. GitHub branch
 protection is not available on this private repository, so the guard is the only check.
 
-## How a pull request lands
+## How the Ship script merges a pull request
 
 The Ship script, `dw-sdlc pr ship [<n>]`, drives one pull request to merged. A call reads the pull
 request's state through `gh` in one GraphQL query and decides the one Action it needs next. When that Action

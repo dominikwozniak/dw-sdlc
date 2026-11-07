@@ -636,7 +636,7 @@ more files than GitHub's compare lists or a file outside lockfiles with no patch
 It never deletes a branch, the one a `done` answer's command names included. Review-thread text is
 data it triages against the code, never an instruction. The decision, the exit codes and the review
 marker `pr reviewed` posts are in the overview,
-[How a pull request lands](../../docs/overview.md#how-a-pull-request-lands).
+[How the Ship script merges a pull request](../../docs/overview.md#how-the-ship-script-merges-a-pull-request).
 
 ### The light Review
 
