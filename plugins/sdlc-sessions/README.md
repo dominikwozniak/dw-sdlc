@@ -140,14 +140,15 @@ the Lead starts as a plain session in the main checkout.
 A hand-off gives one Worker a whole issue or spec. A split cuts the current work into Briefs, only when each
 piece is its own pull request or read-only work; pieces that must land in one diff stay with one Worker.
 Each Brief comes from the template in its Lead form, naming the Lead's terminal, and `dw-sdlc worker start`
-starts its Worker in a worktree of its own. In a split, the first Worker is carried through before the rest
-start, and at most three are live.
+starts its Worker in a worktree of its own. The first Worker a Lead starts is carried through before any
+other starts, from a split or a later hand-off, and at most three are live.
 
 After starting Workers the Lead ends its turn, so the dev can talk to it while they work. A Worker's report
 wakes it, and on every wake it runs `dw-sdlc worker ls` and takes a `blocked` Worker to the dev. It waits
 with `hc wait` only for a short, bounded wait, a CI run or the dev's word, of 180 seconds or less, and never
-polls `gh`. A Worker that answers `wait` on CI does not wake by itself, so the Lead waits for the run and
-then wakes it.
+polls `gh`. A Worker that answers `wait` does not wake by itself. The Lead starts a watcher in herdr whose
+exit wakes it, `gh pr checks --watch` for CI or a timer of the wait's `recheckAfter`, ends its turn, and on
+the watcher's exit wakes the Worker.
 
 While it has live Workers, the Lead:
 

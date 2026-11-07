@@ -60,9 +60,10 @@ node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" worker start --brief <file> --na
   send the Brief again or start the Worker twice.
 - Exit 2: nothing started. Say why.
 
-In a split, start one Worker first and carry it through: its Recap says merged, parked for the dev, or
-done for read-only work. Only then start the rest. At most three are live: `worker start` refuses a
-fourth, and only the dev's word raises `--max-workers`.
+The first Worker this Lead starts is carried through before any other starts, from a split or from a later
+hand-off: its Recap says merged, parked for the dev, or done for read-only work. A bad Brief then fails
+once, not three times. After it, at most three are live: `worker start` refuses a fourth, and only the
+dev's word raises `--max-workers`.
 
 Tell the dev in a few lines who started, on which model and effort, and which Briefs wait. Then end your
 turn. Each Worker's report wakes you; do not wait for it.
@@ -87,12 +88,13 @@ Read each Recap whole. Its verdict decides:
 - `done` or `park` on the dev: tell the dev in one line, with the link.
 - A question: relay it to the dev, numbered, with the Worker's recommendation. Answer it yourself only when
   the Brief already holds the answer, with `hc send <address> "<answer>"`.
-- `wait` on CI: the Worker does not wake by itself, so watch the run its wait names and end your turn:
-  `hc run --bg --name ci-<pr> -- gh run watch <run> --exit-status`. The watcher's exit wakes you. Then read
-  it with `hc read ci-<pr> --lines 5`, remove it with `hc rm ci-<pr>`, and wake the Worker with
-  `hc send <address> "CI run <run> has finished: call the Ship script again"`. When the dev wants the result
-  now, wait once with `hc wait ci-<pr> --timeout 180`. If that returns before the watcher exits, the run is
-  still going: say so and end your turn, and never tell the Worker it has finished.
+- `wait`: a Worker that waits does not wake by itself, so start a watcher whose exit wakes you, and end
+  your turn. For CI, the checks of its pull request: `hc run --bg --name wake-<pr> -- gh pr checks <pr> --watch`.
+  For any other wait, the `recheckAfter` seconds its Recap names: `hc run --bg --name wake-<pr> -- sleep <seconds>`.
+  On the watcher's exit, read it with `hc read wake-<pr> --lines 5`, remove it with `hc rm wake-<pr>`, and
+  wake the Worker with `hc send <address> "<what ended>: call the Ship script again"`. When the dev wants
+  the result now, wait once with `hc wait wake-<pr> --timeout 180`. If that returns before the watcher
+  exits, nothing has ended: say so and end your turn, and never tell the Worker it has.
 
 The dev's own words come with these: answer them in plain text, then end your turn.
 

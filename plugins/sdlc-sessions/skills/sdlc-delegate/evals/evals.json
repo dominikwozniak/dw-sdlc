@@ -113,6 +113,34 @@
         "No hc keys, no hc send and no --force reaches t8",
         "The turn ends after the message"
       ]
+    },
+    {
+      "id": 9,
+      "name": "wait-on-ci-wakes-the-worker-only-after-the-watcher-exits",
+      "prompt": "You are the Lead this session became through /sdlc-delegate. One Worker runs: worker-40-quiet (t8). This message arrives:\n\n<hc from=\"t8 worker-40-quiet\">wait: PR #40 https://github.com/acme/tool/pull/40 waits on CI (ci-pending), recheck after 60 s. Ending my turn; wake me when it is through.</hc>\n\nIn place of running them, take these as what the commands printed.\n\n`worker ls --json`, exit 0:\n[{\"name\":\"worker-40-quiet\",\"address\":\"t8\",\"state\":\"live\",\"status\":\"done\",\"folder\":\"/repo/tool/.claude/worktrees/worker-40-quiet\"}]\n\nAny `hc run --bg ...` you start prints its address and exits 0 at once; the program it runs goes on in the background.\n\nThe dev writes English. Run nothing. Write into transcript.md, in order, every command you would run and every message you would give the dev, then a line END OF TURN where your turn ends. Then, as a second part, the watcher's exit note arrives: `<hc from=\"t11 wake-40\">exited 0</hc>`, and `hc read wake-40 --lines 5` prints `All checks were successful`. Write what you run and say on that wake, then a second END OF TURN.",
+      "expected_output": "First wake: a watcher on the pull request's checks starts in herdr and the turn ends, with no hc send to the Worker. Second wake: the watcher is read and removed, then the Worker is woken.",
+      "files": [],
+      "expectations": [
+        "The first part runs worker ls --json first",
+        "The first part starts a watcher with hc run --bg that watches the checks of pull request 40, such as gh pr checks 40 --watch",
+        "The first part sends nothing to t8 and ends the turn without hc wait, sleep in the shell or a loop over gh",
+        "The second part reads and removes the watcher",
+        "The second part wakes t8 with hc send, telling it to call the Ship script again",
+        "No merge runs in either part"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "later-hand-off-waits-for-the-first-worker",
+      "prompt": "/sdlc-delegate #50\n\nThe dev writes English. Earlier in this session, as its Lead, you started worker-40-quiet (t8) on issue #40; no Recap from it has arrived yet. You run from /repo/tool, the main checkout. In place of running them, take these as what the commands printed.\n\n`worker ls --json`, exit 0:\n[{\"name\":\"worker-40-quiet\",\"address\":\"t8\",\"state\":\"live\",\"status\":\"working\",\"folder\":\"/repo/tool/.claude/worktrees/worker-40-quiet\"}]\n\n`git rev-parse --path-format=absolute --git-dir --git-common-dir`:\n/repo/tool/.git\n/repo/tool/.git\n\n`printenv HC_TERMINAL_ID`:\nt5\n\n`gh issue view 50 --comments`:\ntitle: Add a --since flag to the log command\nbody: ## Acceptance criteria\n- [ ] `log --since 2d` shows entries of the last two days.\ncomments: none\n\n`dw-sdlc config`, exit 0:\ncommitted  .ai/agentic.config.json  valid\nlocal      .ai/agentic.config.local.json  absent\n{\"gate\":{\"command\":\"pnpm check\"},\"pr\":{\"merge\":\"auto\"},\"worker\":{\"command\":\"claude\",\"model\":\"sonnet\",\"effort\":\"high\"}}\n\nRun nothing. Write into transcript.md, in order, every command you would run, every file you would write and every message you would give the dev, then a line END OF TURN where your turn ends.",
+      "expected_output": "The Brief for #50 is written, but no Worker starts while the first one has not been carried through; the dev hears that it waits.",
+      "files": [],
+      "expectations": [
+        "A Brief for #50 is written in the Lead form naming t5",
+        "No worker start runs",
+        "The message to the dev says the #50 Worker starts once worker-40-quiet is carried through",
+        "The turn ends with no hc wait and no polling"
+      ]
     }
   ]
 }
