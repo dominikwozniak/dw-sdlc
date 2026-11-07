@@ -156,18 +156,16 @@ function readShipped(root: string): Shipped | null {
 
 /**
  * The tracking refs, as `--remotes` names them, that the remote contradicts, which only a fetch would show:
- * a branch it no longer has, its `HEAD`, and the session's own branch where it moved. Any other branch that
- * moved, such as the base, counts as holding what it held; plugins/sdlc-sessions/README.md says why.
+ * a branch it no longer has, its `HEAD`, and the session's own branch where it moved. A remote out of reach
+ * holds nothing; any other moved branch counts as before (plugins/sdlc-sessions/README.md says why).
  */
 function staleTracking(root: string, { branch, upstream }: Local): string[] {
   return remotesOf(root).flatMap((remote) => {
     const live = new Map(
-      must(root, ["ls-remote", "--heads", remote])
-        .split("\n")
-        .map((line): [string, string] => {
-          const [oid = "", ref = ""] = line.split("\t")
-          return [ref.replace("refs/heads/", `${remote}/`), oid]
-        })
+      (asked(root, ["ls-remote", "--heads", remote]) ?? "").split("\n").map((line): [string, string] => {
+        const [oid = "", ref = ""] = line.split("\t")
+        return [ref.replace("refs/heads/", `${remote}/`), oid]
+      })
     )
     return must(root, ["for-each-ref", "--format=%(refname:lstrip=2) %(objectname)", `refs/remotes/${remote}`])
       .split("\n")

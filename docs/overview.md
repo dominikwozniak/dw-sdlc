@@ -244,7 +244,7 @@ Each choice below is a one-paragraph decision record in `adr/`.
 
 - **One plugin, not hooks copied into every repository.** Copies drift; a plugin gives one shared
   library and one line to enable. [ADR 0001](adr/0001-guards-ship-from-this-marketplace.md)
-- **The guards, the Sync and the skills are that one plugin.** One `enabledPlugins` line and one
+- **The guards, the Sync and the `sdlc` skills are that one plugin.** One `enabledPlugins` line and one
   version cover a machine, and a machine takes every part or none.
   [ADR 0010](adr/0010-one-sdlc-plugin-carries-guards-sync-and-gate.md)
 - **The session helpers are a plugin of their own.** They are work the dev starts, not protection on

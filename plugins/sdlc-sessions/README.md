@@ -31,7 +31,8 @@ questions, each with a recommendation; what waits on whom; the close line; and t
 
 Each follow-up is "this session" or "a new session", with one recommended disposition: `now`, `issue`,
 `worker` or `drop`, the lightest that closes it, and `now` by default when it fits the session. The dev's
-one "go" carries out every recommendation, "go, but 2 issue" changes one, and nothing runs before it.
+one "go" carries out every recommendation, "go, but 2 issue" changes one, and nothing runs before it. The
+skill starts no session, so "go" hands a `worker` to the dev as its description, for them to start.
 
 The Recap is written in the conversation's language. It links pull requests and issues instead of
 listing files, and it checks every "merged" or "green" live with `gh`.
@@ -84,7 +85,8 @@ name reads as `no-pull-request`.
 The command writes nothing, so it does not fetch, and some states read as yes until a fetch shows them:
 another remote branch force-pushed off the head, and an upstream deleted or force-pushed on a branch that
 needs no pull request. Run `git fetch --prune` first to be exact. Treating every moved branch as stale
-would answer no each time the base moves on.
+would answer no each time the base moves on. A remote out of reach counts as holding nothing, so it can
+answer no, and never yes.
 
 A detached HEAD or a repository with no remote asks `gh` nothing. `askedGh` is false, the `pull request`
 line reads `gh not asked`, and the `clean` reason says so rather

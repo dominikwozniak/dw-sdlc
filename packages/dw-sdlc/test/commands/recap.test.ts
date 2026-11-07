@@ -456,6 +456,19 @@ describe("dw-sdlc recap", () => {
     assert.equal(document(root, noPr).doc.askedGh, false)
   })
 
+  it("a remote out of reach holds nothing: a closed pull request answers by the remotes that do answer", () => {
+    const root = clone()
+    branch(root, 1)
+    git(root, "push", "-q", "-u", "origin", "feat")
+    git(root, "remote", "add", "backup", join(scratch("gone"), "nowhere"))
+    const closed: Pr = { ...GREEN, head: head(root), branch: "feat", state: "CLOSED" }
+    assert.equal(document(root, withPr(closed)).status, 0, "origin still holds the branch")
+    git(git(root, "remote", "get-url", "origin").trim(), "branch", "-q", "-D", "feat")
+    const { status, doc } = document(root, withPr(closed))
+    assert.equal(status, 1, JSON.stringify(doc.close))
+    assert.deepEqual(blocking(doc), ["no-upstream"])
+  })
+
   it("a linked worktree is a fact and no block: the session cannot remove the directory it runs in", () => {
     const root = clone()
     const linked = join(scratch("linked"), "tree")
