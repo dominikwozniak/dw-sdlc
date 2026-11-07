@@ -70,6 +70,15 @@ describe("the bin lines of a skill", () => {
     }
   })
 
+  it("fail the probe when `--json` is renamed in the text of a real skill", () => {
+    const path = join(PLUGINS, "sdlc-sessions", "skills", "sdlc-recap", "SKILL.md")
+    const text = readFileSync(path, "utf8")
+    const renamed = text.replaceAll("--json", "--jsn")
+    assert.notEqual(renamed, text, "the skill names --json in a code span")
+    const [message] = violations(join(PLUGINS, "sdlc-sessions"), relative(REPO_ROOT, path), renamed)
+    assert.match(message ?? "", /^plugins\/sdlc-sessions\/skills\/sdlc-recap\/SKILL\.md:\d+ `recap --jsn` exits 2/)
+  })
+
   it("pass the probe in every SKILL.md of every plugin", () => {
     const failures: string[] = []
     let probed = 0
