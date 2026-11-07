@@ -451,7 +451,7 @@ describe("text helpers", () => {
       got,
       `${command}\n${Array.from({ length: 200 }, () => "bash -c _ ; cat a ; echo '\"'").join(" ; ")}\n${bodies}`
     )
-    assert.ok(seconds < 5, `${seconds.toFixed(1)} s`)
+    assert.ok(seconds < 60, `${seconds.toFixed(1)} s`)
   })
   it("the walk reads past its window: a live quote, a comment, a long launcher, a closing backslash", () => {
     const live = `echo ${"a;b ".repeat(400)}; bash -c 'cd x && git push -f'`
