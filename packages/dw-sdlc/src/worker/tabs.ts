@@ -1,6 +1,8 @@
 // The tab of a Worker's terminal in the herdr window: `hc run` with a `herdr.space` label opens one that herdr
 // numbers, and `herdr-app` names it.
 
+import { setTimeout as sleep } from "node:timers/promises"
+
 import { isObject, parseObject } from "../json-text.ts"
 import { call, Refusal, said } from "./herdr.ts"
 
@@ -36,12 +38,25 @@ function errorOf(stdout: string): string | undefined {
   return typeof parsed?.error === "string" ? parsed.error : undefined
 }
 
-/** Names the tab holding `address`; `kept` says why the tab stays numbered, which is a warning and never a failure. */
-export function nameTab(address: string, name: string): "renamed" | { kept: string } {
+/** How long `nameTab` waits between two reads of `herdr-app ls`. */
+const RETRY_MS = 250
+
+/**
+ * Names the tab holding `address`, reading `herdr-app ls` again for up to `bound` seconds, since the window
+ * lists a terminal's tab a moment after `hc run` returns. `kept` says why the tab stays numbered, which is a
+ * warning and never a failure.
+ */
+export async function nameTab(address: string, name: string, bound: number): Promise<"renamed" | { kept: string }> {
   try {
-    const tab = tabsOf().find((candidate) => candidate.terminals.includes(address))
+    const deadline = Date.now() + bound * 1000
+    const find = (): Tab | undefined => tabsOf().find((candidate) => candidate.terminals.includes(address))
+    let tab = find()
+    while (tab === undefined && Date.now() < deadline) {
+      await sleep(RETRY_MS)
+      tab = find()
+    }
     if (tab === undefined) {
-      return { kept: `the tab of ${address} is not in herdr-app ls, so it keeps herdr's name` }
+      return { kept: `the tab of ${address} is not in herdr-app ls within ${bound} s, so it keeps herdr's name` }
     }
     const renamed = call("herdr-app", ["do", "tab.rename", "--id", tab.id, "--name", name])
     if (renamed.status !== 0) {
