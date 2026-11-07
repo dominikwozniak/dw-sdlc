@@ -39,7 +39,7 @@ Model and effort: `<model>`, `<effort>`: <the reason, one clause>.
   stops on goes to the Lead. Write `dw-sdlc` as the path the skill runs it by, since a Worker may have none
   on PATH.
   - `on a question outside this Brief, commit nothing more, deliver it to the Lead the way Report says, and end your turn. The answer comes from the Lead or from the dev in this terminal.`
-  - `end with /sdlc-recap, write it to a file and deliver it with dw-sdlc worker report to the Lead in terminal <terminal>. When /sdlc-pr-ship answers wait, deliver what it waits on the same way and end your turn: the Lead wakes you.`
+  - `end with /sdlc-recap, write it to a file and deliver it to the Lead in terminal <terminal> with dw-sdlc worker report --to <terminal> --recap <file>. When /sdlc-pr-ship answers wait, deliver what it waits on the same way and end your turn: the Lead wakes you.`
 
 A Brief is in English whatever the conversation's language, since an issue's body can be one. It holds no
 single quote, so the start line can quote it whole: write "do not", never "don't".
