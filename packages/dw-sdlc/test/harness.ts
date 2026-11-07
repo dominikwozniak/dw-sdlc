@@ -36,11 +36,14 @@ const REPOSITORY_VARS = new Set(
 )
 
 /**
- * This environment without them, without the machine's git config, and outside GitHub Actions unless
- * a test says so: CI sets GITHUB_ACTIONS, which adds an annotation to every failure line.
+ * What a test opts into, never inherits: CI's GITHUB_ACTIONS adds an annotation to every failure line, and
+ * herdr's HC_TERMINAL_ID makes a command ask the machine's real hc.
  */
+const OPT_IN_VARS = new Set(["GITHUB_ACTIONS", "HC_TERMINAL_ID"])
+
+/** This environment without them, without the machine's git config, outside GitHub Actions and herdr. */
 function scratchEnv(over: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
-  const kept = Object.entries(process.env).filter(([name]) => !REPOSITORY_VARS.has(name) && name !== "GITHUB_ACTIONS")
+  const kept = Object.entries(process.env).filter(([name]) => !REPOSITORY_VARS.has(name) && !OPT_IN_VARS.has(name))
   return { ...Object.fromEntries(kept), GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1", ...over }
 }
 

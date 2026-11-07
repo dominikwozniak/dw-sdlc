@@ -1,13 +1,15 @@
 // `dw-sdlc recap` spawned with a fake gh first on PATH, on a throwaway clone of a bare repository: each
-// fact, each reason of the close verdict, the exit code and the gh calls it made, none of them a write.
+// fact, each reason of the close verdict, the exit code and the gh calls it made, none of them a write. In
+// herdr a fake hc joins it, for the Lead's live Workers.
 
 import assert from "node:assert/strict"
 import { readFileSync, utimesSync } from "node:fs"
-import { join } from "node:path"
+import { delimiter, join } from "node:path"
 import { describe, it } from "node:test"
 
 import { COMMITTED_FILE } from "../../src/agentic-config.ts"
 import { commit, git, initRepo, runBin, scratch, write, writeJson } from "../harness.ts"
+import { fakeHerdr, listing, type Listed, type Reply } from "../hc-harness.ts"
 import { fakeGh, GREEN, type Pr, type Response, type Scenario, served } from "../pr-harness.ts"
 
 const AUTH = ["auth", "status", "--active", "--hostname", "github.com"]
@@ -42,6 +44,7 @@ type Document = {
   askedGh: boolean
   pullRequest: { url: string; state: string; status: string; action: string; actor: string; reason: string } | null
   worktree: { linked: boolean; path: string }
+  workers: { name: string; address: string; state: string; status: string; folder: string }[] | null
   close: { verdict: "yes" | "no"; line: string; reasons: Reason[] }
 }
 
@@ -81,6 +84,30 @@ function recap(root: string, scenario: Scenario, ...flags: string[]) {
   const fake = fakeGh(scenario)
   const run = runBin(["recap", ...flags], root, fake.env)
   return { ...run, calls: fake.calls() }
+}
+
+const LEAD = "t1"
+const LIVE_WORKERS = ["ls", "--json", "--label", "role=worker"]
+const WORKING: Listed = { address: "t4", name: "worker-9-demo", parent: LEAD, status: "working", cwd: "/work/repo" }
+const BLOCKED: Listed = { address: "t5", name: "worker-10-other", parent: LEAD, status: "blocked", cwd: "/work/repo" }
+/** A Worker of another Lead, and one of this Lead's whose terminal has ended. */
+const THEIRS: Listed = { address: "t9", name: "worker-14-theirs", parent: "t0", status: "working" }
+const ENDED: Listed = { address: "t7", name: "worker-12-gone", parent: LEAD, state: "finished" }
+
+/** Both fakes first on PATH, the calling terminal the Lead `t1` unless `env` says otherwise. */
+function withHerdr(scenario: Scenario, ls: Reply, env: NodeJS.ProcessEnv = {}) {
+  const gh = fakeGh(scenario)
+  const herdr = fakeHerdr({ hc: { ls } }, LEAD)
+  // Each fake's PATH is its own directory, then the machine's: only the two directories may come first.
+  const path = [herdr.env.PATH?.split(delimiter)[0], gh.env.PATH].join(delimiter)
+  return { env: { ...gh.env, ...herdr.env, PATH: path, ...env }, calls: gh.calls, hc: herdr.hcCalls }
+}
+
+/** `recap` in herdr, whose `hc ls` answers `ls`; the hc calls it made come back too. */
+function inHerdr(root: string, scenario: Scenario, ls: Reply, ...flags: string[]) {
+  const fakes = withHerdr(scenario, ls)
+  const run = runBin(["recap", ...flags], root, fakes.env)
+  return { ...run, calls: fakes.calls(), hc: fakes.hc() }
 }
 
 function document(root: string, scenario: Scenario): ReturnType<typeof recap> & { doc: Document } {
@@ -138,6 +165,7 @@ describe("dw-sdlc recap", () => {
       askedGh: true,
       pullRequest: null,
       worktree: { linked: false, path: root },
+      workers: null,
       close: {
         verdict: "yes",
         line: "Close the session: yes, because nothing is uncommitted, unpushed or open",
@@ -692,6 +720,7 @@ describe("dw-sdlc recap", () => {
         "upstream: none, 1 unpushed",
         "pull request: none",
         "worktree: main checkout",
+        "workers: not in herdr",
         "Close the session: no, because 1 commit on a branch with no upstream; 1 commit on top of main in no pull request",
         ""
       ].join("\n")
@@ -710,6 +739,62 @@ describe("dw-sdlc recap", () => {
     assert.equal(rows[2], "upstream: origin/feat, 0 unpushed")
     assert.equal(rows[3], `pull request: ${URL} act mark-ready: still a draft`)
     assert.equal(rows[4], `worktree: linked at ${linked}`)
+  })
+
+  describe("in herdr", () => {
+    it("a live Worker of this Lead blocks it, named with its status; no other Lead's and no ended one counts", () => {
+      const run = inHerdr(clone(), noPr, listing(WORKING, BLOCKED, THEIRS, ENDED), "--json")
+      assert.equal(run.status, 1, run.stderr)
+      const doc = JSON.parse(run.stdout) as Document
+      assert.deepEqual(doc.workers, [
+        { name: "worker-9-demo", address: "t4", state: "live", status: "working", folder: "/work/repo" },
+        { name: "worker-10-other", address: "t5", state: "live", status: "blocked", folder: "/work/repo" }
+      ])
+      const text = "2 live Workers: worker-9-demo (working), worker-10-other (blocked)"
+      assert.deepEqual(doc.close.reasons, [{ id: "workers", blocks: true, text }])
+      assert.equal(doc.close.line, `Close the session: no, because ${text}`)
+      assert.deepEqual(run.hc, [LIVE_WORKERS])
+    })
+
+    it("a Worker whose turn ended is still live: herdr's done is no Recap", () => {
+      const run = inHerdr(clone(), noPr, listing({ ...WORKING, status: "done" }), "--json")
+      assert.equal(run.status, 1, run.stderr)
+      const text = "1 live Worker: worker-9-demo (done)"
+      assert.deepEqual((JSON.parse(run.stdout) as Document).close.reasons, [{ id: "workers", blocks: true, text }])
+    })
+
+    it("no live Worker of this Lead: an empty list, and the session can close", () => {
+      const run = inHerdr(clone(), noPr, listing(THEIRS, ENDED), "--json")
+      assert.equal(run.status, 0, run.stderr)
+      const doc = JSON.parse(run.stdout) as Document
+      assert.deepEqual(doc.workers, [])
+      assert.deepEqual(ids(doc), ["clean"])
+    })
+
+    it("names the live Workers in its lines, or none", () => {
+      const root = clone()
+      const { status, stdout } = inHerdr(root, noPr, listing(WORKING))
+      assert.equal(status, 1)
+      const rows = stdout.split("\n")
+      assert.equal(rows[5], "workers: 1 live: worker-9-demo (working)")
+      assert.equal(rows[6], "Close the session: no, because 1 live Worker: worker-9-demo (working)")
+      assert.equal(inHerdr(root, noPr, listing()).stdout.split("\n")[5], "workers: none live")
+    })
+
+    it("outside herdr asks hc nothing, even with hc on PATH", () => {
+      const fakes = withHerdr(noPr, listing(WORKING), { HC_TERMINAL_ID: "" })
+      const run = runBin(["recap", "--json"], clone(), fakes.env)
+      assert.equal(run.status, 0, run.stderr)
+      assert.equal((JSON.parse(run.stdout) as Document).workers, null)
+      assert.deepEqual(fakes.hc(), [])
+    })
+
+    it("cannot run when hc fails, since a Worker it cannot see may be live", () => {
+      const failed = inHerdr(clone(), noPr, { exit: 1, stderr: "hc: the core is not running\n" })
+      assert.equal(failed.status, 2)
+      assert.equal(failed.stdout, "")
+      assert.match(failed.stderr, /^dw-sdlc recap: hc ls failed: hc: the core is not running/)
+    })
   })
 
   describe("cannot run", () => {

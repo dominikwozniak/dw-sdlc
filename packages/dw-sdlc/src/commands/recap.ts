@@ -9,6 +9,7 @@ import { findRepository, mainCheckout, resolveConfig } from "../agentic-config.t
 import { type Answer, decide, declaredPolicy, labelOf, lineOf } from "../pr/decide.ts"
 import { CannotRun, defaultBranch, now, readBranch } from "../pr/read.ts"
 import type { PrState } from "../pr/state.ts"
+import { Refusal, type Worker, workersOf } from "../worker/herdr.ts"
 import { git } from "../working-tree.ts"
 
 export const summary = "the facts a Recap rests on and whether the session can be closed"
@@ -26,7 +27,9 @@ The session cannot be closed over any of these:
   a commit pushed nowhere or only part of the way;
   an open pull request, whatever its Action;
   commits on top of the base that no pull request holds. The default branch and a branch
-  guardrails.protectedBranches names need no pull request.
+  guardrails.protectedBranches names need no pull request;
+  a live Worker this session started as a Lead, in a terminal herdr started ($HC_TERMINAL_ID): its
+  report has no one to reach once the Lead is gone. A Worker whose turn ended is still live.
 
 A pull request closed without merging merges nothing, and a detached HEAD names no pull request. There a
 commit counts as pushed only on a remote branch, and the command asks the remote which branches still
@@ -35,8 +38,9 @@ stand. A branch force-pushed since the last fetch can still read as holding it, 
 A linked worktree is a reason beside the verdict, never against it: the session cannot remove the
 directory it runs in.
 
-One line a fact, or one document with --json. Needs an authenticated gh and a remote it can read. A
-detached HEAD or a repository with no remote asks gh nothing, and the pull request fact says so.
+One line a fact, or one document with --json. Needs an authenticated gh and a remote it can read, and in
+herdr hc on PATH. A detached HEAD or a repository with no remote asks gh nothing, and the pull request
+fact says so; outside herdr the workers fact says so.
 
 Exit 0 the session can be closed, 1 it cannot, 2 when it cannot run.`
 
@@ -48,6 +52,7 @@ type ReasonId =
   | "no-pull-request"
   | "open-pull-request"
   | "orphaned"
+  | "workers"
   | "merged"
   | "closed"
   | "worktree"
@@ -144,6 +149,26 @@ function readLocal(root: string): Local {
     paused: pausedIn(root),
     worktree: { linked: mainCheckout(root) !== undefined, path: root }
   }
+}
+
+/** The live Workers this session started as a Lead, or null outside herdr, where it can start none. */
+function liveWorkers(): Worker[] | null {
+  const lead = process.env.HC_TERMINAL_ID
+  if (lead === undefined || lead === "") {
+    return null
+  }
+  try {
+    return workersOf(lead, false).filter((worker) => worker.state !== "finished")
+  } catch (error) {
+    if (error instanceof Refusal) {
+      throw new CannotRun(error.message, error.remedy ?? "check hc ls, then call again")
+    }
+    throw error
+  }
+}
+
+function workersText(workers: Worker[]): string {
+  return workers.map((worker) => `${worker.name} (${worker.status})`).join(", ")
 }
 
 /** The current branch's pull request and the Action the Ship script's decision gives it, or null. */
@@ -258,13 +283,16 @@ function cleanReason(askedGh: boolean): Reason {
   return { id: "clean", blocks: false, text }
 }
 
-function reasonsOf(
-  local: Local,
-  shipped: Shipped | null,
-  ahead: Ahead | null,
-  orphaned: number,
+/** What the close verdict reads beside the checkout. */
+type Read = {
+  shipped: Shipped | null
+  ahead: Ahead | null
+  orphaned: number
   askedGh: boolean
-): Reason[] {
+  workers: Worker[] | null
+}
+
+function reasonsOf(local: Local, { shipped, ahead, orphaned, askedGh, workers }: Read): Reason[] {
   const all: Reason[] = []
   if (local.paused !== null) {
     all.push({ id: "paused", blocks: true, text: `a ${local.paused} is paused` })
@@ -286,6 +314,10 @@ function reasonsOf(
   if (shipped !== null) {
     all.push(pullRequestReason(shipped))
   }
+  if (workers !== null && workers.length > 0) {
+    const text = `${plural(workers.length, "live Worker")}: ${workersText(workers)}`
+    all.push({ id: "workers", blocks: true, text })
+  }
   if (!all.some((reason) => reason.blocks)) {
     all.unshift(cleanReason(askedGh))
   }
@@ -304,7 +336,14 @@ function closeOf(reasons: Reason[]): { verdict: "yes" | "no"; line: string; reas
   return { verdict, line, reasons }
 }
 
-function linesOf(local: Local, shipped: Shipped | null, askedGh: boolean, line: string): string {
+function workersLine(workers: Worker[] | null): string {
+  if (workers === null) {
+    return "not in herdr"
+  }
+  return workers.length === 0 ? "none live" : `${workers.length} live: ${workersText(workers)}`
+}
+
+function linesOf(local: Local, { shipped, askedGh, workers }: Read, line: string): string {
   const none = askedGh ? "none" : "gh not asked"
   return [
     `branch: ${local.branch ?? "detached HEAD"}`,
@@ -312,6 +351,7 @@ function linesOf(local: Local, shipped: Shipped | null, askedGh: boolean, line: 
     `upstream: ${local.upstream ?? "none"}, ${local.unpushed} unpushed`,
     `pull request: ${shipped === null ? none : `${shipped.pr.url} ${lineOf(shipped.answer)}`}`,
     `worktree: ${local.worktree.linked ? `linked at ${local.worktree.path}` : "main checkout"}`,
+    `workers: ${workersLine(workers)}`,
     line
   ].join("\n")
 }
@@ -347,15 +387,21 @@ function report(json: boolean): number {
   // An open pull request can still take the head, and a commit-less repository has nothing to merge.
   const nothingToMerge = held || shipped?.pr.state === "OPEN" || head === null
   const ahead = asksGh && !nothingToMerge ? aheadOf(root, branch, shipped) : null
-  const orphaned = orphanedOf(root, read, shipped, held)
-  const close = closeOf(reasonsOf(local, shipped, ahead, orphaned, asksGh))
+  const facts: Read = {
+    shipped,
+    ahead,
+    orphaned: orphanedOf(root, read, shipped, held),
+    askedGh: asksGh,
+    workers: liveWorkers()
+  }
+  const close = closeOf(reasonsOf(local, facts))
   const pullRequest =
     shipped === null
       ? null
       : { url: shipped.pr.url, number: shipped.pr.number, state: shipped.pr.state, ...shipped.answer }
   const output = json
-    ? JSON.stringify({ ...local, askedGh: asksGh, pullRequest, close }, null, 2)
-    : linesOf(local, shipped, asksGh, close.line)
+    ? JSON.stringify({ ...local, askedGh: asksGh, pullRequest, workers: facts.workers, close }, null, 2)
+    : linesOf(local, facts, close.line)
   process.stdout.write(`${output}\n`)
   return close.verdict === "yes" ? 0 : 1
 }
