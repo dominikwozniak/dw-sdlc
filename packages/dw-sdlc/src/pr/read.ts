@@ -109,24 +109,27 @@ export function read(named: Named, command: string, sized: boolean): PrState {
   return query(targetOf(named, command), sized)
 }
 
-/**
- * The state of the current branch's pull request, open or not, or null when gh finds none. `pushedAs`
- * names the head branch on the remote when it differs from the local one: gh resolves only the local
- * name once `@{push}` fails, as it does under `push.default` simple for a branch pushed under another name.
- */
-export function readBranch(sized: boolean, pushedAs?: string): PrState | null {
-  requireAuth()
-  const view = gh(["pr", "view", ...(pushedAs === undefined ? [] : [pushedAs]), "--json", "url"])
+/** The pull request `gh pr view` resolves from `named`, or null when it finds none. */
+function viewed(named: string[]): { repo: string; number: number } | null {
+  const view = gh(["pr", "view", ...named, "--json", "url"])
   if (view.status === 0) {
-    return query(
-      parseOrCannotRun(() => parseView(view.stdout)),
-      sized
-    )
+    return parseOrCannotRun(() => parseView(view.stdout))
   }
   if (said(view.stderr).startsWith("no pull requests found")) {
     return null
   }
   throw new CannotRun(`gh pr view failed: ${said(view.stderr)}`, REMEDIES.read)
+}
+
+/**
+ * The state of the current branch's pull request, open or not, or null when gh finds none. gh resolves the
+ * head through `@{push}`, and where that fails, as under `push.default` simple for a branch pushed under
+ * another name, by the local name; `pushedAs`, the upstream's name, is asked only when that finds none.
+ */
+export function readBranch(sized: boolean, pushedAs: string | undefined): PrState | null {
+  requireAuth()
+  const target = viewed([]) ?? (pushedAs === undefined ? null : viewed([pushedAs]))
+  return target === null ? null : query(target, sized)
 }
 
 /** The default branch of the repository gh resolves from the current directory. */

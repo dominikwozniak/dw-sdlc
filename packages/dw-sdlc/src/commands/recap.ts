@@ -178,7 +178,7 @@ function workersText(workers: Worker[]): string {
 function pushedAs(root: string, branch: string): string | undefined {
   const remote = asked(root, ["config", "--get", `branch.${branch}.remote`])
   const merge = asked(root, ["config", "--get", `branch.${branch}.merge`])
-  if (remote === undefined || remote === "." || merge?.startsWith("refs/heads/") !== true) {
+  if (remote === undefined || remote === "." || merge === undefined || !merge.startsWith("refs/heads/")) {
     return undefined
   }
   const name = merge.slice("refs/heads/".length)
