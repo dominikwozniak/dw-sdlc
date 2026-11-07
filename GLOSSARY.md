@@ -60,8 +60,15 @@ A branch the agent never pushes to, forced or not, nor commits on if the repo sa
 
 **Landed branch**:
 A local branch whose work is on origin's base: its tip is there, or it changes something and a base commit since it
-forked holds its tree or its whole diff's patch-id, as a squash merge leaves them. The one a forced delete may remove.
+forked holds its tree or its whole diff's patch-id, as a squash merge leaves them. The one a forced delete or a
+Sweep may remove.
 _Avoid_: merged branch, which git's `--merged` keeps for a tip the base contains
+
+**Sweep**:
+The removal from this machine of what finished work leaves behind and holds nothing to lose: a Landed branch, a
+clean worktree whose work has landed, and the terminal of a Worker the sweeping session started. What could
+still hold work stays, for the dev to decide.
+_Avoid_: clean (git's deletes untracked files), prune, cleanup, tidy, teardown, sunset
 
 **Action**:
 The one thing a pull request needs next, as the ship script decides it: performed by the script, handed
