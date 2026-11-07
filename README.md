@@ -4,9 +4,11 @@
 
 A plugin marketplace and the code behind it. The process is proven in this repository before it goes
 wider. The marketplace ships two plugins. `sdlc` carries the guards, the Sync of the repositories an
-agent reads for prior art, and the skills that set a repository up and check a machine.
+agent reads for prior art, and four skills: `/sdlc-setup` sets a repository up, `/sdlc-doctor` checks a
+machine, `/sdlc-references-add` adds a Reference, `/sdlc-pr-ship` ships a pull request.
 [`sdlc-sessions`](plugins/sdlc-sessions/README.md) depends on it and carries `/sdlc-recap`, which says
-where a session stands and whether it can be closed.
+where a session stands, `/sdlc-brief`, which writes the start of a Worker session, and `/sdlc-delegate`,
+which makes a session a Lead that runs Workers.
 
 ## Install
 
@@ -95,6 +97,11 @@ before. A repository declares its References in `.ai/references.json`, and the p
 one to its ref when a local Claude Code session starts: one line per Reference, and nothing at all
 in a repository without the file. Offline, a clone stays where it was and the session starts
 anyway. The file and the Sync in full: [plugin README](plugins/sdlc/README.md#references).
+
+## Ship
+
+`dw-sdlc pr ship` is the Ship script: it drives one pull request to merged, and `/sdlc-pr-ship` runs it
+for the agent. How it merges: [overview](docs/overview.md#how-the-ship-script-merges-a-pull-request).
 
 ## Docs
 
