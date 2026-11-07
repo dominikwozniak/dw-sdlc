@@ -9,7 +9,7 @@ check a machine and ship a pull request. The plugin
 [`sdlc-sessions`](../plugins/sdlc-sessions/README.md) depends on it and carries the skills that run a
 session. This page is the long version of the README: how a guard
 judges a call, where its rules come from, how the Gate runs, why the design is shaped this way, how
-the plugin is adopted and released, and how the Ship script merges a pull request. Every guard in full is in the
+the plugin is adopted and released, and how a pull request lands. Every guard in full is in the
 [plugin README](../plugins/sdlc/README.md).
 
 ## How a guard judges a call
