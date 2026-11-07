@@ -87,9 +87,12 @@ Read each Recap whole. Its verdict decides:
 - `done` or `park` on the dev: tell the dev in one line, with the link.
 - A question: relay it to the dev, numbered, with the Worker's recommendation. Answer it yourself only when
   the Brief already holds the answer, with `hc send <address> "<answer>"`.
-- `wait` on CI: wait for the run, then wake the Worker, which does not wake by itself:
-  `hc run --bg --rm --no-notify --name ci-<pr> -- gh run watch <run> --exit-status`, then
-  `hc wait ci-<pr> --timeout 180`, then `hc send <address> "CI has finished: call the Ship script again"`.
+- `wait` on CI: the Worker does not wake by itself, so watch the run its wait names and end your turn:
+  `hc run --bg --name ci-<pr> -- gh run watch <run> --exit-status`. The watcher's exit wakes you. Then read
+  it with `hc read ci-<pr> --lines 5`, remove it with `hc rm ci-<pr>`, and wake the Worker with
+  `hc send <address> "CI run <run> has finished: call the Ship script again"`. When the dev wants the result
+  now, wait once with `hc wait ci-<pr> --timeout 180`. If that returns before the watcher exits, the run is
+  still going: say so and end your turn, and never tell the Worker it has finished.
 
 The dev's own words come with these: answer them in plain text, then end your turn.
 
@@ -103,7 +106,7 @@ The dev's own words come with these: answer them in plain text, then end your tu
 - The dev may answer a Worker in its own terminal. Its next Recap says what the dev decided; take that as
   the dev's word.
 - `hc wait` only for a short, bounded wait, a CI run or the dev's word, with `--timeout` of 180 or less.
-  Never poll `gh`.
+  Never poll `gh` in a loop; one read to check a claim is fine.
 - Never `hc send --force` and never press keys in a Worker's terminal: typing into a blocked one answers
   its dialog.
 - Leave the Workers' terminals and worktrees in place: removing them is the dev's call.
