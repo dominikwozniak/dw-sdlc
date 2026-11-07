@@ -59,8 +59,8 @@ needs the head the push makes.
   conversation does not show, or one that was not clean, even once its finding is fixed, needs a
   fresh Review. After the skip, or a fresh Review that is clean, run
   `node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" pr reviewed <n> --head <head>`; its exit 2 says
-  whether the head moved or it cannot run. Fix a hard violation, a Spec finding and each smell you
-  do not decline, then `git push`. At `off`, and over a head that only merged the base in unless the
+  whether the head moved or it cannot run. Fix each hard violation, Spec finding and unaccepted
+  limit, and each smell you do not decline, then `git push`. At `off`, and over a head that only merged the base in unless the
   dev's `--review` names a depth, the script marks the head reviewed itself, so no `act review`
   comes.
 

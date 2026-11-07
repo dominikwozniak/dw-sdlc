@@ -604,7 +604,8 @@ Only the dev invokes it. The skill reads each answer's `status`, then its `actio
   and no Spec finding remains, and each judgement-call smell is either fixed or declined with a line
   in the Recap; a known limit counts as clean only when the dev accepted it. When the Review is
   clean it runs `dw-sdlc pr reviewed <n> --head <sha>` with the head it reviewed, and otherwise it
-  fixes the hard violation or Spec finding and pushes. The skill skips that Review when one earlier
+  fixes each hard violation, Spec finding and unaccepted limit, and each smell it does not decline,
+  then pushes. The skill skips that Review when one earlier
   in the conversation read the changes since the same point at the head the script read, was clean,
   and nothing changed after it: no edit, no commit, no pull. Only a clean run of that command, or at `light` of `sdlc-reviewer` too, whose
   range ended at that head counts as the earlier Review; an informal read of the diff never counts.
