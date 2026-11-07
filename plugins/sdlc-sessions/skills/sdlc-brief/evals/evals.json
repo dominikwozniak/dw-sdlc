@@ -15,7 +15,8 @@
         "The Brief says: You are the Worker: do it yourself, start no other session",
         "The Brief does not copy the acceptance criteria: the fields id, name and total and the file export.test.ts do not appear in it",
         "The Brief tells the Worker to carry its pull request through /sdlc-pr-ship",
-        "The Report line says to end with /sdlc-recap and stop, naming no Lead",
+        "The Report line says to end with /sdlc-recap and stop when the work is done, naming no Lead",
+        "The Report line says a wait from /sdlc-pr-ship is no end: the Worker tells the dev and ends its turn",
         "The Model and effort line says sonnet and high, with a clear spec as the reason",
         "The Worker's name has the form worker-77-<slug>",
         "The start line starts from cd /repo/tool and holds cswap run -- --dangerously-skip-permissions with --worktree worker-77-, --model sonnet and --effort high, and the Brief in single quotes",
@@ -106,6 +107,7 @@
         "The Questions line says the answer comes from the Lead or from the dev in this terminal",
         "The worker report command is written as a path ending in dw-sdlc/src/cli.ts, not a bare dw-sdlc",
         "The Lead way is the one recommended",
+        "The answer says the start line runs in a herdr terminal",
         "Nothing was started"
       ]
     }

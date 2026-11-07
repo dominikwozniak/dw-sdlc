@@ -26,12 +26,15 @@ the Brief one for that Lead: its Questions and Report lines take the template's 
 ## Answer
 
 Write it in the conversation's language around the Brief; the Brief itself stays English. A line naming the
-Worker, its model and effort with the reason, then the three ways out, recommending the lightest that fits:
-the start line, unless the dev said not now, when it is the issue, or they named a Lead or the Brief is one
-of several to run together, when it is a Lead.
+Worker, its model and effort with the reason, then the three ways out. Recommend the lightest that fits:
+
+- the issue, when the dev said not now;
+- the Lead, when they named a Lead or the Brief is one of several to run together;
+- the start line otherwise.
 
 1. **Start line.** The block the template describes, at the left margin, since an indent would enter the
-   Brief. The Brief is inside it, printed once, so the dev pastes one block and reads the Brief there.
+   Brief. The Brief is inside it, printed once, so the dev pastes one block and reads the Brief there. A
+   Brief in the Lead form reports through herdr, so say that its start line runs in a herdr terminal.
 2. **Issue.** A new issue whose body is the Brief, startable later with `/implement #N`. When the source is
    already an issue, the new one points at it.
 3. **Lead.** The dev pastes the Brief, the text between the quotes, into a Lead's session, in herdr, and the

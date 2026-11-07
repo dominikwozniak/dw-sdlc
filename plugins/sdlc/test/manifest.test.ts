@@ -34,7 +34,7 @@ const DISPATCHED = [
 const GIT_HOOKS = ["commit-msg.sh"]
 const SKILLS = ["sdlc-doctor", "sdlc-pr-ship", "sdlc-references-add", "sdlc-setup"]
 /** The skill a Worker starts itself, its description holding the model to a Brief's instruction. */
-const WORKER_STARTED = "sdlc-pr-ship"
+const WORKER_STARTED_SKILL = "sdlc-pr-ship"
 /** The subagents under `agents/`, each a file named as its `name`, spawned as `sdlc:<name>`. */
 const AGENTS = ["sdlc-reviewer"]
 /** The tools a subagent of the plugin may list: none that edits a file. Its instructions keep Bash to git's reads. */
@@ -109,13 +109,13 @@ describe("the sdlc plugin", () => {
   })
 
   it("leaves each skill for the user to invoke, never the model, but the one a Worker starts", () => {
-    for (const name of SKILLS.filter((skill) => skill !== WORKER_STARTED)) {
+    for (const name of SKILLS.filter((skill) => skill !== WORKER_STARTED_SKILL)) {
       assert.match(skillFrontmatter(name), /^disable-model-invocation: true$/m, `${name} is user-invoked`)
     }
   })
 
   it("lets a Brief reach sdlc-pr-ship, its description limiting the model to /sdlc-pr-ship and a Brief", () => {
-    const frontmatter = skillFrontmatter(WORKER_STARTED)
+    const frontmatter = skillFrontmatter(WORKER_STARTED_SKILL)
     assert.doesNotMatch(frontmatter, /^disable-model-invocation:/m)
     const description = /^description: (.+)$/m.exec(frontmatter)?.[1] ?? ""
     assert.match(description, /Invoke it only when the dev types \/sdlc-pr-ship, or when a Brief tells/)

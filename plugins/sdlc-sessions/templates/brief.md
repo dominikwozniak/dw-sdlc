@@ -30,23 +30,25 @@ Model and effort: `<model>`, `<effort>`: <the reason, one clause>.
   so an idea or a follow-up with nothing filed has no Source line: its Goal says all it needs to.
 - **May write.** Directories or areas, named from the source and the Agent map.
 - **Proof.** Every acceptance criterion of the source checked, and the config's `gate.command` green, when
-  they exist. Otherwise the check that shows the goal is met.
+  they exist, named as "every acceptance criterion of #<n>" and never copied. Otherwise the check that
+  shows the goal is met.
 - **Ship.** Drop this line for read-only work.
 - **Questions and Report, without a Lead.**
   - `on a question outside this Brief, commit nothing more, ask, and end your turn. The answer comes from the dev in this terminal.`
-  - `end with /sdlc-recap and stop.`
+  - `when the work is done, end with /sdlc-recap and stop. A wait from /sdlc-pr-ship is no end: tell the dev what it waits on and end your turn, and the next message from the dev resumes it.`
 - **Questions and Report, with a Lead.** When the Brief names its Lead's terminal. A Worker that ends its
-  turn looks finished to its Lead, so all it stops on goes to the Lead. In the line below, replace
-  `dw-sdlc` with the command the skill runs it by, such as `node "<path>/dw-sdlc/src/cli.ts"`, since a
-  Worker may have no `dw-sdlc` on PATH.
-  - `on a question outside this Brief, commit nothing more, deliver it to the Lead the way Report says, and end your turn. The answer comes from the Lead or from the dev in this terminal.`
+  turn looks finished to its Lead, so all it stops on goes to the Lead.
+  - In the lines, replace `dw-sdlc` with the command the skill runs it by, such as
+    `node "<path>/dw-sdlc/src/cli.ts"`, since a Worker may have no `dw-sdlc` on PATH.
+  - `on a question outside this Brief, commit nothing more, deliver it to the Lead the way Report says, and end your turn. The answer comes from the Lead, which relays the word of the dev, or from the dev in this terminal.`
   - `end with /sdlc-recap, write it to a file and deliver it to the Lead in terminal <terminal> with dw-sdlc worker report --to <terminal> --recap <file>. When /sdlc-pr-ship answers wait, deliver what it waits on the same way and end your turn: the Lead wakes you.`
 
 A Brief is in English whatever the conversation's language, since an issue's body can be one. It holds no
 single quote, so the start line can quote it whole: write "do not", never "don't".
 
 In an issue's body, leave out the kickoff line: `/implement #<that issue>` starts it, and it cannot name its
-own number before it is filed. Its Source line points at the source issue when there is one.
+own number before it is filed. Its Source line points at the source issue when there is one. Its Questions
+and Report lines take the form without a Lead, since a filed Brief outlives a Lead and this machine's paths.
 
 ## Model and effort
 
