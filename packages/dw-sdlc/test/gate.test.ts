@@ -318,9 +318,8 @@ describe("dw-sdlc gate, stopped by a signal", () => {
     ])
   })
 
-  it("runs no Check after a run Check SIGINT ended before the Gate saw the signal", () => {
-    // Ctrl-C reaches the command and the Gate together, and the command's exit can be seen first; here
-    // the Gate gets no signal at all, so only the command's own end can stop what follows.
+  it("runs no Check after a run Check SIGINT ended, with no signal to the Gate", () => {
+    // Stands for a Ctrl-C whose exit the Gate sees before its own signal.
     const run = [
       { name: "ended", command: "kill -INT $$" },
       { name: "next", command: "touch next-ran" }
@@ -332,6 +331,17 @@ describe("dw-sdlc gate, stopped by a signal", () => {
     assert.deepEqual(lines(result.stdout), [
       "gate: check ended — failed, stopped by SIGINT; it printed nothing",
       `ended: "kill -INT $$" was stopped by SIGINT — ${FAILED_REMEDY}`,
+      "gate: failed — 1 failure"
+    ])
+  })
+
+  it("compares no tree after a Step SIGINT ended, with no signal to the Gate", () => {
+    const step = "touch new.md; kill -INT $$"
+    const run = runBin(["gate"], committedRepo({ steps: [step] }))
+    assert.equal(run.status, 1, run.stdout)
+    assert.deepEqual(timed(run.stdout), [
+      `gate: step ${step} — failed, stopped by SIGINT (N s); it printed nothing`,
+      `step: ${JSON.stringify(step)} was stopped by SIGINT — ${FAILED_REMEDY}`,
       "gate: failed — 1 failure"
     ])
   })

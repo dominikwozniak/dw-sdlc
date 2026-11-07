@@ -42,7 +42,7 @@ let received: NodeJS.Signals | undefined
  * The SIGINT or SIGTERM that ended a command; no command starts after it either. Ctrl-C reaches the
  * command and the Gate together, and the command's exit can be seen before the Gate's own signal.
  */
-let ended: NodeJS.Signals | undefined
+let commandEndedBy: NodeJS.Signals | undefined
 
 function release(): void {
   for (const signal of STOPPING) {
@@ -65,7 +65,8 @@ function stop(signal: NodeJS.Signals): void {
 export async function holdingSignals<T>(body: () => Promise<T>): Promise<T> {
   running = undefined
   received = undefined
-  ended = undefined
+  commandEndedBy = undefined
+  release()
   for (const signal of STOPPING) {
     process.on(signal, stop)
   }
@@ -74,13 +75,17 @@ export async function holdingSignals<T>(body: () => Promise<T>): Promise<T> {
   } finally {
     // One turn of the event loop hands a signal that landed after the last command to its handler.
     await new Promise((resolve) => setImmediate(resolve))
-    release()
+    // The Gate's own signal may still be on its way after a command it ended: the handlers stay, so
+    // that signal does not end the Gate before its report.
+    if (commandEndedBy === undefined || received !== undefined) {
+      release()
+    }
   }
 }
 
 /** The signal that stopped the run, once one has: one the Gate got or one that ended a command. */
 export function stoppedBy(): NodeJS.Signals | undefined {
-  return received ?? ended
+  return received ?? commandEndedBy
 }
 
 /** Everything written to `fd`, read from its start: the command's writes moved the offset it shares to the end. */
@@ -109,11 +114,8 @@ function lastLines(text: string): string[] {
 type Answer = Pick<Ran, "status" | "exitCode" | "signal" | "detail">
 
 /** What the command's exit says; a signal the Gate got while it ran stops it, however it then exited. */
-function answer(exitCode: number | null, endedBy: NodeJS.Signals | null): Answer {
-  const signal = received ?? endedBy
-  if (endedBy !== null && STOPPING.includes(endedBy)) {
-    ended ??= endedBy
-  }
+function answer(exitCode: number | null, ended: NodeJS.Signals | null): Answer {
+  const signal = received ?? ended
   if (signal !== null) {
     return { status: "fail", exitCode, signal, detail: `was stopped by ${signal}` }
   }
@@ -142,7 +144,12 @@ function run(command: string, root: string, stdio: StdioOptions): Promise<Omit<R
         done({ status: "error", exitCode: null, signal: null, detail: `could not start: ${error.message}` })
       }
     })
-    child.once("exit", (exitCode, signal) => done(answer(exitCode, signal)))
+    child.once("exit", (exitCode, signal) => {
+      if (signal !== null && STOPPING.includes(signal)) {
+        commandEndedBy ??= signal
+      }
+      done(answer(exitCode, signal))
+    })
   })
 }
 
