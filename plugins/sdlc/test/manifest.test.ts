@@ -1,6 +1,6 @@
 // The plugin as Claude Code loads it: each hook script wired to its event and matcher or run by
-// another hook, each skill present under its name and user-invoked, each subagent under its name and
-// on its allowed tools, the package linked, and the marketplace listing this plugin at the manifest's version.
+// another hook, each skill present under its name and who may invoke it, each subagent under its name
+// and on its allowed tools, the package linked, and the marketplace listing this plugin at the manifest's version.
 
 import assert from "node:assert/strict"
 import { readdirSync, readFileSync, realpathSync, statSync } from "node:fs"
@@ -33,6 +33,8 @@ const DISPATCHED = [
 /** A git hook a repository wires itself, never Claude Code. */
 const GIT_HOOKS = ["commit-msg.sh"]
 const SKILLS = ["sdlc-doctor", "sdlc-pr-ship", "sdlc-references-add", "sdlc-setup"]
+/** The skill a Worker starts itself, its description holding the model to a Brief's instruction. */
+const WORKER_STARTED = "sdlc-pr-ship"
 /** The subagents under `agents/`, each a file named as its `name`, spawned as `sdlc:<name>`. */
 const AGENTS = ["sdlc-reviewer"]
 /** The tools a subagent of the plugin may list: none that edits a file. Its instructions keep Bash to git's reads. */
@@ -101,12 +103,24 @@ describe("the sdlc plugin", () => {
     }
   })
 
-  it("leaves each skill for the user to invoke, never the model", () => {
-    for (const name of SKILLS) {
-      const text = readFileSync(join(PLUGIN_ROOT, "skills", name, "SKILL.md"), "utf8")
-      const frontmatter = /^---\n([\s\S]*?)\n---\n/.exec(text)?.[1] ?? ""
-      assert.match(frontmatter, /^disable-model-invocation: true$/m, `${name} is user-invoked`)
+  function skillFrontmatter(name: string): string {
+    const text = readFileSync(join(PLUGIN_ROOT, "skills", name, "SKILL.md"), "utf8")
+    return /^---\n([\s\S]*?)\n---\n/.exec(text)?.[1] ?? ""
+  }
+
+  it("leaves each skill for the user to invoke, never the model, but the one a Worker starts", () => {
+    for (const name of SKILLS.filter((skill) => skill !== WORKER_STARTED)) {
+      assert.match(skillFrontmatter(name), /^disable-model-invocation: true$/m, `${name} is user-invoked`)
     }
+  })
+
+  it("lets a Brief reach sdlc-pr-ship, its description limiting the model to /sdlc-pr-ship and a Brief", () => {
+    const frontmatter = skillFrontmatter(WORKER_STARTED)
+    assert.doesNotMatch(frontmatter, /^disable-model-invocation:/m)
+    const description = /^description: (.+)$/m.exec(frontmatter)?.[1] ?? ""
+    assert.match(description, /Invoke it only when the dev types \/sdlc-pr-ship, or when a Brief tells/)
+    assert.match(description, /carry its pull request through/)
+    assert.doesNotMatch(description, /: /, "a colon and a space end a plain YAML value")
   })
 
   it("ships each subagent under its name, at medium effort on the session's model, with no tool that edits a file", () => {

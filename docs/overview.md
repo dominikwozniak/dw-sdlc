@@ -439,7 +439,10 @@ positions out.
 
 The `sdlc-pr-ship` skill is the agent's side: it calls the script, does the agent's Action, calls
 again, and stops at a wait, a park or done, as the
-[plugin README](../plugins/sdlc/README.md#shipping-a-pull-request) describes.
+[plugin README](../plugins/sdlc/README.md#shipping-a-pull-request) describes. The dev starts it, or a
+Worker whose Brief tells it to, as `templates/brief.md` of
+[`sdlc-sessions`](../plugins/sdlc-sessions/README.md#the-brief) words it; `pr.merge` decides the merge
+either way.
 
 ## How a Lead runs Workers
 
