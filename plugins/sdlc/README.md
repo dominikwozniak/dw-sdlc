@@ -601,21 +601,24 @@ The dev invokes it, or a Worker whose Brief tells it to. The skill reads each an
   `auto`, may the skill raise, `light` to `full`, when the change looks riskier than its size, and it
   says why in one line; it never lowers one, and a depth the dev or the config set stands, with one
   line when the agent disagrees. An `off` the rules route the script posts itself, so it comes to no
-  raise. The Review reads from `details.since`, the last reviewed commit, when the answer names one,
-  else from the base. At `full` it runs the command `details.reviewCommand` names, from
-  `pr.reviewCommand` and `/code-review` by default, with that range named to it; when the session
-  does not have that command, the skill names it and stops. At `light` it spawns the
-  `sdlc-reviewer` subagent, below, on the same range. A Review is clean when no hard violation
-  and no Spec finding remains, and each judgement-call smell is either fixed or declined with a line
-  in the Recap; a known limit counts as clean only when the dev accepted it. When the Review is
-  clean it runs `dw-sdlc pr reviewed <n> --head <sha>` with the head it reviewed, and otherwise it
-  fixes each hard violation, Spec finding and unaccepted limit, and each smell it does not decline,
-  then pushes. The skill skips that Review when one earlier
-  in the conversation read the changes since the same point at the head the script read, was clean,
-  and nothing changed after it: no edit, no commit, no pull. Only a clean run of that command, or at `light` of `sdlc-reviewer` too, whose
-  range ended at that head counts as the earlier Review; an informal read of the diff never counts.
-  It then runs `pr reviewed` on that head. A Review whose head the conversation does not show, or
-  one that was not clean, even once its finding is fixed, needs a fresh Review. The agent's other `blockers` go
+  raise. The Review reads from `details.since`, the last head a Review read, clean or not, when the
+  answer names one, else from the base. At `full` it runs the command `details.reviewCommand`
+  names, from `pr.reviewCommand` and `/code-review` by default, with that range named to it; when
+  the session does not have that command, the skill names it and stops. At `light` it spawns the
+  `sdlc-reviewer` subagent, below, on the same range. A Review that follows a fix is told the
+  Findings that fix answers, in the command's arguments or the subagent's prompt, and checks each
+  one is fixed and that the fix breaks nothing. A Review is clean when it reports no Finding, as the
+  [glossary](../../GLOSSARY.md) defines it: a concrete harm the pull request's own changes cause, a
+  miss against the spec, or a bug fix without its regression test. The skill declines everything
+  else with one line each in the Recap, and lists a harm outside the change as a follow-up. When the
+  Review is clean it runs `dw-sdlc pr reviewed <n> --head <sha>` with the head it reviewed. When it
+  is not, it runs the same with `--findings`, the read mark on the head that Review read, then
+  fixes each Finding and pushes, so the next Review reads the fix alone. The skill skips that
+  Review when one earlier in the conversation read the changes since the same point at the head the
+  script read, was clean, and nothing changed after it: no edit, no commit, no pull. Only a clean
+  run of that command, or at `light` of `sdlc-reviewer` too, whose range ended at that head counts
+  as the earlier Review; an informal read of the diff never counts. It then runs `pr reviewed` on
+  that head. A Review whose head the conversation does not show needs a fresh Review. The agent's other `blockers` go
   into the same push, all but `review`, which needs the head the push makes, and the skill calls the
   script again. An `act` that leaves nothing to change, as changes requested once a push answers
   them, stops it: the reviewer's turn.
@@ -630,8 +633,8 @@ with `--rebase` first when the branch is behind it, as after the script's update
 asks for shows the answer and does nothing. It passes `--merge` only when the dev wrote "merge" for
 this pull request in the conversation, and `--review full`, `--review light` or `--review off` only
 when they wrote that Review depth for it. Under `off`, from the flag, `pr.review` or the rules of
-`pr.review: auto`, and over a head that only merged the base in since the last reviewed commit, the
-script posts the review marker itself and the skill never reviews. A depth the dev names for the call
+`pr.review: auto`, and over a head that only merged the base in since a clean Review, the script
+posts the review marker itself and the skill never reviews; a read mark never carries. A depth the dev names for the call
 beats that carry: `--review full` or `light` reads the whole diff since the base, and `--review off`
 posts the marker as the dev's `off`. Under `pr.review: auto`, the default, the script routes the
 depth from the changes the Review would read: lockfiles alone `off`; a file under
@@ -649,10 +652,12 @@ marker `pr reviewed` posts are in the overview,
 at `effort: medium`, whatever effort the session runs at, unless `CLAUDE_CODE_EFFORT_LEVEL` sets
 one. Its tools are `Read`, `Grep` and `Bash`, and its instructions keep Bash to read-only git. It
 does not see the conversation, so the skill's prompt holds what it reads: the diff command, the
-files the diff touches, and the spec as the conversation states it. It reads those files and the
-repository's Agent map, nothing else, skips what the Gate checks, and reports under 300 words, its
-first line `clean` or `findings: <n>`, `clean` when no hard violation and no Spec finding remains;
-a judgement-call smell follows the first line as `smell:` and does not change the count.
+files the diff touches, the spec as the conversation states it, and after a fix the Findings it
+answers, which it checks one by one. It reads those files and the repository's Agent map, nothing
+else, skips what the Gate checks, and reports under 300 words, its first line `clean` or
+`findings: <n>`, counting Findings only. A smell follows the first line as `smell:`, a harm in code
+the change neither touches nor reaches as `follow-up:`, and a named Finding the fix answers as
+`fixed:`; none changes the count.
 
 ## Tests
 

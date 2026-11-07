@@ -14,7 +14,7 @@ itself, its description naming why. `pr.review` sets a depth or `auto`, strictes
 light, off; the local layer only tightens it and an invalid layer runs `full`. Under `auto` built-in
 rules route the depth from the changes: lockfiles alone are off, a file under `.github/workflows/` or
 more than 100 changed lines outside lockfiles is full, the rest light. After a push the depth is
-routed on the changes since the last reviewed head, an empty delta carries that head's status, and a
+routed on the changes since the head the last Review read, an empty delta carries a clean Review's status, and a
 clean Review earlier in the same conversation pins the head without a second one. The dev's word in
 the conversation, passed as `--review <depth>`, overrides the config for that call either way. The
 agent may raise a depth `auto` routed, never lower it, and never raises one the dev or the config set.
