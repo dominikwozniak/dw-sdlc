@@ -91,7 +91,8 @@ const HEALTHY: Fake = {
     "command -v rtk": "/opt/homebrew/bin/rtk",
     "command -v safe-chain": "/home/t/.safe-chain/bin/safe-chain",
     "command -v npm": "/home/t/.safe-chain/shims/npm",
-    "command -v pnpm": "/usr/bin/pnpm"
+    "command -v pnpm": "/usr/bin/pnpm",
+    "command -v hc": "/home/t/.local/bin/hc"
   }
 }
 
@@ -133,6 +134,10 @@ function listing(...entries: object[]): Fake {
   return withCommand(HEALTHY, "claude plugin list --json", { stdout: JSON.stringify(entries) })
 }
 
+function hc(machine: Fake): Check {
+  return line(diagnose({ root: ROOT, home: HOME, probe: fake(machine), config: CONFIG }), "hc")
+}
+
 function rtkLine(machine: Fake): Check {
   return line(diagnose({ root: ROOT, home: HOME, probe: fake(machine), config: CONFIG }), "rtk")
 }
@@ -142,7 +147,7 @@ describe("diagnose", () => {
     const checks = diagnose({ root: ROOT, home: HOME, probe: fake(HEALTHY), config: CONFIG })
     assert.deepEqual(
       checks.map((check) => check.name),
-      ["jq", "plugin", "package", "sessions", "rtk", "safe chain", "pnpm release age", "commit signing", "config"]
+      ["jq", "plugin", "package", "sessions", "hc", "rtk", "safe chain", "pnpm release age", "commit signing", "config"]
     )
     assert.deepEqual(new Set(checks.map((check) => check.level)), new Set(["PASS"]))
     assert.match(line(checks, "jq").detail, /jq-1\.8\.2/)
@@ -283,6 +288,19 @@ describe("diagnose", () => {
         JSON.stringify({ version: "0.2.0" })
       )
       assert.equal(sessions(fromGit).level, "PASS")
+    })
+  })
+
+  it("hc: on the agent's PATH a PASS, absent INFO, since a machine may go without herdr", () => {
+    assert.deepEqual(hc(HEALTHY), {
+      name: "hc",
+      level: "PASS",
+      detail: "/home/t/.local/bin/hc, so a Lead can start Workers"
+    })
+    assert.deepEqual(hc(withShell(HEALTHY, "command -v hc", "")), {
+      name: "hc",
+      level: "INFO",
+      detail: "no hc on PATH, so no /sdlc-delegate: install herdr to run Workers"
     })
   })
 

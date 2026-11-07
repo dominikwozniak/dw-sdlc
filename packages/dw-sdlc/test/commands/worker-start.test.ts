@@ -126,10 +126,20 @@ describe("dw-sdlc worker start", () => {
     assert.deepEqual(run.app, [])
   })
 
+  it("asks herdr-app again until it lists the Worker's tab, which comes a moment after hc run", () => {
+    const scene = scenario()
+    scene["herdr-app"].ls = [layout({ tb2: ["t3"] }), layout({ tb2: ["t3"] }), layout({ tb2: ["t3"], tb9: ["t7"] })]
+    const run = start([], scene)
+    assert.equal(run.status, 0, run.stderr)
+    assert.equal(run.stderr, "")
+    assert.deepEqual(run.app, [["ls"], ["ls"], ["ls"], ["do", "tab.rename", "--id", "tb9", "--name", NAME]])
+  })
+
   it("warns, and still succeeds, when the Worker's tab cannot be renamed", () => {
-    const lost = start([], scenario({ tabs: { tb2: ["t3"] } }))
+    // --wait bounds the search for the tab too: at 0 herdr-app is asked once.
+    const lost = start(["--wait", "0"], scenario({ tabs: { tb2: ["t3"] } }))
     assert.equal(lost.status, 0, lost.stderr)
-    assert.match(lost.stderr, /warning: the tab of t7/)
+    assert.match(lost.stderr, /warning: the tab of t7 is not in herdr-app ls within 0 s/)
     assert.deepEqual(lost.app, [["ls"]])
 
     const refused = scenario()

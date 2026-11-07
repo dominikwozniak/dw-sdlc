@@ -8,10 +8,13 @@ import { parseArgs } from "node:util"
 
 import { mainCheckout, repositoryRoot, resolveConfig, WORKER_EFFORTS } from "../agentic-config.ts"
 import { isObject, type JsonObject } from "../json-text.ts"
-import { describe, hcObject, lead, refuse, Refusal, wholeNumber, workersOf } from "../worker/herdr.ts"
-import { nameTab } from "../worker/tabs.ts"
+import { describe, hcObject, isLive, lead, refuse, Refusal, wholeNumber, workersOf } from "../worker/herdr.ts"
+import { type Named, nameTab } from "../worker/tabs.ts"
 
 export const summary = "start a Worker on a Brief in a herdr terminal"
+
+/** The most seconds the command looks for the Worker's tab in the window, beside the read-back. */
+const TAB_WAIT = 10
 
 const USAGE = `Usage: dw-sdlc worker start --brief <file> --name <name> [--model <model>] [--effort <effort>]
                             [--max-workers <n>] [--wait <seconds>] [--json]
@@ -20,9 +23,11 @@ Starts a Worker in the background and gives it the Brief as its first message. I
 the label role=worker, --outlive-parent and the repository as the folder, then worker.command of the config
 with --worktree <name>, --model, --effort and the Brief. worker.command is split on whitespace, so it holds
 no quoted word. --model and --effort default to worker.model and worker.effort. When the Lead sits in a
-herdr space the Worker joins it, and its tab, which herdr numbers, takes the Worker's name.
+herdr space the Worker joins it, and its tab, which herdr numbers, takes the Worker's name: the window lists
+the tab a moment after hc run, so the command looks for it for up to ${TAB_WAIT} seconds, or --wait when shorter,
+while it reads the terminal back.
 
-It then reads the terminal back, for up to --wait seconds (default 30), until the Worker shows work: its status
+It reads the terminal back for up to --wait seconds (default 30), until the Worker shows work: its status
 turns working, blocked or done. It fails when herdr reports the first message as unsent, the terminal has
 ended, the Worker reports an error, or the Worker is still idle or silent when the time is up. It never sends
 the Brief again: read the terminal with hc read first.
@@ -179,7 +184,7 @@ async function start(cli: Cli): Promise<number> {
   const model = cli.model ?? worker.model
   const effort = cli.effort ?? worker.effort
 
-  const live = workersOf(leadId, false).filter((candidate) => candidate.state === "live")
+  const live = workersOf(leadId, false).filter(isLive)
   if (live.length >= cli.max) {
     throw new Refusal(
       `${leadId} already has ${live.length} live Workers (the limit is ${cli.max})`,
@@ -214,11 +219,13 @@ async function start(cli: Cli): Promise<number> {
     throw new Refusal("hc run answered no address for the terminal it started", "check hc ls before starting it again")
   }
 
-  const named = space === undefined ? "none" : nameTab(address, cli.name)
+  // Side by side, so the wait for the tab overlaps the wait for the Worker to start.
+  const naming: Promise<"none" | Named> =
+    space === undefined ? Promise.resolve("none") : nameTab(address, cli.name, Math.min(TAB_WAIT, cli.wait))
+  const [named, reason] = await Promise.all([naming, delivery(address, cli.wait)])
   if (typeof named === "object") {
     process.stderr.write(`dw-sdlc worker start: warning: ${named.kept}\n`)
   }
-  const reason = await delivery(address, cli.wait)
 
   if (cli.json) {
     const tab = typeof named === "object" ? "kept" : named

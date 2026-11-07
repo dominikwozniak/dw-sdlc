@@ -246,7 +246,7 @@
       "name": "Doctor",
       "group": "tools",
       "summary": "One PASS, WARN, FAIL or INFO line per machine check, a drift of plugin and package among them; exits 1 on a FAIL.",
-      "code": ["packages/dw-sdlc/src/commands/doctor.ts"],
+      "code": ["packages/dw-sdlc/src/commands/doctor.ts", "packages/dw-sdlc/src/doctor-plugins.ts"],
       "docs": ["plugins/sdlc/README.md#doctor"]
     },
     {
@@ -330,6 +330,14 @@
       "summary": "The user-invoked skill that writes a Brief, with the model and effort it runs on and three ways out.",
       "code": ["plugins/sdlc-sessions/skills/sdlc-brief/"],
       "docs": ["plugins/sdlc-sessions/README.md#the-brief", "GLOSSARY.md"]
+    },
+    {
+      "id": "skills.delegate",
+      "name": "sdlc-delegate",
+      "group": "skills",
+      "summary": "The user-invoked skill that makes a session a Lead: it starts Workers on Briefs in herdr and relays their Recaps.",
+      "code": ["plugins/sdlc-sessions/skills/sdlc-delegate/"],
+      "docs": ["plugins/sdlc-sessions/README.md#the-lead", "GLOSSARY.md"]
     },
     {
       "id": "skills.brief-template",

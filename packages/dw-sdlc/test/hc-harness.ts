@@ -74,9 +74,11 @@ export function terminal(
     status?: string | null
     labels?: Record<string, string>
     firstMessage?: { sent: boolean; reason?: string }
+    /** The folder its foreground program works in, which herdr reports beside the launch folder. */
+    foreground?: string
   } = {}
 ): Reply {
-  const { name, parent, state = "live", status = "working", labels = {}, firstMessage } = extra
+  const { name, parent, state = "live", status = "working", labels = {}, firstMessage, foreground } = extra
   return {
     stdout: JSON.stringify({
       address,
@@ -85,7 +87,8 @@ export function terminal(
       state,
       labels,
       ...(status === null ? {} : { status: { app: "claude-code", state: status } }),
-      ...(firstMessage === undefined ? {} : { first_message: firstMessage })
+      ...(firstMessage === undefined ? {} : { first_message: firstMessage }),
+      ...(foreground === undefined ? {} : { foreground: { argv: ["claude"], cwd: foreground, pid: 1 } })
     })
   }
 }
