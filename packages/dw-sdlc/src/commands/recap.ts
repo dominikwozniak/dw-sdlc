@@ -171,11 +171,25 @@ function workersText(workers: Worker[]): string {
   return workers.map((worker) => `${worker.name} (${worker.status})`).join(", ")
 }
 
+/**
+ * The name `branch` was pushed under, from its configured upstream, when a remote holds it under another
+ * name; read from the config, so it holds after the remote deleted the branch.
+ */
+function pushedAs(root: string, branch: string): string | undefined {
+  const remote = asked(root, ["config", "--get", `branch.${branch}.remote`])
+  const merge = asked(root, ["config", "--get", `branch.${branch}.merge`])
+  if (remote === undefined || remote === "." || merge?.startsWith("refs/heads/") !== true) {
+    return undefined
+  }
+  const name = merge.slice("refs/heads/".length)
+  return name === branch ? undefined : name
+}
+
 /** The current branch's pull request and the Action the Ship script's decision gives it, or null. */
-function readShipped(root: string): Shipped | null {
+function readShipped(root: string, branch: string): Shipped | null {
   // An invalid config layer resolves to ask and full, as in the Ship script.
   const policy = declaredPolicy(resolveConfig(root).config.pr)
-  const pr = readBranch(policy.review.depth === "auto")
+  const pr = readBranch(policy.review.depth === "auto", pushedAs(root, branch))
   return pr === null ? null : { pr, answer: decide(pr, now(), policy) }
 }
 
@@ -381,7 +395,7 @@ function report(json: boolean): number {
   const { branch, head } = read
   // A detached HEAD names no branch for gh to look up, and a repository with no remote has no GitHub.
   const asksGh = branch !== null && remotesOf(root).length > 0
-  const shipped = asksGh ? readShipped(root) : null
+  const shipped = asksGh ? readShipped(root, branch) : null
   const held = shipped !== null && head !== null && shipped.pr.commits.includes(head)
   const local = standing(root, read, shipped, held)
   // An open pull request can still take the head, and a commit-less repository has nothing to merge.

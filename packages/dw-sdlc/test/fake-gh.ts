@@ -1,5 +1,6 @@
 // A stand-in for `gh` on a test's PATH, run as `fake-gh.ts <dir> <gh args...>`: it appends the args to
-// `<dir>/calls.jsonl` and answers from `<dir>/scenario.json`, the GraphQL replies in the order served.
+// `<dir>/calls.jsonl` and answers from `<dir>/scenario.json`, the GraphQL replies in the order served and
+// every other call by its whole arguments, else by its first two words.
 
 import { appendFileSync, existsSync, readFileSync } from "node:fs"
 import { join } from "node:path"
@@ -21,7 +22,7 @@ if (key === "api graphql") {
     stderr: `fake gh: no GraphQL reply left for call ${served + 1}\n`
   }
 } else {
-  response = scenario.commands?.[key] ?? {}
+  response = scenario.commands?.[args.join(" ")] ?? scenario.commands?.[key] ?? {}
 }
 process.stdout.write(response.stdout ?? "")
 process.stderr.write(response.stderr ?? "")

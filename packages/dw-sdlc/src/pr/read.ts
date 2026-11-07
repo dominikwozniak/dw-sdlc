@@ -109,10 +109,14 @@ export function read(named: Named, command: string, sized: boolean): PrState {
   return query(targetOf(named, command), sized)
 }
 
-/** The state of the current branch's pull request, open or not, or null when gh finds none. */
-export function readBranch(sized: boolean): PrState | null {
+/**
+ * The state of the current branch's pull request, open or not, or null when gh finds none. `pushedAs`
+ * names the head branch on the remote when it differs from the local one: gh resolves only the local
+ * name once `@{push}` fails, as it does under `push.default` simple for a branch pushed under another name.
+ */
+export function readBranch(sized: boolean, pushedAs?: string): PrState | null {
   requireAuth()
-  const view = gh(["pr", "view", "--json", "url"])
+  const view = gh(["pr", "view", ...(pushedAs === undefined ? [] : [pushedAs]), "--json", "url"])
   if (view.status === 0) {
     return query(
       parseOrCannotRun(() => parseView(view.stdout)),

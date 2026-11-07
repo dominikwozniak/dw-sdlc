@@ -10,7 +10,7 @@ const FAKE = join(import.meta.dirname, "fake-gh.ts")
 
 /** What one gh call prints and exits with; an empty one prints nothing and exits 0. */
 export type Response = { stdout?: string; stderr?: string; exit?: number }
-/** The GraphQL replies in the order gh serves them, and every other call's answer by its first two words. */
+/** The GraphQL replies in the order gh serves them, and every other call's answer by its whole arguments, else its first two words. */
 export type Scenario = { graphql?: Response[]; commands?: Record<string, Response> }
 
 export type FakeGh = {
