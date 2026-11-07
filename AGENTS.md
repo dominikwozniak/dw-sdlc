@@ -8,15 +8,14 @@ is its long form: how a guard works, why the design, adopting and releasing.
 
 ## Project map
 
-- `packages/dw-sdlc/` — the `dw-sdlc` package, a workspace member: `src/` the resolver of the config's
+- `packages/dw-sdlc/` — the `dw-sdlc` package: `src/` the resolver of the config's
   layers, the JSON Schema validator and the `dw-sdlc` bin, `cli.ts`, one row per subcommand, each a
   module under `commands/` (`gate`, `check`, `primitives`, `setup`, `doctor`, `config`,
-  `references sync`, `references setup`, `pr ship`, `pr reviewed`, `recap`), one module per Check it ships
+  `references sync`, `references setup`, `pr ship`, `pr reviewed`, `recap`, `worker start`, `worker ls`, `worker report`), one module per Check it ships
   under `checks/` beside the modules they share, and under `pr/` the read the `pr` commands and
-  `recap` share and the Ship script's decision; `config/` the JSON Schema for `.ai/agentic.config.json`, which
-  declares how this repo works for an agent, and the one for `.ai/references.json`; `templates/` the
+  `recap` share and the Ship script's decision; `config/` the JSON Schema for `.ai/agentic.config.json`, and the one for `.ai/references.json`; `templates/` the
   Router the setup writes; `test/` their tests, the bin spawned on a throwaway repo, from the source
-  and from the packed tarball; `dist/` the JavaScript `pnpm pack` emits for npm, ignored
+  and from the packed tarball; `dist/` the JavaScript `pnpm pack` emits, ignored
 - `plugins/sdlc-sessions/` — the plugin of the session helpers, depending on `sdlc`: `skills/sdlc-recap`,
   a `dw-sdlc` link, the manifest test
 - `plugins/sdlc/` — the plugin `.claude-plugin/marketplace.json` lists first, enabled at user
@@ -28,11 +27,11 @@ is its long form: how a guard works, why the design, adopting and releasing.
 - `.ai/` — `agentic.config.json`, this repo's agent rules against the package's schema;
   `references.json`, the References this repo reads; `primitives.json`, the catalogue of what this
   repo exposes to an agent, held to the tree by the `primitives` Check; `file-size-ratchet.baseline.json`, the files the Ratchet lets stay over their
-  limit (`agentic.config.local.json` is one machine's layer, kept out of git through `.git/info/exclude`)
+  limit (`agentic.config.local.json` is one machine's layer, excluded from git)
 - `.claude/settings.json` — tracked; turns the dw-solo plugins off in this repo and keeps the clones'
   `CLAUDE.md` and `AGENTS.md` out of context. `.claude/settings.local.json` is one machine's
   permission backstop, written by the setup and excluded from git. A worktree reads it and the local
-  config from the main checkout, and the plugin's Sync hook clones the references, so nothing is copied
+  config from the main checkout
 - `.agents/skills/` — the engineering skills this repo works with, pinned in `skills-lock.json`;
   `.claude/skills/` links to them
 - `docs/agents/` — how those skills use this repo: the issue tracker and the domain docs
@@ -49,8 +48,8 @@ is its long form: how a guard works, why the design, adopting and releasing.
 - `ideas/` — local-only notes, gitignored but for `.gitkeep`
 - `.github/` — CI: `workflows/quality-gate.yaml` runs `pnpm check` on every pull request and on `main`;
   `workflows/release.yaml` turns the changesets under `.changeset/` into a version pull request and,
-  once it merges, publishes the package to npm. Dependabot (`dependabot.yml`) opens grouped updates
-  weekly. Review runs locally, through `/code-review`
+  once it merges, publishes the package to npm. Dependabot opens grouped updates
+  weekly
 
 ## Never
 
@@ -76,7 +75,7 @@ is its long form: how a guard works, why the design, adopting and releasing.
 
 - Subjects follow Conventional Commits and every commit carries a `Co-Authored-By` trailer; the
   guards enforce both from `.ai/agentic.config.json`. `.vite-hooks/commit-msg` checks the subject of
-  every commit, one typed in a terminal included. `pnpm install` installs it and the pre-commit hook.
+  every commit, a terminal's included. `pnpm install` installs it and the pre-commit hook.
 - `main` is a protected branch: a change reaches it through a pull request, after `pnpm check` passes
   in CI. For a small fix the agent commits on `main` and the push comes from Dominik's own terminal;
   the guards judge only the agent's tool calls. GitHub branch protection is not available on this private
@@ -87,12 +86,15 @@ is its long form: how a guard works, why the design, adopting and releasing.
 
 ```bash
 pnpm check                      # dw-sdlc gate: the gate.steps of .ai/agentic.config.json in order, then its Checks; = CI
-pnpm exec dw-sdlc gate [--json] [--verbose] [--update-baseline | --cache] # a line per Step and Check, a failure's last 50 lines (--json: tail), --verbose streams all; exit 0 green, 1 failed or a Step wrote the tree (Drift), 2 cannot run; --update-baseline tightens baselines, --cache skips a tree already green
+pnpm exec dw-sdlc gate [--json] [--verbose] [--update-baseline | --cache] # a line per Step and Check, --verbose streams all; exit 0 green, 1 failed or a Step wrote the tree (Drift), 2 cannot run; --update-baseline, --cache
 pnpm exec dw-sdlc check <name> [--json] # one Check of the Gate by name, no Step; off in the config, it runs on its defaults
 pnpm exec dw-sdlc primitives --paths <files> [--json] # the Primitives that own each path: summary, docs to read
-pnpm exec dw-sdlc pr ship [<n>] [-R owner/name] [--merge] [--review full|light|off] [--dry-run] [--json] [--verbose] # the Action one pull request needs next; the script updates a branch behind, marks a head reviewed under off, marks a draft ready and merges under pr.merge auto; exit 0 done, 10 act, 20 wait, 30 park, 2 cannot run
+pnpm exec dw-sdlc pr ship [<n>] [-R owner/name] [--merge] [--review full|light|off] [--dry-run] [--json] [--verbose] # the Action one pull request needs next, performed when the script owns it; exit 0 done, 10 act, 20 wait, 30 park, 2 cannot run
 pnpm exec dw-sdlc pr reviewed <n> [-R owner/name] --head <sha> [--json] # post dw-sdlc/review success on that head; exit 2 when it moved or cannot run
 pnpm exec dw-sdlc recap [--json] # a Recap's facts and the close verdict, read-only; exit 0 can close, 1 cannot, 2 cannot run
+pnpm exec dw-sdlc worker start --brief <file> --name <name> [--model] [--effort] [--json] # a Worker on a Brief in a herdr terminal; exit 0 delivered, 1 not, 2 cannot run
+pnpm exec dw-sdlc worker ls [--json] # this Lead's Workers: state, status, folder
+pnpm exec dw-sdlc worker report --to <lead> --recap <file> # a Recap to the Lead, retried while it is blocked; exit 1 gives up
 pnpm exec vp check [--fix]      # Vite+: oxfmt, oxlint and the type check from vite.config.ts; --fix writes
 pnpm test                       # node --test over every *.test.ts under packages/*/test/ and plugins/*/test/, in one run
 pnpm agentic:check [file]       # resolve .ai/agentic.config.json (+ .local) or validate one file
