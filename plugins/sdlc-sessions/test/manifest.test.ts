@@ -1,6 +1,6 @@
 // The sdlc-sessions plugin as Claude Code loads it: its manifest depending on sdlc, the package linked,
-// each skill under its name with a description that keeps model invocation narrow, and the marketplace
-// listing it beside sdlc, each at its manifest's version.
+// each skill under its name and who may invoke it, the one Brief template its skills read, and the
+// marketplace listing it beside sdlc, each at its manifest's version.
 
 import assert from "node:assert/strict"
 import { readdirSync, readFileSync, realpathSync, statSync } from "node:fs"
@@ -10,7 +10,10 @@ import { describe, it } from "node:test"
 const PLUGIN_ROOT = join(import.meta.dirname, "..")
 const PLUGINS = join(PLUGIN_ROOT, "..")
 const REPO_ROOT = join(PLUGINS, "..")
-const SKILLS = ["sdlc-recap"]
+const SKILLS = ["sdlc-brief", "sdlc-recap"]
+const BRIEF_TEMPLATE = "templates/brief.md"
+/** The skills that write a Brief, each reading the one template rather than a copy of its rules. */
+const BRIEF_WRITERS = ["sdlc-brief", "sdlc-recap"]
 
 type Manifest = { name: string; version: string; dependencies?: unknown; hooks?: unknown }
 type Listed = { name: string; source: string; version: string }
@@ -63,6 +66,52 @@ describe("the sdlc-sessions plugin", () => {
     assert.match(description, /Invoke it only when the dev types \/sdlc-recap, or when a Brief tells/)
     assert.match(description, /co dalej\?/)
     assert.doesNotMatch(description, /: /, "a colon and a space end a plain YAML value")
+  })
+
+  it("leaves sdlc-brief for the dev to invoke, never the model", () => {
+    const frontmatter = frontmatterOf(skillText("sdlc-brief"))
+    assert.match(frontmatter, /^disable-model-invocation: true$/m)
+    const description = /^description: (.+)$/m.exec(frontmatter)?.[1] ?? ""
+    assert.ok(description.length > 0, "sdlc-brief has a description")
+    assert.doesNotMatch(description, /: /, "a colon and a space end a plain YAML value")
+  })
+
+  it("has every skill that writes a Brief read the one template, which holds the rules they share", () => {
+    for (const name of BRIEF_WRITERS) {
+      const text = skillText(name)
+      assert.ok(text.includes(`\${CLAUDE_PLUGIN_ROOT}/${BRIEF_TEMPLATE}`), `${name} reads the template`)
+      assert.doesNotMatch(text, /`opus`/, `${name} leaves the routing of model and effort to the template`)
+    }
+  })
+
+  it("ships a Brief template with every field, the routing, the name and the start line", () => {
+    const template = readFileSync(join(PLUGIN_ROOT, BRIEF_TEMPLATE), "utf8")
+    const required = [
+      "/implement #<n>",
+      "Goal:",
+      "Source:",
+      "You are the Worker: do it yourself, start no other session.",
+      "May write:",
+      "Must not:",
+      "Proof:",
+      "/sdlc-pr-ship",
+      "Report:",
+      "/sdlc-recap",
+      "dw-sdlc worker report",
+      "Model and effort:",
+      "worker.model",
+      "worker.effort",
+      "`opus`",
+      "`xhigh`, `max` or `fable`",
+      "worker-<issue>-<slug>",
+      "worker.command",
+      "--worktree",
+      "--model",
+      "--effort"
+    ]
+    for (const piece of required) {
+      assert.ok(template.includes(piece), `the template holds ${piece}`)
+    }
   })
 
   it("is listed beside sdlc, each at its manifest's version", () => {

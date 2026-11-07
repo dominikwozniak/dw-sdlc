@@ -324,6 +324,22 @@
       "docs": ["plugins/sdlc-sessions/README.md#the-recap", "GLOSSARY.md"]
     },
     {
+      "id": "skills.brief",
+      "name": "sdlc-brief",
+      "group": "skills",
+      "summary": "The user-invoked skill that gives a Worker's start: a Brief, its model and effort, and three ways to start it.",
+      "code": ["plugins/sdlc-sessions/skills/sdlc-brief/"],
+      "docs": ["plugins/sdlc-sessions/README.md#the-brief", "GLOSSARY.md"]
+    },
+    {
+      "id": "skills.brief-template",
+      "name": "Brief template",
+      "group": "skills",
+      "summary": "The one form and rules of a Brief: its fields, the Worker's name, model and effort by kind, the start line.",
+      "code": ["plugins/sdlc-sessions/templates/brief.md"],
+      "docs": ["plugins/sdlc-sessions/README.md#the-brief", "GLOSSARY.md"]
+    },
+    {
       "id": "skills.setup",
       "name": "sdlc-setup",
       "group": "skills",
@@ -351,7 +367,7 @@
       "id": "skills.pr-ship",
       "name": "sdlc-pr-ship",
       "group": "skills",
-      "summary": "The user-invoked skill that calls the Ship script, does the agent's Action and calls again until a wait, a park or done.",
+      "summary": "Calls the Ship script, does the agent's Action, calls again until a wait, a park or done; the dev or a Brief starts it.",
       "code": ["plugins/sdlc/skills/sdlc-pr-ship/SKILL.md"],
       "docs": ["plugins/sdlc/README.md#shipping-a-pull-request", "docs/overview.md#how-a-pull-request-lands"]
     },

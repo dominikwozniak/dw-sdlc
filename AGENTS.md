@@ -16,7 +16,7 @@ is its long form: how a guard works, why the design, adopting and releasing.
   `recap` share and the Ship script's decision; `config/` the JSON Schema for `.ai/agentic.config.json`, and the one for `.ai/references.json`; `templates/` the
   Router the setup writes; `test/` their tests, the bin spawned on a throwaway repo, from the source
   and from the packed tarball; `dist/` the JavaScript `pnpm pack` emits, ignored
-- `plugins/sdlc-sessions/` — the plugin of the session helpers, depending on `sdlc`: `skills/sdlc-recap`,
+- `plugins/sdlc-sessions/` — the session helpers, depending on `sdlc`: `skills/`, `templates/brief.md`,
   a `dw-sdlc` link, the manifest test
 - `plugins/sdlc/` — the plugin `.claude-plugin/marketplace.json` lists first, enabled at user
   scope: `hooks/` the bash guards on a shared `lib.sh` plus the jq config contract, and the session
