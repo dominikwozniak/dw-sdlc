@@ -9,7 +9,7 @@ import { parseArgs } from "node:util"
 import { mainCheckout, repositoryRoot, resolveConfig, WORKER_EFFORTS } from "../agentic-config.ts"
 import { isObject, type JsonObject } from "../json-text.ts"
 import { describe, hcObject, isLive, lead, refuse, Refusal, wholeNumber, workersOf } from "../worker/herdr.ts"
-import { nameTab } from "../worker/tabs.ts"
+import { type Named, nameTab } from "../worker/tabs.ts"
 
 export const summary = "start a Worker on a Brief in a herdr terminal"
 
@@ -27,7 +27,7 @@ herdr space the Worker joins it, and its tab, which herdr numbers, takes the Wor
 the tab a moment after hc run, so the command looks for it for up to ${TAB_WAIT} seconds, or --wait when shorter,
 while it reads the terminal back.
 
-It then reads the terminal back, for up to --wait seconds (default 30), until the Worker shows work: its status
+It reads the terminal back for up to --wait seconds (default 30), until the Worker shows work: its status
 turns working, blocked or done. It fails when herdr reports the first message as unsent, the terminal has
 ended, the Worker reports an error, or the Worker is still idle or silent when the time is up. It never sends
 the Brief again: read the terminal with hc read first.
@@ -220,7 +220,7 @@ async function start(cli: Cli): Promise<number> {
   }
 
   // Side by side, so the wait for the tab overlaps the wait for the Worker to start.
-  const naming: Promise<"none" | "renamed" | { kept: string }> =
+  const naming: Promise<"none" | Named> =
     space === undefined ? Promise.resolve("none") : nameTab(address, cli.name, Math.min(TAB_WAIT, cli.wait))
   const [named, reason] = await Promise.all([naming, delivery(address, cli.wait)])
   if (typeof named === "object") {

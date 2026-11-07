@@ -38,19 +38,17 @@ function errorOf(stdout: string): string | undefined {
   return typeof parsed?.error === "string" ? parsed.error : undefined
 }
 
+/** What naming a tab came to: `kept` says why it stays numbered, a warning and never a failure. */
+export type Named = "renamed" | { kept: string }
+
 /** How long `nameTab` waits between two reads of `herdr-app ls`. */
 const RETRY_MS = 250
 
 /**
  * Names the tab holding `address`, reading `herdr-app ls` again for up to `boundSeconds`, since the window
- * lists a terminal's tab a moment after `hc run` returns. `kept` says why the tab stays numbered, which is a
- * warning and never a failure.
+ * lists a terminal's tab a moment after `hc run` returns.
  */
-export async function nameTab(
-  address: string,
-  name: string,
-  boundSeconds: number
-): Promise<"renamed" | { kept: string }> {
+export async function nameTab(address: string, name: string, boundSeconds: number): Promise<Named> {
   try {
     const deadline = Date.now() + boundSeconds * 1000
     const find = (): Tab | undefined => tabsOf().find((candidate) => candidate.terminals.includes(address))
