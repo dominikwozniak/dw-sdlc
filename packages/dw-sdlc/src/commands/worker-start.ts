@@ -18,9 +18,9 @@ const USAGE = `Usage: dw-sdlc worker start --brief <file> --name <name> [--model
 
 Starts a Worker in the background and gives it the Brief as its first message. It runs hc run with the name,
 the label role=worker, --outlive-parent and the repository as the folder, then worker.command of the config
-(split on whitespace, so no quoted word) with --worktree <name>, --model, --effort and the Brief. --model and --effort default to worker.model and
-worker.effort. When the Lead sits in a herdr space the Worker joins it, and its tab, which herdr numbers,
-takes the Worker's name.
+with --worktree <name>, --model, --effort and the Brief. worker.command is split on whitespace, so it holds
+no quoted word. --model and --effort default to worker.model and worker.effort. When the Lead sits in a
+herdr space the Worker joins it, and its tab, which herdr numbers, takes the Worker's name.
 
 It then reads the terminal back, for up to --wait seconds (default 30), until the Worker shows work: its status
 turns working, blocked or done. It fails when herdr reports the first message as unsent, the terminal has
@@ -138,6 +138,9 @@ async function delivery(address: string, wait: number): Promise<string | undefin
     try {
       terminal = hcObject(["get", address, "--json"])
     } catch (error) {
+      if (!(error instanceof Refusal)) {
+        throw error
+      }
       // The Worker is running by now, so a failed read is a Brief not confirmed, never a start that did not happen.
       return `the terminal could not be read back: ${describe(error)}`
     }
