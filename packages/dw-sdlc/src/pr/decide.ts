@@ -75,8 +75,13 @@ const GRACE_SECONDS = 120
 const BUDGET_MINUTES = 40
 /** The prefix of the contexts the script posts itself, as `dw-sdlc/review`: never CI. */
 const OWN_PREFIX = "dw-sdlc/"
-/** Its one state: a failure or a pending status would turn the pull request unstable. */
+/**
+ * The state of the review status a clean or skipped Review leaves; the read mark's is failure, on a
+ * head the fix then leaves behind. A pending status would turn the pull request unstable.
+ */
 export const REVIEW_STATE = "success"
+/** The state of the read mark. */
+export const MARK_STATE = "failure"
 
 /** The words as one POSIX shell command line, each word that needs it single-quoted. */
 export function shellLine(words: string[]): string {
@@ -110,11 +115,12 @@ function listed({ id, path, line, author, body }: Thread): Record<string, unknow
 }
 
 /**
- * The gh arguments that post the `dw-sdlc/review` success on the head, `description` saying how it was
- * read. The path names the repository, so the call reads the same from any checkout.
+ * The gh arguments that post `dw-sdlc/review` on the head, a success unless `state` says otherwise,
+ * `description` saying how it was read. The path names the repository, so the call reads the same from
+ * any checkout.
  */
-export function reviewStatusArgs(pr: PrState, description: string): string[] {
-  const fields = { state: REVIEW_STATE, context: REVIEW, target_url: pr.url, description }
+export function reviewStatusArgs(pr: PrState, description: string, state: string = REVIEW_STATE): string[] {
+  const fields = { state, context: REVIEW, target_url: pr.url, description }
   const flags = Object.entries(fields).flatMap(([key, value]) => ["-f", `${key}=${value}`])
   return ["api", `repos/${pr.repo}/statuses/${pr.head}`, "--method", "POST", "--silent", ...flags]
 }
@@ -126,15 +132,16 @@ function flagOverCarry(pr: PrState, { review }: Policy): boolean {
 
 /** The reviewed commit whose success the head carries, if it does and the dev named no depth. */
 function carriedFrom(pr: PrState, policy: Policy): string | null {
-  return pr.carried && !flagOverCarry(pr, policy) ? (pr.lastReviewed?.commit ?? null) : null
+  return pr.carried && !flagOverCarry(pr, policy) ? (pr.lastRead?.commit ?? null) : null
 }
 
 /**
- * The commit the Review reads from: the last reviewed one. Over a carry the dev's depth reads the whole
- * diff, since the changes after that commit are only the base's.
+ * The commit the Review reads from: the last one a Review read, clean or not, so the Review after a fix
+ * reads the fix. Over a carry the dev's depth reads the whole diff, since the changes after that commit
+ * are only the base's.
  */
 function sinceOf(pr: PrState, policy: Policy): string | null {
-  return flagOverCarry(pr, policy) ? null : (pr.lastReviewed?.commit ?? null)
+  return flagOverCarry(pr, policy) ? null : (pr.lastRead?.commit ?? null)
 }
 
 /** A depth as the answer names it, and under off why no one reads the head. */

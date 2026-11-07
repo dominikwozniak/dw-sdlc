@@ -163,6 +163,23 @@ describe("dw-sdlc pr ship under pr.review auto", () => {
     assert.deepEqual(run.calls, [AUTH, READ, compare(REVIEWED), compare(BASE_OID)])
   })
 
+  it("routes a small fix light from the read mark a Review left on a large pull request", () => {
+    const history: Commit[] = [
+      { oid: REVIEWED, review: "FAILURE", described: "read, findings open" },
+      { oid: PUSHED, review: null }
+    ]
+    const run = ship(["--json"], [{ ...UNREVIEWED, history }], {
+      ...compared(BASE_OID, [file("src/a.ts", 1954, 229)]),
+      ...compared(REVIEWED, [file("src/a.ts", 4, 1)])
+    })
+    assert.equal(run.status, 10, run.stderr)
+    assert.deepEqual(documentOf(run.stdout, ["action", "details"]), {
+      action: "review",
+      details: { depth: "light", source: "auto", reviewCommand: "/code-review", since: REVIEWED }
+    })
+    assert.deepEqual(run.calls, [AUTH, READ, compare(REVIEWED), compare(BASE_OID)])
+  })
+
   it("routes on the whole diff since the base over a rewritten history that holds no reviewed commit", () => {
     const rebased: Pr = { ...UNREVIEWED, history: [{ oid: PUSHED, review: null }] }
     const run = ship(["--json"], [rebased], compared(BASE_OID, [file("src/a.ts", 101)]))

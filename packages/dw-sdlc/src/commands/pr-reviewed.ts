@@ -1,25 +1,33 @@
-// `dw-sdlc pr reviewed <n> --head <sha>`: pins a clean review to the head it read, as the commit status
-// `dw-sdlc/review` in state success, so a push after the review leaves the new head unreviewed.
+// `dw-sdlc pr reviewed <n> --head <sha>`: pins a Review to the head it read, as the commit status
+// `dw-sdlc/review`: success for a clean one, so a push after it leaves the new head unreviewed, and with
+// --findings the read mark of one that left a Finding open, so the next Review reads the fix from it.
 
 import { parseArgs } from "node:util"
 
-import { REVIEW, REVIEW_STATE, reviewStatusArgs } from "../pr/decide.ts"
+import { MARK_STATE, REVIEW, REVIEW_STATE, reviewStatusArgs } from "../pr/decide.ts"
 import { CannotRun, gh, namedProblem, read, said } from "../pr/read.ts"
+import { READ_MARK } from "../pr/state.ts"
 
-export const summary = "pin a clean review to the head it read, as a commit status"
+export const summary = "pin a Review to the head it read, as a commit status"
 
-const USAGE = `Usage: dw-sdlc pr reviewed <n> [-R owner/name] --head <sha> [--json]
+const USAGE = `Usage: dw-sdlc pr reviewed <n> [-R owner/name] --head <sha> [--findings] [--json]
 
 Reads pull request <n> through gh, the read pr ship makes, and when its head is still <sha> posts
-the commit status dw-sdlc/review in state success on it, the pull request's URL as its target. When
+the commit status dw-sdlc/review in state success on it, the pull request's URL as its target: a
+clean Review of that head. --findings posts it in state failure, described "${READ_MARK}": the
+read mark of a Review that left a Finding open, from which pr ship reads the fix that follows. When
 a push moved the head since the review, it posts nothing. One line, or one document with --json.
 Needs an authenticated gh.
 
 Exit 0 posted, 2 when it cannot run or the head moved.`
 
-const DESCRIPTION = "a clean review of this head"
+/** What the status says of the Review: clean, or the read mark of one that left a Finding open. */
+const STATUS = {
+  clean: { state: REVIEW_STATE, description: "a clean review of this head" },
+  findings: { state: MARK_STATE, description: READ_MARK }
+} as const
 
-type Cli = { json: boolean; number: number; repo: string | undefined; head: string }
+type Cli = { json: boolean; number: number; repo: string | undefined; head: string; findings: boolean }
 
 function parseCli(argv: string[]): Cli | "help" | { error: string } {
   try {
@@ -30,7 +38,8 @@ function parseCli(argv: string[]): Cli | "help" | { error: string } {
         help: { type: "boolean", short: "h" },
         json: { type: "boolean" },
         repo: { type: "string", short: "R" },
-        head: { type: "string" }
+        head: { type: "string" },
+        findings: { type: "boolean" }
       }
     })
     if (values.help === true) {
@@ -54,14 +63,14 @@ function parseCli(argv: string[]): Cli | "help" | { error: string } {
     if (!/^[0-9a-f]{40}$/.test(head)) {
       return { error: `--head takes the full 40-character sha, not ${JSON.stringify(head)}` }
     }
-    return { json: values.json === true, number: Number(number), repo, head }
+    return { json: values.json === true, number: Number(number), repo, head, findings: values.findings === true }
   } catch (error) {
     return { error: error instanceof Error ? error.message : String(error) }
   }
 }
 
 /** Posts the review status on `head` once the read shows it is still the pull request's head. */
-function post({ number, repo, head }: Cli): void {
+function post({ number, repo, head, findings }: Cli): void {
   const pr = read({ number, repo }, "pr reviewed", false)
   if (pr.head !== head) {
     throw new CannotRun(
@@ -69,7 +78,8 @@ function post({ number, repo, head }: Cli): void {
       "review the new head, then call again with its sha"
     )
   }
-  const posted = gh(reviewStatusArgs(pr, DESCRIPTION))
+  const { state, description } = STATUS[findings ? "findings" : "clean"]
+  const posted = gh(reviewStatusArgs(pr, description, state))
   if (posted.status !== 0) {
     throw new CannotRun(
       `${pr.repo}#${number}: posting ${REVIEW} failed: ${said(posted.stderr)}`,
@@ -98,9 +108,10 @@ export function run(argv: string[]): number {
     throw error
   }
   const { head } = cli
+  const { state } = STATUS[cli.findings ? "findings" : "clean"]
   const answer = cli.json
-    ? JSON.stringify({ head, context: REVIEW, state: REVIEW_STATE }, null, 2)
-    : `posted ${REVIEW} ${REVIEW_STATE} on ${head}`
+    ? JSON.stringify({ head, context: REVIEW, state }, null, 2)
+    : `posted ${REVIEW} ${state} on ${head}`
   process.stdout.write(`${answer}\n`)
   return 0
 }

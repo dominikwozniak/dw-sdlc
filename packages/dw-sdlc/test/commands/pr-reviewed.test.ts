@@ -40,6 +40,8 @@ const POST = [
   "-f",
   "description=a clean review of this head"
 ]
+/** The post of the read mark: the same status in state failure, a Review that left a Finding open. */
+const MARK = [...POST.slice(0, 6), "state=failure", ...POST.slice(7, -1), "description=read, findings open"]
 
 /** `dw-sdlc pr reviewed <args>` against a fake gh playing `scenario`, from a repository with no pull request. */
 function reviewed(args: string[], scenario: Scenario) {
@@ -63,6 +65,20 @@ describe("dw-sdlc pr reviewed", () => {
     assert.deepEqual(run.calls, [AUTH, READ, POST])
   })
 
+  it("posts the read mark with --findings: state failure, described read, findings open", () => {
+    const run = reviewed([...TARGET, "--head", HEAD, "--findings"], { graphql: [served(GREEN)] })
+    assert.equal(run.status, 0, run.stderr)
+    assert.equal(run.stdout, `posted dw-sdlc/review failure on ${HEAD}\n`)
+    assert.deepEqual(run.calls, [AUTH, READ, MARK])
+  })
+
+  it("prints the failure state with --findings --json", () => {
+    const run = reviewed([...TARGET, "--head", HEAD, "--findings", "--json"], { graphql: [served(GREEN)] })
+    assert.equal(run.status, 0, run.stderr)
+    assert.deepEqual(JSON.parse(run.stdout), { head: HEAD, context: "dw-sdlc/review", state: "failure" })
+    assert.deepEqual(run.calls, [AUTH, READ, MARK])
+  })
+
   it("resolves the repository through gh pr view when -R is omitted", () => {
     const view = { stdout: `${JSON.stringify({ url: URL })}\n` }
     const run = reviewed(["40", "--head", HEAD], { commands: { "pr view": view }, graphql: [served(GREEN)] })
@@ -71,22 +87,25 @@ describe("dw-sdlc pr reviewed", () => {
   })
 
   it("posts nothing and exits 2 naming both shas when a push moved the head since the review", () => {
-    const run = reviewed([...TARGET, "--head", HEAD], { graphql: [served({ ...GREEN, head: MOVED })] })
-    assert.equal(run.status, 2)
-    assert.deepEqual(lines(run.stderr), [
-      `dw-sdlc pr reviewed: byarcadia-app/foundation#40: the head is ${MOVED}, not ${HEAD}: a push landed since the review — review the new head, then call again with its sha`
-    ])
-    assert.equal(run.stdout, "")
-    assert.deepEqual(run.calls, [AUTH, READ])
+    for (const flags of [[], ["--findings"]]) {
+      const run = reviewed([...TARGET, "--head", HEAD, ...flags], { graphql: [served({ ...GREEN, head: MOVED })] })
+      assert.equal(run.status, 2, flags.join(" "))
+      assert.deepEqual(lines(run.stderr), [
+        `dw-sdlc pr reviewed: byarcadia-app/foundation#40: the head is ${MOVED}, not ${HEAD}: a push landed since the review — review the new head, then call again with its sha`
+      ])
+      assert.equal(run.stdout, "", flags.join(" "))
+      assert.deepEqual(run.calls, [AUTH, READ], flags.join(" "))
+    }
   })
 
   it("prints its usage with --help", () => {
     const run = reviewed(["--help"], {})
     assert.equal(run.status, 0, run.stderr)
     assert.ok(
-      run.stdout.startsWith("Usage: dw-sdlc pr reviewed <n> [-R owner/name] --head <sha> [--json]\n"),
+      run.stdout.startsWith("Usage: dw-sdlc pr reviewed <n> [-R owner/name] --head <sha> [--findings] [--json]\n"),
       run.stdout
     )
+    assert.match(run.stdout, /--findings posts it in state failure/)
     assert.deepEqual(run.calls, [])
   })
 })

@@ -68,9 +68,12 @@ the `gh` account did not open is always the dev's to merge.
 ```
 
 `pr ship` answers `review`, its depth under `details`, until the head carries the commit status
-`dw-sdlc/review`, which `dw-sdlc pr reviewed <n> --head <sha>` posts after a clean review. It posts
-nothing and exits 2 once a push moved the head, so a new head needs a fresh review. Under `off` the
-script posts that status itself, its description saying why, and goes on.
+`dw-sdlc/review`, which `dw-sdlc pr reviewed <n> --head <sha>` posts after a clean review. A Review
+that leaves a Finding open posts it with `--findings`, in state failure, "read, findings open": the
+read mark. After the next push, `details.since` names the last head a Review read, clean or marked,
+so the Review after a fix reads the fix alone. `pr reviewed` posts nothing and exits 2 once a push
+moved the head, so a new head needs a fresh review. Under `off` the script posts that status
+itself, its description saying why, and goes on.
 
 ## Commands
 
@@ -85,7 +88,7 @@ script posts that status itself, its description saying why, and goes on.
 | `references sync`  | every declared Reference brought to its ref under `references/`                     |
 | `references setup` | the Router, its table and the ignore rules a repository needs to declare References |
 | `pr ship [<n>]`    | the Action one pull request needs next, performing the script's own                 |
-| `pr reviewed <n>`  | a clean review pinned to the head it read, as a commit status                       |
+| `pr reviewed <n>`  | a Review pinned to the head it read, as a commit status: clean, or Findings open    |
 | `recap`            | the facts a Recap rests on and whether the session can be closed                    |
 
 `dw-sdlc <command> --help` gives each one's options.
