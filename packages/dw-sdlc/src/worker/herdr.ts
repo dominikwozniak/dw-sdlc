@@ -99,13 +99,18 @@ export type Worker = {
   folder: string
 }
 
+/** Whether herdr still runs the Worker's terminal; the one test of it every command shares. */
+export function isLive(worker: Worker): boolean {
+  return worker.state === "live"
+}
+
 /**
  * The Workers with the folder each live one works in, its worktree, which `hc get` reports as
  * `foreground.cwd` and `hc ls` leaves out. A Worker herdr cannot tell it for keeps its launch folder.
  */
 export function workingFolders(workers: Worker[]): Worker[] {
   return workers.map((worker) => {
-    if (worker.state !== "live") {
+    if (!isLive(worker)) {
       return worker
     }
     const got = call("hc", ["get", worker.address, "--json"])

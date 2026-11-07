@@ -8,13 +8,13 @@ import { isObject } from "./json-text.ts"
 import { EXACT_VERSION, parseCatalog, parsePins } from "./pins.ts"
 
 /** The marketplace Claude Code registers this repository under, the plugin in it, and the package the plugin links to. */
-export const MARKETPLACE = "dw-sdlc"
-export const PLUGIN = "sdlc"
-export const PLUGIN_ID = `${PLUGIN}@${MARKETPLACE}`
+const MARKETPLACE = "dw-sdlc"
+const PLUGIN = "sdlc"
+const PLUGIN_ID = `${PLUGIN}@${MARKETPLACE}`
 /** The plugin of the session helpers: optional, and it links a copy of the package of its own. */
 const SESSIONS = "sdlc-sessions"
 const SESSIONS_ID = `${SESSIONS}@${MARKETPLACE}`
-export const PACKAGE = "dw-sdlc"
+const PACKAGE = "dw-sdlc"
 
 /** The JSON `text` holds, whatever its kind: `claude plugin list --json` prints an array. */
 export function parseJson(text: string | undefined): unknown {

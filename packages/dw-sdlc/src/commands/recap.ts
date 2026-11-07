@@ -9,7 +9,7 @@ import { findRepository, mainCheckout, resolveConfig } from "../agentic-config.t
 import { type Answer, decide, declaredPolicy, labelOf, lineOf } from "../pr/decide.ts"
 import { CannotRun, defaultBranch, now, readBranch } from "../pr/read.ts"
 import type { PrState } from "../pr/state.ts"
-import { Refusal, type Worker, workersOf, workingFolders } from "../worker/herdr.ts"
+import { isLive, Refusal, type Worker, workersOf, workingFolders } from "../worker/herdr.ts"
 import { git } from "../working-tree.ts"
 
 export const summary = "the facts a Recap rests on and whether the session can be closed"
@@ -158,7 +158,7 @@ function liveWorkers(): Worker[] | null {
     return null
   }
   try {
-    return workingFolders(workersOf(lead, false).filter((worker) => worker.state !== "finished"))
+    return workingFolders(workersOf(lead, false).filter(isLive))
   } catch (error) {
     if (error instanceof Refusal) {
       throw new CannotRun(error.message, error.remedy ?? "check hc ls, then call again")
