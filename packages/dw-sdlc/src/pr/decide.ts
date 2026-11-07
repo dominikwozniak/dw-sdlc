@@ -80,8 +80,6 @@ const OWN_PREFIX = "dw-sdlc/"
  * head the fix then leaves behind. A pending status would turn the pull request unstable.
  */
 export const REVIEW_STATE = "success"
-/** The state of the read mark. */
-export const MARK_STATE = "failure"
 
 /** The words as one POSIX shell command line, each word that needs it single-quoted. */
 export function shellLine(words: string[]): string {

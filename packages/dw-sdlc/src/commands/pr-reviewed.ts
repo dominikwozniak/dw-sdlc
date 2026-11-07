@@ -4,9 +4,9 @@
 
 import { parseArgs } from "node:util"
 
-import { MARK_STATE, REVIEW, REVIEW_STATE, reviewStatusArgs } from "../pr/decide.ts"
+import { REVIEW, REVIEW_STATE, reviewStatusArgs } from "../pr/decide.ts"
 import { CannotRun, gh, namedProblem, read, said } from "../pr/read.ts"
-import { READ_MARK } from "../pr/state.ts"
+import { MARK_STATE, READ_MARK } from "../pr/state.ts"
 
 export const summary = "pin a Review to the head it read, as a commit status"
 
@@ -27,7 +27,13 @@ const STATUS = {
   findings: { state: MARK_STATE, description: READ_MARK }
 } as const
 
-type Cli = { json: boolean; number: number; repo: string | undefined; head: string; findings: boolean }
+type Cli = {
+  json: boolean
+  number: number
+  repo: string | undefined
+  head: string
+  status: (typeof STATUS)[keyof typeof STATUS]
+}
 
 function parseCli(argv: string[]): Cli | "help" | { error: string } {
   try {
@@ -63,14 +69,15 @@ function parseCli(argv: string[]): Cli | "help" | { error: string } {
     if (!/^[0-9a-f]{40}$/.test(head)) {
       return { error: `--head takes the full 40-character sha, not ${JSON.stringify(head)}` }
     }
-    return { json: values.json === true, number: Number(number), repo, head, findings: values.findings === true }
+    const status = STATUS[values.findings === true ? "findings" : "clean"]
+    return { json: values.json === true, number: Number(number), repo, head, status }
   } catch (error) {
     return { error: error instanceof Error ? error.message : String(error) }
   }
 }
 
 /** Posts the review status on `head` once the read shows it is still the pull request's head. */
-function post({ number, repo, head, findings }: Cli): void {
+function post({ number, repo, head, status }: Cli): void {
   const pr = read({ number, repo }, "pr reviewed", false)
   if (pr.head !== head) {
     throw new CannotRun(
@@ -78,8 +85,7 @@ function post({ number, repo, head, findings }: Cli): void {
       "review the new head, then call again with its sha"
     )
   }
-  const { state, description } = STATUS[findings ? "findings" : "clean"]
-  const posted = gh(reviewStatusArgs(pr, description, state))
+  const posted = gh(reviewStatusArgs(pr, status.description, status.state))
   if (posted.status !== 0) {
     throw new CannotRun(
       `${pr.repo}#${number}: posting ${REVIEW} failed: ${said(posted.stderr)}`,
@@ -108,7 +114,7 @@ export function run(argv: string[]): number {
     throw error
   }
   const { head } = cli
-  const { state } = STATUS[cli.findings ? "findings" : "clean"]
+  const { state } = cli.status
   const answer = cli.json
     ? JSON.stringify({ head, context: REVIEW, state }, null, 2)
     : `posted ${REVIEW} ${state} on ${head}`

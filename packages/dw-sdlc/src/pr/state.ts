@@ -5,7 +5,11 @@
 export const REVIEW = "dw-sdlc/review"
 /** How the description of a success the script posts under off begins: no one read that head. */
 export const OFF_PREFIX = "off:"
-/** The description of the read mark: the review status in state failure, a Review read that head and left a Finding open. */
+/**
+ * The read mark: the review status in this state and with this description says a Review read that
+ * head and left a Finding open.
+ */
+export const MARK_STATE = "failure"
 export const READ_MARK = "read, findings open"
 
 export const QUERY = `query($owner: String!, $name: String!, $number: Int!) {
@@ -315,20 +319,33 @@ function readOf(commit: Node): "clean" | "findings" | null {
   if (state === "SUCCESS") {
     return description.startsWith(OFF_PREFIX) ? null : "clean"
   }
-  return state === "FAILURE" && description === READ_MARK ? "findings" : null
+  return state === MARK_STATE.toUpperCase() && description === READ_MARK ? "findings" : null
 }
 
-/** The last commit before `head` a Review read, the history oldest first. */
+/**
+ * The last commit before `head` a Review read, the history oldest first. A read mark with only merges
+ * after it is passed over: no fix answers its Findings yet, and a Review from it would read only the
+ * base's changes, so the Review reads from the read before it and finds them again.
+ */
 function lastReadOf(pr: Node, head: string): LastRead | null {
-  const commits = nodes(pr, "history").map((node) => child(node, "commit"))
-  const index = commits.findLastIndex((commit) => string(commit, "oid") !== head && readOf(commit) !== null)
-  const read = commits[index]
-  if (read === undefined) {
+  const commits = nodes(pr, "history").map((node) => {
+    const commit = child(node, "commit")
+    const oid = string(commit, "oid")
+    return {
+      oid,
+      read: oid === head ? null : readOf(commit),
+      merge: integer(child(commit, "parents"), "totalCount") > 1
+    }
+  })
+  const mergesOnlyAfter = (index: number): boolean => commits.slice(index + 1).every(({ merge }) => merge)
+  const index = commits.findLastIndex(
+    ({ read }, at) => read === "clean" || (read === "findings" && !mergesOnlyAfter(at))
+  )
+  const last = commits[index]
+  if (last === undefined) {
     return null
   }
-  const after = commits.slice(index + 1)
-  const mergesOnly = after.every((commit) => integer(child(commit, "parents"), "totalCount") > 1)
-  return { commit: string(read, "oid"), clean: readOf(read) === "clean", mergesOnly }
+  return { commit: last.oid, clean: last.read === "clean", mergesOnly: mergesOnlyAfter(index) }
 }
 
 /** The repository and number of the pull request whose URL `gh pr view --json url` printed. */

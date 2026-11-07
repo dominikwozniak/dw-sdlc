@@ -430,10 +430,11 @@ the read commit from the history, and 100 later commits push it out of the read.
 in, the changes since `details.since` include what the base brought in, and `auto` counts them too.
 
 A head that only merged the base in carries the earlier success. A read mark never carries: the
-Findings it records still stand. On a head that only merged the base in after a read mark, the
-script answers `act review` from the mark, as after any push; the changes it names are the base's,
-and the agent that holds the open Findings fixes them and pushes before that Review. Two tests tell
-a merge from the branch's own changes, and both must pass for a carry:
+Findings it records still stand. A read mark with only merges after it is passed over, since no fix
+answers its Findings yet and the changes since it are only the base's. `details.since` then names
+the read before the mark, else none, so the Review reads again the changes the mark's Review read
+and finds the open Findings, even in a session that never saw them. Two tests tell a merge from the
+branch's own changes, and both must pass for a carry:
 
 - Every commit after the reviewed one, the head included, is a merge. The GraphQL query reads each
   commit's parent count.
