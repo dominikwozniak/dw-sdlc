@@ -9,7 +9,7 @@ import { findRepository, mainCheckout, resolveConfig } from "../agentic-config.t
 import { type Answer, decide, declaredPolicy, labelOf, lineOf } from "../pr/decide.ts"
 import { CannotRun, defaultBranch, now, readBranch } from "../pr/read.ts"
 import type { PrState } from "../pr/state.ts"
-import { Refusal, type Worker, workersOf } from "../worker/herdr.ts"
+import { Refusal, type Worker, workersOf, workingFolders } from "../worker/herdr.ts"
 import { git } from "../working-tree.ts"
 
 export const summary = "the facts a Recap rests on and whether the session can be closed"
@@ -151,14 +151,14 @@ function readLocal(root: string): Local {
   }
 }
 
-/** The live Workers this session started as a Lead, or null outside herdr, where it can start none. */
+/** The live Workers this session started as a Lead, each in the folder it works in; null outside herdr. */
 function liveWorkers(): Worker[] | null {
   const lead = process.env.HC_TERMINAL_ID
   if (lead === undefined || lead === "") {
     return null
   }
   try {
-    return workersOf(lead, false).filter((worker) => worker.state !== "finished")
+    return workingFolders(workersOf(lead, false).filter((worker) => worker.state !== "finished"))
   } catch (error) {
     if (error instanceof Refusal) {
       throw new CannotRun(error.message, error.remedy ?? "check hc ls, then call again")
@@ -284,7 +284,7 @@ function cleanReason(askedGh: boolean): Reason {
 }
 
 /** What the close verdict reads beside the checkout. */
-type Read = {
+type Facts = {
   shipped: Shipped | null
   ahead: Ahead | null
   orphaned: number
@@ -292,7 +292,7 @@ type Read = {
   workers: Worker[] | null
 }
 
-function reasonsOf(local: Local, { shipped, ahead, orphaned, askedGh, workers }: Read): Reason[] {
+function reasonsOf(local: Local, { shipped, ahead, orphaned, askedGh, workers }: Facts): Reason[] {
   const all: Reason[] = []
   if (local.paused !== null) {
     all.push({ id: "paused", blocks: true, text: `a ${local.paused} is paused` })
@@ -343,7 +343,7 @@ function workersLine(workers: Worker[] | null): string {
   return workers.length === 0 ? "none live" : `${workers.length} live: ${workersText(workers)}`
 }
 
-function linesOf(local: Local, { shipped, askedGh, workers }: Read, line: string): string {
+function linesOf(local: Local, { shipped, askedGh, workers }: Facts, line: string): string {
   const none = askedGh ? "none" : "gh not asked"
   return [
     `branch: ${local.branch ?? "detached HEAD"}`,
@@ -387,7 +387,7 @@ function report(json: boolean): number {
   // An open pull request can still take the head, and a commit-less repository has nothing to merge.
   const nothingToMerge = held || shipped?.pr.state === "OPEN" || head === null
   const ahead = asksGh && !nothingToMerge ? aheadOf(root, branch, shipped) : null
-  const facts: Read = {
+  const facts: Facts = {
     shipped,
     ahead,
     orphaned: orphanedOf(root, read, shipped, held),

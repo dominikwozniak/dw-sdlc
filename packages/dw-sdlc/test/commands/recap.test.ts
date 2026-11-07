@@ -9,7 +9,7 @@ import { describe, it } from "node:test"
 
 import { COMMITTED_FILE } from "../../src/agentic-config.ts"
 import { commit, git, initRepo, runBin, scratch, write, writeJson } from "../harness.ts"
-import { fakeHerdr, listing, type Listed, type Reply } from "../hc-harness.ts"
+import { fakeHerdr, listing, type Listed, type Reply, terminal } from "../hc-harness.ts"
 import { fakeGh, GREEN, type Pr, type Response, type Scenario, served } from "../pr-harness.ts"
 
 const AUTH = ["auth", "status", "--active", "--hostname", "github.com"]
@@ -93,11 +93,13 @@ const BLOCKED: Listed = { address: "t5", name: "worker-10-other", parent: LEAD, 
 /** A Worker of another Lead, and one of this Lead's whose terminal has ended. */
 const THEIRS: Listed = { address: "t9", name: "worker-14-theirs", parent: "t0", status: "working" }
 const ENDED: Listed = { address: "t7", name: "worker-12-gone", parent: LEAD, state: "finished" }
+const WORKTREE = "/work/repo/.claude/worktrees/worker-9-demo"
 
 /** Both fakes first on PATH, the calling terminal the Lead `t1` unless `env` says otherwise. */
 function withHerdr(scenario: Scenario, ls: Reply, env: NodeJS.ProcessEnv = {}) {
   const gh = fakeGh(scenario)
-  const herdr = fakeHerdr({ hc: { ls } }, LEAD)
+  // herdr tells the folder t4 works in; it tells none for t5, which keeps the folder it was launched in.
+  const herdr = fakeHerdr({ hc: { ls, "get t4": terminal("t4", { foreground: WORKTREE }) } }, LEAD)
   // Each fake's PATH is its own directory, then the machine's: only the two directories may come first.
   const path = [herdr.env.PATH?.split(delimiter)[0], gh.env.PATH].join(delimiter)
   return { env: { ...gh.env, ...herdr.env, PATH: path, ...env }, calls: gh.calls, hc: herdr.hcCalls }
@@ -747,13 +749,13 @@ describe("dw-sdlc recap", () => {
       assert.equal(run.status, 1, run.stderr)
       const doc = JSON.parse(run.stdout) as Document
       assert.deepEqual(doc.workers, [
-        { name: "worker-9-demo", address: "t4", state: "live", status: "working", folder: "/work/repo" },
+        { name: "worker-9-demo", address: "t4", state: "live", status: "working", folder: WORKTREE },
         { name: "worker-10-other", address: "t5", state: "live", status: "blocked", folder: "/work/repo" }
       ])
       const text = "2 live Workers: worker-9-demo (working), worker-10-other (blocked)"
       assert.deepEqual(doc.close.reasons, [{ id: "workers", blocks: true, text }])
       assert.equal(doc.close.line, `Close the session: no, because ${text}`)
-      assert.deepEqual(run.hc, [LIVE_WORKERS])
+      assert.deepEqual(run.hc, [LIVE_WORKERS, ["get", "t4", "--json"], ["get", "t5", "--json"]])
     })
 
     it("a Worker whose turn ended is still live: herdr's done is no Recap", () => {

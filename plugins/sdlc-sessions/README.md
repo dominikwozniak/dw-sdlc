@@ -56,7 +56,7 @@ The facts a Recap rests on, tested like the Ship script. Read-only: `dw-sdlc rec
 - the operation git has paused: a rebase, `git am`, merge, cherry-pick, revert or bisect;
 - the branch's pull request and the Action the Ship script's decision gives it, read and never performed;
 - whether the session sits in a linked worktree;
-- in herdr, the live Workers the session started as a Lead, each with its status.
+- in herdr, the live Workers the session started as a Lead, each with its status and the folder it works in.
 
 Exit 0 means the session can be closed, 1 that it cannot, and 2 that the command cannot run. Under
 `close`, the document gives the `verdict`, the `line` a Recap quotes and every reason, each with
