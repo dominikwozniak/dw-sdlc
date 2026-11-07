@@ -237,7 +237,8 @@ const ROWS: Row[] = [
     })
   },
   {
-    when: (pr) => pr.mergeStateStatus === "BEHIND",
+    // GitHub reports BEHIND only under a rule that a branch be up to date; the compare tells it anywhere.
+    when: (pr) => pr.mergeStateStatus === "BEHIND" || (pr.behindBy ?? 0) > 0,
     answer: (pr) => ({ status: "act", action: "update-branch", actor: "script", reason: `behind ${pr.base}` })
   },
   {

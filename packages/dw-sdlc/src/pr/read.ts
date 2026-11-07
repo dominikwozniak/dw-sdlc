@@ -152,12 +152,21 @@ export function readAgain(pr: PrState, sized: boolean): PrState {
   return query(pr, sized)
 }
 
-/** The reply of the compare from `from` to `commit`; `what` names it when gh refuses it. */
+/** The compares this process has read, by repository and the two commits: a compare of two commits never changes. */
+const COMPARES = new Map<string, string>()
+
+/** The reply of the compare from `from` to `commit`, read once per process; `what` names it when gh refuses it. */
 function compared(pr: Pick<PrState, "repo" | "number">, from: string, commit: string, what: string): string {
+  const key = `${pr.repo} ${from}...${commit}`
+  const known = COMPARES.get(key)
+  if (known !== undefined) {
+    return known
+  }
   const reply = gh(compareArgs(pr.repo, from, commit))
   if (reply.status !== 0) {
     throw new CannotRun(`${pr.repo}#${pr.number}: ${what}: ${said(reply.stderr)}`, REMEDIES.read)
   }
+  COMPARES.set(key, reply.stdout)
   return reply.stdout
 }
 
@@ -165,6 +174,18 @@ function compared(pr: Pick<PrState, "repo" | "number">, from: string, commit: st
 export function carriesBase(before: PrState, after: PrState): boolean {
   const reply = compared(after, before.baseOid, after.head, `the compare with ${before.baseOid.slice(0, 7)}`)
   return parseOrCannotRun(() => behindOf(reply)) === 0
+}
+
+/**
+ * `pr` and how many commits of its base its head lacks, from the compare of the base with the head,
+ * read only where the decision can reach the update: open, mergeable, not reported BEHIND already.
+ */
+export function withBehind(pr: PrState): PrState {
+  if (pr.state !== "OPEN" || pr.mergeable !== "MERGEABLE" || pr.mergeStateStatus === "BEHIND") {
+    return pr
+  }
+  const reply = compared(pr, pr.baseOid, pr.head, `the compare with ${pr.base}`)
+  return { ...pr, behindBy: parseOrCannotRun(() => behindOf(reply)) }
 }
 
 /** The own changes of `pr` at `commit`, from the compare with its base; null when it cannot show them whole. */
@@ -218,5 +239,6 @@ function query({ repo, number }: { repo: string; number: number }, sized: boolea
     const remedy = problem.startsWith("Could not resolve to a") ? REMEDIES.target : REMEDIES.read
     throw new CannotRun(`${repo}#${number}: ${problem}`, remedy)
   }
-  return withChanged(withCarried(parseOrCannotRun(() => parsePr(reply.stdout, repo))), sized)
+  const parsed = parseOrCannotRun(() => parsePr(reply.stdout, repo))
+  return withChanged(withCarried({ ...parsed, behindBy: null }), sized)
 }

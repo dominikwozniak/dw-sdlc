@@ -38,6 +38,24 @@ const READ = [
   "-F",
   "number=40"
 ]
+/** The compare of the base with `head`: how the script judges a branch behind its base. */
+function baseWith(head: string): string[] {
+  return ["api", `repos/byarcadia-app/foundation/compare/${BASE_OID}...${head}?per_page=1`]
+}
+const BEHIND_BY = baseWith(HEAD)
+/** What the compare of the base with `head` answers when the head lacks `behind` commits of the base. */
+function behindBy(behind: number, head = HEAD): Record<string, Response> {
+  const status = behind === 0 ? "ahead" : "diverged"
+  return { [baseWith(head).join(" ")]: { stdout: JSON.stringify({ status, ahead_by: 1, behind_by: behind }) } }
+}
+/**
+ * The compare a read of `pr` makes to judge it behind: none where GitHub reports BEHIND already, or the
+ * pull request is not open and mergeable.
+ */
+function judged(pr: Pr): string[][] {
+  const reads = pr.state === "OPEN" && pr.mergeable === "MERGEABLE" && pr.mergeStateStatus !== "BEHIND"
+  return reads ? [baseWith(pr.head)] : []
+}
 /** The merge the script runs, the repository named. */
 const MERGE = ["pr", "merge", "40", "-R", "byarcadia-app/foundation", "--squash", "--match-head-commit", HEAD]
 /** The merge command an answer hands the dev. */
@@ -111,10 +129,11 @@ const MIXED: Pr = {
 
 /**
  * `dw-sdlc pr ship <args>` against a fake gh playing `scenario`, from a repository with no pull request
- * whose checkout holds `files`, its agentic config among them.
+ * whose checkout holds `files`, its agentic config among them. The head lacks none of its base unless
+ * the scenario's commands answer the compare otherwise.
  */
 function ship(args: string[], scenario: Scenario, env: NodeJS.ProcessEnv = {}, files: Files = FULL) {
-  const gh = fakeGh(scenario)
+  const gh = fakeGh({ ...scenario, commands: { ...behindBy(0), ...scenario.commands } })
   const run = runBin(["pr", "ship", ...args], repo({ files }), { ...gh.env, ...env })
   return { ...run, calls: gh.calls() }
 }
@@ -211,7 +230,7 @@ describe("dw-sdlc pr ship", () => {
         blockers: [],
         performed: []
       })
-      assert.deepEqual(run.calls, [AUTH, READ])
+      assert.deepEqual(run.calls, [AUTH, READ, BEHIND_BY])
     }
   })
 
@@ -292,7 +311,8 @@ describe("dw-sdlc pr ship", () => {
       ],
       lastReviewed: null,
       carried: false,
-      changed: null
+      changed: null,
+      behindBy: null
     })
     const bare = json({ ...GREEN, checks: [] }, ["--verbose"]).document
     assert.ok(typeof bare === "object" && bare !== null && "facts" in bare)
@@ -378,7 +398,7 @@ describe("dw-sdlc pr ship while no check has answered", () => {
       blockers: [],
       performed: []
     })
-    assert.deepEqual(run.calls, [AUTH, READ])
+    assert.deepEqual(run.calls, [AUTH, READ, BEHIND_BY])
   })
 
   it("parks the same head 121 s after its commit as unverified, with the merge command for the dev", () => {
@@ -914,7 +934,7 @@ describe("dw-sdlc pr ship ends a pull request", () => {
       blockers: [],
       performed: performedMerge(true)
     })
-    assert.deepEqual(run.calls, [AUTH, READ, MERGE, READ])
+    assert.deepEqual(run.calls, [AUTH, READ, BEHIND_BY, MERGE, READ])
   })
 
   it("merges under pr.merge ask when --merge is given for the call", () => {
@@ -925,7 +945,7 @@ describe("dw-sdlc pr ship ends a pull request", () => {
       status: "done",
       performed: performedMerge(true)
     })
-    assert.deepEqual(run.calls, [AUTH, READ, MERGE, READ])
+    assert.deepEqual(run.calls, [AUTH, READ, BEHIND_BY, MERGE, READ])
   })
 
   it("parks under ask while a config layer is invalid, whatever the committed file sets", () => {
@@ -943,7 +963,7 @@ describe("dw-sdlc pr ship ends a pull request", () => {
         command: DEV_MERGE,
         performed: []
       })
-      assert.deepEqual(run.calls, [AUTH, READ], JSON.stringify(files))
+      assert.deepEqual(run.calls, [AUTH, READ, BEHIND_BY], JSON.stringify(files))
     }
   })
 
@@ -961,7 +981,7 @@ describe("dw-sdlc pr ship ends a pull request", () => {
       blockers: [],
       performed: []
     })
-    assert.deepEqual(run.calls, [AUTH, READ])
+    assert.deepEqual(run.calls, [AUTH, READ, BEHIND_BY])
   })
 
   it("lists awaiting-approval among the blockers, and who merges never", () => {
@@ -1000,7 +1020,7 @@ describe("dw-sdlc pr ship ends a pull request", () => {
           },
           name
         )
-        assert.deepEqual(run.calls, [AUTH, READ], name)
+        assert.deepEqual(run.calls, [AUTH, READ, BEHIND_BY], name)
       }
     }
   })
@@ -1036,7 +1056,7 @@ describe("dw-sdlc pr ship ends a pull request", () => {
         blockers: [],
         performed: performedMerge(null)
       })
-      assert.deepEqual(run.calls, [AUTH, READ], flags.join(" "))
+      assert.deepEqual(run.calls, [AUTH, READ, BEHIND_BY], flags.join(" "))
     }
     const failing = json({ ...GREEN, checks: [FAILING, REVIEWED] }, ["--dry-run"], {}, AUTO)
     assert.deepEqual(fieldsOf(failing.document, ["action", "performed"]), { action: "fix-ci", performed: [] })
@@ -1061,7 +1081,7 @@ describe("dw-sdlc pr ship ends a pull request", () => {
       [...TARGET, "--json"],
       {
         graphql: [served(GREEN), served({ ...GREEN, head: moved, checks: [running] })],
-        commands: { "pr merge": { exit: 1, stderr } }
+        commands: { "pr merge": { exit: 1, stderr }, ...behindBy(0, moved) }
       },
       clockAt(STARTED, 60),
       AUTO
@@ -1074,7 +1094,7 @@ describe("dw-sdlc pr ship ends a pull request", () => {
       reason: "no dw-sdlc/review success on 0d6c3f4",
       performed: performedMerge(false, { exit: 1, stderr })
     })
-    assert.deepEqual(run.calls, [AUTH, READ, MERGE, READ])
+    assert.deepEqual(run.calls, [AUTH, READ, BEHIND_BY, MERGE, READ, baseWith(moved)])
   })
 
   it("hands the merge to the dev when the read after it still shows it ready, never merging twice", () => {
@@ -1104,7 +1124,7 @@ describe("dw-sdlc pr ship ends a pull request", () => {
         command: DEV_MERGE,
         performed: performedMerge(false, merged)
       })
-      assert.deepEqual(run.calls, [AUTH, READ, MERGE, READ], reason)
+      assert.deepEqual(run.calls, [AUTH, READ, BEHIND_BY, MERGE, READ], reason)
     }
   })
 
@@ -1118,7 +1138,7 @@ describe("dw-sdlc pr ship ends a pull request", () => {
       reason: "merged as b04365a",
       performed: performedMerge(true, LOST)
     })
-    assert.deepEqual(run.calls, [AUTH, READ, MERGE, READ])
+    assert.deepEqual(run.calls, [AUTH, READ, BEHIND_BY, MERGE, READ])
   })
 })
 
@@ -1150,6 +1170,78 @@ describe("dw-sdlc pr ship updates a branch and marks a draft ready", () => {
     assert.deepEqual(run.calls, [AUTH, READ, UPDATE, READ, BASE_COMPARE])
   })
 
+  it("updates a branch GitHub reads CLEAN when the compare shows it behind its base, as BEHIND would", () => {
+    const running: Context = { kind: "run", name: "Check", state: "IN_PROGRESS", link: RUN, startedAt: STARTED }
+    const after: Pr = { ...GREEN, head: UPDATED, mergeStateStatus: "BLOCKED", checks: [running] }
+    const scenario = { graphql: [served(GREEN), served(after)], commands: { ...behindBy(2), ...comparedBase(0) } }
+    const run = ship([...TARGET, "--json"], scenario, clockAt(STARTED, 60), AUTO)
+    assert.equal(run.status, 10, run.stderr)
+    assert.deepEqual(fieldsOf(JSON.parse(run.stdout), ["head", "action", "actor", "performed"]), {
+      head: UPDATED,
+      action: "review",
+      actor: "agent",
+      performed: [ran("update-branch", true)]
+    })
+    assert.deepEqual(run.calls, [AUTH, READ, BEHIND_BY, UPDATE, READ, BASE_COMPARE])
+  })
+
+  it("names the update of a branch the compare shows behind with --dry-run, and performs nothing", () => {
+    const scenario = { graphql: [served(GREEN)], commands: behindBy(2) }
+    const run = ship([...TARGET, "--json", "--dry-run"], scenario, {}, AUTO)
+    assert.equal(run.status, 30, run.stderr)
+    assert.deepEqual(fieldsOf(JSON.parse(run.stdout), ["status", "action", "actor", "reason", "performed"]), {
+      status: "park",
+      action: "update-branch",
+      actor: "dev",
+      reason: "the script would update the branch; --dry-run performs nothing",
+      performed: [ran("update-branch", null)]
+    })
+    assert.deepEqual(run.calls, [AUTH, READ, BEHIND_BY])
+  })
+
+  it("goes on through the decision for a branch the compare shows behind by none, merging it under pr.merge auto", () => {
+    for (const mergeStateStatus of ["CLEAN", "UNSTABLE"]) {
+      const scenario = { graphql: [served({ ...GREEN, mergeStateStatus }), served(MERGED)], commands: behindBy(0) }
+      const run = ship([...TARGET, "--json"], scenario, {}, AUTO)
+      assert.equal(run.status, 0, run.stderr)
+      assert.deepEqual(fieldsOf(JSON.parse(run.stdout), ["action", "performed"]), {
+        action: "done",
+        performed: performedMerge(true)
+      })
+      assert.deepEqual(run.calls, [AUTH, READ, BEHIND_BY, MERGE, READ], mergeStateStatus)
+    }
+  })
+
+  it("reads no compare where GitHub already reports BEHIND, or the pull request is not open and mergeable", () => {
+    const cases: [string, Pr][] = [
+      ["behind", BEHIND],
+      ["unknown", { ...GREEN, mergeable: "UNKNOWN" }],
+      ["conflicting", { ...GREEN, mergeable: "CONFLICTING", mergeStateStatus: "DIRTY" }],
+      ["merged", MERGED]
+    ]
+    for (const [name, pr] of cases) {
+      const run = ship([...TARGET, "--json", "--dry-run"], { graphql: [served(pr)] }, {}, AUTO)
+      assert.deepEqual(run.calls, [AUTH, READ], name)
+    }
+  })
+
+  it("exits 2 when gh refuses the compare with the base, or its reply does not parse", () => {
+    const cases: [Response, string][] = [
+      [
+        { exit: 1, stderr: "gh: Not Found (HTTP 404)\n" },
+        "dw-sdlc pr ship: byarcadia-app/foundation#40: the compare with main: Not Found (HTTP 404) — check gh auth status and the network, then call again"
+      ],
+      [{ stdout: JSON.stringify({ status: "ahead" }) }, "behind_by is missing, not an integer"]
+    ]
+    for (const [response, message] of cases) {
+      const scenario = { graphql: [served(GREEN)], commands: { [BEHIND_BY.join(" ")]: response } }
+      const run = ship([...TARGET, "--json"], scenario, {}, AUTO)
+      assert.equal(run.status, 2, run.stdout)
+      assert.ok(run.stderr.includes(message), run.stderr)
+      assert.deepEqual(run.calls, [AUTH, READ, BEHIND_BY])
+    }
+  })
+
   it("marks a green, reviewed draft ready, then merges it under pr.merge auto, both under performed in order", () => {
     const run = ship([...TARGET, "--json"], { graphql: [served(DRAFT), served(GREEN), served(MERGED)] }, {}, AUTO)
     assert.equal(run.status, 0, run.stderr)
@@ -1166,7 +1258,7 @@ describe("dw-sdlc pr ship updates a branch and marks a draft ready", () => {
       blockers: [],
       performed: [ran("mark-ready", true), ran("merge", true)]
     })
-    assert.deepEqual(run.calls, [AUTH, READ, READY, READ, MERGE, READ])
+    assert.deepEqual(run.calls, [AUTH, READ, BEHIND_BY, READY, READ, MERGE, READ])
   })
 
   it("marks a draft ready under ask and parks it ready-to-merge; gh's warning that it is ready already is no refusal", () => {
@@ -1188,7 +1280,7 @@ describe("dw-sdlc pr ship updates a branch and marks a draft ready", () => {
       blockers: [],
       performed: [ran("mark-ready", true, warned)]
     })
-    assert.deepEqual(run.calls, [AUTH, READ, READY, READ])
+    assert.deepEqual(run.calls, [AUTH, READ, BEHIND_BY, READY, READ])
   })
 
   it("parks another author's draft for the dev with no command, reviewed or not: marking it ready is the author's", () => {
@@ -1212,7 +1304,7 @@ describe("dw-sdlc pr ship updates a branch and marks a draft ready", () => {
           { pr: URL, head: HEAD, base: "main", status: "park", ...awaiting, blockers: [], performed: [] },
           name
         )
-        assert.deepEqual(run.calls, [AUTH, READ], name)
+        assert.deepEqual(run.calls, [AUTH, READ, BEHIND_BY], name)
       }
     }
     const failing = json({ ...DRAFT, viewerDidAuthor: false, checks: [FAILING] }, [], {}, AUTO)
@@ -1233,7 +1325,7 @@ describe("dw-sdlc pr ship updates a branch and marks a draft ready", () => {
         { action, blockers: [{ action: "mark-ready", actor: "script", reason: "still a draft" }], performed: [] },
         name
       )
-      assert.deepEqual(run.calls, [AUTH, READ], name)
+      assert.deepEqual(run.calls, [AUTH, READ, BEHIND_BY], name)
     }
   })
 
@@ -1287,7 +1379,7 @@ describe("dw-sdlc pr ship updates a branch and marks a draft ready", () => {
           performed: [ran(action, false, response)]
         }
       )
-      assert.deepEqual(run.calls, [AUTH, READ, RUNS[action], READ], reason)
+      assert.deepEqual(run.calls, [AUTH, READ, ...judged(pr), RUNS[action], READ], reason)
     }
   })
 
@@ -1325,7 +1417,7 @@ describe("dw-sdlc pr ship updates a branch and marks a draft ready", () => {
         action
       )
       const compares = action === "update-branch" ? [BASE_COMPARE] : []
-      assert.deepEqual(run.calls, [AUTH, READ, RUNS[action], READ, ...compares], action)
+      assert.deepEqual(run.calls, [AUTH, READ, ...judged(before), RUNS[action], READ, ...compares], action)
     }
   })
 
@@ -1346,7 +1438,7 @@ describe("dw-sdlc pr ship updates a branch and marks a draft ready", () => {
         command,
         performed: [ran(action, null)]
       })
-      assert.deepEqual(run.calls, [AUTH, READ], action)
+      assert.deepEqual(run.calls, [AUTH, READ, ...judged(pr)], action)
       const line = ship([...TARGET, "--dry-run"], { graphql: [served(pr)] }, {}, AUTO)
       assert.deepEqual([line.status, line.stdout], [30, `park ${action}: ${reason} — ${command}\n`], line.stderr)
     }
@@ -1407,7 +1499,7 @@ describe("dw-sdlc pr ship at a Review depth", () => {
       blockers: [],
       performed: []
     })
-    assert.deepEqual(run.calls, [AUTH, READ])
+    assert.deepEqual(run.calls, [AUTH, READ, BEHIND_BY])
   })
 
   it("takes --review full over pr.review off, the flag named as the source", () => {
@@ -1419,7 +1511,7 @@ describe("dw-sdlc pr ship at a Review depth", () => {
       details: { depth: "full", source: "flag", reviewCommand: "/code-review" },
       performed: []
     })
-    assert.deepEqual(run.calls, [AUTH, READ])
+    assert.deepEqual(run.calls, [AUTH, READ, BEHIND_BY])
   })
 
   it("names the command pr.reviewCommand sets for a full Review, the local layer's over the committed one", () => {
@@ -1464,7 +1556,7 @@ describe("dw-sdlc pr ship at a Review depth", () => {
         details: { depth: "light", source },
         performed: []
       })
-      assert.deepEqual(run.calls, [AUTH, READ], JSON.stringify(args))
+      assert.deepEqual(run.calls, [AUTH, READ, BEHIND_BY], JSON.stringify(args))
     }
   })
 
@@ -1476,7 +1568,7 @@ describe("dw-sdlc pr ship at a Review depth", () => {
       reason: "pr.merge is ask: the merge is the dev's",
       performed: [markedRun("off: --review off", true)]
     })
-    assert.deepEqual(run.calls, [AUTH, READ, marked("off: --review off"), READ])
+    assert.deepEqual(run.calls, [AUTH, READ, BEHIND_BY, marked("off: --review off"), READ])
   })
 
   it("posts the status under pr.review off, then merges under pr.merge auto in the same call", () => {
@@ -1486,7 +1578,7 @@ describe("dw-sdlc pr ship at a Review depth", () => {
       status: "done",
       performed: [markedRun("off: pr.review", true), ran("merge", true)]
     })
-    assert.deepEqual(run.calls, [AUTH, READ, marked("off: pr.review"), READ, MERGE, READ])
+    assert.deepEqual(run.calls, [AUTH, READ, BEHIND_BY, marked("off: pr.review"), READ, MERGE, READ])
   })
 
   it("runs full while a config layer is invalid or loosens pr.review, whatever the committed file sets", () => {
@@ -1503,7 +1595,7 @@ describe("dw-sdlc pr ship at a Review depth", () => {
         details: { depth: "full", source: "config", reviewCommand: "/code-review" },
         performed: []
       })
-      assert.deepEqual(run.calls, [AUTH, READ], JSON.stringify(files))
+      assert.deepEqual(run.calls, [AUTH, READ, BEHIND_BY], JSON.stringify(files))
     }
   })
 
@@ -1521,7 +1613,7 @@ describe("dw-sdlc pr ship at a Review depth", () => {
       reason: "pr.merge is ask: the merge is the dev's",
       performed: [markedRun("off: --review off", true)]
     })
-    assert.deepEqual(run.calls, [AUTH, READ, marked("off: --review off"), READ])
+    assert.deepEqual(run.calls, [AUTH, READ, BEHIND_BY, marked("off: --review off"), READ])
   })
 
   it("keeps every other row under off: conflicts, failing CI and threads go to the agent, the post riding in blockers", () => {
@@ -1539,7 +1631,7 @@ describe("dw-sdlc pr ship at a Review depth", () => {
       const run = json(pr, [], {}, OFF)
       assert.equal(run.status, 10, `${name}: ${run.stderr}`)
       assert.deepEqual([fieldsOf(run.document, ["action"]), blockersOf(run.document)], [{ action }, blockers], name)
-      assert.deepEqual(run.calls, [AUTH, READ], name)
+      assert.deepEqual(run.calls, [AUTH, READ, ...judged(pr)], name)
     }
     const conflicting = json({ ...UNREVIEWED, mergeable: "CONFLICTING", mergeStateStatus: "DIRTY" }, [], {}, OFF)
     assert.ok(typeof conflicting.document === "object" && conflicting.document !== null)
@@ -1573,7 +1665,7 @@ describe("dw-sdlc pr ship at a Review depth", () => {
         },
         name
       )
-      assert.deepEqual(run.calls, [AUTH, READ], name)
+      assert.deepEqual(run.calls, [AUTH, READ, BEHIND_BY], name)
       const failing = json(
         { ...GREEN, viewerDidAuthor: false, mergeStateStatus: "UNSTABLE", checks: [FAILING] },
         flags,
@@ -1595,7 +1687,7 @@ describe("dw-sdlc pr ship at a Review depth", () => {
       reason: "ci-pending",
       performed: [markedRun("off: pr.review", true)]
     })
-    assert.deepEqual(run.calls, [AUTH, READ, marked("off: pr.review"), READ])
+    assert.deepEqual(run.calls, [AUTH, READ, BEHIND_BY, marked("off: pr.review"), READ])
   })
 
   it("parks the post for the dev with its command under --dry-run, running nothing", () => {
@@ -1615,7 +1707,7 @@ describe("dw-sdlc pr ship at a Review depth", () => {
       blockers: [],
       performed: [markedRun("off: pr.review", null)]
     })
-    assert.deepEqual(run.calls, [AUTH, READ])
+    assert.deepEqual(run.calls, [AUTH, READ, BEHIND_BY])
     const line = ship([...TARGET, "--dry-run", "--review", "off"], { graphql: [served(UNREVIEWED)] })
     const command = markedCommand("off: --review off")
     assert.deepEqual([line.status, line.stdout], [30, `park mark-reviewed: ${reason} — ${command}\n`], line.stderr)
@@ -1645,7 +1737,7 @@ describe("dw-sdlc pr ship at a Review depth", () => {
           performed: [markedRun("off: pr.review", false, response)]
         }
       )
-      assert.deepEqual(run.calls, [AUTH, READ, marked("off: pr.review"), READ], reason)
+      assert.deepEqual(run.calls, [AUTH, READ, BEHIND_BY, marked("off: pr.review"), READ], reason)
     }
   })
 
@@ -1658,7 +1750,7 @@ describe("dw-sdlc pr ship at a Review depth", () => {
       reason: "pr.merge is ask: the merge is the dev's",
       performed: [markedRun("off: --review off", true, LOST)]
     })
-    assert.deepEqual(run.calls, [AUTH, READ, marked("off: --review off"), READ])
+    assert.deepEqual(run.calls, [AUTH, READ, BEHIND_BY, marked("off: --review off"), READ])
   })
 
   it("exits 2 with the usage on a depth it does not take, before any gh call", () => {
@@ -1703,7 +1795,8 @@ describe("dw-sdlc pr ship records what an Action did when the read cannot show i
       [unreviewed, "gh accepted the mark-reviewed; the read does not show it yet"]
     ]
     for (const [after, reason] of cases) {
-      const run = ship([...TARGET, "--json"], { graphql: [served(unreviewed), served(after)] }, {}, off)
+      const scenario = { graphql: [served(unreviewed), served(after)], commands: behindBy(0, UPDATED) }
+      const run = ship([...TARGET, "--json"], scenario, {}, off)
       assert.equal(run.status, 30, run.stderr)
       const document = JSON.parse(run.stdout) as { action: string; reason: string; performed: { command: string }[] }
       assert.equal(document.action, "mark-reviewed")
@@ -1719,7 +1812,7 @@ describe("dw-sdlc pr ship records what an Action did when the read cannot show i
     const post = `api repos/byarcadia-app/foundation/statuses/${HEAD}`
     const scenario = {
       graphql: [served(unreviewed), served({ ...unreviewed, head: UPDATED })],
-      commands: { [post]: refused }
+      commands: { [post]: refused, ...behindBy(0, UPDATED) }
     }
     const run = ship([...TARGET, "--json"], scenario, {}, off)
     assert.equal(run.status, 30, run.stderr)
@@ -1760,6 +1853,6 @@ describe("dw-sdlc pr ship records what an Action did when the read cannot show i
       remedy: "check gh auth status and the network, then call again",
       performed: [{ action: "merge", command: `gh ${MERGE.join(" ")}`, ok: null, exit: 0 }]
     })
-    assert.deepEqual(run.calls, [AUTH, READ, MERGE, READ])
+    assert.deepEqual(run.calls, [AUTH, READ, BEHIND_BY, MERGE, READ])
   })
 })
