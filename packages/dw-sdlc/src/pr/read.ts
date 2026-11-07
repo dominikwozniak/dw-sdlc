@@ -109,20 +109,36 @@ export function read(named: Named, command: string, sized: boolean): PrState {
   return query(targetOf(named, command), sized)
 }
 
-/** The state of the current branch's pull request, open or not, or null when gh finds none. */
-export function readBranch(sized: boolean): PrState | null {
-  requireAuth()
-  const view = gh(["pr", "view", "--json", "url"])
+/** The pull request `gh pr view` resolves for the head branch `branch`, else the current one; null when none. */
+function viewed(branch: string | undefined): { repo: string; number: number } | null {
+  const view = gh(["pr", "view", ...(branch === undefined ? [] : [branch]), "--json", "url"])
   if (view.status === 0) {
-    return query(
-      parseOrCannotRun(() => parseView(view.stdout)),
-      sized
-    )
+    return parseOrCannotRun(() => parseView(view.stdout))
   }
   if (said(view.stderr).startsWith("no pull requests found")) {
     return null
   }
   throw new CannotRun(`gh pr view failed: ${said(view.stderr)}`, REMEDIES.read)
+}
+
+/**
+ * The current branch's pull request, open or not, or null. gh tries `@{push}`, else the local name, which
+ * misses a branch pushed under another name; then `upstreamName` is asked, and `byUpstream` says so.
+ */
+export function readBranch(
+  sized: boolean,
+  upstreamName: string | undefined
+): { pr: PrState; byUpstream: boolean } | null {
+  requireAuth()
+  const own = viewed(undefined)
+  if (own !== null) {
+    return { pr: query(own, sized), byUpstream: false }
+  }
+  if (upstreamName === undefined) {
+    return null
+  }
+  const found = viewed(upstreamName)
+  return found === null ? null : { pr: query(found, sized), byUpstream: true }
 }
 
 /** The default branch of the repository gh resolves from the current directory. */

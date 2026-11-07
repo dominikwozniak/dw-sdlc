@@ -139,6 +139,14 @@ function withPr(pr: Pr): Scenario {
   return { commands: { "pr view": FOUND }, graphql: [served(pr)] }
 }
 
+/** The call for a branch `feat` pushed as `fix/feat`: gh resolves only the local name by itself. */
+const VIEW_RENAMED = ["pr", "view", "fix/feat", "--json", "url"]
+
+/** `pr` found only under the upstream's name, as gh answers for a branch pushed under another name. */
+function renamed(pr: Pr): Scenario {
+  return { commands: { "pr view": NO_PR, [VIEW_RENAMED.join(" ")]: FOUND }, graphql: [served(pr)] }
+}
+
 /** The document on main at a pushed commit, with a branch `other` to pick from, once `pause` has run: it must block. */
 function pausedOn(pause: (root: string) => void): Document {
   const root = clone()
@@ -376,6 +384,102 @@ describe("dw-sdlc recap", () => {
     assert.equal(status, 1)
     assert.deepEqual(blocking(doc), ["unpushed", "no-pull-request"])
     assert.ok(!calls.some((call) => call[0] === "repo"), "the pull request's base names the branch to count from")
+  })
+
+  it("a branch pushed under another name finds the merged pull request of its upstream, gone since: it can close", () => {
+    const root = clone()
+    branch(root, 4)
+    git(root, "push", "-q", "-u", "origin", "feat:fix/feat")
+    const sha = head(root)
+    git(root, "push", "-q", "origin", "--delete", "fix/feat")
+    const merged: Pr = {
+      ...GREEN,
+      head: sha,
+      branch: "fix/feat",
+      state: "MERGED",
+      mergeable: "UNKNOWN",
+      mergeStateStatus: "UNKNOWN",
+      mergeCommit: "b04365ad73c61edcf175d9c5632740eb13fd2e4d"
+    }
+    const { status, doc, calls } = document(root, renamed(merged))
+    assert.equal(status, 0, JSON.stringify(doc.close))
+    assert.equal(doc.pullRequest?.state, "MERGED")
+    assert.deepEqual(ids(doc), ["clean", "merged"])
+    assert.deepEqual(calls, [AUTH, VIEW, VIEW_RENAMED, READ])
+  })
+
+  it("a branch pushed under another name finds the open pull request of its upstream, and its Action", () => {
+    const root = clone()
+    branch(root, 1)
+    git(root, "push", "-q", "-u", "origin", "feat:fix/feat")
+    const pr = { ...GREEN, head: head(root), branch: "fix/feat" }
+    const { status, doc, calls } = document(root, renamed(pr))
+    assert.equal(status, 1)
+    assert.equal(doc.upstream, "origin/fix/feat")
+    assert.equal(doc.pullRequest?.url, URL)
+    assert.equal(doc.pullRequest?.action, "ready-to-merge")
+    assert.deepEqual(doc.close.reasons, [
+      {
+        id: "open-pull-request",
+        blocks: true,
+        text: "pull request #40 is open: park ready-to-merge: pr.merge is ask: the merge is the dev's"
+      }
+    ])
+    assert.deepEqual(calls, [AUTH, VIEW, VIEW_RENAMED, READ])
+  })
+
+  it("a branch whose upstream is a local branch of another name asks gh for its own name", () => {
+    const root = clone()
+    git(root, "branch", "backup")
+    branch(root, 1)
+    git(root, "branch", "--set-upstream-to=backup", "feat")
+    const { calls } = document(root, noPr)
+    assert.deepEqual(calls, [AUTH, VIEW, DEFAULT])
+  })
+
+  it("a branch with no commit asks gh nothing by its upstream's name: no pull request can hold it", () => {
+    const root = clone()
+    git(root, "switch", "-q", "--orphan", "feat")
+    git(root, "config", "branch.feat.remote", "origin")
+    git(root, "config", "branch.feat.merge", "refs/heads/fix/feat")
+    const { doc, calls } = document(root, renamed({ ...GREEN, branch: "fix/feat" }))
+    assert.equal(doc.head, null)
+    assert.equal(doc.pullRequest, null)
+    assert.deepEqual(calls, [AUTH, VIEW])
+  })
+
+  it("a branch tracking the default branch, pushed under its own name, keeps the pull request gh resolves", () => {
+    const root = clone()
+    git(root, "switch", "-q", "-c", "feat", "--track", "origin/main")
+    commit(root, "--allow-empty", "-m", "change")
+    git(root, "push", "-q", "origin", "feat")
+    const pr = { ...GREEN, head: head(root), branch: "feat" }
+    const scenario: Scenario = {
+      commands: { "pr view": FOUND, "pr view main --json url": NO_PR },
+      graphql: [served(pr)]
+    }
+    const { doc, calls } = document(root, scenario)
+    assert.equal(doc.pullRequest?.url, URL)
+    assert.deepEqual(calls, [AUTH, VIEW, READ])
+  })
+
+  it("a branch started from another's, not pushed yet, takes no pull request of the branch it tracks", () => {
+    const root = clone()
+    git(root, "switch", "-q", "-c", "other")
+    commit(root, "--allow-empty", "-m", "on other")
+    git(root, "push", "-q", "-u", "origin", "other")
+    const theirs = { ...GREEN, head: head(root), branch: "other" }
+    git(root, "switch", "-q", "-c", "feat", "--track", "origin/other")
+    commit(root, "--allow-empty", "-m", "on feat")
+    const scenario: Scenario = {
+      commands: { "pr view": NO_PR, "pr view other --json url": FOUND, "repo view": MAIN },
+      graphql: [served(theirs)]
+    }
+    const { status, doc, calls } = document(root, scenario)
+    assert.equal(status, 1)
+    assert.equal(doc.pullRequest, null)
+    assert.deepEqual(blocking(doc), ["unpushed", "no-pull-request"])
+    assert.deepEqual(calls, [AUTH, VIEW, ["pr", "view", "other", "--json", "url"], READ, DEFAULT])
   })
 
   it("a pull request closed without merging, its branch still on the remote, is the dev's call: it can close", () => {
