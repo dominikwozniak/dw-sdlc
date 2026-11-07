@@ -374,8 +374,10 @@ is the author's to mark ready, a required approval, and the merge when it is not
 
 Who merges follows `pr.merge`: the script under `auto`, the dev under `ask`, and the script for one
 call under `--merge`. A pull request another author opened needs no Review, since the dev merges it.
-Once nothing else holds it back, it parks for the dev under all three. A clean review is a commit
-status: `dw-sdlc pr reviewed <n> --head <sha>` posts `dw-sdlc/review` in state `success` on the head
+Once nothing else holds it back, it parks for the dev under all three. A Review is clean when no
+hard violation and no Spec finding remains, and each judgement-call smell is either fixed or
+declined with a line in the Recap; a known limit counts as clean only when the dev accepted it. A
+clean review is a commit status: `dw-sdlc pr reviewed <n> --head <sha>` posts `dw-sdlc/review` in state `success` on the head
 the review read and refuses once a push moved it, so a new head needs a fresh review. Contexts under
 `dw-sdlc/` never count as CI. The script never deletes a branch: a merged pull request answers
 `done` with the deletion command for the dev.

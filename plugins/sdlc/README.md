@@ -600,14 +600,17 @@ The dev invokes it, or a Worker whose Brief tells it to. The skill reads each an
   else from the base. At `full` it runs the command `details.reviewCommand` names, from
   `pr.reviewCommand` and `/code-review` by default, with that range named to it; when the session
   does not have that command, the skill names it and stops. At `light` it spawns the
-  `sdlc-reviewer` subagent, below, on the same range. When the Review finds nothing it runs
-  `dw-sdlc pr reviewed <n> --head <sha>` with the head it reviewed, and on a finding it fixes it and
-  pushes. The skill skips that Review when one earlier in the conversation read the changes since
-  the same point at the head the script read, found nothing, and nothing changed after it: no edit,
-  no commit, no pull. Only a clean run of that command, or at `light` of `sdlc-reviewer` too, whose
+  `sdlc-reviewer` subagent, below, on the same range. A Review is clean when no hard violation
+  and no Spec finding remains, and each judgement-call smell is either fixed or declined with a line
+  in the Recap; a known limit counts as clean only when the dev accepted it. When the Review is
+  clean it runs `dw-sdlc pr reviewed <n> --head <sha>` with the head it reviewed, and otherwise it
+  fixes each hard violation, Spec finding and unaccepted limit, and each smell it does not decline,
+  then pushes. The skill skips that Review when one earlier
+  in the conversation read the changes since the same point at the head the script read, was clean,
+  and nothing changed after it: no edit, no commit, no pull. Only a clean run of that command, or at `light` of `sdlc-reviewer` too, whose
   range ended at that head counts as the earlier Review; an informal read of the diff never counts.
   It then runs `pr reviewed` on that head. A Review whose head the conversation does not show, or
-  one with a finding, even one fixed since, needs a fresh Review. The agent's other `blockers` go
+  one that was not clean, even once its finding is fixed, needs a fresh Review. The agent's other `blockers` go
   into the same push, all but `review`, which needs the head the push makes, and the skill calls the
   script again. An `act` that leaves nothing to change, as changes requested once a push answers
   them, stops it: the reviewer's turn.
@@ -643,7 +646,8 @@ one. Its tools are `Read`, `Grep` and `Bash`, and its instructions keep Bash to 
 does not see the conversation, so the skill's prompt holds what it reads: the diff command, the
 files the diff touches, and the spec as the conversation states it. It reads those files and the
 repository's Agent map, nothing else, skips what the Gate checks, and reports under 300 words, its
-first line `clean` or `findings: <n>`.
+first line `clean` or `findings: <n>`, `clean` when no hard violation and no Spec finding remains;
+a judgement-call smell follows the first line as `smell:` and does not change the count.
 
 ## Tests
 
