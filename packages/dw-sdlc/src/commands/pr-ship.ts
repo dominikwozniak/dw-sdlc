@@ -25,6 +25,7 @@ import {
   carriesBase,
   gh,
   namedProblem,
+  nameIt,
   now,
   read,
   readAgain,
@@ -205,8 +206,6 @@ function handedOver(pr: PrState, policy: Policy, answer: Answer, action: ScriptA
   return { ...answer, status: "park", actor: "dev", reason, command: devCommand(pr, action, policy) }
 }
 
-const NAME_IT = "name it: dw-sdlc pr ship <n> -R owner/name"
-
 /**
  * The pull request the call names, else the current branch's as `gh pr view` resolves it. Where gh finds
  * none for a branch whose upstream has another name, the one of that name, taken only when its commits
@@ -217,15 +216,15 @@ function readNamed(cli: Cli, root: string, sized: boolean): PrState {
   if (renamed === undefined) {
     return read(cli, "pr ship", sized)
   }
-  const { branch, head, name } = renamed
-  const found = readBranch(sized, name)
-  const upstreamNamed = `${name}, the name its upstream gives`
+  const { branch, head, upstream } = renamed
+  const found = readBranch(sized, upstream)
+  const upstreamNamed = `${upstream}, the name its upstream gives`
   if (found === null) {
-    throw new CannotRun(`gh pr view found no pull request for ${branch}, nor for ${upstreamNamed}`, NAME_IT)
+    throw new CannotRun(`gh pr view found no pull request for ${branch}, nor for ${upstreamNamed}`, nameIt("pr ship"))
   }
   if (found.byUpstream && !holds(found.pr, head)) {
     const lacks = `${found.pr.url}, found by ${upstreamNamed}, lacks HEAD ${head.slice(0, 7)}`
-    throw new CannotRun(lacks, `push HEAD, or ${NAME_IT}`)
+    throw new CannotRun(lacks, `push HEAD if it is this branch's pull request, else ${nameIt("pr ship")}`)
   }
   return found.pr
 }

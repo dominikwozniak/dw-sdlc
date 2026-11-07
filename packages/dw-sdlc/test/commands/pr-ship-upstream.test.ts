@@ -98,7 +98,7 @@ describe("dw-sdlc pr ship on a branch pushed under another name", () => {
     assert.equal(run.stdout, "")
     const short = head(root).slice(0, 7)
     assert.deepEqual(lines(run.stderr), [
-      `dw-sdlc pr ship: ${URL}, found by fix/feat, the name its upstream gives, lacks HEAD ${short} — push HEAD, or ${NAME_IT}`
+      `dw-sdlc pr ship: ${URL}, found by fix/feat, the name its upstream gives, lacks HEAD ${short} — push HEAD if it is this branch's pull request, else ${NAME_IT}`
     ])
     assert.deepEqual(run.calls, [AUTH, VIEW, VIEW_RENAMED, READ])
   })

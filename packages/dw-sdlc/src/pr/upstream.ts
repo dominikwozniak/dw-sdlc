@@ -1,4 +1,4 @@
-// The upstream of the current branch, read from git, for a branch pushed under another name: gh resolves
+// A branch's upstream, read from git, for a branch pushed under another name: gh resolves
 // its pull request neither through `@{push}` nor by the local name, so `pr ship` and recap ask by the name
 // the upstream gives, and take that pull request only when its commits hold the local head.
 
@@ -24,16 +24,16 @@ export function holds(pr: PrState, head: string | null): boolean {
   return head !== null && pr.commits.includes(head)
 }
 
-/** The checked-out branch at `root` whose upstream has another name: the branch, its head commit and that name. */
-export type Renamed = { branch: string; head: string; name: string }
+/** The checked-out branch at `root`, its head commit, and the other name its upstream gives. */
+export type RenamedUpstream = { branch: string; head: string; upstream: string }
 
 /** The checked-out branch whose upstream has another name; undefined on a detached HEAD or a branch with no commit. */
-export function renamedUpstream(root: string): Renamed | undefined {
+export function renamedUpstream(root: string): RenamedUpstream | undefined {
   const branch = asked(root, ["symbolic-ref", "--quiet", "--short", "HEAD"])
   const head = asked(root, ["rev-parse", "--verify", "--quiet", "HEAD"])
   if (branch === undefined || head === undefined) {
     return undefined
   }
-  const name = upstreamName(root, branch)
-  return name === undefined ? undefined : { branch, head, name }
+  const upstream = upstreamName(root, branch)
+  return upstream === undefined ? undefined : { branch, head, upstream }
 }
