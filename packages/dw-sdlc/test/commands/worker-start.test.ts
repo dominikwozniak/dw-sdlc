@@ -208,6 +208,18 @@ describe("dw-sdlc worker start", () => {
     }
   })
 
+  it("names the running Worker, and exits 1, when the read-back itself fails", () => {
+    const scene = scenario()
+    scene.hc["get t7"] = { exit: 1, stderr: "hc: the core went away\n" }
+    const run = start([], scene)
+    assert.equal(run.status, 1)
+    assert.match(
+      run.stderr,
+      /t7\) started but its first message was not delivered: the terminal could not be read back/
+    )
+    assert.match(run.stderr, /the core went away/)
+  })
+
   it("reads the terminal again until the Worker shows work", () => {
     const scene = scenario()
     scene.hc["get t7"] = [

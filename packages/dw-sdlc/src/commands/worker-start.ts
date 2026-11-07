@@ -3,10 +3,11 @@
 
 import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
+import { setTimeout as sleep } from "node:timers/promises"
 import { parseArgs } from "node:util"
 
 import { mainCheckout, repositoryRoot, resolveConfig, WORKER_EFFORTS } from "../agentic-config.ts"
-import { isObject } from "../json-text.ts"
+import { isObject, type JsonObject } from "../json-text.ts"
 import { describe, hcObject, lead, refuse, Refusal, wholeNumber, workersOf } from "../worker/herdr.ts"
 import { nameTab } from "../worker/tabs.ts"
 
@@ -17,7 +18,7 @@ const USAGE = `Usage: dw-sdlc worker start --brief <file> --name <name> [--model
 
 Starts a Worker in the background and gives it the Brief as its first message. It runs hc run with the name,
 the label role=worker, --outlive-parent and the repository as the folder, then worker.command of the config
-with --worktree <name>, --model, --effort and the Brief. --model and --effort default to worker.model and
+(split on whitespace, so no quoted word) with --worktree <name>, --model, --effort and the Brief. --model and --effort default to worker.model and
 worker.effort. When the Lead sits in a herdr space the Worker joins it, and its tab, which herdr numbers,
 takes the Worker's name.
 
@@ -35,6 +36,7 @@ Exit 0 started and delivered, 1 started but not delivered, 2 when it cannot run.
 
 const DEFAULT_MAX_WORKERS = 3
 const DEFAULT_WAIT = 30
+/** hc names a terminal with 1-32 of a-z, 0-9, - and _. */
 const NAME = /^[a-z0-9][a-z0-9_-]{0,31}$/
 /** What a Worker reports once it has taken its first message. */
 const WORKING = new Set(["working", "blocked", "done"])
@@ -111,13 +113,13 @@ function readBrief(file: string): string {
 }
 
 /** The status a Worker reports, if it has reported one. */
-function reportedStatus(terminal: Record<string, unknown>): string | undefined {
+function reportedStatus(terminal: JsonObject): string | undefined {
   const { status } = terminal
   return isObject(status) && typeof status.state === "string" ? status.state : undefined
 }
 
 /** Why the Worker can no longer take the Brief, or undefined while it still may. */
-function failure(terminal: Record<string, unknown>): string | undefined {
+function failure(terminal: JsonObject): string | undefined {
   const { first_message: first, state } = terminal
   if (isObject(first) && first.sent === false) {
     return typeof first.reason === "string" ? first.reason : "herdr gave no reason"
@@ -132,7 +134,13 @@ function failure(terminal: Record<string, unknown>): string | undefined {
 async function delivery(address: string, wait: number): Promise<string | undefined> {
   const deadline = Date.now() + wait * 1000
   for (;;) {
-    const terminal = hcObject(["get", address, "--json"])
+    let terminal: JsonObject
+    try {
+      terminal = hcObject(["get", address, "--json"])
+    } catch (error) {
+      // The Worker is running by now, so a failed read is a Brief not confirmed, never a start that did not happen.
+      return `the terminal could not be read back: ${describe(error)}`
+    }
     const failed = failure(terminal)
     if (failed !== undefined) {
       return failed
@@ -143,7 +151,7 @@ async function delivery(address: string, wait: number): Promise<string | undefin
     if (Date.now() >= deadline) {
       return `the Worker showed no sign of work within ${wait} s`
     }
-    await new Promise((done) => setTimeout(done, POLL_MS))
+    await sleep(POLL_MS)
   }
 }
 

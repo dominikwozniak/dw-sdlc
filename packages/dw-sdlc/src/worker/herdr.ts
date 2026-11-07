@@ -3,7 +3,7 @@
 
 import { spawnSync } from "node:child_process"
 
-import { isObject, type JsonObject } from "../json-text.ts"
+import { isObject, type JsonObject, parseObject } from "../json-text.ts"
 
 /** What stops a `worker` command before it acts: exit 2, the problem and, when there is one, its remedy. */
 export class Refusal extends Error {
@@ -40,13 +40,8 @@ export function hcObject(args: string[]): JsonObject {
   if (called.status !== 0) {
     throw new Refusal(`hc ${args[0] ?? ""} failed: ${said(called)}`)
   }
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(called.stdout)
-  } catch {
-    parsed = undefined
-  }
-  if (!isObject(parsed)) {
+  const parsed = parseObject(called.stdout)
+  if (parsed === undefined) {
     throw new Refusal(`hc ${args[0] ?? ""} answered something that is no JSON object`, "check hc --version")
   }
   return parsed

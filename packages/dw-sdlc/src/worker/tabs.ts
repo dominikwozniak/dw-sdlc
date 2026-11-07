@@ -1,7 +1,7 @@
 // The tab of a Worker's terminal in the herdr window: `hc run` with a `herdr.space` label opens one that herdr
 // numbers, and `herdr-app` names it.
 
-import { isObject } from "../json-text.ts"
+import { isObject, parseObject } from "../json-text.ts"
 import { call, Refusal, said } from "./herdr.ts"
 
 type Tab = { id: string; terminals: string[] }
@@ -12,13 +12,11 @@ function tabsOf(): Tab[] {
   if (listed.status !== 0) {
     throw new Refusal(`herdr-app ls failed: ${said(listed)}`)
   }
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(listed.stdout)
-  } catch {
-    throw new Refusal("herdr-app ls answered no JSON")
+  const parsed = parseObject(listed.stdout)
+  if (parsed === undefined) {
+    throw new Refusal("herdr-app ls answered no JSON object")
   }
-  const spaces = isObject(parsed) && Array.isArray(parsed.spaces) ? parsed.spaces : []
+  const spaces = Array.isArray(parsed.spaces) ? parsed.spaces : []
   return spaces
     .flatMap((space: unknown) => (isObject(space) && Array.isArray(space.tabs) ? space.tabs : []))
     .flatMap((tab: unknown) => {
@@ -34,12 +32,8 @@ function tabsOf(): Tab[] {
 
 /** The `error` of a herdr-app reply `{ "error": "..." }`. */
 function errorOf(stdout: string): string | undefined {
-  try {
-    const parsed: unknown = JSON.parse(stdout)
-    return isObject(parsed) && typeof parsed.error === "string" ? parsed.error : undefined
-  } catch {
-    return undefined
-  }
+  const parsed = parseObject(stdout)
+  return typeof parsed?.error === "string" ? parsed.error : undefined
 }
 
 /** Names the tab holding `address`; `kept` says why the tab stays numbered, which is a warning and never a failure. */

@@ -2,6 +2,7 @@
 
 import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
+import { setTimeout as sleep } from "node:timers/promises"
 import { parseArgs } from "node:util"
 
 import { call, describe, lead, refuse, Refusal, said, wholeNumber } from "../worker/herdr.ts"
@@ -101,7 +102,7 @@ async function report({ to, recap, attempts, interval }: Cli): Promise<number> {
     process.stderr.write(
       `dw-sdlc worker report: ${to} is blocked; waiting ${interval} s (attempt ${attempt} of ${attempts})\n`
     )
-    await new Promise((done) => setTimeout(done, interval * 1000))
+    await sleep(interval * 1000)
   }
   process.stderr.write(
     `dw-sdlc worker report: gave up after ${attempts} attempts: ${to} is still blocked — ` +
