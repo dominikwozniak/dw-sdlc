@@ -437,6 +437,17 @@ describe("dw-sdlc recap", () => {
     assert.deepEqual(calls, [AUTH, VIEW, DEFAULT])
   })
 
+  it("a branch with no commit asks gh nothing by its upstream's name: no pull request can hold it", () => {
+    const root = clone()
+    git(root, "switch", "-q", "--orphan", "feat")
+    git(root, "config", "branch.feat.remote", "origin")
+    git(root, "config", "branch.feat.merge", "refs/heads/fix/feat")
+    const { doc, calls } = document(root, renamed({ ...GREEN, branch: "fix/feat" }))
+    assert.equal(doc.head, null)
+    assert.equal(doc.pullRequest, null)
+    assert.deepEqual(calls, [AUTH, VIEW])
+  })
+
   it("a branch tracking the default branch, pushed under its own name, keeps the pull request gh resolves", () => {
     const root = clone()
     git(root, "switch", "-q", "-c", "feat", "--track", "origin/main")
