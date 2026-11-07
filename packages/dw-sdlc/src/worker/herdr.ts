@@ -95,8 +95,24 @@ export type Worker = {
   state: string
   /** What the Worker reports (idle, working, done, blocked, error), `finished` once it has ended, `unknown` before it reports. */
   status: string
-  /** The folder it was launched in. */
+  /** The folder it was launched in, or the one it works in once `workingFolders` has asked herdr. */
   folder: string
+}
+
+/**
+ * The Workers with the folder each live one works in, its worktree, which `hc get` reports as
+ * `foreground.cwd` and `hc ls` leaves out. A Worker herdr cannot tell it for keeps its launch folder.
+ */
+export function workingFolders(workers: Worker[]): Worker[] {
+  return workers.map((worker) => {
+    if (worker.state !== "live") {
+      return worker
+    }
+    const got = call("hc", ["get", worker.address, "--json"])
+    const foreground = got.status === 0 ? parseObject(got.stdout)?.foreground : undefined
+    const cwd = isObject(foreground) ? foreground.cwd : undefined
+    return typeof cwd === "string" && cwd !== "" ? { ...worker, folder: cwd } : worker
+  })
 }
 
 function word(value: unknown): string | undefined {

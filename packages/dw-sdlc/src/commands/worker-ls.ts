@@ -2,14 +2,16 @@
 
 import { parseArgs } from "node:util"
 
-import { describe, lead, refuse, table, workersOf } from "../worker/herdr.ts"
+import { describe, lead, refuse, table, workersOf, workingFolders } from "../worker/herdr.ts"
 
 export const summary = "list the Workers this Lead started and their states"
 
 const USAGE = `Usage: dw-sdlc worker ls [--json]
 
 Lists the Workers the calling Lead started (terminals labelled role=worker whose parent is this
-terminal): name, address, herdr's state, status and the folder each was launched in. The status is what
+terminal): name, address, herdr's state, status and folder. A live Worker's folder is the one it works
+in, its worktree, as hc get reports it; a finished one, or one herdr cannot tell it for, shows the folder
+it was launched in. The status is what
 the Worker reports, one of idle, working, done, blocked, error, or finished once its terminal has ended;
 unknown before it reports. herdr's done means a turn ended, not the task: the Worker's Recap says whether
 the task is done. Finished Workers stay listed until they are removed with hc rm.
@@ -36,7 +38,7 @@ export function run(argv: string[]): number {
     return 2
   }
   try {
-    const workers = workersOf(lead(), true)
+    const workers = workingFolders(workersOf(lead(), true))
     if (json) {
       process.stdout.write(`${JSON.stringify(workers, null, 2)}\n`)
     } else if (workers.length === 0) {
