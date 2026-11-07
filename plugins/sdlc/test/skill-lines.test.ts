@@ -1,6 +1,6 @@
 // Every `dw-sdlc` line a SKILL.md of any plugin runs, held to the bin's own parser, so a renamed
-// subcommand or flag fails the Gate instead of a live session. A flag a skill names only in prose stays
-// unchecked unless a code span names it.
+// subcommand or flag fails the Gate instead of a live session. A flag outside a `dw-sdlc` command line
+// stays unchecked.
 
 import assert from "node:assert/strict"
 import { existsSync, readdirSync, readFileSync } from "node:fs"
