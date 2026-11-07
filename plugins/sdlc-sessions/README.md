@@ -1,8 +1,9 @@
 # sdlc-sessions
 
 The skills that run a Claude Code session, beside the [`sdlc`](../sdlc/README.md) plugin that keeps it
-safe. It carries `/sdlc-recap`, which tells a dev who did not follow a session where it stands, and
-`/sdlc-brief`, which writes the start of a Worker session. The decision to ship it apart is
+safe. It carries `/sdlc-recap`, which tells a dev who did not follow a session where it stands,
+`/sdlc-brief`, which writes the start of a Worker session, and `/sdlc-delegate`, which makes a session a
+Lead that runs Workers in herdr. The decision to ship it apart is
 [ADR 0014](../../docs/adr/0014-session-helpers-ship-as-sdlc-sessions-beside-sdlc.md).
 
 ## Install
@@ -13,13 +14,15 @@ claude plugin install sdlc-sessions@dw-sdlc --scope user
 
 It comes from the same marketplace as `sdlc` and lists `sdlc` under `dependencies`, so installing it
 brings the guards too. `/sdlc-doctor` reports it on its `sessions` line, along with a drift between its
-copy of the `dw-sdlc` package and the one `sdlc` runs.
+copy of the `dw-sdlc` package and the one `sdlc` runs, and on its `hc` line whether herdr's `hc` is on the
+agent's PATH, which `/sdlc-delegate` needs: INFO when it is not, since a machine may go without herdr.
 
 ## Layout
 
 - `.claude-plugin/plugin.json` — the manifest. Its version and its entry in the marketplace bump together.
 - `dw-sdlc` — a link to `packages/dw-sdlc`, which `claude plugin install` copies as a real directory.
-- `skills/sdlc-recap/`, `skills/sdlc-brief/` — the skills, each with its evals under `evals/`.
+- `skills/sdlc-recap/`, `skills/sdlc-brief/`, `skills/sdlc-delegate/` — the skills, each with its evals
+  under `evals/`.
 - `templates/brief.md` — the one Brief template, read by every skill that writes a Brief.
 - `test/manifest.test.ts` — the manifest, the link, each skill's name and description, the template, the marketplace.
 
@@ -52,7 +55,8 @@ The facts a Recap rests on, tested like the Ship script. Read-only: `dw-sdlc rec
   an open or merged pull request holds the head;
 - the operation git has paused: a rebase, `git am`, merge, cherry-pick, revert or bisect;
 - the branch's pull request and the Action the Ship script's decision gives it, read and never performed;
-- whether the session sits in a linked worktree.
+- whether the session sits in a linked worktree;
+- in herdr, the live Workers the session started as a Lead, each with its status.
 
 Exit 0 means the session can be closed, 1 that it cannot, and 2 that the command cannot run. Under
 `close`, the document gives the `verdict`, the `line` a Recap quotes and every reason, each with
@@ -67,10 +71,15 @@ Exit 0 means the session can be closed, 1 that it cannot, and 2 that the command
 | `open-pull-request` | yes    | the pull request is open, whatever its Action                                                                   |
 | `orphaned`          | yes    | commits of a closed pull request left the branch, as by a reset, and no remote branch holds them                |
 | `no-pull-request`   | yes    | commits on top of the base, no pull request holds the head, and the branch is neither the default nor protected |
+| `workers`           | yes    | a Worker this session started as a Lead is live, whatever its status                                            |
 | `merged`            | no     | the pull request merged                                                                                         |
 | `closed`            | no     | the pull request closed without merging; commits only it holds read as `no-upstream`                            |
 | `worktree`          | no     | a linked worktree, left to remove                                                                               |
 | `clean`             | no     | no reason blocks                                                                                                |
+
+A live Worker blocks even when its turn has ended: herdr's `done` is no Recap, and a Lead that closes leaves
+its Workers' reports no one to reach. Outside herdr the command asks `hc` nothing and `workers` is null. In
+herdr an `hc` that fails exits 2, since a Worker it cannot see may be live.
 
 An open pull request blocks even when it is parked on the dev: the session's work has not merged, and a
 wrong "no" costs less than a wrong "yes". A linked worktree does not block, since the session cannot
@@ -122,11 +131,43 @@ Worker that ends its turn looks finished to its Lead.
 A Worker carries its pull request through `/sdlc-pr-ship`, which it may start because a Brief tells it to;
 `pr.merge` decides whether it ends at merged or parked for the dev.
 
+## The Lead
+
+`/sdlc-delegate` makes the session a Lead. Only the dev invokes it. It refuses outside herdr, and in a
+linked worktree, where Claude Code's isolation keeps it from starting a Worker in the main checkout: there
+the Lead starts as a plain session in the main checkout.
+
+A hand-off gives one Worker a whole issue or spec. A split cuts the current work into Briefs, only when each
+piece is its own pull request or read-only work; pieces that must land in one diff stay with one Worker.
+Each Brief comes from the template in its Lead form, naming the Lead's terminal, and `dw-sdlc worker start`
+starts its Worker in a worktree of its own. In a split, the first Worker is carried through before the rest
+start, and at most three are live.
+
+After starting Workers the Lead ends its turn, so the dev can talk to it while they work. A Worker's report
+wakes it, and on every wake it runs `dw-sdlc worker ls` and takes a `blocked` Worker to the dev. It waits
+with `hc wait` only for a short, bounded wait, a CI run or the dev's word, of 180 seconds or less, and never
+polls `gh`. A Worker that answers `wait` on CI does not wake by itself, so the Lead waits for the run and
+then wakes it.
+
+While it has live Workers, the Lead:
+
+- opens no question dialog, which would make `hc send` refuse its Workers' reports, and asks in plain text;
+- writes no code and never merges: each Worker carries its own pull request through `/sdlc-pr-ship`;
+- answers no Worker's question outside the Brief, and relays a parked question to the dev;
+- takes the dev's answer given in a Worker's own terminal from that Worker's next Recap;
+- leaves the Workers' terminals and worktrees for the dev to remove.
+
+When the Workers have reported their end, or the dev asks, it gives one combined Recap in the shape of
+`/sdlc-recap`, whose close line counts the live Workers. On the dev's ask it renames its herdr tab to
+`lead-<topic>`, through `herdr-app`, and labels its terminal `role=lead` and `name=lead-<topic>`.
+
 ## Evals
 
 Each skill's evals run through `/skill-creator`, outside `pnpm test` and the Gate, when the skill changes.
 The evals of `sdlc-recap` hold the Recap's shape and a follow-up going out as a Brief, and `evals/trigger.json`
 its trigger: it fires on `/sdlc-recap` and on a Brief's instruction, not on "co dalej?". Run the trigger set
 with the plugin loaded through `--plugin-dir`, since a typed `/sdlc-recap` resolves only to the real skill.
-The evals of `sdlc-brief` hold the Brief's shape and its routing of model and effort; only the dev invokes it,
-so it has no trigger set.
+The evals of `sdlc-brief` hold the Brief's shape and its routing of model and effort, and those of
+`sdlc-delegate` the Lead's rules: it ends its turn after starting Workers, asks in plain text, refuses a
+split whose pieces must merge into one diff, never merges, and refuses outside herdr and in a linked
+worktree. Only the dev invokes either, so neither has a trigger set.

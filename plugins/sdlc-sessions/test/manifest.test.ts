@@ -10,10 +10,12 @@ import { describe, it } from "node:test"
 const PLUGIN_ROOT = join(import.meta.dirname, "..")
 const PLUGINS = join(PLUGIN_ROOT, "..")
 const REPO_ROOT = join(PLUGINS, "..")
-const SKILLS = ["sdlc-brief", "sdlc-recap"]
+const SKILLS = ["sdlc-brief", "sdlc-delegate", "sdlc-recap"]
 const BRIEF_TEMPLATE = "templates/brief.md"
 /** The skills that write a Brief, each reading the one template rather than a copy of its rules. */
-const BRIEF_WRITERS = ["sdlc-brief", "sdlc-recap"]
+const BRIEF_WRITERS = ["sdlc-brief", "sdlc-delegate", "sdlc-recap"]
+/** The skills only the dev starts, by typing them. */
+const DEV_ONLY = ["sdlc-brief", "sdlc-delegate"]
 
 type Manifest = { name: string; version: string; dependencies?: unknown; hooks?: unknown }
 type Listed = { name: string; source: string; version: string }
@@ -68,12 +70,21 @@ describe("the sdlc-sessions plugin", () => {
     assert.doesNotMatch(description, /: /, "a colon and a space end a plain YAML value")
   })
 
-  it("leaves sdlc-brief for the dev to invoke, never the model", () => {
-    const frontmatter = frontmatterOf(skillText("sdlc-brief"))
-    assert.match(frontmatter, /^disable-model-invocation: true$/m)
-    const description = /^description: (.+)$/m.exec(frontmatter)?.[1] ?? ""
-    assert.ok(description.length > 0, "sdlc-brief has a description")
-    assert.doesNotMatch(description, /: /, "a colon and a space end a plain YAML value")
+  it("leaves sdlc-brief and sdlc-delegate for the dev to invoke, never the model", () => {
+    for (const name of DEV_ONLY) {
+      const frontmatter = frontmatterOf(skillText(name))
+      assert.match(frontmatter, /^disable-model-invocation: true$/m, name)
+      const description = /^description: (.+)$/m.exec(frontmatter)?.[1] ?? ""
+      assert.ok(description.length > 0, `${name} has a description`)
+      assert.doesNotMatch(description, /: /, `${name}: a colon and a space end a plain YAML value`)
+    }
+  })
+
+  it("has sdlc-delegate list its Workers, start each by the command and wait only a bounded time", () => {
+    const text = skillText("sdlc-delegate")
+    assert.ok(text.includes('dw-sdlc/src/cli.ts" worker ls --json'), "it lists the Workers")
+    assert.ok(text.includes('dw-sdlc/src/cli.ts" worker start --brief'), "it starts each Worker by the command")
+    assert.match(text, /--timeout 180/, "its one wait is bounded")
   })
 
   it("has every skill that writes a Brief read the one template, which holds the rules they share", () => {

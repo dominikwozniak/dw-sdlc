@@ -57,7 +57,8 @@ one line each, with why. A routine call no one would question does not belong he
 **Questions.** Numbered, each with your recommended answer, so that the dev can reply in one line:
 `1. Keep the old flag? Recommend: drop it, nothing reads it.`
 
-**Waiting on.** What waits on whom: the dev, CI, a reviewer, another session.
+**Waiting on.** What waits on whom: the dev, CI, a reviewer, another session. Each Worker the document
+lists under `workers` is one, named with its status.
 
 Then the close line: `close.line` from the document, translated into the conversation's language and
 nothing added. Its reasons are facts; do not argue with them or soften them.
