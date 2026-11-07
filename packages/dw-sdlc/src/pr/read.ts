@@ -121,26 +121,24 @@ function viewed(head: string | undefined): { repo: string; number: number } | nu
   throw new CannotRun(`gh pr view failed: ${said(view.stderr)}`, REMEDIES.read)
 }
 
-/** The upstream branch a remote holds under another name than the local one, and the local head. */
-export type Upstream = { name: string; head: string }
-
 /**
  * The current branch's pull request, open or not, or null. gh tries `@{push}`, else the local name, which
- * misses a branch pushed under another name; then `upstream`'s name is asked, its pull request taken only
- * when it holds the head, since a branch started from another tracks that one too.
+ * misses a branch pushed under another name; then `upstreamName` is asked, and `byUpstream` says so.
  */
-export function readBranch(sized: boolean, upstream: Upstream | undefined): PrState | null {
+export function readBranch(
+  sized: boolean,
+  upstreamName: string | undefined
+): { pr: PrState; byUpstream: boolean } | null {
   requireAuth()
   const own = viewed(undefined)
   if (own !== null) {
-    return query(own, sized)
+    return { pr: query(own, sized), byUpstream: false }
   }
-  const found = upstream === undefined ? null : viewed(upstream.name)
-  if (upstream === undefined || found === null) {
+  if (upstreamName === undefined) {
     return null
   }
-  const pr = query(found, sized)
-  return pr.commits.includes(upstream.head) ? pr : null
+  const found = viewed(upstreamName)
+  return found === null ? null : { pr: query(found, sized), byUpstream: true }
 }
 
 /** The default branch of the repository gh resolves from the current directory. */

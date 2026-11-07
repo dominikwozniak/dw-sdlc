@@ -172,8 +172,8 @@ function workersText(workers: Worker[]): string {
 }
 
 /**
- * The name of the remote branch `branch`'s configured upstream names, when it differs from `branch`; read
- * from the config, so it holds after the remote deleted the branch.
+ * The remote branch name `branch` tracks, when it differs from `branch`. Read from the config, so it holds
+ * after the remote deleted the branch.
  */
 function upstreamName(root: string, branch: string): string | undefined {
   const remote = asked(root, ["config", "--get", `branch.${branch}.remote`])
@@ -185,14 +185,23 @@ function upstreamName(root: string, branch: string): string | undefined {
   return name === branch ? undefined : name
 }
 
-/** The current branch's pull request and the Action the Ship script's decision gives it, or null. */
+/** Whether `pr`'s commits hold `head`, so the head is on GitHub whatever became of the upstream. */
+function holds(pr: PrState, head: string | null): boolean {
+  return head !== null && pr.commits.includes(head)
+}
+
+/**
+ * The current branch's pull request and the Action the Ship script's decision gives it, or null. The one
+ * found by the upstream's name counts only when it holds the head: a branch started from another tracks it.
+ */
 function readShipped(root: string, branch: string, head: string | null): Shipped | null {
   // An invalid config layer resolves to ask and full, as in the Ship script.
   const policy = declaredPolicy(resolveConfig(root).config.pr)
-  const name = upstreamName(root, branch)
-  const upstream = name === undefined || head === null ? undefined : { name, head }
-  const pr = readBranch(policy.review.depth === "auto", upstream)
-  return pr === null ? null : { pr, answer: decide(pr, now(), policy) }
+  const found = readBranch(policy.review.depth === "auto", upstreamName(root, branch))
+  if (found === null || (found.byUpstream && !holds(found.pr, head))) {
+    return null
+  }
+  return { pr: found.pr, answer: decide(found.pr, now(), policy) }
 }
 
 /**
@@ -398,7 +407,7 @@ function report(json: boolean): number {
   // A detached HEAD names no branch for gh to look up, and a repository with no remote has no GitHub.
   const asksGh = branch !== null && remotesOf(root).length > 0
   const shipped = asksGh ? readShipped(root, branch, head) : null
-  const held = shipped !== null && head !== null && shipped.pr.commits.includes(head)
+  const held = shipped !== null && holds(shipped.pr, head)
   const local = standing(root, read, shipped, held)
   // An open pull request can still take the head, and a commit-less repository has nothing to merge.
   const nothingToMerge = held || shipped?.pr.state === "OPEN" || head === null
