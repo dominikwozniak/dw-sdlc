@@ -218,12 +218,13 @@ function ownChanges(pr: Omit<PrState, "carried" | "changed">, commit: string): s
 }
 
 /**
- * `pr` and whether its head carries the last reviewed commit's status: only merges since it, and the
- * same own changes at both. The compares run only when a Review awaits the head.
+ * `pr` and whether its head carries the success of the last commit a Review read: a clean read, only
+ * merges since it, and the same own changes at both. A read mark never carries. The compares run only
+ * when a Review awaits the head.
  */
 function withCarried(pr: Omit<PrState, "carried" | "changed">): Omit<PrState, "changed"> {
-  const last = pr.lastReviewed
-  if (last === null || !last.mergesOnly || pr.state !== "OPEN" || !awaitsReview(pr)) {
+  const last = pr.lastRead
+  if (last === null || !last.clean || !last.mergesOnly || pr.state !== "OPEN" || !awaitsReview(pr)) {
     return { ...pr, carried: false }
   }
   return { ...pr, carried: sameChanges(ownChanges(pr, last.commit), ownChanges(pr, pr.head)) }
@@ -231,13 +232,13 @@ function withCarried(pr: Omit<PrState, "carried" | "changed">): Omit<PrState, "c
 
 /**
  * `pr` and, when `sized` and a Review awaits a head that carries none, the files the Review would read:
- * the compare from the last reviewed commit, else from the base, to the head.
+ * the compare from the last commit a Review read, else from the base, to the head.
  */
 function withChanged(pr: Omit<PrState, "changed">, sized: boolean): PrState {
   if (!sized || pr.carried || pr.state !== "OPEN" || !awaitsReview(pr)) {
     return { ...pr, changed: null }
   }
-  const from = pr.lastReviewed?.commit ?? pr.baseOid
+  const from = pr.lastRead?.commit ?? pr.baseOid
   const reply = compared(pr, from, pr.head, `the compare of ${from.slice(0, 7)}...${pr.head.slice(0, 7)}`)
   return { ...pr, changed: parseOrCannotRun(() => changedOf(reply)) }
 }

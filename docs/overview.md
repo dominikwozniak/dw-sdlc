@@ -378,11 +378,15 @@ is the author's to mark ready, a required approval, and the merge when it is not
 
 Who merges follows `pr.merge`: the script under `auto`, the dev under `ask`, and the script for one
 call under `--merge`. A pull request another author opened needs no Review, since the dev merges it.
-Once nothing else holds it back, it parks for the dev under all three. A Review is clean when no
-hard violation and no Spec finding remains, and each judgement-call smell is either fixed or
-declined with a line in the Recap; a known limit counts as clean only when the dev accepted it. A
-clean review is a commit status: `dw-sdlc pr reviewed <n> --head <sha>` posts `dw-sdlc/review` in state `success` on the head
-the review read and refuses once a push moved it, so a new head needs a fresh review. Contexts under
+Once nothing else holds it back, it parks for the dev under all three. A Review is clean when it
+reports no Finding: a concrete harm the pull request's own changes cause, a miss against the spec,
+or a bug fix without its regression test. The agent declines the rest with a line each in the
+Recap, and lists a harm outside the change as a follow-up. A clean review is a commit status:
+`dw-sdlc pr reviewed <n> --head <sha>` posts `dw-sdlc/review` in state `success` on the head the
+review read and refuses once a push moved it, so a new head needs a fresh review. A Review that
+leaves a Finding open is pinned too: `--findings` posts the same status in state `failure`,
+described `read, findings open`, the read mark. The mark sits on a head the fix then leaves behind,
+so the head of the pull request never shows it from an earlier round. Contexts under
 `dw-sdlc/` never count as CI. The script never deletes a branch: a merged pull request answers
 `done` with the deletion command for the dev.
 
@@ -415,16 +419,22 @@ the script posts in the same call, so no agent turn comes to raise it. The agent
 depth, and never raises one the dev or the config set. No config key moves the rules. An invalid layer
 runs `full`, and the local layer may tighten `pr.review` in the order full, auto, light, off.
 
-After a push, the Review reads only what changed since the last reviewed commit. The same GraphQL
-query reads the pull request's last 100 commits. The last one before the head with a
-`dw-sdlc/review` success goes under `details.since`, the point the Review reads from. A success the
-script posted under `off` does not count, since no one read that head. A rebase or a force push
-drops the reviewed commit from the history, and 100 later commits push it out of the read. Then no
+After a push, the Review reads only what changed since the head the last Review read. The same
+GraphQL query reads the pull request's last 100 commits. The last one before the head with a
+`dw-sdlc/review` success or a read mark goes under `details.since`, the point the Review reads from
+and `auto` routes from. A success the script posted under `off` does not count, since no one read
+that head. So the Review after a fix reads the fix alone, at the depth `auto` routes on the fix's
+own size, and the agent names to it the Findings that fix answers. A rebase or a force push drops
+the read commit from the history, and 100 later commits push it out of the read. Then no
 `details.since` comes, and the Review reads the whole diff since the base. After a merge of the base
 in, the changes since `details.since` include what the base brought in, and `auto` counts them too.
 
-A head that only merged the base in carries the earlier status. Two tests tell such a merge from
-the branch's own changes, and both must pass:
+A head that only merged the base in carries the earlier success. A read mark never carries: the
+Findings it records still stand. A read mark with only merges after it is passed over, since no fix
+answers its Findings yet and the changes since it are only the base's. `details.since` then names
+the read before the mark, else none, so the Review reads again the changes the mark's Review read
+and finds the open Findings, even in a session that never saw them. Two tests tell a merge from the
+branch's own changes, and both must pass for a carry:
 
 - Every commit after the reviewed one, the head included, is a merge. The GraphQL query reads each
   commit's parent count.

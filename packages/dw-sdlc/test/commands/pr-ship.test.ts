@@ -311,7 +311,7 @@ describe("dw-sdlc pr ship", () => {
           lastByViewer: false
         }
       ],
-      lastReviewed: null,
+      lastRead: null,
       carried: false,
       changed: null,
       behindBy: null

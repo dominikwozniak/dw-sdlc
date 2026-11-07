@@ -5,6 +5,12 @@
 export const REVIEW = "dw-sdlc/review"
 /** How the description of a success the script posts under off begins: no one read that head. */
 export const OFF_PREFIX = "off:"
+/**
+ * The read mark: the review status in this state and with this description says a Review read that
+ * head and left a Finding open.
+ */
+export const MARK_STATE = "failure"
+export const READ_MARK = "read, findings open"
 
 export const QUERY = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
@@ -73,12 +79,15 @@ export type PrState = {
   unresolvedThreads: Thread[]
   /** The oids of the pull request's last 100 commits, oldest first, the head last. */
   commits: string[]
-  /** The last commit before the head with a review success not posted under off, of the last 100. */
-  lastReviewed: LastReviewed | null
-  /** Whether the head carries the success of `lastReviewed`: the read decides it from two compares. */
+  /**
+   * The last commit before the head a Review read, of the last 100: a review success not posted under
+   * off, or a read mark.
+   */
+  lastRead: LastRead | null
+  /** Whether the head carries the success of `lastRead`: the read decides it from two compares. */
   carried: boolean
   /**
-   * The files a Review would read, from `lastReviewed` or the base to the head, read only for `pr.review:
+   * The files a Review would read, from `lastRead` or the base to the head, read only for `pr.review:
    * auto` to route on: `unsized` when the compare cannot list them all, null when not read.
    */
   changed: ChangedFile[] | "unsized" | null
@@ -95,8 +104,11 @@ export type PrState = {
  */
 export type ChangedFile = { path: string; previous: string | null; lines: number | null }
 
-/** A reviewed commit, and whether every commit after it, the head included, is a merge. */
-export type LastReviewed = { commit: string; mergesOnly: boolean }
+/**
+ * A commit a Review read; `clean` when that Review left a success on it, not a read mark; and whether
+ * every commit after it, the head included, is a merge.
+ */
+export type LastRead = { commit: string; clean: boolean; mergesOnly: boolean }
 
 /** A reply that is not the shape the query asks for; the message names the field. */
 export class ReplyError extends Error {}
@@ -292,27 +304,48 @@ export function awaitsReview(pr: Pick<PrState, "viewerDidAuthor" | "checks">): b
   return pr.viewerDidAuthor && !pr.checks.some((check) => check.name === REVIEW && check.bucket === "pass")
 }
 
-/** A commit whose review success says someone read it: a status posted under off never does. */
-function isReviewed(commit: Node): boolean {
+/**
+ * What a commit's review status says a Review made of it: `clean` a success, `findings` the read mark,
+ * null no read. A success posted under off says no one read the commit.
+ */
+function readOf(commit: Node): "clean" | "findings" | null {
   const status = childOrNull(commit, "status")
   const context = status === null ? null : childOrNull(status, "context")
-  if (context === null || string(context, "state") !== "SUCCESS") {
-    return false
-  }
-  return !(stringOrNull(context, "description") ?? "").startsWith(OFF_PREFIX)
-}
-
-/** The last commit before `head` that `isReviewed` takes, the history oldest first. */
-function lastReviewedOf(pr: Node, head: string): LastReviewed | null {
-  const commits = nodes(pr, "history").map((node) => child(node, "commit"))
-  const index = commits.findLastIndex((commit) => string(commit, "oid") !== head && isReviewed(commit))
-  const reviewed = commits[index]
-  if (reviewed === undefined) {
+  if (context === null) {
     return null
   }
-  const after = commits.slice(index + 1)
-  const mergesOnly = after.every((commit) => integer(child(commit, "parents"), "totalCount") > 1)
-  return { commit: string(reviewed, "oid"), mergesOnly }
+  const state = string(context, "state")
+  const description = stringOrNull(context, "description") ?? ""
+  if (state === "SUCCESS") {
+    return description.startsWith(OFF_PREFIX) ? null : "clean"
+  }
+  return state === MARK_STATE.toUpperCase() && description === READ_MARK ? "findings" : null
+}
+
+/**
+ * The last commit before `head` a Review read, the history oldest first. A read mark with only merges
+ * after it is passed over: no fix answers its Findings yet, and a Review from it would read only the
+ * base's changes, so the Review reads from the read before it and finds them again.
+ */
+function lastReadOf(pr: Node, head: string): LastRead | null {
+  const commits = nodes(pr, "history").map((node) => {
+    const commit = child(node, "commit")
+    const oid = string(commit, "oid")
+    return {
+      oid,
+      read: oid === head ? null : readOf(commit),
+      merge: integer(child(commit, "parents"), "totalCount") > 1
+    }
+  })
+  const mergesOnlyAfter = (index: number): boolean => commits.slice(index + 1).every(({ merge }) => merge)
+  const index = commits.findLastIndex(
+    ({ read }, at) => read === "clean" || (read === "findings" && !mergesOnlyAfter(at))
+  )
+  const last = commits[index]
+  if (last === undefined) {
+    return null
+  }
+  return { commit: last.oid, clean: last.read === "clean", mergesOnly: mergesOnlyAfter(index) }
 }
 
 /** The repository and number of the pull request whose URL `gh pr view --json url` printed. */
@@ -359,6 +392,6 @@ export function parsePr(reply: string, repo: string): Omit<PrState, "carried" | 
       .filter((thread) => !boolean(thread, "isResolved") && !boolean(thread, "isOutdated"))
       .map(threadOf),
     commits: nodes(pr, "history").map((node) => string(child(node, "commit"), "oid")),
-    lastReviewed: lastReviewedOf(pr, head)
+    lastRead: lastReadOf(pr, head)
   }
 }

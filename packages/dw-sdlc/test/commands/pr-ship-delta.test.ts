@@ -326,3 +326,83 @@ describe("dw-sdlc pr ship after a push to a reviewed pull request", () => {
     }
   })
 })
+
+/** The read mark `pr reviewed --findings` posts: a Review read the commit and left a Finding open. */
+const MARK: Pick<Commit, "review" | "described"> = { review: "FAILURE", described: "read, findings open" }
+
+describe("dw-sdlc pr ship after a Review that left a Finding open", () => {
+  it("names the marked commit in details.since once a fix is pushed, over an earlier success", () => {
+    const histories: [string, Commit[]][] = [
+      ["a mark alone", [{ oid: EARLIER }, { oid: REVIEWED, ...MARK }]],
+      [
+        "a mark after a success",
+        [
+          { oid: EARLIER, review: "SUCCESS" },
+          { oid: REVIEWED, ...MARK }
+        ]
+      ]
+    ]
+    for (const [name, history] of histories) {
+      const run = ship(["--json"], [{ ...PUSHED_ON, history: [...history, { oid: PUSHED, review: null }] }])
+      assert.equal(run.status, 10, `${name}: ${run.stderr}`)
+      assert.deepEqual(
+        documentOf(run.stdout, ["action", "details"]),
+        {
+          action: "review",
+          details: { depth: "full", source: "config", reviewCommand: "/code-review", since: REVIEWED }
+        },
+        name
+      )
+      assert.deepEqual(run.calls, [AUTH, READ, compare(HEAD)], name)
+    }
+  })
+
+  it("carries nothing over a head that only merged the base in after a mark, and reads from the read before it", () => {
+    const cases: [string, Commit, object][] = [
+      ["a success before the mark", { oid: EARLIER, review: "SUCCESS" }, { since: EARLIER }],
+      ["no read before the mark", { oid: EARLIER }, {}]
+    ]
+    for (const [name, earlier, since] of cases) {
+      const history: Commit[] = [earlier, { oid: REVIEWED, ...MARK }, { oid: PUSHED, review: null, parents: 2 }]
+      const run = ship(["--json"], [{ ...MERGED_IN, history }], {
+        ...compared(REVIEWED, [READ_THEN]),
+        ...compared(HEAD, [SHIFTED])
+      })
+      assert.equal(run.status, 10, `${name}: ${run.stderr}`)
+      assert.deepEqual(
+        documentOf(run.stdout, ["action", "details", "performed"]),
+        {
+          action: "review",
+          details: { depth: "full", source: "config", reviewCommand: "/code-review", ...since },
+          performed: []
+        },
+        name
+      )
+      assert.deepEqual(run.calls, [AUTH, READ, compare(HEAD)], name)
+    }
+  })
+
+  it("names no since over a rewritten history that no longer holds a marked commit", () => {
+    const rebased: Commit[] = [{ oid: EARLIER }, { oid: PUSHED, review: null }, { oid: REVIEWED, review: "PENDING" }]
+    const run = ship(["--json"], [{ ...PUSHED_ON, history: rebased }])
+    assert.equal(run.status, 10, run.stderr)
+    assert.deepEqual(documentOf(run.stdout, ["action", "details"]), {
+      action: "review",
+      details: { depth: "full", source: "config", reviewCommand: "/code-review" }
+    })
+  })
+
+  it("reads past a failure that is not the read mark", () => {
+    const history: Commit[] = [
+      { oid: EARLIER, review: "SUCCESS" },
+      { oid: REVIEWED, review: "FAILURE", described: "a review found a bug" },
+      { oid: PUSHED, review: null }
+    ]
+    const run = ship(["--json"], [{ ...PUSHED_ON, history }])
+    assert.equal(run.status, 10, run.stderr)
+    assert.deepEqual(documentOf(run.stdout, ["action", "details"]), {
+      action: "review",
+      details: { depth: "full", source: "config", reviewCommand: "/code-review", since: EARLIER }
+    })
+  })
+})

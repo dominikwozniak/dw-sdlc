@@ -36,33 +36,38 @@ agent's other `blockers` in the same push, all but `review`, which needs the hea
   under `auto` may you raise it, `light` to `full`, when the change looks riskier than its size,
   saying why in one line; never lower one. A depth the dev or the config set stands: when you think
   it wrong, say so in one line and review at it. The Review reads the changes since `<since>`:
-  `details.since`, the last reviewed commit, when the answer has it, else `origin/<base>`. At
-  `full`, run the slash command `details.reviewCommand` names, with its arguments, on those changes,
-  naming that range to it: `<since>..<head>`. A command this session does not have ends the run:
-  name it and stop. At `light`, `git fetch origin <base>`, then spawn the `sdlc:sdlc-reviewer`
-  subagent. It does not see this conversation, so its prompt holds all it reads: the diff command
-  `git diff <since>...<head>`, the files `git diff --name-only <since>...<head>` lists, and the
-  spec as this conversation states it, the issue or the dev's ask, else "none stated". Its report's
-  first line, `clean` or `findings: <n>`, is the result.
+  `details.since`, the last head a Review read, clean or not, when the answer has it, else
+  `origin/<base>`. At `full`, run the slash command `details.reviewCommand` names, with its
+  arguments, on those changes, naming that range to it: `<since>..<head>`. A command this session
+  does not have ends the run: name it and stop. At `light`, `git fetch origin <base>`, then spawn
+  the `sdlc:sdlc-reviewer` subagent. It does not see this conversation, so its prompt holds all it
+  reads: the diff command `git diff <since>...<head>`, the files
+  `git diff --name-only <since>...<head>` lists, and the spec as this conversation states it, the
+  issue or the dev's ask, else "none stated". Its report's first line, `clean` or `findings: <n>`, is the result. When the
+  changes since `<since>` are a fix for Findings an earlier Review in this conversation left open,
+  name each of those Findings to the Review, in the command's arguments at `full` and in the
+  subagent's prompt at `light`: it checks each one is fixed and that the fix breaks nothing.
+  Findings still open in this conversation with no fix pushed yet: fix them and push first.
 
-  A Review is clean when no hard violation and no Spec finding remains, and each judgement-call
-  smell is either fixed or declined with a line in the Recap. A hard violation breaks a documented
-  standard or a rule of the Agent map; a judgement-call smell is a labelled heuristic of the
-  Standards axis, as `possible Feature Envy`. A known limit of the change counts as clean only when
-  the dev accepted it in this conversation; otherwise it is a finding. Never post `pr reviewed` over
-  a hard violation, a Spec finding or an unaccepted limit.
+  A Review is clean when it reports no Finding. A Finding is a concrete harm the pull request's own
+  changes cause, a bug in old code they start calling included; a miss against the spec; or a bug
+  fix without its regression test. A known limit the dev accepted in this conversation is no
+  Finding. Decline everything else, naming, duplication, comments, style rules and judgement-call
+  smells among them, each with one line in the Recap. A harm in code the pull request neither
+  changes nor reaches goes to the Recap's follow-ups. Never post a success over an open Finding.
 
   Skip either Review when one earlier in this conversation read the changes since `<since>` at
   `<head>`, was clean, and nothing changed after it: no edit, no commit, no pull. Only a clean run
   of `details.reviewCommand`, or at `light` of `sdlc-reviewer` too, whose range ended at `<head>`
   counts as that earlier Review; an informal read of the diff never counts. A Review whose head the
-  conversation does not show, or one that was not clean, even once its finding is fixed, needs a
-  fresh Review. After the skip, or a fresh Review that is clean, run
-  `node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" pr reviewed <n> --head <head>`; its exit 2 says
-  whether the head moved or it cannot run. Fix each hard violation, Spec finding and unaccepted
-  limit, and each smell you do not decline, then `git push`. At `off`, and over a head that only merged the base in unless the
-  dev's `--review` names a depth, the script marks the head reviewed itself, so no `act review`
-  comes.
+  conversation does not show needs a fresh Review. After the skip, or a fresh Review that is clean,
+  run `node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" pr reviewed <n> --head <head>`; its exit 2
+  says whether the head moved or it cannot run. After a Review that left a Finding open, run
+  `node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" pr reviewed <n> --head <head> --findings` on the
+  head it read, the read mark the next Review reads the fix from; then fix each Finding,
+  `git push` and call the script again. At `off`, and over a head that only merged the base in
+  since a success unless the dev's `--review` names a depth, the script marks the head reviewed
+  itself, so no `act review` comes.
 
 - `wait`: tell the dev the `reason` and `recheckAfter`, and end the turn. The next call comes with
   the dev's next message, or under `/loop` after `recheckAfter` seconds; never sleep in a shell.
