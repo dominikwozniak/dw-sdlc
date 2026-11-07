@@ -349,11 +349,15 @@ is: 0 done, 10 the agent's, 20 wait, 30 the dev's, 2 it cannot run. The script h
 between calls and never sleeps: a `wait` carries `recheckAfter`, the seconds until the next call.
 
 The script owns four Actions, one `gh` command each. It updates a branch behind its base by
-merging the base in. It marks the head of the viewer's own pull request reviewed when the Review
-depth is `off`. It marks the viewer's own draft ready once CI is green, no thread is open and the
-head is reviewed. It squash merges with `--match-head-commit`, so a push during the decision never
-merges blind. Each runs at most once per call; one that comes round again, and every one under
-`--dry-run`, parks with its command for the dev.
+merging the base in. It judges "behind" itself, from the compare of the base with the head: a head
+that lacks one commit of the base or more is behind, and so is one GitHub reports `BEHIND`. GitHub
+reports `BEHIND` only where a rule asks a branch to be up to date before it merges, so without the
+compare a branch behind its base would merge with no CI run on the tree the merge makes. It marks
+the head of the viewer's own pull request reviewed when the Review depth is `off`. It marks the
+viewer's own draft ready once CI is green, no thread is open and the head is reviewed. It squash
+merges with `--match-head-commit`, so a push during the decision never merges blind. Each runs at
+most once per call; one that comes round again, and every one under `--dry-run`, parks with its
+command for the dev.
 
 `performed` lists each Action a call ran, with `ok`, `exit` and `stderr` when `gh` wrote any. `ok` is
 whether the read after the Action shows its effect; `exit` is what `gh` answered. The pair `ok: false`

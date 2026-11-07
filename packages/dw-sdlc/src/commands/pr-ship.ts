@@ -20,7 +20,7 @@ import {
   shellLine,
   type Status
 } from "../pr/decide.ts"
-import { CannotRun, carriesBase, gh, namedProblem, now, read, readAgain, said } from "../pr/read.ts"
+import { CannotRun, carriesBase, gh, namedProblem, now, read, readAgain, said, withBehind } from "../pr/read.ts"
 import type { PrState } from "../pr/state.ts"
 
 export const summary = "decide the Action one pull request needs next, as a line or JSON"
@@ -32,7 +32,9 @@ is omitted, and answers the Action it needs next: the status, the action, whose 
 The script performs its own Actions, each at most once and then reads again: it updates a branch
 behind its base, marks a draft ready once nothing else holds it back, and squash merges a pull
 request ready to merge under pr.merge auto in .ai/agentic.config.json or with --merge for this call;
-under ask, the default, it parks with the merge command. A head without a ${REVIEW} success
+under ask, the default, it parks with the merge command. A branch is behind when the compare of
+the base with the head shows the head lacks a commit of the base, or GitHub reports BEHIND, which
+it does only under a rule that a branch be up to date. A head without a ${REVIEW} success
 gets the Review depth --review names for this call, else pr.review: under full the agent reviews it
 with the command pr.reviewCommand names, /code-review by default; under light one sdlc-reviewer
 subagent reads the diff; under off the script posts the success itself, its description saying
@@ -196,7 +198,7 @@ function handedOver(pr: PrState, policy: Policy, answer: Answer, action: ScriptA
 function ship(cli: Cli, policy: Policy): { pr: PrState; answer: Answer; performed: Performed[] } {
   // Only pr.review auto routes the depth from the changes, so only it reads them.
   const sized = policy.review.depth === "auto"
-  let pr = read(cli, "pr ship", sized)
+  let pr = withBehind(read(cli, "pr ship", sized))
   const performed: Performed[] = []
   // The head each Action ran on.
   const postedOn = new Map<ScriptAction, string>()
@@ -230,7 +232,7 @@ function ship(cli: Cli, policy: Policy): { pr: PrState; answer: Answer; performe
     const record = { action, command, exit: status, ...(message === "" ? {} : { stderr: message }) }
     postedOn.set(action, before.head)
     try {
-      pr = readAgain(pr, sized)
+      pr = withBehind(readAgain(pr, sized))
       performed.push({ ...record, ok: TOOK[action](before, pr) })
     } catch (error) {
       if (error instanceof CannotRun) {

@@ -62,8 +62,9 @@ function compare(from: string, to = HEAD): string[] {
   return ["api", `repos/byarcadia-app/foundation/compare/${from}...${to}?per_page=1`]
 }
 
+/** What the compare from `from` to `to` answers: `files` its changed files, none of `from` lacking. */
 function compared(from: string, files: File[], to = HEAD): Record<string, Response> {
-  return { [compare(from, to).join(" ")]: { stdout: JSON.stringify({ status: "ahead", files }) } }
+  return { [compare(from, to).join(" ")]: { stdout: JSON.stringify({ status: "ahead", behind_by: 0, files }) } }
 }
 
 /** The post that marks HEAD reviewed, `why` its description. */
@@ -81,8 +82,9 @@ function commandOf(args: string[]): string {
 /** The files of a test's checkout: a relative path and its text, an object written as JSON. */
 type Files = Record<string, string | object>
 
+/** `dw-sdlc pr ship` on `graphql`; the compare that judges the head behind finds it lacks none of its base. */
 function ship(args: string[], graphql: Pr[], commands: Record<string, Response> = {}, files: Files = {}) {
-  const gh = fakeGh({ graphql: graphql.map(served), commands })
+  const gh = fakeGh({ graphql: graphql.map(served), commands: { ...compared(BASE_OID, []), ...commands } })
   const run = runBin(["pr", "ship", ...TARGET, ...args], repo({ files }), gh.env)
   return { ...run, calls: gh.calls() }
 }
@@ -158,7 +160,7 @@ describe("dw-sdlc pr ship under pr.review auto", () => {
       action: "review",
       details: { depth: "light", source: "auto", reviewCommand: "/code-review", since: REVIEWED }
     })
-    assert.deepEqual(run.calls, [AUTH, READ, compare(REVIEWED)])
+    assert.deepEqual(run.calls, [AUTH, READ, compare(REVIEWED), compare(BASE_OID)])
   })
 
   it("routes on the whole diff since the base over a rewritten history that holds no reviewed commit", () => {
@@ -186,7 +188,7 @@ describe("dw-sdlc pr ship under pr.review auto", () => {
         { action: "review", details: { ...details, since: REVIEWED } },
         JSON.stringify(args)
       )
-      assert.deepEqual(run.calls, [AUTH, READ], JSON.stringify(args))
+      assert.deepEqual(run.calls, [AUTH, READ, compare(BASE_OID)], JSON.stringify(args))
     }
   })
 
@@ -213,7 +215,7 @@ describe("dw-sdlc pr ship under pr.review auto", () => {
     const run = ship(["--json"], [{ ...UNREVIEWED, viewerDidAuthor: false }])
     assert.equal(run.status, 30, run.stderr)
     assert.deepEqual(documentOf(run.stdout, ["action"]), { action: "ready-to-merge" })
-    assert.deepEqual(run.calls, [AUTH, READ])
+    assert.deepEqual(run.calls, [AUTH, READ, compare(BASE_OID)])
   })
 
   it("exits 2 when gh refuses the compare, or its reply does not parse", () => {

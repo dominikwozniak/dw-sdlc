@@ -74,6 +74,10 @@ export type Pr = {
   base: string
   /** The commit the base branch points at. */
   baseOid: string
+  /** The `baseRefOid` GitHub reports, which lags a base that just moved: `baseOid` when left out. */
+  reportedBaseOid?: string
+  /** Whether the base branch is gone, so the reply carries no `baseRef`. */
+  baseDeleted?: boolean
   mergeCommit: string | null
   checks: Context[]
   threads: Thread[]
@@ -171,7 +175,8 @@ export function pullRequestOf(pr: Pr): Record<string, unknown> {
     headRefOid: pr.head,
     headRefName: pr.branch,
     baseRefName: pr.base,
-    baseRefOid: pr.baseOid,
+    baseRefOid: pr.reportedBaseOid ?? pr.baseOid,
+    baseRef: pr.baseDeleted === true ? null : { target: { oid: pr.baseOid } },
     viewerDidAuthor: pr.viewerDidAuthor,
     mergeCommit: pr.mergeCommit === null ? null : { oid: pr.mergeCommit },
     reviewThreads: { nodes: pr.threads.map(threadOf) },
