@@ -24,6 +24,12 @@ export function git(root: string, args: string[], index?: string): { out: string
   return { error: `git ${args[0] ?? ""}: ${reason?.trim() ?? `exited ${result.status ?? "on a signal"}`}` }
 }
 
+/** `git <args>` at `root`, or undefined when it exits non-zero as a question answered no. */
+export function asked(root: string, args: string[]): string | undefined {
+  const result = git(root, args)
+  return "out" in result ? result.out : undefined
+}
+
 /**
  * The tree `git write-tree` hashes from a copy of the index after `git add -A` on it: the copy keeps the
  * stat cache, so only what changed is read again; identical content survives a commit, an amend or a

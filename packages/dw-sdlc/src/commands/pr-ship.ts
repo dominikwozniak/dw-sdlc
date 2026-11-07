@@ -20,8 +20,21 @@ import {
   shellLine,
   type Status
 } from "../pr/decide.ts"
-import { CannotRun, carriesBase, gh, namedProblem, now, read, readAgain, said, withBehind } from "../pr/read.ts"
+import {
+  CannotRun,
+  carriesBase,
+  gh,
+  namedProblem,
+  nameItRemedy,
+  now,
+  read,
+  readAgain,
+  readBranch,
+  said,
+  withBehind
+} from "../pr/read.ts"
 import type { PrState } from "../pr/state.ts"
+import { holds, renamedUpstream } from "../pr/upstream.ts"
 
 export const summary = "decide the Action one pull request needs next, as a line or JSON"
 
@@ -29,6 +42,8 @@ const USAGE = `Usage: dw-sdlc pr ship [<n>] [-R owner/name] [--merge] [--review 
 
 Reads pull request <n> through gh, the one of the current branch as gh pr view resolves it when <n>
 is omitted, and answers the Action it needs next: the status, the action, whose turn it is and why.
+A branch pushed under another name has an upstream of that name. Where gh resolves no pull request
+for it, the script asks for the upstream's, and reads it only when its commits hold HEAD.
 The script performs its own Actions, each at most once and then reads again: it updates a branch
 behind its base, marks a draft ready once nothing else holds it back, and squash merges a pull
 request ready to merge under pr.merge auto in .ai/agentic.config.json or with --merge for this call;
@@ -192,13 +207,39 @@ function handedOver(pr: PrState, policy: Policy, answer: Answer, action: ScriptA
 }
 
 /**
+ * The pull request the call names, else the current branch's as `gh pr view` resolves it. Where gh finds
+ * none for a branch whose upstream has another name, the one of that name, taken only when its commits
+ * hold the local head: a branch started from another tracks that branch until its first push.
+ */
+function readTarget(cli: Cli, root: string, sized: boolean): PrState {
+  const renamed = cli.number === undefined && cli.repo === undefined ? renamedUpstream(root) : undefined
+  if (renamed === undefined) {
+    return read(cli, "pr ship", sized)
+  }
+  const { branch, head, upstream } = renamed
+  const found = readBranch(sized, upstream)
+  const upstreamNamed = `${upstream}, the name its upstream gives`
+  if (found === null) {
+    throw new CannotRun(
+      `gh pr view found no pull request for ${branch}, nor for ${upstreamNamed}`,
+      nameItRemedy("pr ship")
+    )
+  }
+  if (found.byUpstream && !holds(found.pr, head)) {
+    const lacks = `${found.pr.url}, found by ${upstreamNamed}, lacks HEAD ${head.slice(0, 7)}`
+    throw new CannotRun(lacks, `push HEAD if it is this branch's pull request, else ${nameItRemedy("pr ship")}`)
+  }
+  return found.pr
+}
+
+/**
  * Reads and decides until the Action is not the script's. Each script Action runs at most once, then the
  * pull request is read again; under --dry-run, or when an Action comes round again, it is the dev's.
  */
-function ship(cli: Cli, policy: Policy): { pr: PrState; answer: Answer; performed: Performed[] } {
+function ship(cli: Cli, root: string, policy: Policy): { pr: PrState; answer: Answer; performed: Performed[] } {
   // Only pr.review auto routes the depth from the changes, so only it reads them.
   const sized = policy.review.depth === "auto"
-  let pr = withBehind(read(cli, "pr ship", sized))
+  let pr = withBehind(readTarget(cli, root, sized))
   const performed: Performed[] = []
   // The head each Action ran on.
   const postedOn = new Map<ScriptAction, string>()
@@ -260,7 +301,8 @@ export function run(argv: string[]): number {
     return 0
   }
   // An invalid config layer resolves to ask and full, like every other strictest setting.
-  const declared = resolveConfig(repositoryRoot(process.cwd())).config.pr
+  const root = repositoryRoot(process.cwd())
+  const declared = resolveConfig(root).config.pr
   const policy: Policy = {
     ...declaredPolicy(declared),
     ...(cli.merge ? { merge: "auto" } : {}),
@@ -268,7 +310,7 @@ export function run(argv: string[]): number {
   }
   let shipped: ReturnType<typeof ship>
   try {
-    shipped = ship(cli, policy)
+    shipped = ship(cli, root, policy)
   } catch (error) {
     if (error instanceof CannotRun) {
       const ran = error instanceof Interrupted ? error.performed : []

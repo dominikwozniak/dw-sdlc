@@ -9,8 +9,9 @@ import { findRepository, mainCheckout, resolveConfig } from "../agentic-config.t
 import { type Answer, decide, declaredPolicy, labelOf, lineOf } from "../pr/decide.ts"
 import { CannotRun, defaultBranch, now, readBranch } from "../pr/read.ts"
 import type { PrState } from "../pr/state.ts"
+import { holds, upstreamName } from "../pr/upstream.ts"
 import { isLive, Refusal, type Worker, workersOf, workingFolders } from "../worker/herdr.ts"
-import { git } from "../working-tree.ts"
+import { asked, git } from "../working-tree.ts"
 
 export const summary = "the facts a Recap rests on and whether the session can be closed"
 
@@ -93,12 +94,6 @@ function must(root: string, args: string[]): string {
   return result.out
 }
 
-/** `git <args>` at `root`, or undefined when it exits non-zero as a question answered no. */
-function asked(root: string, args: string[]): string | undefined {
-  const result = git(root, args)
-  return "out" in result ? result.out : undefined
-}
-
 function count(root: string, args: string[]): number {
   return Number(must(root, ["rev-list", "--count", ...args]))
 }
@@ -169,25 +164,6 @@ function liveWorkers(): Worker[] | null {
 
 function workersText(workers: Worker[]): string {
   return workers.map((worker) => `${worker.name} (${worker.status})`).join(", ")
-}
-
-/**
- * The remote branch name `branch` tracks, when it differs from `branch`. Read from the config, so it holds
- * after the remote deleted the branch.
- */
-function upstreamName(root: string, branch: string): string | undefined {
-  const remote = asked(root, ["config", "--get", `branch.${branch}.remote`])
-  const merge = asked(root, ["config", "--get", `branch.${branch}.merge`])
-  if (remote === undefined || remote === "." || merge === undefined || !merge.startsWith("refs/heads/")) {
-    return undefined
-  }
-  const name = merge.slice("refs/heads/".length)
-  return name === branch ? undefined : name
-}
-
-/** Whether `pr`'s commits hold `head`, so the head is on GitHub whatever became of the upstream. */
-function holds(pr: PrState, head: string | null): boolean {
-  return head !== null && pr.commits.includes(head)
 }
 
 /**
