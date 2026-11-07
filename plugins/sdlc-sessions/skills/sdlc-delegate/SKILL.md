@@ -88,13 +88,13 @@ Read each Recap whole. Its verdict decides:
 - `done` or `park` on the dev: tell the dev in one line, with the link.
 - A question: relay it to the dev, numbered, with the Worker's recommendation. Answer it yourself only when
   the Brief already holds the answer, with `hc send <address> "<answer>"`.
-- `wait`: a Worker that waits does not wake by itself, so start a watcher whose exit wakes you, and end
-  your turn. For CI, the checks of its pull request: `hc run --bg --name wake-<pr> -- gh pr checks <pr> --watch`.
-  For any other wait, the `recheckAfter` seconds its Recap names: `hc run --bg --name wake-<pr> -- sleep <seconds>`.
-  On the watcher's exit, read it with `hc read wake-<pr> --lines 5`, remove it with `hc rm wake-<pr>`, and
-  wake the Worker with `hc send <address> "<what ended>: call the Ship script again"`. When the dev wants
-  the result now, wait once with `hc wait wake-<pr> --timeout 180`. If that returns before the watcher
-  exits, nothing has ended: say so and end your turn, and never tell the Worker it has.
+- `wait`, on CI or anything else: a Worker that waits does not wake by itself. Start a timer of the
+  `recheckAfter` seconds its report names, 60 when it names none, whose exit wakes you, and end your turn:
+  `hc run --bg --name wake-<address> -- sleep <seconds>`. On its exit, remove it with `hc rm wake-<address>`
+  and wake the Worker with `hc send <address> "<seconds> s have passed: call the Ship script again"`. The
+  Ship script decides again: a run still going is another `wait`, and one stuck past its budget is a
+  `park` the Worker reports. When the dev wants the answer sooner, wait once with
+  `hc wait wake-<address> --timeout 180`; if it returns before the timer ends, say so and end your turn.
 
 The dev's own words come with these: answer them in plain text, then end your turn.
 

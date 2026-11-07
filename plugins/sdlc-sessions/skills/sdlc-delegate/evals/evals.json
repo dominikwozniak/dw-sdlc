@@ -116,16 +116,17 @@
     },
     {
       "id": 9,
-      "name": "wait-on-ci-wakes-the-worker-only-after-the-watcher-exits",
-      "prompt": "You are the Lead this session became through /sdlc-delegate. One Worker runs: worker-40-quiet (t8). This message arrives:\n\n<hc from=\"t8 worker-40-quiet\">wait: PR #40 https://github.com/acme/tool/pull/40 waits on CI (ci-pending), recheck after 60 s. Ending my turn; wake me when it is through.</hc>\n\nIn place of running them, take these as what the commands printed.\n\n`worker ls --json`, exit 0:\n[{\"name\":\"worker-40-quiet\",\"address\":\"t8\",\"state\":\"live\",\"status\":\"done\",\"folder\":\"/repo/tool/.claude/worktrees/worker-40-quiet\"}]\n\nAny `hc run --bg ...` you start prints its address and exits 0 at once; the program it runs goes on in the background.\n\nThe dev writes English. Run nothing. Write into transcript.md, in order, every command you would run and every message you would give the dev, then a line END OF TURN where your turn ends. Then, as a second part, the watcher's exit note arrives: `<hc from=\"t11 wake-40\">exited 0</hc>`, and `hc read wake-40 --lines 5` prints `All checks were successful`. Write what you run and say on that wake, then a second END OF TURN.",
-      "expected_output": "First wake: a watcher on the pull request's checks starts in herdr and the turn ends, with no hc send to the Worker. Second wake: the watcher is read and removed, then the Worker is woken.",
+      "name": "wait-wakes-the-worker-after-recheck-after",
+      "prompt": "You are the Lead this session became through /sdlc-delegate. One Worker runs: worker-40-quiet (t8). This message arrives:\n\n<hc from=\"t8 worker-40-quiet\">wait: PR #40 https://github.com/acme/tool/pull/40 waits on CI (ci-pending), recheckAfter 60 s. Ending my turn; the Lead wakes me.</hc>\n\nIn place of running them, take these as what the commands printed.\n\n`worker ls --json`, exit 0:\n[{\"name\":\"worker-40-quiet\",\"address\":\"t8\",\"state\":\"live\",\"status\":\"done\",\"folder\":\"/repo/tool/.claude/worktrees/worker-40-quiet\"}]\n\nAny `hc run --bg ...` you start prints its address and exits 0 at once; the program it runs goes on in the background.\n\nThe dev writes English. Run nothing. Write into transcript.md, in order, every command you would run and every message you would give the dev, then a line END OF TURN where your turn ends. Then, as a second part, the exit note of what you started arrives: `<hc from=\"t11 wake-t8\">exited 0</hc>`. Write what you run and say on that wake, then a second END OF TURN.",
+      "expected_output": "First wake: a timer of 60 seconds starts in herdr and the turn ends, with no gh call and no hc send to the Worker. Second wake: the timer is removed and the Worker is woken to call the Ship script again.",
       "files": [],
       "expectations": [
         "The first part runs worker ls --json first",
-        "The first part starts a watcher with hc run --bg that watches the checks of pull request 40, such as gh pr checks 40 --watch",
-        "The first part sends nothing to t8 and ends the turn without hc wait, sleep in the shell or a loop over gh",
-        "The second part reads and removes the watcher",
+        "The first part starts a timer of 60 seconds with hc run --bg, such as sleep 60",
+        "The first part runs no gh command, sends nothing to t8 and ends the turn without hc wait",
+        "The second part removes the timer with hc rm",
         "The second part wakes t8 with hc send, telling it to call the Ship script again",
+        "Neither part tells the Worker that CI has passed",
         "No merge runs in either part"
       ]
     },

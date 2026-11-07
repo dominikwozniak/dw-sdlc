@@ -146,9 +146,9 @@ other starts, from a split or a later hand-off, and at most three are live.
 After starting Workers the Lead ends its turn, so the dev can talk to it while they work. A Worker's report
 wakes it, and on every wake it runs `dw-sdlc worker ls` and takes a `blocked` Worker to the dev. It waits
 with `hc wait` only for a short, bounded wait, a CI run or the dev's word, of 180 seconds or less, and never
-polls `gh`. A Worker that answers `wait` does not wake by itself. The Lead starts a watcher in herdr whose
-exit wakes it, `gh pr checks --watch` for CI or a timer of the wait's `recheckAfter`, ends its turn, and on
-the watcher's exit wakes the Worker.
+polls `gh`. A Worker that answers `wait` does not wake by itself. The Lead starts a timer in herdr of the
+wait's `recheckAfter`, whose exit wakes it, ends its turn, and on the timer's exit wakes the Worker, which
+asks the Ship script again: a run still going is another `wait`, one stuck past its budget a `park`.
 
 While it has live Workers, the Lead:
 
