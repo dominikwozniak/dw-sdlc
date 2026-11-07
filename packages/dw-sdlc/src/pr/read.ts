@@ -109,9 +109,9 @@ export function read(named: Named, command: string, sized: boolean): PrState {
   return query(targetOf(named, command), sized)
 }
 
-/** The pull request `gh pr view` resolves for the head branch `head`, else the current branch; null when none. */
-function viewed(head: string | undefined): { repo: string; number: number } | null {
-  const view = gh(["pr", "view", ...(head === undefined ? [] : [head]), "--json", "url"])
+/** The pull request `gh pr view` resolves for the head branch `branch`, else the current one; null when none. */
+function viewed(branch: string | undefined): { repo: string; number: number } | null {
+  const view = gh(["pr", "view", ...(branch === undefined ? [] : [branch]), "--json", "url"])
   if (view.status === 0) {
     return parseOrCannotRun(() => parseView(view.stdout))
   }

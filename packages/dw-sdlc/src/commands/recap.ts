@@ -192,12 +192,13 @@ function holds(pr: PrState, head: string | null): boolean {
 
 /**
  * The current branch's pull request and the Action the Ship script's decision gives it, or null. The one
- * found by the upstream's name counts only when it holds the head: a branch started from another tracks it.
+ * found by the upstream's name counts only when it holds the head: a branch started from another tracks
+ * that branch until its first push.
  */
 function readShipped(root: string, branch: string, head: string | null): Shipped | null {
   // An invalid config layer resolves to ask and full, as in the Ship script.
   const policy = declaredPolicy(resolveConfig(root).config.pr)
-  const found = readBranch(policy.review.depth === "auto", upstreamName(root, branch))
+  const found = readBranch(policy.review.depth === "auto", head === null ? undefined : upstreamName(root, branch))
   if (found === null || (found.byUpstream && !holds(found.pr, head))) {
     return null
   }
