@@ -13,6 +13,9 @@ import * as recap from "./commands/recap.ts"
 import * as referencesSetup from "./commands/references-setup.ts"
 import * as referencesSync from "./commands/references-sync.ts"
 import * as setup from "./commands/setup.ts"
+import * as workerLs from "./commands/worker-ls.ts"
+import * as workerReport from "./commands/worker-report.ts"
+import * as workerStart from "./commands/worker-start.ts"
 
 /** `run` takes the arguments after the subcommand's name and returns the exit code. */
 type Command = { summary: string; run: (argv: string[]) => number | Promise<number> }
@@ -28,7 +31,10 @@ const COMMANDS = new Map<string, Command>([
   ["references setup", referencesSetup],
   ["pr ship", prShip],
   ["pr reviewed", prReviewed],
-  ["recap", recap]
+  ["recap", recap],
+  ["worker start", workerStart],
+  ["worker ls", workerLs],
+  ["worker report", workerReport]
 ])
 
 function usage(): string {

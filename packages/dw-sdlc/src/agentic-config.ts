@@ -41,7 +41,7 @@ export type PrReview = ReviewDepth | "auto"
 export type PrConfig = { merge: PrMerge; review: PrReview; reviewCommand: string }
 
 /** Claude Code's effort levels, lowest first: what `worker.effort` takes. */
-const WORKER_EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const
+export const WORKER_EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const
 export type WorkerEffort = (typeof WORKER_EFFORTS)[number]
 /** How a Worker's Claude Code session starts: the words that start it, its model and its effort. */
 export type WorkerConfig = { command: string; model: string; effort: WorkerEffort }

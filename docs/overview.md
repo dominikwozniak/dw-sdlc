@@ -441,6 +441,31 @@ The `sdlc-pr-ship` skill is the agent's side: it calls the script, does the agen
 again, and stops at a wait, a park or done, as the
 [plugin README](../plugins/sdlc/README.md#shipping-a-pull-request) describes.
 
+## How a Lead runs Workers
+
+A Lead hands each Brief to a Worker in a herdr terminal through three commands, tested against a fake
+`hc` and a fake `herdr-app` the way the Ship script is tested against a fake `gh`. They run only in a
+terminal herdr started: `$HC_TERMINAL_ID` is the Lead's address, and without it each command exits 2.
+
+- `dw-sdlc worker start --brief <file> --name <name>` runs `hc run` in the background with the name, the
+  label `role=worker`, `--outlive-parent` and the repository as the folder. The command that follows is
+  `worker.command` of the config, then `--worktree <name>`, `--model`, `--effort` and the Brief as the first
+  message. The flags default to `worker.model` and `worker.effort`. It refuses a fourth live Worker of the
+  same Lead; `--max-workers` raises the limit. When the Lead sits in a herdr space, the Worker joins it, and
+  the command renames its tab, which herdr numbers, to the Worker's name. The folder is the main checkout,
+  also when the Lead sits in a linked worktree. The Brief travels as an argument of the Worker's command, so
+  herdr keeps no `first_message` for it; the command reads the terminal for up to `--wait` seconds (30) until
+  the Worker's status turns `working`, `blocked` or `done`. It exits 1 when herdr reports the first message
+  unsent, the terminal has ended, the Worker reports an error or it shows no work in time. It never sends the
+  Brief again: the Lead reads the terminal first.
+- `dw-sdlc worker ls` lists the Lead's Workers: name, address, herdr's state, status and folder. The status
+  is what the Worker reports, or `finished` once its terminal has ended. herdr's `done` means a turn ended,
+  not the task: the Worker's Recap says whether the task is done.
+- `dw-sdlc worker report --to <lead> --recap <file>` sends a one-line Recap as itself and a longer one as the
+  path of its file. `hc send` exits 9 while the Lead is blocked on a dialog. The command then waits
+  `--interval` seconds (60) and sends again, up to `--attempts` times (30), and exits 1 when the Lead is
+  still blocked. It never passes `--force`, since typing into a blocked terminal may answer its dialog.
+
 ## Releasing the plugin
 
 `plugins/sdlc/.claude-plugin/plugin.json` and its entry in `.claude-plugin/marketplace.json` carry
