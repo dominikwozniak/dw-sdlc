@@ -11,7 +11,7 @@ import { CannotRun, defaultBranch, now, readBranch } from "../pr/read.ts"
 import type { PrState } from "../pr/state.ts"
 import { holds, upstreamName } from "../pr/upstream.ts"
 import { isLive, Refusal, type Worker, workersOf, workingFolders } from "../worker/herdr.ts"
-import { git } from "../working-tree.ts"
+import { asked, git } from "../working-tree.ts"
 
 export const summary = "the facts a Recap rests on and whether the session can be closed"
 
@@ -92,12 +92,6 @@ function must(root: string, args: string[]): string {
     throw new CannotRun(result.error, "check the repository with git status")
   }
   return result.out
-}
-
-/** `git <args>` at `root`, or undefined when it exits non-zero as a question answered no. */
-function asked(root: string, args: string[]): string | undefined {
-  const result = git(root, args)
-  return "out" in result ? result.out : undefined
 }
 
 function count(root: string, args: string[]): number {

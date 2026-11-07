@@ -2,14 +2,8 @@
 // its pull request neither through `@{push}` nor by the local name, so `pr ship` and recap ask by the name
 // the upstream gives, and take that pull request only when its commits hold the local head.
 
-import { git } from "../working-tree.ts"
+import { asked } from "../working-tree.ts"
 import type { PrState } from "./state.ts"
-
-/** `git <args>` at `root`, or undefined when it exits non-zero as a question answered no. */
-function asked(root: string, args: string[]): string | undefined {
-  const result = git(root, args)
-  return "out" in result ? result.out : undefined
-}
 
 /**
  * The remote branch name `branch` tracks, when it differs from `branch`. Read from the config, so it holds

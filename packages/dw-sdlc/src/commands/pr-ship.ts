@@ -219,12 +219,13 @@ function readNamed(cli: Cli, root: string, sized: boolean): PrState {
   }
   const { branch, head, name } = renamed
   const found = readBranch(sized, name)
-  const by = `${name}, the name its upstream gives`
+  const upstreamNamed = `${name}, the name its upstream gives`
   if (found === null) {
-    throw new CannotRun(`gh pr view found no pull request for ${branch}, nor for ${by}`, NAME_IT)
+    throw new CannotRun(`gh pr view found no pull request for ${branch}, nor for ${upstreamNamed}`, NAME_IT)
   }
   if (found.byUpstream && !holds(found.pr, head)) {
-    throw new CannotRun(`${found.pr.url}, found by ${by}, lacks HEAD ${head.slice(0, 7)}`, `push HEAD, or ${NAME_IT}`)
+    const lacks = `${found.pr.url}, found by ${upstreamNamed}, lacks HEAD ${head.slice(0, 7)}`
+    throw new CannotRun(lacks, `push HEAD, or ${NAME_IT}`)
   }
   return found.pr
 }

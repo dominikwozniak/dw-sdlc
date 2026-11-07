@@ -145,4 +145,14 @@ describe("dw-sdlc pr ship on a branch pushed under another name", () => {
     assert.equal(run.status, 30, run.stderr)
     assert.deepEqual(run.calls, [AUTH, ["pr", "view", "40", "--json", "url"], READ, compare(pr.head)])
   })
+
+  it("leaves a repository -R names to gh, and asks nothing by the upstream's name", () => {
+    const root = pushedRenamed()
+    const said = "argument required when using the --repo flag"
+    const scenario: Scenario = { commands: { "pr view": { exit: 1, stderr: `${said}\n` } } }
+    const run = ship(root, ["-R", "byarcadia-app/foundation"], scenario, GREEN)
+    assert.equal(run.status, 2)
+    assert.deepEqual(lines(run.stderr), [`dw-sdlc pr ship: gh pr view found no pull request: ${said} — ${NAME_IT}`])
+    assert.deepEqual(run.calls, [AUTH, ["pr", "view", "-R", "byarcadia-app/foundation", "--json", "url"]])
+  })
 })
