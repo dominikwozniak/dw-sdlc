@@ -94,7 +94,7 @@ Read each Recap whole. Its verdict decides:
   and wake the Worker with `hc send <address> "<seconds> s have passed: call the Ship script again"`. The
   Ship script decides again: a run still going is another `wait`, and one stuck past its budget is a
   `park` the Worker reports. When the dev wants the answer sooner, run `hc kill wake-<address>` and
-  `hc rm wake-<address>`, and wake the Worker now. The exit note of a timer you killed wakes no one.
+  `hc rm wake-<address>`, and wake the Worker now. When the exit note of a timer you killed arrives, wake no Worker.
 
 The dev's own words come with these: answer them in plain text, then end your turn.
 
