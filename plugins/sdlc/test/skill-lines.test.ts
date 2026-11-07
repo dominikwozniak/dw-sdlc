@@ -12,7 +12,7 @@ import { binLines, violations } from "./skill-lines.ts"
 const PLUGINS = join(import.meta.dirname, "..", "..")
 const REPO_ROOT = join(PLUGINS, "..")
 
-type Skill = { plugin: string; name: string; path: string }
+type Skill = { plugin: string; path: string }
 
 /** Every skill of every plugin under `plugins/`. */
 function skills(): Skill[] {
@@ -23,7 +23,7 @@ function skills(): Skill[] {
       return existsSync(dir)
         ? readdirSync(dir)
             .toSorted()
-            .map((name) => ({ plugin, name, path: join(dir, name, "SKILL.md") }))
+            .map((name) => ({ plugin, path: join(dir, name, "SKILL.md") }))
         : []
     })
 }
@@ -47,6 +47,17 @@ describe("the bin lines of a skill", () => {
         words: ["pr", "reviewed", "1", "--head", "a".repeat(40), "--to", "x"]
       }
     ])
+  })
+
+  it("leave a flag named only in prose unchecked, and probe a bracketed flag", () => {
+    const text = [
+      "Add `--merge` or `--bogus` only when the dev asked.",
+      '`node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" pr ship [<n>] [--merge] --json`'
+    ].join("\n")
+    assert.deepEqual(
+      binLines(text).map(({ words }) => words),
+      [["pr", "ship", "--merge", "--json"]]
+    )
   })
 
   it("fail the probe, naming the skill and the line, when a skill names a subcommand or a flag the bin does not parse", () => {

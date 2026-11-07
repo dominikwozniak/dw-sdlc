@@ -18,9 +18,13 @@ function wordsOf(args: string): string[] {
   return [...args.matchAll(/"([^"]*)"|\S+/g)].map(([word, quoted]) => quoted ?? word)
 }
 
-/** An optional `[<n>]` dropped, a required `<n>` filled. */
+/** An optional placeholder, `[<n>]`, dropped; a required one, `<n>`, filled. A bracketed flag, `[--merge]`, is
+ * unwrapped, so its name is probed. */
 function fillPlaceholders(args: string): string {
-  return args.replaceAll(/\[[^\]]*\]/g, "").replaceAll(/<([\w-]+)>/g, (_, name: string) => FILLERS[name] ?? "x")
+  return args
+    .replaceAll(/\[<[\w-]+>\]/g, "")
+    .replaceAll(/\[(-[^\]]*)\]/g, "$1")
+    .replaceAll(/<([\w-]+)>/g, (_, name: string) => FILLERS[name] ?? "x")
 }
 
 /** Every bin line the text names, with the line it stands on and the words it passes the bin. */
@@ -46,7 +50,7 @@ function probe(pluginRoot: string, { words }: BinLine): ProbeResult {
   return { status: result.status ?? -1, stderr: result.stderr }
 }
 
-/** One message a line that fails the probe, naming the skill file and the line it stands on. */
+/** One message per line that fails the probe, naming the skill file and the line it stands on. */
 export function violations(pluginRoot: string, skillPath: string, text: string): string[] {
   return binLines(text).flatMap((line) => {
     const { status, stderr } = probe(pluginRoot, line)
