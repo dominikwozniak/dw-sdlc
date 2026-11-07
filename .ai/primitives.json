@@ -292,7 +292,7 @@
         "packages/dw-sdlc/src/commands/pr-reviewed.ts",
         "packages/dw-sdlc/src/pr/"
       ],
-      "docs": ["docs/overview.md#how-a-pull-request-lands", "GLOSSARY.md", "AGENTS.md#commands"]
+      "docs": ["docs/overview.md#how-the-ship-script-merges-a-pull-request", "GLOSSARY.md", "AGENTS.md#commands"]
     },
     {
       "id": "tools.recap",
@@ -377,7 +377,10 @@
       "group": "skills",
       "summary": "Calls the Ship script and does the agent's Action until a wait, a park or done; the dev or a Worker's Brief starts it.",
       "code": ["plugins/sdlc/skills/sdlc-pr-ship/SKILL.md"],
-      "docs": ["plugins/sdlc/README.md#shipping-a-pull-request", "docs/overview.md#how-a-pull-request-lands"]
+      "docs": [
+        "plugins/sdlc/README.md#shipping-a-pull-request",
+        "docs/overview.md#how-the-ship-script-merges-a-pull-request"
+      ]
     },
     {
       "id": "agents.reviewer",
