@@ -452,6 +452,25 @@ describe("dw-sdlc recap", () => {
     assert.deepEqual(calls, [AUTH, VIEW, READ])
   })
 
+  it("a branch started from another's, not pushed yet, takes no pull request of the branch it tracks", () => {
+    const root = clone()
+    git(root, "switch", "-q", "-c", "other")
+    commit(root, "--allow-empty", "-m", "on other")
+    git(root, "push", "-q", "-u", "origin", "other")
+    const theirs = { ...GREEN, head: head(root), branch: "other" }
+    git(root, "switch", "-q", "-c", "feat", "--track", "origin/other")
+    commit(root, "--allow-empty", "-m", "on feat")
+    const scenario: Scenario = {
+      commands: { "pr view": NO_PR, "pr view other --json url": FOUND, "repo view": MAIN },
+      graphql: [served(theirs)]
+    }
+    const { status, doc, calls } = document(root, scenario)
+    assert.equal(status, 1)
+    assert.equal(doc.pullRequest, null)
+    assert.deepEqual(blocking(doc), ["unpushed", "no-pull-request"])
+    assert.deepEqual(calls, [AUTH, VIEW, ["pr", "view", "other", "--json", "url"], READ, DEFAULT])
+  })
+
   it("a pull request closed without merging, its branch still on the remote, is the dev's call: it can close", () => {
     const root = clone()
     branch(root, 1)

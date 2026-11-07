@@ -109,9 +109,9 @@ export function read(named: Named, command: string, sized: boolean): PrState {
   return query(targetOf(named, command), sized)
 }
 
-/** The pull request `gh pr view` resolves from `named`, or null when it finds none. */
-function viewed(named: string[]): { repo: string; number: number } | null {
-  const view = gh(["pr", "view", ...named, "--json", "url"])
+/** The pull request `gh pr view` resolves for the head branch `head`, else the current branch; null when none. */
+function viewed(head: string | undefined): { repo: string; number: number } | null {
+  const view = gh(["pr", "view", ...(head === undefined ? [] : [head]), "--json", "url"])
   if (view.status === 0) {
     return parseOrCannotRun(() => parseView(view.stdout))
   }
@@ -121,15 +121,26 @@ function viewed(named: string[]): { repo: string; number: number } | null {
   throw new CannotRun(`gh pr view failed: ${said(view.stderr)}`, REMEDIES.read)
 }
 
+/** The upstream branch a remote holds under another name than the local one, and the local head. */
+export type Upstream = { name: string; head: string }
+
 /**
- * The state of the current branch's pull request, open or not, or null when gh finds none. gh resolves the
- * head through `@{push}`, and where that fails, as under `push.default` simple for a branch pushed under
- * another name, by the local name; `pushedAs`, the upstream's name, is asked only when that finds none.
+ * The current branch's pull request, open or not, or null. gh tries `@{push}`, else the local name, which
+ * misses a branch pushed under another name; then `upstream`'s name is asked, its pull request taken only
+ * when it holds the head, since a branch started from another tracks that one too.
  */
-export function readBranch(sized: boolean, pushedAs: string | undefined): PrState | null {
+export function readBranch(sized: boolean, upstream: Upstream | undefined): PrState | null {
   requireAuth()
-  const target = viewed([]) ?? (pushedAs === undefined ? null : viewed([pushedAs]))
-  return target === null ? null : query(target, sized)
+  const own = viewed(undefined)
+  if (own !== null) {
+    return query(own, sized)
+  }
+  const found = upstream === undefined ? null : viewed(upstream.name)
+  if (upstream === undefined || found === null) {
+    return null
+  }
+  const pr = query(found, sized)
+  return pr.commits.includes(upstream.head) ? pr : null
 }
 
 /** The default branch of the repository gh resolves from the current directory. */
