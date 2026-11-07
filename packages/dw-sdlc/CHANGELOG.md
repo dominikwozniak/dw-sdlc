@@ -1,5 +1,26 @@
 # dw-sdlc
 
+## 0.12.0
+
+### Minor Changes
+
+- a7c5115: The `sdlc-sessions` plugin adds `/sdlc-delegate`, which makes a session a Lead: it hands an issue to a Worker or splits the current work into Briefs, starts each Worker with `dw-sdlc worker start`, ends its turn, wakes on each Worker's Recap, relays what needs the dev and gives one combined Recap. It refuses outside herdr and in a linked worktree.
+
+  `dw-sdlc recap` lists the session's live Workers when it runs in herdr, and a live Worker makes the close verdict no, under the reason `workers`. `dw-sdlc doctor` reports on its `hc` line whether herdr's `hc` is on the agent's PATH.
+
+  `dw-sdlc worker start` looks for the Worker's tab for up to 10 seconds, or `--wait` when shorter, since the window lists it a moment after `hc run`. `dw-sdlc worker ls` and `dw-sdlc recap` show the folder a live Worker works in, its worktree, rather than the folder it was launched in.
+
+- 6c56f1f: `dw-sdlc worker start`, `worker ls` and `worker report` start, list and hear from a Lead's Workers in herdr, so a Lead no longer writes `hc` lines by hand. They refuse outside a herdr terminal.
+
+  `worker start --brief <file> --name <name>` runs `hc run` in the background with the name, the label `role=worker`, `--outlive-parent` and the repository as the folder, then `worker.command` with `--worktree`, `--model`, `--effort` and the Brief as the first message. The model and effort default to the config's `worker.model` and `worker.effort`. It refuses a fourth live Worker of the same Lead unless `--max-workers` allows it, names the Worker's herdr tab, and exits 1 when the Worker shows no work within `--wait` seconds, its terminal has ended or herdr reports the first message unsent.
+
+  `worker ls` lists the Lead's Workers with their state, status and folder. `worker report --to <lead> --recap <file>` delivers a Recap, as its path when it is long; while the Lead is blocked it waits and sends again, never with `--force`, and exits 1 when it gives up.
+
+### Patch Changes
+
+- bbadfe0: `dw-sdlc recap` counts a remote out of reach as holding nothing, so it exits with the close verdict instead of 2, and that remote can turn the verdict to no and never to yes.
+- 55325cf: `dw-sdlc pr ship` updates a branch behind its base whether or not GitHub reports `BEHIND`. It judges "behind" from the compare of the base with the head, so in a repository with no rule that a branch be up to date, a pull request no longer merges without CI on the tree the merge makes.
+
 ## 0.11.0
 
 ### Minor Changes
