@@ -71,6 +71,11 @@ function wiring(manifest: unknown): Wiring[] {
   return rows
 }
 
+function skillFrontmatter(name: string): string {
+  const text = readFileSync(join(PLUGIN_ROOT, "skills", name, "SKILL.md"), "utf8")
+  return /^---\n([\s\S]*?)\n---\n/.exec(text)?.[1] ?? ""
+}
+
 describe("the sdlc plugin", () => {
   const manifest = readJson(join(PLUGIN_ROOT, ".claude-plugin", "plugin.json"))
 
@@ -102,11 +107,6 @@ describe("the sdlc plugin", () => {
       }
     }
   })
-
-  function skillFrontmatter(name: string): string {
-    const text = readFileSync(join(PLUGIN_ROOT, "skills", name, "SKILL.md"), "utf8")
-    return /^---\n([\s\S]*?)\n---\n/.exec(text)?.[1] ?? ""
-  }
 
   it("leaves each skill for the user to invoke, never the model, but the one a Worker starts", () => {
     for (const name of SKILLS.filter((skill) => skill !== WORKER_STARTED)) {
