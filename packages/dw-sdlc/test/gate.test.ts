@@ -318,6 +318,34 @@ describe("dw-sdlc gate, stopped by a signal", () => {
     ])
   })
 
+  it("runs no Check after a run Check SIGINT ended, with no signal to the Gate", () => {
+    // Stands for a Ctrl-C whose exit the Gate sees before its own signal.
+    const run = [
+      { name: "ended", command: "kill -INT $$" },
+      { name: "next", command: "touch next-ran" }
+    ]
+    const root = withGate({ checks: { run, "markdown-refs": true } })
+    const result = runBin(["gate"], root)
+    assert.equal(result.status, 1, result.stdout)
+    assert.ok(!existsSync(join(root, "next-ran")), "a Check ran after the ended one")
+    assert.deepEqual(lines(result.stdout), [
+      "gate: check ended — failed, stopped by SIGINT; it printed nothing",
+      `ended: "kill -INT $$" was stopped by SIGINT — ${FAILED_REMEDY}`,
+      "gate: failed — 1 failure"
+    ])
+  })
+
+  it("compares no tree after a Step SIGINT ended, with no signal to the Gate", () => {
+    const step = "touch new.md; kill -INT $$"
+    const run = runBin(["gate"], committedRepo({ steps: [step] }))
+    assert.equal(run.status, 1, run.stdout)
+    assert.deepEqual(timed(run.stdout), [
+      `gate: step ${step} — failed, stopped by SIGINT (N s); it printed nothing`,
+      `step: ${JSON.stringify(step)} was stopped by SIGINT — ${FAILED_REMEDY}`,
+      "gate: failed — 1 failure"
+    ])
+  })
+
   it("never reads green, nor stamps the cache, when its last Step signals the Gate", () => {
     const root = withGate({ steps: ["kill -INT $PPID"], checks: { "markdown-refs": true } })
     const first = runBin(["gate", "--cache"], root)

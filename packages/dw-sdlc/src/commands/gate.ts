@@ -39,8 +39,9 @@ and edits made before the run never drift, and a Step a signal stopped is not co
 "allow" turns the watch off.
 
 SIGINT or SIGTERM sent while a command runs stops it and everything after it, and the report still
-prints: the stopped command's last lines, its failure line and the last line. A second signal, or one
-sent while the Checks the package ships run, ends the Gate at once.
+prints: the stopped command's last lines, its failure line and the last line. A command that SIGINT
+or SIGTERM ends stops everything after it the same way, as Ctrl-C reaches it and the Gate together. A
+second signal, or one sent while the Checks the package ships run, ends the Gate at once.
 
 --verbose passes each command's output through as it runs instead, under a line naming the command,
 and keeps no tail. --json prints the document alone; each Step and Check in it carries tail, the last
