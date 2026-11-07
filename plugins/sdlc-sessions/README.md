@@ -99,6 +99,15 @@ needs no pull request. Run `git fetch --prune` first to be exact. Treating every
 would answer no each time the base moves on. A remote out of reach counts as holding nothing, so it can
 answer no, and never yes.
 
+The branch's pull request comes from `gh pr view`, which looks it up by the push target of the branch, else
+by its local name. A branch pushed under another name has neither, so when `gh` finds nothing the command
+asks again by the head branch the upstream names, read from `branch.<name>.merge`, which survives the
+remote deleting the branch. That pull request counts only when its commits hold the local `HEAD`: a branch
+started from another tracks it until its first push, and the parent's pull request is never read as this
+branch's. The limit follows: a branch pushed under another name, with commits its pull request lacks, gets
+no pull request. Those commits read as `unpushed` and `no-pull-request`, and both block. A branch with no
+upstream, one named as the branch itself and one that is a local branch make no second lookup.
+
 A detached HEAD or a repository with no remote asks `gh` nothing. `askedGh` is false, the `pull request`
 line reads `gh not asked`, and the `clean` reason says so rather
 than claim nothing is open. Elsewhere the command needs an authenticated `gh` and a remote it can read: a
