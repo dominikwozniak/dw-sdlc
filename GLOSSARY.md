@@ -87,6 +87,11 @@ _Avoid_: approval (a person's verdict on GitHub), code review (the skill that ma
 How closely a Review reads the changes: full, light, or off, where no one reads them.
 _Avoid_: tier, level, mode (a permission mode says what the agent may do unasked)
 
+**Finding**:
+What a Review reports that holds the merge: a concrete harm the pull request's own changes cause, a miss
+against the spec, or a bug fix without its regression test. A Review with none is clean.
+_Avoid_: nit, smell (a judgement call the agent may decline), issue (a GitHub Issue)
+
 ### Sessions
 
 **Lead**:
