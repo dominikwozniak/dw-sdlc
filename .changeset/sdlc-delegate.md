@@ -6,4 +6,4 @@ The `sdlc-sessions` plugin adds `/sdlc-delegate`, which makes a session a Lead: 
 
 `dw-sdlc recap` lists the session's live Workers when it runs in herdr, and a live Worker makes the close verdict no, under the reason `workers`. `dw-sdlc doctor` reports on its `hc` line whether herdr's `hc` is on the agent's PATH.
 
-`dw-sdlc worker start` looks for the Worker's tab for up to 10 seconds, or `--wait` when shorter, since the window lists it a moment after `hc run`. `dw-sdlc worker ls` shows the folder a live Worker works in, its worktree, rather than the folder it was launched in.
+`dw-sdlc worker start` looks for the Worker's tab for up to 10 seconds, or `--wait` when shorter, since the window lists it a moment after `hc run`. `dw-sdlc worker ls` and `dw-sdlc recap` show the folder a live Worker works in, its worktree, rather than the folder it was launched in.
