@@ -584,7 +584,7 @@ marker and not the other, or whose file or leftover key fails the parser; the ru
 
 `/sdlc-pr-ship [<n>]` drives one pull request to merged through the Ship script, `dw-sdlc pr ship`,
 which it runs through the link with `--json`, on the current branch's pull request without a number.
-Only the dev invokes it. The skill reads each answer's `status`, then its `action`:
+The dev invokes it, or a Worker whose Brief tells it to. The skill reads each answer's `status`, then its `action`:
 
 - `act`, the agent's turn: `fix-ci` runs each failing check's `log`, or reads its `link`, fixes it
   and pushes; `fix-conflicts` rebases onto the base locally, resolves and pushes with lease, the one

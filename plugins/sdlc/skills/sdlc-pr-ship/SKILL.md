@@ -1,8 +1,7 @@
 ---
 name: sdlc-pr-ship
-description: Drive one pull request to merged with the Ship script, doing the agent's part until a wait, a park or done.
+description: Drive one pull request to merged with the Ship script, doing the agent's part until a wait, a park or done. Invoke it only when the dev types /sdlc-pr-ship, or when a Brief tells this session, as a Worker, to carry its pull request through it. A request in the dev's words, such as "merge it", "push this" or "open a PR", is never this skill.
 argument-hint: "[pull request number]"
-disable-model-invocation: true
 ---
 
 # sdlc-pr-ship

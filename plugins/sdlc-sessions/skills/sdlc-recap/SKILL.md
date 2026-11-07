@@ -66,20 +66,25 @@ nothing added. Its reasons are facts; do not argue with them or soften them.
 one recommended disposition, the lightest that closes it:
 
 - `now`: do it here. The default when it fits this session, since small things filed are small things lost.
-- `issue`: file it, with a short description.
-- `worker`: a session of its own, with a short description.
+- `issue`: file it, with a short description here and a Brief as its body.
+- `worker`: a session of its own, with a short description here and a Brief when it goes out.
 - `drop`: not worth doing, and say why.
 
 End this section with one line telling the dev that "go" carries out every recommendation, and that
-"go, but 2 issue" changes one. When a follow-up is `worker`, add that "go" hands it to them as its
-description, for them to start.
+"go, but 2 issue" changes one. When a follow-up is `worker`, add that "go" hands it to them as a Brief
+with its start line, for them to start.
 
 ## Then stop
 
 The Recap changes nothing. Do not commit, push, file an issue or start anything in the same turn: the
 dev has not seen it yet. Their "go" carries out every recommended disposition in order, with any change
-they named; a question they did not answer stays open. This skill starts no session, so a `worker` goes
-back to the dev as its description, for them to start. A command the document names, such as deleting a
+they named; a question they did not answer stays open. A command the document names, such as deleting a
 branch, stays theirs to run.
+
+An `issue` or a `worker` follow-up goes out as a Brief, written by the rules of
+`${CLAUDE_PLUGIN_ROOT}/templates/brief.md`, so that a session started from either has one shape. An `issue`
+is filed with the Brief as its body, the way the template says for an issue. This skill starts no session,
+so a `worker` goes back to the dev as the template's start line, for them to start. The config the template
+asks for comes from `node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" config`.
 
 When a Brief tells you to deliver the Recap to a Lead, follow the Brief after writing it.

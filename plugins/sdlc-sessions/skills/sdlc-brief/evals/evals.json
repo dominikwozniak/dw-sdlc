@@ -1,0 +1,115 @@
+{
+  "skill_name": "sdlc-brief",
+  "evals": [
+    {
+      "id": 1,
+      "name": "clear-spec-issue-polish-conversation",
+      "prompt": "/sdlc-brief #77\n\nThe dev writes Polish. They wrote: \"daj mi brief na #77, odpalę to w nowym terminalu\". In place of running them, take these as what the commands printed.\n\n`gh issue view 77 --comments`:\ntitle: Add --json to the export command\nbody: ## What to build\nThe export command of packages/cli prints a table. Add a --json flag that prints the same rows as a JSON array.\n## Acceptance criteria\n- [ ] `export --json` prints a JSON array with the fields id, name, total.\n- [ ] A test in packages/cli/test/export.test.ts covers an empty result.\n- [ ] The README of packages/cli names the flag.\ncomments: none\n\n`dw-sdlc config`, exit 0:\ncommitted  .ai/agentic.config.json  valid\nlocal      .ai/agentic.config.local.json  valid\n{\"gate\":{\"command\":\"pnpm check\"},\"pr\":{\"merge\":\"auto\"},\"worker\":{\"command\":\"cswap run -- --dangerously-skip-permissions\",\"model\":\"sonnet\",\"effort\":\"high\"}}\n\n`git worktree list --porcelain` first line: worktree /repo/tool\n\nThe repository has the /implement skill. Give your answer as the skill says, and save it as brief.md. Run nothing else.",
+      "expected_output": "A Polish frame around an English Brief, kickoff /implement #77, sonnet and high with the reason, named worker-77-<slug>, the start line from worker.command, three ways out with the start line recommended, nothing started.",
+      "files": [],
+      "expectations": [
+        "The Brief's first line is /implement #77",
+        "The Brief itself is in English, while the words around it are in Polish",
+        "The Brief has lines for Goal, Source, May write, Must not, Proof, Report and Model and effort",
+        "The Source line points at issue 77 and names a command that reads it, such as gh issue view 77",
+        "The Brief says: You are the Worker: do it yourself, start no other session",
+        "The Brief does not copy the acceptance criteria: the fields id, name and total and the file export.test.ts do not appear in it",
+        "The Brief tells the Worker to carry its pull request through /sdlc-pr-ship",
+        "The Report line says to end with /sdlc-recap and stop when the work is done, naming no Lead",
+        "The Report line says a wait from /sdlc-pr-ship is no end: the Worker tells the dev and ends its turn",
+        "The Model and effort line says sonnet and high, with a clear spec as the reason",
+        "The Worker's name has the form worker-77-<slug>",
+        "The start line starts from cd /repo/tool and holds cswap run -- --dangerously-skip-permissions with --worktree worker-77-, --model sonnet and --effort high, and the Brief in single quotes",
+        "Three ways out appear: the start line, an issue and a Lead, with the start line recommended",
+        "The issue way files a new issue whose body is the Brief and which points at issue 77",
+        "Nothing was started, filed or commented on"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "unclear-work-routes-to-opus",
+      "prompt": "/sdlc-brief #91\n\nThe dev writes English. In place of running them, take these as what the commands printed.\n\n`gh issue view 91 --comments`:\ntitle: The sync sometimes loses rows\nbody: Customers report rows missing after a sync. Nobody knows why yet. The sync code in src/sync/ has no owner and few tests. We may need to change how retries work, or how batches are committed, or both. Decide what to do and do it.\ncomments: none\n\n`dw-sdlc config`, exit 0:\ncommitted  .ai/agentic.config.json  valid\nlocal      .ai/agentic.config.local.json  absent\n{\"gate\":{\"command\":\"pnpm check\"},\"pr\":{\"merge\":\"ask\"},\"worker\":{\"command\":\"claude\",\"model\":\"sonnet\",\"effort\":\"medium\"}}\n\n`git worktree list --porcelain` first line: worktree /repo/app\n\nThe repository has the /implement skill. Give your answer as the skill says, and save it as brief.md. Run nothing else.",
+      "expected_output": "A Brief on opus and high with a reason naming the decision or the unclear code, not the config's sonnet and medium.",
+      "files": [],
+      "expectations": [
+        "The Model and effort line says opus and high",
+        "The reason names the decision to take or the unclear code",
+        "Neither xhigh, max nor fable is chosen",
+        "The start line holds claude --worktree worker-91-, --model opus and --effort high",
+        "The Brief states the goal without retelling the issue's body: it does not list the retries and the batches as options",
+        "The Brief contains no single quote apart from the pair around it in the start line"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "devs-word-overrides-up",
+      "prompt": "/sdlc-brief #77 fable xhigh\n\nThe dev writes English. In place of running them, take these as what the commands printed.\n\n`gh issue view 77 --comments`:\ntitle: Add --json to the export command\nbody: ## Acceptance criteria\n- [ ] `export --json` prints a JSON array with the fields id, name, total.\ncomments: none\n\n`dw-sdlc config`, exit 0:\ncommitted  .ai/agentic.config.json  valid\nlocal      .ai/agentic.config.local.json  absent\n{\"gate\":{\"command\":\"pnpm check\"},\"worker\":{\"command\":\"claude\",\"model\":\"sonnet\",\"effort\":\"high\"}}\n\n`git worktree list --porcelain` first line: worktree /repo/tool\n\nThe repository has the /implement skill. Give your answer as the skill says, and save it as brief.md. Run nothing else.",
+      "expected_output": "A clear spec that still runs on fable and xhigh, the dev's word as the reason.",
+      "files": [],
+      "expectations": [
+        "The Model and effort line says fable and xhigh",
+        "The reason is the dev's word",
+        "The start line holds --model fable and --effort xhigh"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "devs-word-overrides-down",
+      "prompt": "/sdlc-brief #91, ale na sonnecie, medium wystarczy\n\nThe dev writes Polish. In place of running them, take these as what the commands printed.\n\n`gh issue view 91 --comments`:\ntitle: The sync sometimes loses rows\nbody: Customers report rows missing after a sync. Nobody knows why yet. The sync code in src/sync/ has no owner and few tests. Decide what to do and do it.\ncomments: none\n\n`dw-sdlc config`, exit 0:\ncommitted  .ai/agentic.config.json  valid\nlocal      .ai/agentic.config.local.json  absent\n{\"gate\":{\"command\":\"pnpm check\"},\"worker\":{\"command\":\"claude\",\"model\":\"sonnet\",\"effort\":\"high\"}}\n\n`git worktree list --porcelain` first line: worktree /repo/app\n\nThe repository has the /implement skill. Give your answer as the skill says, and save it as brief.md. Run nothing else.",
+      "expected_output": "Work that needs decisions still runs on sonnet and medium, the dev's word as the reason.",
+      "files": [],
+      "expectations": [
+        "The Model and effort line says sonnet and medium",
+        "The reason is the dev's word",
+        "The start line holds --model sonnet and --effort medium",
+        "The Brief is in English"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "idea-with-no-source",
+      "prompt": "/sdlc-brief\n\nThe dev writes Polish. Earlier in the conversation they wrote: \"wpadłem na pomysł: komenda `tool doctor` powinna też pokazywać wersję Node'a, zrób z tego briefa\". Nothing about it is filed anywhere. In place of running the command, take this as what `dw-sdlc config` printed, exit 0:\ncommitted  .ai/agentic.config.json  absent\nlocal      .ai/agentic.config.local.json  absent\n{\"worker\":{\"command\":\"claude\",\"model\":\"sonnet\",\"effort\":\"high\"}}\n\n`git worktree list --porcelain` first line: worktree /repo/tool\n\nThe repository has the /implement skill. Give your answer as the skill says, and save it as brief.md. Run nothing else.",
+      "expected_output": "An English Brief whose Goal states the idea, with no Source line and no issue number, named worker-<slug>.",
+      "files": [],
+      "expectations": [
+        "The Goal states that tool doctor shows the Node version",
+        "The Brief has no Source line and names no issue number",
+        "The kickoff line is /implement with no issue number",
+        "The Worker's name has the form worker-<slug>, with no number in it",
+        "The start line holds claude --worktree worker-, --model and --effort",
+        "The Brief contains no single quote apart from the pair around it in the start line",
+        "The issue way files a new issue whose body is the Brief, startable later with /implement #N",
+        "Three ways out appear, the lightest one recommended"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "not-now-recommends-the-issue",
+      "prompt": "/sdlc-brief\n\nThe dev writes English. Earlier they wrote: \"the release notes page should link each version to its tag, not now though, brief it\". Nothing about it is filed anywhere. In place of running the commands, take this as what `dw-sdlc config` printed, exit 0:\ncommitted  .ai/agentic.config.json  valid\nlocal      .ai/agentic.config.local.json  absent\n{\"gate\":{\"command\":\"pnpm check\"},\"worker\":{\"command\":\"claude\",\"model\":\"sonnet\",\"effort\":\"high\"}}\n\n`git worktree list --porcelain` first line: worktree /repo/site\n\nGive your answer as the skill says, and save it as brief.md. Run nothing else.",
+      "expected_output": "Since the dev said not now, the issue way is the recommendation, and nothing is filed before the dev's word.",
+      "files": [],
+      "expectations": [
+        "The issue way is the one recommended, because the dev said not now",
+        "No issue was filed and no gh command was run"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "written-for-a-named-lead",
+      "prompt": "/sdlc-brief #77\n\nThe dev writes English. They wrote: \"this one goes to the Lead in terminal t2j, write it for that Lead\". In place of running them, take these as what the commands printed.\n\n`gh issue view 77 --comments`:\ntitle: Add --json to the export command\nbody: ## Acceptance criteria\n- [ ] `export --json` prints a JSON array with the fields id, name, total.\ncomments: none\n\n`dw-sdlc config`, exit 0:\ncommitted  .ai/agentic.config.json  valid\nlocal      .ai/agentic.config.local.json  absent\n{\"gate\":{\"command\":\"pnpm check\"},\"worker\":{\"command\":\"claude\",\"model\":\"haiku\",\"effort\":\"medium\"}}\n\n`git worktree list --porcelain` first line: worktree /repo/tool\n\nThe repository has the /implement skill. Give your answer as the skill says, and save it as brief.md. Run nothing else.",
+      "expected_output": "The Brief's Questions and Report lines both deliver to the Lead in terminal t2j, by the path the skill runs dw-sdlc from, and the clear spec runs on the config's haiku and medium.",
+      "files": [],
+      "expectations": [
+        "The Model and effort line says haiku and medium, the config's worker values, with a clear spec as the reason",
+        "The Report line says to end with /sdlc-recap and deliver it with worker report to the Lead in terminal t2j",
+        "The Report line says that a wait from /sdlc-pr-ship goes to the Lead the same way, and that the Worker ends its turn",
+        "The Questions line says to commit nothing more and deliver the question to the Lead, not to ask in the terminal alone",
+        "The Questions line says the answer comes from the Lead or from the dev in this terminal",
+        "The worker report command is written as a path ending in dw-sdlc/src/cli.ts, not a bare dw-sdlc",
+        "The Lead way is the one recommended",
+        "The answer says the start line runs in a herdr terminal",
+        "Nothing was started"
+      ]
+    }
+  ]
+}

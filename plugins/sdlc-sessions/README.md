@@ -1,8 +1,9 @@
 # sdlc-sessions
 
 The skills that run a Claude Code session, beside the [`sdlc`](../sdlc/README.md) plugin that keeps it
-safe. It carries `/sdlc-recap`, which tells a dev who did not follow a session where it stands. The
-decision to ship it apart is [ADR 0014](../../docs/adr/0014-session-helpers-ship-as-sdlc-sessions-beside-sdlc.md).
+safe. It carries `/sdlc-recap`, which tells a dev who did not follow a session where it stands, and
+`/sdlc-brief`, which writes the start of a Worker session. The decision to ship it apart is
+[ADR 0014](../../docs/adr/0014-session-helpers-ship-as-sdlc-sessions-beside-sdlc.md).
 
 ## Install
 
@@ -18,8 +19,9 @@ copy of the `dw-sdlc` package and the one `sdlc` runs.
 
 - `.claude-plugin/plugin.json` — the manifest. Its version and its entry in the marketplace bump together.
 - `dw-sdlc` — a link to `packages/dw-sdlc`, which `claude plugin install` copies as a real directory.
-- `skills/sdlc-recap/` — the skill, and under `evals/` its evals.
-- `test/manifest.test.ts` — the manifest, the link, the skill's name and description, the marketplace.
+- `skills/sdlc-recap/`, `skills/sdlc-brief/` — the skills, each with its evals under `evals/`.
+- `templates/brief.md` — the one Brief template, read by every skill that writes a Brief.
+- `test/manifest.test.ts` — the manifest, the link, each skill's name and description, the template, the marketplace.
 
 ## The Recap
 
@@ -94,9 +96,37 @@ than claim nothing is open. Elsewhere the command needs an authenticated `gh` an
 remote on another host exits 2. It counts from the pull request's base, or from the default branch when
 there is no pull request.
 
+## The Brief
+
+`/sdlc-brief` takes an issue, a spec, a Recap's follow-up or an idea from the conversation and gives the
+start of a Worker session. Only the dev invokes it, it works without herdr, and it starts nothing itself.
+
+`templates/brief.md` holds what every Brief shares: its form, its rules, the Worker's name, the routing of
+model and effort, and the start line. `/sdlc-recap` reads it too, for a follow-up that goes out as `issue`
+or `worker`.
+
+A Brief is in English. It points at its source and never retells it, and what only the conversation holds
+counts as no source, so an idea's Goal says all it needs to. The template lists its fields, and the Worker
+is named `worker-<issue>-<slug>`.
+
+The Brief's kind sets the model and effort, never the size of the change: the template's table routes a clear
+spec to the config's `worker` values and work that needs decisions to a stronger model, with the dev's word
+over both.
+
+A Brief comes with three ways out, the lightest that fits recommended. The start line holds `worker.command`
+with `--worktree`, `--model` and `--effort`, and the Brief as the first message, for the dev to paste into a
+new terminal. A new issue takes the Brief as its body and starts later with `/implement #N`. A Lead, in herdr,
+starts the Worker. A Brief for a Lead names the Lead's terminal in its Questions and Report lines, because a
+Worker that ends its turn looks finished to its Lead.
+
+A Worker carries its pull request through `/sdlc-pr-ship`, which it may start because a Brief tells it to;
+`pr.merge` decides whether it ends at merged or parked for the dev.
+
 ## Evals
 
-The skill's evals run through `/skill-creator`, outside `pnpm test` and the Gate, when the skill changes.
-`evals/evals.json` holds the Recap's shape, and `evals/trigger.json` its trigger: it fires on
-`/sdlc-recap` and on a Brief's instruction, not on "co dalej?". Run the trigger set with the plugin
-loaded through `--plugin-dir`, since a typed `/sdlc-recap` resolves only to the real skill.
+Each skill's evals run through `/skill-creator`, outside `pnpm test` and the Gate, when the skill changes.
+The evals of `sdlc-recap` hold the Recap's shape and a follow-up going out as a Brief, and `evals/trigger.json`
+its trigger: it fires on `/sdlc-recap` and on a Brief's instruction, not on "co dalej?". Run the trigger set
+with the plugin loaded through `--plugin-dir`, since a typed `/sdlc-recap` resolves only to the real skill.
+The evals of `sdlc-brief` hold the Brief's shape and its routing of model and effort; only the dev invokes it,
+so it has no trigger set.

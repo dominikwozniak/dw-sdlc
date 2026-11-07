@@ -51,6 +51,21 @@
         "The close line has no heading above it",
         "No section or subheading stands empty or says none"
       ]
+    },
+    {
+      "id": 4,
+      "name": "go-sends-follow-ups-out-as-briefs",
+      "prompt": "Here is the session so far, in place of a conversation you lived through. The dev writes English. You gave this Recap through /sdlc-recap:\n\ndone Pull request #91 merged.\n\nFollow-ups\nA new session\n1. The admin API has no rate limiting, a larger piece of work with a design to settle. worker.\n2. The rate limit docs need a section on the headers it sends. issue.\n\nSay \"go\" to carry out every recommendation, or \"go, but 2 issue\" to change one.\n\nThe dev now writes: go\n\nIn place of running them, take these as what the commands printed. `dw-sdlc config`, exit 0:\ncommitted  .ai/agentic.config.json  valid\nlocal      .ai/agentic.config.local.json  valid\n{\"gate\":{\"command\":\"pnpm check\"},\"worker\":{\"command\":\"cswap run -- --dangerously-skip-permissions\",\"model\":\"sonnet\",\"effort\":\"high\"}}\n\n`git worktree list --porcelain` first line: worktree /repo/api\n\nDo not run `gh`: write the exact title and body you would file for follow-up 2 to issue-body.md, and your answer to the dev to answer.md. Carry out nothing else.",
+      "expected_output": "Follow-up 2's issue body is a Brief with no kickoff line, and follow-up 1 goes back as a Brief inside the template's start line on opus and high, nothing started.",
+      "files": [],
+      "expectations": [
+        "issue-body.md has the Brief's lines for Goal, May write, Must not, Proof, Report and Model and effort",
+        "issue-body.md has no kickoff line, since its issue has no number yet",
+        "issue-body.md tells the Worker: You are the Worker: do it yourself, start no other session",
+        "answer.md gives follow-up 1 as one start line: cd /repo/api, then cswap run -- --dangerously-skip-permissions, then --worktree worker-, --model, --effort and the Brief in single quotes",
+        "Follow-up 1 runs on opus and high, because its design is unsettled",
+        "No session was started"
+      ]
     }
   ]
 }
