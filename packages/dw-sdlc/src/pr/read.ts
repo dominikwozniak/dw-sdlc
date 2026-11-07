@@ -78,7 +78,7 @@ function parseOrCannotRun<T>(parse: () => T): T {
 }
 
 /** The remedy for a pull request `command`, as `pr ship`, cannot find by itself: name it in full. */
-export function nameIt(command: string): string {
+export function nameItRemedy(command: string): string {
   return `name it: dw-sdlc ${command} <n> -R owner/name`
 }
 
@@ -90,7 +90,7 @@ function targetOf({ number, repo }: Named, command: string): { repo: string; num
   const named = [...(number === undefined ? [] : [String(number)]), ...(repo === undefined ? [] : ["-R", repo])]
   const view = gh(["pr", "view", ...named, "--json", "url"])
   if (view.status !== 0) {
-    throw new CannotRun(`gh pr view found no pull request: ${firstLine(view.stderr)}`, nameIt(command))
+    throw new CannotRun(`gh pr view found no pull request: ${firstLine(view.stderr)}`, nameItRemedy(command))
   }
   return parseOrCannotRun(() => parseView(view.stdout))
 }

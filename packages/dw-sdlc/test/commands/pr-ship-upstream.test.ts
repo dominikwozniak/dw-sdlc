@@ -155,4 +155,25 @@ describe("dw-sdlc pr ship on a branch pushed under another name", () => {
     assert.deepEqual(lines(run.stderr), [`dw-sdlc pr ship: gh pr view found no pull request: ${said} — ${NAME_IT}`])
     assert.deepEqual(run.calls, [AUTH, ["pr", "view", "-R", "byarcadia-app/foundation", "--json", "url"]])
   })
+
+  it("asks nothing by the upstream's name on a detached HEAD, an upstream of its own name or a local one", () => {
+    const setups: [string, (root: string) => void][] = [
+      ["detached", (root) => git(root, "switch", "-q", "--detach")],
+      ["own name", (root) => git(root, "push", "-q", "-u", "origin", "feat")],
+      [
+        "local",
+        (root) => {
+          git(root, "branch", "fix/feat")
+          git(root, "branch", "--set-upstream-to=fix/feat", "feat")
+        }
+      ]
+    ]
+    for (const [label, setup] of setups) {
+      const root = pushedRenamed()
+      setup(root)
+      const run = ship(root, [], { commands: { "pr view": NO_PR } }, GREEN)
+      assert.equal(run.status, 2, label)
+      assert.deepEqual(run.calls, [AUTH, VIEW], label)
+    }
+  })
 })

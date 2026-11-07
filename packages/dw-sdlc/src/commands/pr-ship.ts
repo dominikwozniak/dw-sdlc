@@ -25,7 +25,7 @@ import {
   carriesBase,
   gh,
   namedProblem,
-  nameIt,
+  nameItRemedy,
   now,
   read,
   readAgain,
@@ -42,8 +42,8 @@ const USAGE = `Usage: dw-sdlc pr ship [<n>] [-R owner/name] [--merge] [--review 
 
 Reads pull request <n> through gh, the one of the current branch as gh pr view resolves it when <n>
 is omitted, and answers the Action it needs next: the status, the action, whose turn it is and why.
-Where gh resolves none for a branch whose upstream has another name, as one pushed under another
-name, it reads the pull request of that name, and only when its commits hold HEAD.
+A branch pushed under another name has an upstream of that name. Where gh resolves no pull request
+for it, the script asks for the upstream's, and reads it only when its commits hold HEAD.
 The script performs its own Actions, each at most once and then reads again: it updates a branch
 behind its base, marks a draft ready once nothing else holds it back, and squash merges a pull
 request ready to merge under pr.merge auto in .ai/agentic.config.json or with --merge for this call;
@@ -211,7 +211,7 @@ function handedOver(pr: PrState, policy: Policy, answer: Answer, action: ScriptA
  * none for a branch whose upstream has another name, the one of that name, taken only when its commits
  * hold the local head: a branch started from another tracks that branch until its first push.
  */
-function readNamed(cli: Cli, root: string, sized: boolean): PrState {
+function readTarget(cli: Cli, root: string, sized: boolean): PrState {
   const renamed = cli.number === undefined && cli.repo === undefined ? renamedUpstream(root) : undefined
   if (renamed === undefined) {
     return read(cli, "pr ship", sized)
@@ -220,11 +220,14 @@ function readNamed(cli: Cli, root: string, sized: boolean): PrState {
   const found = readBranch(sized, upstream)
   const upstreamNamed = `${upstream}, the name its upstream gives`
   if (found === null) {
-    throw new CannotRun(`gh pr view found no pull request for ${branch}, nor for ${upstreamNamed}`, nameIt("pr ship"))
+    throw new CannotRun(
+      `gh pr view found no pull request for ${branch}, nor for ${upstreamNamed}`,
+      nameItRemedy("pr ship")
+    )
   }
   if (found.byUpstream && !holds(found.pr, head)) {
     const lacks = `${found.pr.url}, found by ${upstreamNamed}, lacks HEAD ${head.slice(0, 7)}`
-    throw new CannotRun(lacks, `push HEAD if it is this branch's pull request, else ${nameIt("pr ship")}`)
+    throw new CannotRun(lacks, `push HEAD if it is this branch's pull request, else ${nameItRemedy("pr ship")}`)
   }
   return found.pr
 }
@@ -236,7 +239,7 @@ function readNamed(cli: Cli, root: string, sized: boolean): PrState {
 function ship(cli: Cli, root: string, policy: Policy): { pr: PrState; answer: Answer; performed: Performed[] } {
   // Only pr.review auto routes the depth from the changes, so only it reads them.
   const sized = policy.review.depth === "auto"
-  let pr = withBehind(readNamed(cli, root, sized))
+  let pr = withBehind(readTarget(cli, root, sized))
   const performed: Performed[] = []
   // The head each Action ran on.
   const postedOn = new Map<ScriptAction, string>()
