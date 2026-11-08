@@ -6,8 +6,8 @@ description: Remove what finished work leaves behind, with the Sweep, and report
 # sdlc-sweep
 
 Run the Sweep from the main checkout, report it and stop. It acts only on the dev's word: the slash
-command, or "go" on a Recap follow-up that names it. Without one of those, do not run it, not even
-as a dry run. It runs through the plugin's link to the package, never a `dw-sdlc` from PATH:
+command, or "go" on a Recap follow-up that names it. Without one of those, do not run it. It runs
+through the plugin's link to the package, never a `dw-sdlc` from PATH:
 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" sweep --json
@@ -17,12 +17,13 @@ Add `--dry-run` only when the dev asked to look first, then report it as "would 
 
 ## Read the answer
 
-- Exit 0: nothing is kept but the default, the base or a protected branch. Exit 1: something else is
-  kept. Both print one document, `removed` and `kept`, each item with its `kind` (`branch`,
-  `worktree`, `lock` or `terminal`), its `name` or `path`, its `reason`, and for a kept item the dev's
-  `command`.
-- Exit 2: it cannot run. Say what it printed in one line and stop. In a linked worktree that line
-  tells the dev to run it from the main checkout; add nothing.
+- Exit 0, nothing kept, and exit 1, something kept, both print one document on stdout: `removed` and
+  `kept`, each item with its `kind` (`branch`, `worktree`, `lock` or `terminal`), its `name` or
+  `path`, its `reason`, and for some kept items the dev's `command`; a kept item with none needs
+  nothing from the dev.
+- Exit 2: it cannot run, and the reason is on stderr. Say it in one line and stop. In a linked
+  worktree, say to run `/sdlc-sweep` from the main checkout; leave out any bare `dw-sdlc` command the
+  reason quotes.
 
 ## Report it
 

@@ -691,9 +691,9 @@ empty.
 `test/references-harness.ts` through the link, which builds throwaway repositories apart from the
 machine's git config. `test/manifest.test.ts` holds the manifest to the tree: each hook script wired
 to its event and matcher, run by the dispatcher or left to git, each skill under its name, with
-every plugin path it runs on disk and left for the user to invoke but the two whose descriptions hold
-the model to a Brief or the dev's "go", `sdlc-sweep` running the bin through the link and never a
-kept item's command, each subagent under its name, at
+every plugin path it runs on disk and left for the user to invoke. Two skills are the exception, and
+their descriptions hold the model to a Brief or the dev's "go". `sdlc-sweep` runs the bin through
+the link and never a kept item's command. The manifest test also holds each subagent under its name, at
 medium effort on the session's model with no tool that edits a file, the link to the package, and
 the marketplace listing this plugin at the manifest's version.
 
