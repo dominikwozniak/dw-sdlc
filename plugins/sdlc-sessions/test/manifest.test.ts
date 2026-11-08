@@ -147,6 +147,24 @@ describe("the sdlc-sessions plugin", () => {
     }
   })
 
+  it("has the Ship line say how the pull request body is written, holding no single quote", () => {
+    const template = readFileSync(join(PLUGIN_ROOT, BRIEF_TEMPLATE), "utf8")
+    const ship = /^Ship: .+$/m.exec(template)?.[0] ?? ""
+    assert.ok(ship.includes("states what changes and why"), "the Ship line asks for what and why")
+    assert.ok(
+      ship.includes("fills the pull request template of the repository when there is one"),
+      "it asks for the template"
+    )
+    assert.ok(ship.includes("starts with `Closes #<n>` when the source is an issue"), "it asks for the Closes line")
+    assert.ok(!ship.includes("'"), "the start line quotes the whole Brief in single quotes")
+    const note = /- \*\*Ship\.\*\*[\s\S]*?(?=\n- \*\*)/.exec(template)?.[0] ?? ""
+    assert.match(
+      note,
+      /source is no issue[\s\S]*leave out the sentence that starts\s+with `Closes`/,
+      "the note drops Closes"
+    )
+  })
+
   it("is listed beside sdlc, each at its manifest's version", () => {
     const { plugins } = readJson(join(REPO_ROOT, ".claude-plugin", "marketplace.json")) as { plugins: Listed[] }
     const listed = plugins.map(({ name, source, version }) => [name, source, version])
