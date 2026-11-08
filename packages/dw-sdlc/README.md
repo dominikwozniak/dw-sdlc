@@ -75,21 +75,27 @@ so the Review after a fix reads the fix alone. `pr reviewed` posts nothing and e
 moved the head, so a new head needs a fresh review. Under `off` the script posts that status
 itself, its description saying why, and goes on.
 
+Three Reviews with no success between them end the loop: `pr ship` answers `park review-limit`
+instead of `review`, whose command, `dw-sdlc pr reviewed <n> -R <owner/name> --head <sha> --accept`,
+is the dev's. `--accept` posts the success described "accepted by the dev, findings open"; with
+`--findings` it exits 2. The limit is a constant, not a config key, and `--review <depth>` on a call
+buys one more Review past it.
+
 ## Commands
 
-| command            | what it does                                                                        |
-| ------------------ | ----------------------------------------------------------------------------------- |
-| `gate`             | the Steps of `gate.steps` in order, then every Check under `gate.checks`            |
-| `check <name>`     | one Check of the Gate by its name, without the Steps and the other Checks           |
-| `primitives`       | the Primitives that own each path, with their summaries and documents               |
-| `setup`            | this machine's local config layer, the git excludes and the permission rules        |
-| `doctor`           | one PASS / WARN / FAIL line per machine check the guardrails rely on                |
-| `config`           | the resolved agentic config, or one file validated against the schema               |
-| `references sync`  | every declared Reference brought to its ref under `references/`                     |
-| `references setup` | the Router, its table and the ignore rules a repository needs to declare References |
-| `pr ship [<n>]`    | the Action one pull request needs next, performing the script's own                 |
-| `pr reviewed <n>`  | a Review pinned to the head it read, as a commit status: clean, or Findings open    |
-| `recap`            | the facts a Recap rests on and whether the session can be closed                    |
+| command            | what it does                                                                               |
+| ------------------ | ------------------------------------------------------------------------------------------ |
+| `gate`             | the Steps of `gate.steps` in order, then every Check under `gate.checks`                   |
+| `check <name>`     | one Check of the Gate by its name, without the Steps and the other Checks                  |
+| `primitives`       | the Primitives that own each path, with their summaries and documents                      |
+| `setup`            | this machine's local config layer, the git excludes and the permission rules               |
+| `doctor`           | one PASS / WARN / FAIL line per machine check the guardrails rely on                       |
+| `config`           | the resolved agentic config, or one file validated against the schema                      |
+| `references sync`  | every declared Reference brought to its ref under `references/`                            |
+| `references setup` | the Router, its table and the ignore rules a repository needs to declare References        |
+| `pr ship [<n>]`    | the Action one pull request needs next, performing the script's own                        |
+| `pr reviewed <n>`  | a Review pinned to the head it read, as a commit status: clean, Findings open, or accepted |
+| `recap`            | the facts a Recap rests on and whether the session can be closed                           |
 
 `dw-sdlc <command> --help` gives each one's options.
 

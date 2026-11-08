@@ -71,6 +71,10 @@ agent's other `blockers` in the same push, all but `review`, which needs the hea
 
 - `wait`: tell the dev the `reason` and `recheckAfter`, and end the turn. The next call comes with
   the dev's next message, or under `/loop` after `recheckAfter` seconds; never sleep in a shell.
+- `park review-limit`: three Reviews with no success between them left a Finding open. Print the
+  `reason`, the Findings the last fix answered, from this conversation, and the `command`, then
+  stop. The command is `pr reviewed --accept`, which accepts the head with its Findings open: the
+  dev's to run, never yours. The dev's `--review <depth>` buys one more Review past the limit.
 - `park` and `done`, whatever the `action`: print the `reason`, and the `command` when there is one,
   and stop. The command is the dev's to run, never yours.
 
