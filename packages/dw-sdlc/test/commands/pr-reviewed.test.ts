@@ -43,6 +43,9 @@ const POST = [
 /** The post of the read mark: the same status in state failure, a Review that left a Finding open. */
 const MARK = [...POST.slice(0, 6), "state=failure", ...POST.slice(7, -1), "description=read, findings open"]
 
+/** The post of the dev's acceptance: success, described as taken with its Findings open. */
+const ACCEPTED = [...POST.slice(0, -1), "description=accepted by the dev, findings open"]
+
 /** `dw-sdlc pr reviewed <args>` against a fake gh playing `scenario`, from a repository with no pull request. */
 function reviewed(args: string[], scenario: Scenario) {
   const gh = fakeGh(scenario)
@@ -79,6 +82,28 @@ describe("dw-sdlc pr reviewed", () => {
     assert.deepEqual(run.calls, [AUTH, READ, MARK])
   })
 
+  it("posts the dev's acceptance with --accept: state success, described accepted by the dev, findings open", () => {
+    const run = reviewed([...TARGET, "--head", HEAD, "--accept"], { graphql: [served(GREEN)] })
+    assert.equal(run.status, 0, run.stderr)
+    assert.equal(run.stdout, `posted dw-sdlc/review success on ${HEAD}\n`)
+    assert.deepEqual(run.calls, [AUTH, READ, ACCEPTED])
+  })
+
+  it("prints the success state with --accept --json", () => {
+    const run = reviewed([...TARGET, "--head", HEAD, "--accept", "--json"], { graphql: [served(GREEN)] })
+    assert.equal(run.status, 0, run.stderr)
+    assert.deepEqual(JSON.parse(run.stdout), { head: HEAD, context: "dw-sdlc/review", state: "success" })
+  })
+
+  it("exits 2 on --findings with --accept before any gh call", () => {
+    const run = reviewed([...TARGET, "--head", HEAD, "--findings", "--accept"], {})
+    assert.equal(run.status, 2)
+    const [first = ""] = lines(run.stderr)
+    assert.equal(first, "dw-sdlc pr reviewed: --findings and --accept contradict: name one")
+    assert.equal(run.stdout, "")
+    assert.deepEqual(run.calls, [])
+  })
+
   it("resolves the repository through gh pr view when -R is omitted", () => {
     const view = { stdout: `${JSON.stringify({ url: URL })}\n` }
     const run = reviewed(["40", "--head", HEAD], { commands: { "pr view": view }, graphql: [served(GREEN)] })
@@ -87,7 +112,7 @@ describe("dw-sdlc pr reviewed", () => {
   })
 
   it("posts nothing and exits 2 naming both shas when a push moved the head since the review", () => {
-    for (const flags of [[], ["--findings"]]) {
+    for (const flags of [[], ["--findings"], ["--accept"]]) {
       const run = reviewed([...TARGET, "--head", HEAD, ...flags], { graphql: [served({ ...GREEN, head: MOVED })] })
       assert.equal(run.status, 2, flags.join(" "))
       assert.deepEqual(lines(run.stderr), [
@@ -102,10 +127,13 @@ describe("dw-sdlc pr reviewed", () => {
     const run = reviewed(["--help"], {})
     assert.equal(run.status, 0, run.stderr)
     assert.ok(
-      run.stdout.startsWith("Usage: dw-sdlc pr reviewed <n> [-R owner/name] --head <sha> [--findings] [--json]\n"),
+      run.stdout.startsWith(
+        "Usage: dw-sdlc pr reviewed <n> [-R owner/name] --head <sha> [--findings | --accept] [--json]\n"
+      ),
       run.stdout
     )
     assert.match(run.stdout, /--findings posts it in state failure/)
+    assert.match(run.stdout, /--accept posts it in state success, described "accepted by the dev, findings open"/)
     assert.deepEqual(run.calls, [])
   })
 })
