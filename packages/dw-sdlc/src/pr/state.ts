@@ -14,17 +14,21 @@ export const READ_MARK = "read, findings open"
 /** How the description of the success the dev's `--accept` posts reads: the head, taken with its Findings open. */
 export const ACCEPTED = "accepted by the dev, findings open"
 
+/** How many checks and review threads the one read holds; each list's `pageInfo` says when more follow. */
+const CHECKS_READ = 50
+const THREADS_READ = 100
+
 export const QUERY = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
     pullRequest(number: $number) {
       url number state isDraft mergeable mergeStateStatus reviewDecision headRefOid headRefName baseRefName baseRefOid
       baseRef { target { oid } } viewerDidAuthor mergeCommit { oid }
       latestReviews(first: 100) { nodes { state author { login } commit { oid } } }
-      reviewThreads(first: 100) { nodes { id isResolved isOutdated path line
+      reviewThreads(first: ${THREADS_READ}) { pageInfo { hasNextPage } nodes { id isResolved isOutdated path line
         comments(first: 1) { nodes { author { login } body } }
         latest: comments(last: 1) { nodes { viewerDidAuthor } } } }
       commits(last: 1) { nodes { commit { committedDate statusCheckRollup {
-        contexts(first: 50) { nodes {
+        contexts(first: ${CHECKS_READ}) { pageInfo { hasNextPage } nodes {
           ... on CheckRun { name status conclusion detailsUrl startedAt isRequired(pullRequestNumber: $number) }
           ... on StatusContext { context state targetUrl createdAt isRequired(pullRequestNumber: $number) } } } } } } }
       history: commits(last: 100) { nodes { commit { oid parents { totalCount } status { context(name: "${REVIEW}") { state description } } } } }
@@ -85,6 +89,8 @@ export type PrState = {
   unresolvedThreads: Thread[]
   /** Each reviewer's latest review that requests changes, in the order GitHub lists them. */
   changeRequests: ChangeRequest[]
+  /** What the read holds of each list with more after it, as `the first 50 checks`; empty when it holds all. */
+  cutOff: string[]
   /** The oids of the pull request's last 100 commits, oldest first, the head last. */
   commits: string[]
   /**
@@ -244,6 +250,11 @@ function nodes(node: Node, key: string): Node[] {
     throw new ReplyError(`${at} is ${shown(value)}, not a list`)
   }
   return value.map((item: unknown, index) => object(item, `${at}[${index}]`))
+}
+
+/** Whether a connection has more nodes after the ones the reply holds. */
+function hasMore(node: Node, key: string): boolean {
+  return boolean(child(child(node, key), "pageInfo"), "hasNextPage")
 }
 
 /** The first object of a connection's `nodes`; an empty connection does not parse. */
@@ -449,6 +460,10 @@ export function parsePr(reply: string, repo: string): Omit<PrState, "carried" | 
       .filter((thread) => !boolean(thread, "isResolved") && !boolean(thread, "isOutdated"))
       .map(threadOf),
     changeRequests: changeRequestsOf(pr, history),
+    cutOff: [
+      ...(rollup !== null && hasMore(rollup, "contexts") ? [`the first ${CHECKS_READ} checks`] : []),
+      ...(hasMore(pr, "reviewThreads") ? [`the first ${THREADS_READ} threads`] : [])
+    ],
     commits: history.map(({ oid }) => oid),
     lastRead: lastReadOf(history, head),
     marks: readMarksOf(history)
