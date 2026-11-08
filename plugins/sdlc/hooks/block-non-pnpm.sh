@@ -3,7 +3,7 @@
 # goes through pnpm, so the repository's `minimumReleaseAge` and `strictDepBuilds` apply; `pnpm dlx`
 # replaces npx one for one. A guardrail against agent habit, not a security boundary.
 set -uo pipefail
-source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+source "${BASH_SOURCE[0]%/*}/lib.sh"
 
 guard_read_payload "$@" || exit 0
 [[ -n "$GUARD_COMMAND" ]] || exit 0

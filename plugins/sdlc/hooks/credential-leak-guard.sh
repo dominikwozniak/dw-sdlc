@@ -3,7 +3,7 @@
 # that are not dotenv, the environment, a curl or wget carrying those or a dotenv file. Not every
 # curl: a guard that refuses every network call gets unwired. Not a security boundary.
 set -uo pipefail
-source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+source "${BASH_SOURCE[0]%/*}/lib.sh"
 
 guard_read_payload "$@" || exit 0
 [[ -n "$GUARD_COMMAND" ]] || exit 0

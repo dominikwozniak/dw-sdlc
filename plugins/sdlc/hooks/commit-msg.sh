@@ -2,7 +2,7 @@
 # The git commit-msg hook: enforce-commit-hygiene.sh's subject check on every commit git makes, run
 # on the message file git hands it; exit 1 aborts the commit. README.md#commit-hook has the rest.
 set -uo pipefail
-source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+source "${BASH_SOURCE[0]%/*}/lib.sh"
 
 MSG_FILE="${1:-}"
 if [[ ! -f "$MSG_FILE" ]]; then
