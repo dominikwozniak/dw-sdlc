@@ -1,0 +1,35 @@
+[
+  { "query": "open a PR for this branch", "should_trigger": true },
+  { "query": "ok the fix is committed and tests are green, open a pull request against main", "should_trigger": true },
+  { "query": "write the PR body for #212, the one about the retry limit in the uploader", "should_trigger": true },
+  {
+    "query": "the reviewer asked why we dropped the cache, rewrite the pull request description so it says so",
+    "should_trigger": true
+  },
+  { "query": "otwórz pull requesta dla tej gałęzi, tytuł po konwencji repo", "should_trigger": true },
+  { "query": "przepisz opis PR-a, po review zmieniło się podejście do migracji", "should_trigger": true },
+  {
+    "query": "You are the Worker on #293. Ship: open the pull request and carry it through /sdlc-pr-ship. The work is committed and pnpm check is green. Open the pull request.",
+    "should_trigger": true
+  },
+  {
+    "query": "The repo rules say every change goes through a pull request. The commits on feat/export-json are done. Get it up on GitHub with a proper description.",
+    "should_trigger": true
+  },
+  {
+    "query": "the PR already exists but its body still describes the first attempt, update it to match the diff",
+    "should_trigger": true
+  },
+  { "query": "merge it", "should_trigger": false },
+  { "query": "zmerguj ten PR jak CI przejdzie", "should_trigger": false },
+  { "query": "review this pull request", "should_trigger": false },
+  { "query": "is CI green on #88?", "should_trigger": false },
+  { "query": "/sdlc-pr-ship 88", "should_trigger": false },
+  { "query": "carry pull request 88 through to merged and handle the review threads", "should_trigger": false },
+  { "query": "what does the body of PR #61 say about the migration? just read it to me", "should_trigger": false },
+  { "query": "write a commit message for the staged changes", "should_trigger": false },
+  { "query": "push this branch", "should_trigger": false },
+  { "query": "reply to the open review thread on #90 and resolve it", "should_trigger": false },
+  { "query": "draft release notes for 0.22.0 from the merged pull requests", "should_trigger": false },
+  { "query": "sprawdź czy ten PR ma już approve", "should_trigger": false }
+]

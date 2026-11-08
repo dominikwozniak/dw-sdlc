@@ -391,6 +391,14 @@
       "docs": ["plugins/sdlc/README.md#adding-a-reference"]
     },
     {
+      "id": "skills.pr-open",
+      "name": "sdlc-pr-open",
+      "group": "skills",
+      "summary": "Opens the branch's pull request or rewrites its body, titled by the convention, template filled; the model starts it.",
+      "code": ["plugins/sdlc/skills/sdlc-pr-open/"],
+      "docs": ["plugins/sdlc/README.md#opening-a-pull-request"]
+    },
+    {
       "id": "skills.pr-ship",
       "name": "sdlc-pr-ship",
       "group": "skills",

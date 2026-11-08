@@ -32,12 +32,14 @@ const DISPATCHED = [
 ]
 /** A git hook a repository wires itself, never Claude Code. */
 const GIT_HOOKS = ["commit-msg.sh"]
-const SKILLS = ["sdlc-doctor", "sdlc-pr-ship", "sdlc-references-add", "sdlc-setup", "sdlc-sweep"]
+const SKILLS = ["sdlc-doctor", "sdlc-pr-open", "sdlc-pr-ship", "sdlc-references-add", "sdlc-setup", "sdlc-sweep"]
 /** The skill a Worker starts itself, its description holding the model to a Brief's instruction. */
 const WORKER_STARTED_SKILL = "sdlc-pr-ship"
 /** The skill the model starts on the dev's word alone, "go" on a Recap follow-up, its description holding it there. */
 const WORD_STARTED_SKILL = "sdlc-sweep"
-const MODEL_REACHABLE = [WORKER_STARTED_SKILL, WORD_STARTED_SKILL]
+/** The skill the model starts itself, whenever it opens a pull request or writes the body of one. */
+const SELF_STARTED_SKILL = "sdlc-pr-open"
+const MODEL_REACHABLE = [WORKER_STARTED_SKILL, WORD_STARTED_SKILL, SELF_STARTED_SKILL]
 /** The subagents under `agents/`, each a file named as its `name`, spawned as `sdlc:<name>`. */
 const AGENTS = ["sdlc-reviewer"]
 /** The tools a subagent of the plugin may list: none that edits a file. Its instructions keep Bash to git's reads. */
@@ -111,7 +113,7 @@ describe("the sdlc plugin", () => {
     }
   })
 
-  it("leaves each skill for the user to invoke, never the model, but the two a Brief or the dev's go starts", () => {
+  it("leaves each skill for the user to invoke, never the model, but the three the model, a Brief or the dev's go starts", () => {
     for (const name of SKILLS.filter((skill) => !MODEL_REACHABLE.includes(skill))) {
       assert.match(skillFrontmatter(name), /^disable-model-invocation: true$/m, `${name} is user-invoked`)
     }
@@ -123,7 +125,44 @@ describe("the sdlc plugin", () => {
     const description = /^description: (.+)$/m.exec(frontmatter)?.[1] ?? ""
     assert.match(description, /Invoke it only when the dev types \/sdlc-pr-ship, or when a Brief tells/)
     assert.match(description, /carry its pull request through/)
+    assert.match(description, /"open a PR", is never this skill/, "opening a pull request is sdlc-pr-open's")
     assert.doesNotMatch(description, /: /, "a colon and a space end a plain YAML value")
+  })
+
+  it("lets the model reach sdlc-pr-open, its description triggering on opening a pull request and on its body", () => {
+    const frontmatter = skillFrontmatter(SELF_STARTED_SKILL)
+    assert.doesNotMatch(frontmatter, /^disable-model-invocation:/m)
+    const description = /^description: (.+)$/m.exec(frontmatter)?.[1] ?? ""
+    assert.match(description, /^Open a pull request, or write or rewrite the body of one/)
+    assert.match(description, /whenever you open a pull request or write, rewrite or rework a pull request body/)
+    assert.match(description, /never merges and never starts \/sdlc-pr-ship/)
+    assert.doesNotMatch(description, /: /, "a colon and a space end a plain YAML value")
+  })
+
+  it("holds sdlc-pr-open to its evals: queries that trigger it and near misses that do not, and four behaviours", () => {
+    const evals = join(PLUGIN_ROOT, "skills", SELF_STARTED_SKILL, "evals")
+    const queries = readJson(join(evals, "trigger.json"))
+    assert.ok(Array.isArray(queries))
+    const rows = queries.filter(isObject)
+    for (const query of ["merge it", "review this pull request", "is CI green on #88?"]) {
+      assert.ok(
+        rows.some((row) => row.query === query && row.should_trigger === false),
+        `${query} must not trigger`
+      )
+    }
+    assert.ok(rows.some((row) => row.should_trigger === true))
+    const behaviours = readJson(join(evals, "evals.json"))
+    assert.ok(isObject(behaviours) && Array.isArray(behaviours.evals))
+    assert.equal(behaviours.skill_name, SELF_STARTED_SKILL)
+    assert.deepEqual(
+      behaviours.evals.map((entry) => (isObject(entry) ? entry.name : undefined)),
+      [
+        "repo-with-template-issue-source",
+        "repo-without-template-ticket-key",
+        "branch-with-open-pr-rewrite-after-review",
+        "issue-source-from-a-brief-mermaid-for-a-flow"
+      ]
+    )
   })
 
   it("lets the dev's go reach sdlc-sweep, its description limiting the model to /sdlc-sweep and a go on a Recap", () => {
