@@ -502,6 +502,30 @@ terminal herdr started: `$HC_TERMINAL_ID` is the Lead's address, and without it 
   `--interval` seconds (60) and sends again, up to `--attempts` times (30), and exits 1 when the Lead is
   still blocked. It never passes `--force`, since typing into a blocked terminal may answer its dialog.
 
+## How a Sweep removes what finished work leaves
+
+`dw-sdlc sweep [--dry-run] [--json]` deletes the local branches finished work leaves behind. The dev's word
+starts it, and it runs from the main checkout: in a linked worktree it exits 2 and names the line to run
+from the main checkout, since git run inside the command is out of sight of Claude Code's worktree
+isolation. [ADR 0015](adr/0015-a-sweep-deletes-only-what-the-guards-let-an-agent-delete.md) sets its bounds:
+it never forces, and it never writes to a remote.
+
+- It fetches origin first, so a branch squash-merged since the last fetch counts. The fetch writes
+  remote-tracking refs only; origin's own refs stay as they were.
+- It reads the base as the guard does: `baseBranch` of the config, else the branch `origin/HEAD` names. With
+  no base it exits 2 and removes nothing.
+- A branch goes when it is Landed (see [`GLOSSARY.md`](../GLOSSARY.md)). `packages/dw-sdlc/src/landed.ts`
+  follows the guard's rule in `lib-git.sh`: the tip is on the base, or a base commit since the fork holds the
+  tip's tree or the verbatim patch-id of its whole diff. It reads the same 5000 base commits and only local
+  objects. The guard keeps its own bash version; one table of scenarios,
+  `plugins/sdlc/test/landed-scenarios.ts`, which both suites read, holds the two to one meaning.
+- It keeps the default branch, the base branch, a protected branch and a branch any worktree has checked
+  out, each with its reason. A branch whose work is on no commit of the base stays, with the forced delete
+  as the command for the dev to run. A delete git refuses is kept with git's words, and the Sweep goes on.
+- One line an item, or one document with `--json`: `removed` and `kept`, each item with its kind, name,
+  reason and, for a kept one, the dev's command. `--dry-run` removes nothing and answers the same items.
+  Exit 0 when nothing is kept, 1 when something is, 2 when it cannot run.
+
 ## Releasing the plugin
 
 `plugins/sdlc/.claude-plugin/plugin.json` and its entry in `.claude-plugin/marketplace.json` carry

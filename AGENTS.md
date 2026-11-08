@@ -11,7 +11,7 @@ is its long form: how a guard works, why the design, adopting and releasing.
 - `packages/dw-sdlc/` — the `dw-sdlc` package: `src/` the resolver of the config's
   layers, the JSON Schema validator and the `dw-sdlc` bin, `cli.ts`, one row per subcommand, each a
   module under `commands/` (`gate`, `check`, `primitives`, `setup`, `doctor`, `config`,
-  `references sync`, `references setup`, `pr ship`, `pr reviewed`, `recap`, `worker start`, `worker ls`, `worker report`), one module per Check it ships
+  `references sync`, `references setup`, `pr ship`, `pr reviewed`, `recap`, `sweep`, `worker start`, `worker ls`, `worker report`), one module per Check it ships
   under `checks/` beside the modules they share, and under `pr/` the read the `pr` commands and
   `recap` share and the Ship script's decision; `config/` the JSON Schema for `.ai/agentic.config.json`, and the one for `.ai/references.json`; `templates/` the
   Router the setup writes; `test/` their tests, the bin spawned on a throwaway repo, from the source
@@ -43,13 +43,11 @@ is its long form: how a guard works, why the design, adopting and releasing.
   specified in GitHub Issues, not here
 - `GLOSSARY.md` — what a word means in this repo
 - `references/` — repositories cloned on each machine for reading, never tracked; the Router is
-  `references/AGENTS.md`, its table written from the list `.ai/references.json` by
-  `pnpm references:setup`; the plugin's Sync hook or `pnpm references:sync` fetches them
+  `references/AGENTS.md`, its table written from `.ai/references.json`; the plugin's Sync hook fetches them
 - `ideas/` — local-only notes, gitignored but for `.gitkeep`
 - `.github/` — CI: `workflows/quality-gate.yaml` runs `pnpm check` on every pull request and on `main`;
   `workflows/release.yaml` turns the changesets under `.changeset/` into a version pull request and,
-  once it merges, publishes the package to npm. Dependabot opens grouped updates
-  weekly
+  once it merges, publishes the package to npm. Dependabot groups updates weekly
 
 ## Never
 
@@ -86,17 +84,18 @@ is its long form: how a guard works, why the design, adopting and releasing.
 
 ```bash
 pnpm check                      # dw-sdlc gate: the gate.steps of .ai/agentic.config.json in order, then its Checks; = CI
-pnpm exec dw-sdlc gate [--json] [--verbose] [--update-baseline | --cache] # a line per Step and Check, --verbose streams all; exit 0 green, 1 failed or a Step wrote the tree (Drift), 2 cannot run; --update-baseline, --cache
+pnpm exec dw-sdlc gate [--json] [--verbose] [--update-baseline | --cache] # a line per Step and Check, --verbose streams all; exit 0 green, 1 failed or a Step wrote the tree (Drift), 2 cannot run
 pnpm exec dw-sdlc check <name> [--json] # one Check of the Gate by name, no Step; off in the config, it runs on its defaults
-pnpm exec dw-sdlc primitives --paths <files> [--json] # the Primitives that own each path: summary, docs to read
+pnpm exec dw-sdlc primitives --paths <files> [--json] # the Primitives that own each path, with their docs
 pnpm exec dw-sdlc pr ship [<n>] [-R owner/name] [--merge] [--review full|light|off] [--dry-run] [--json] [--verbose] # the Action one pull request needs next, performed when the script owns it; exit 0 done, 10 act, 20 wait, 30 park, 2 cannot run
 pnpm exec dw-sdlc pr reviewed <n> [-R owner/name] --head <sha> [--findings | --accept] [--json] # post dw-sdlc/review on that head; exit 2 when it moved or cannot run
 pnpm exec dw-sdlc recap [--json] # a Recap's facts and the close verdict, read-only; exit 0 can close, 1 cannot, 2 cannot run
+pnpm exec dw-sdlc sweep [--dry-run] [--json] # main checkout only: delete Landed branches, name the rest; exit 0 none kept, 1 some, 2 cannot run
 pnpm exec dw-sdlc worker start --brief <file> --name <name> [--model] [--effort] [--json] # a Worker on a Brief in a herdr terminal; exit 0 delivered, 1 not, 2 cannot run
 pnpm exec dw-sdlc worker ls [--json] # this Lead's Workers: state, status, folder
 pnpm exec dw-sdlc worker report --to <lead> --recap <file> # a Recap to the Lead, retried while it is blocked; exit 1 gives up
-pnpm exec vp check [--fix]      # Vite+: oxfmt, oxlint and the type check from vite.config.ts; --fix writes
-pnpm test                       # node --test over every *.test.ts under packages/*/test/ and plugins/*/test/, in one run
+pnpm exec vp check [--fix]      # Vite+: oxfmt, oxlint and the type check from vite.config.ts
+pnpm test                       # node --test over every *.test.ts under packages/*/test/ and plugins/*/test/
 pnpm agentic:check [file]       # resolve .ai/agentic.config.json (+ .local) or validate one file
 pnpm guardrails:setup [--dry-run] # write this machine's local config, excludes, deny rules, lease exception
 pnpm guardrails:doctor          # one PASS / WARN / FAIL line per machine check; exit 1 on a FAIL

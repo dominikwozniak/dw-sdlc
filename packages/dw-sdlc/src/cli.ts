@@ -13,6 +13,7 @@ import * as recap from "./commands/recap.ts"
 import * as referencesSetup from "./commands/references-setup.ts"
 import * as referencesSync from "./commands/references-sync.ts"
 import * as setup from "./commands/setup.ts"
+import * as sweep from "./commands/sweep.ts"
 import * as workerLs from "./commands/worker-ls.ts"
 import * as workerReport from "./commands/worker-report.ts"
 import * as workerStart from "./commands/worker-start.ts"
@@ -32,6 +33,7 @@ const COMMANDS = new Map<string, Command>([
   ["pr ship", prShip],
   ["pr reviewed", prReviewed],
   ["recap", recap],
+  ["sweep", sweep],
   ["worker start", workerStart],
   ["worker ls", workerLs],
   ["worker report", workerReport]
