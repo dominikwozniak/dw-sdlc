@@ -625,8 +625,10 @@ The dev invokes it, or a Worker whose Brief tells it to. The skill reads each an
   then stops: that command accepts the head with its Findings open, and is the dev's to run, never
   the skill's. The agent's other `blockers` go
   into the same push, all but `review`, which needs the head the push makes, and the skill calls the
-  script again. An `act` that leaves nothing to change, as changes requested once a push answers
-  them, stops it: the reviewer's turn.
+  script again. An `act` that leaves nothing to change, as a review still unanswered that asks for
+  no code, stops it: the reviewer's turn. A push that answers a review that requests changes, a
+  non-merge commit after the commit it read, makes the script answer `park awaiting-review` with
+  no command: only the reviewer can review again or dismiss it.
 - `wait`: it tells the dev the reason and `recheckAfter` and ends the turn. The next call comes with
   the dev's next message or a `/loop` wake-up, never from a sleep in a shell.
 - `park` and `done`: it prints the reason, and the command when there is one, and stops, a script

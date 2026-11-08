@@ -58,6 +58,8 @@ export type Thread = {
   /** Whether the viewer wrote the thread's last comment. */
   lastByViewer?: boolean
 }
+/** A reviewer's latest review: its state, and the commit it read, null for a review of none. */
+export type Review = { author: string | null; state: string; commit: string | null }
 /** A pull request as a test states it; `checks` empty is a head no check reported on. */
 export type Pr = {
   repo: string
@@ -81,6 +83,8 @@ export type Pr = {
   mergeCommit: string | null
   checks: Context[]
   threads: Thread[]
+  /** Each reviewer's latest review; none when left out. */
+  reviews?: Review[]
   /** The pull request's commits before the head, oldest first, each with its dw-sdlc/review state. */
   history: Commit[]
   /** How many parents the head has: 2 for a merge; 1 when left out. */
@@ -182,6 +186,13 @@ export function pullRequestOf(pr: Pr): Record<string, unknown> {
     viewerDidAuthor: pr.viewerDidAuthor,
     mergeCommit: pr.mergeCommit === null ? null : { oid: pr.mergeCommit },
     reviewThreads: { nodes: pr.threads.map(threadOf) },
+    latestReviews: {
+      nodes: (pr.reviews ?? []).map(({ author, state, commit }) => ({
+        state,
+        author: author === null ? null : { login: author },
+        commit: commit === null ? null : { oid: commit }
+      }))
+    },
     commits: { nodes: [{ commit: { committedDate: pr.committedAt, statusCheckRollup: rollup } }] },
     history: { nodes: [...pr.history, { oid: pr.head, parents: pr.headParents ?? 1, ...pr.headReview }].map(commitOf) }
   }
