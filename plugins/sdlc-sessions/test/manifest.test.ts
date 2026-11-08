@@ -87,6 +87,24 @@ describe("the sdlc-sessions plugin", () => {
     assert.match(text, /--timeout 180/, "its one wait is bounded")
   })
 
+  it("has sdlc-recap offer a Sweep from its dry run in the main checkout, and in a linked worktree none", () => {
+    const text = skillText("sdlc-recap")
+    assert.ok(text.includes('dw-sdlc/src/cli.ts" sweep --dry-run --json'), "it reads the dry-run Sweep")
+    assert.match(text, /`worktree\.linked` is false/, "it reads the dry run in the main checkout only")
+    assert.match(text, /In a linked worktree, list none/)
+    assert.match(text, /`\/sdlc-sweep`/, "the follow-up names the skill the dev's go runs")
+  })
+
+  it("has sdlc-delegate leave no Worker's terminal or worktree to the dev, its combined Recap carrying the Sweep", () => {
+    const text = skillText("sdlc-delegate")
+    assert.doesNotMatch(text, /removing them is the dev's call/)
+    assert.match(text, /Sweep follow-up/)
+    assert.match(text, /"go" runs `\/sdlc-sweep`/)
+    const readme = readFileSync(join(PLUGIN_ROOT, "README.md"), "utf8")
+    assert.doesNotMatch(readme, /leaves the Workers' terminals and worktrees for the dev/)
+    assert.match(readme, /Sweep follow-up/)
+  })
+
   it("has every skill that writes a Brief read the one template, which holds the rules they share", () => {
     for (const name of BRIEF_WRITERS) {
       const text = skillText(name)

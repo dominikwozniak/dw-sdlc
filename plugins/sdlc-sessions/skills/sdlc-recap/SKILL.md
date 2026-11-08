@@ -71,6 +71,21 @@ one recommended disposition, the lightest that closes it:
 - `worker`: a session of its own, with a short description here and a Brief when it goes out.
 - `drop`: not worth doing, and say why.
 
+In the main checkout, when `worktree.linked` is false, read a Sweep's dry run too, and add the follow-up
+below. In a linked worktree, list none: the Sweep refuses there, so a Worker never offers it.
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" sweep --dry-run --json
+```
+
+Exit 0 and exit 1 both print a document, and its `removed` is what a Sweep would remove. It fetches
+origin and changes nothing else. When `removed` is empty, list no follow-up. Otherwise list one, in "This
+session", with the disposition `now`: a Sweep, `/sdlc-sweep`, counting the items of `removed` by `kind`,
+such as "removes 3 branches, 2 worktrees and 1 terminal", a kind with none left out; a `lock` item is
+lifted with its worktree and counts as none. A Worker's terminal a Sweep would stop is what the close
+line's `workers` reason waits on: say that "go" clears it. On exit 2, list none and say in one line that
+the Sweep could not be read, with its reason.
+
 End this section with one line telling the dev that "go" carries out every recommendation, and that
 "go, but 2 issue" changes one. When a follow-up is `worker`, add that "go" hands it to them as a Brief
 with its start line, for them to start.
@@ -80,7 +95,8 @@ with its start line, for them to start.
 The Recap changes nothing. Do not commit, push, file an issue or start anything in the same turn: the
 dev has not seen it yet. Their "go" carries out every recommended disposition in order, with any change
 they named; a question they did not answer stays open. A command the document names, such as deleting a
-branch, stays theirs to run.
+branch, stays theirs to run. The Sweep follow-up is the exception: "go" on it runs `/sdlc-sweep`, which
+runs the Sweep and reports it.
 
 An `issue` or a `worker` follow-up goes out as a Brief, written by the rules of
 `${CLAUDE_PLUGIN_ROOT}/templates/brief.md`, so that a session started from either has one shape. An `issue`

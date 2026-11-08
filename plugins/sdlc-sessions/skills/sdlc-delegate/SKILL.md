@@ -112,7 +112,8 @@ The dev's own words come with these: answer them in plain text, then end your tu
   Never poll `gh` in a loop; one read to check a claim is fine.
 - Never `hc send --force` and never press keys in a Worker's terminal: typing into a blocked one answers
   its dialog.
-- Leave the Workers' terminals and worktrees in place: removing them is the dev's call.
+- Remove no Worker's terminal or worktree yourself, with no `hc kill`, `hc rm` or worktree removal. The
+  Sweep clears what a Worker leaves behind, on the dev's "go", once every Worker has reported.
 
 ## The combined Recap
 
@@ -120,6 +121,12 @@ When every Worker has reported its end, or the dev asks, give one Recap for all 
 `${CLAUDE_PLUGIN_ROOT}/skills/sdlc-recap/SKILL.md`, its facts from `recap --json`, which counts the live
 Workers. What happened has a row a Worker with its pull request; check every "merged" or "green" live
 with `gh`. Waiting on names each Worker still live and what it waits on.
+
+Once every Worker has reported its end, the Recap carries the Sweep follow-up that `sdlc-recap` describes.
+The Lead sits in the main checkout, so it reads the dry run, and the follow-up counts the branches,
+worktrees and Workers' terminals a Sweep would remove. The dev's "go" runs `/sdlc-sweep`, which stops and
+removes the terminals of this Lead's Workers whose turn has ended and clears their worktrees, so the Lead
+can close. A Worker still working or blocked stays, and the Recap names it under Waiting on.
 
 ## Naming the Lead
 

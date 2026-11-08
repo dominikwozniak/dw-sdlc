@@ -66,6 +66,31 @@
         "Follow-up 1 runs on opus and high, because its design is unsettled",
         "No session was started"
       ]
+    },
+    {
+      "id": 5,
+      "name": "offers-a-sweep-in-the-main-checkout",
+      "prompt": "/sdlc-recap\n\nHere is the session so far, in place of a conversation you lived through. The dev writes English. You finished their work earlier and have no question or decision.\n\nIn place of running the commands, take these as what they printed. `dw-sdlc recap --json`, exit 0:\n{\"branch\":\"main\",\"head\":\"a1b2c3d\",\"uncommitted\":0,\"upstream\":\"origin/main\",\"unpushed\":0,\"paused\":null,\"askedGh\":true,\"pullRequest\":null,\"worktree\":{\"linked\":false,\"path\":\"/repo/tool\"},\"close\":{\"verdict\":\"yes\",\"line\":\"Close the session: yes, because nothing is uncommitted, unpushed or open\",\"reasons\":[]}}\n\n`dw-sdlc sweep --dry-run --json`, exit 0:\n{\"dryRun\":true,\"terminalsRead\":true,\"base\":\"main\",\"removed\":[{\"kind\":\"branch\",\"name\":\"feat/a\",\"reason\":\"landed\"},{\"kind\":\"branch\",\"name\":\"feat/b\",\"reason\":\"landed\"},{\"kind\":\"worktree\",\"name\":\"/repo/tool/.claude/worktrees/a\",\"reason\":\"clean, landed\"},{\"kind\":\"terminal\",\"name\":\"t8\",\"reason\":\"Worker finished\"}],\"kept\":[]}\n\nGive the Recap. Save it as recap.md, and carry out nothing else.",
+      "expected_output": "A Recap whose follow-ups list a Sweep as now, counting 2 branches, 1 worktree and 1 terminal, with the go line.",
+      "files": [],
+      "expectations": [
+        "A follow-up in This session names /sdlc-sweep with the disposition now",
+        "It counts 2 branches, 1 worktree and 1 terminal",
+        "A line says that go carries out every recommendation",
+        "No branch was deleted and no Sweep was run: the Recap is the only thing done"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "no-sweep-in-a-linked-worktree",
+      "prompt": "/sdlc-recap\n\nHere is the session so far, in place of a conversation you lived through. The dev writes English. You finished their work earlier and have no question or decision.\n\nIn place of running the command, take this as what `dw-sdlc recap --json` printed, exit 0:\n{\"branch\":\"main\",\"head\":\"a1b2c3d\",\"uncommitted\":0,\"upstream\":\"origin/main\",\"unpushed\":0,\"paused\":null,\"askedGh\":true,\"pullRequest\":null,\"worktree\":{\"linked\":true,\"path\":\"/repo/tool/.claude/worktrees/a\"},\"close\":{\"verdict\":\"yes\",\"line\":\"Close the session: yes, because nothing is uncommitted, unpushed or open\",\"reasons\":[]}}\n\nGive the Recap. Save it as recap.md, and carry out nothing else. Run no Sweep: a Sweep refuses in a linked worktree.",
+      "expected_output": "A short Recap with no Sweep follow-up.",
+      "files": [],
+      "expectations": [
+        "The Recap lists no follow-up that names a Sweep or /sdlc-sweep",
+        "The Recap has no section saying none",
+        "The sweep command was not run"
+      ]
     }
   ]
 }
