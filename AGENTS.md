@@ -90,7 +90,7 @@ pnpm exec dw-sdlc gate [--json] [--verbose] [--update-baseline | --cache] # a li
 pnpm exec dw-sdlc check <name> [--json] # one Check of the Gate by name, no Step; off in the config, it runs on its defaults
 pnpm exec dw-sdlc primitives --paths <files> [--json] # the Primitives that own each path: summary, docs to read
 pnpm exec dw-sdlc pr ship [<n>] [-R owner/name] [--merge] [--review full|light|off] [--dry-run] [--json] [--verbose] # the Action one pull request needs next, performed when the script owns it; exit 0 done, 10 act, 20 wait, 30 park, 2 cannot run
-pnpm exec dw-sdlc pr reviewed <n> [-R owner/name] --head <sha> [--json] # post dw-sdlc/review success on that head; exit 2 when it moved or cannot run
+pnpm exec dw-sdlc pr reviewed <n> [-R owner/name] --head <sha> [--findings | --accept] [--json] # post dw-sdlc/review on that head; exit 2 when it moved or cannot run
 pnpm exec dw-sdlc recap [--json] # a Recap's facts and the close verdict, read-only; exit 0 can close, 1 cannot, 2 cannot run
 pnpm exec dw-sdlc worker start --brief <file> --name <name> [--model] [--effort] [--json] # a Worker on a Brief in a herdr terminal; exit 0 delivered, 1 not, 2 cannot run
 pnpm exec dw-sdlc worker ls [--json] # this Lead's Workers: state, status, folder
