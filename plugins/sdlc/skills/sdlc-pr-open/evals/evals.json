@@ -1,0 +1,73 @@
+{
+  "skill_name": "sdlc-pr-open",
+  "evals": [
+    {
+      "id": 1,
+      "name": "repo-with-template-issue-source",
+      "prompt": "The work for issue #77 is committed on branch feat/export-json and the Brief told you to open the pull request. You do not decide that, only do it. In place of running them, take these as what the commands printed, and run nothing else.\n\n`dw-sdlc config`, exit 0:\ncommitted  .ai/agentic.config.json  valid\nlocal      .ai/agentic.config.local.json  absent\n{\"commit\":{\"convention\":\"conventional\",\"trailer\":\"Co-Authored-By\"},\"pr\":{\"merge\":\"auto\"}}\n\n`git rev-parse --abbrev-ref HEAD`: feat/export-json\n`git rev-parse --abbrev-ref @{u}`: fatal: no upstream configured for branch 'feat/export-json'\n`gh pr list --head feat/export-json --state open --json number,url`: []\n`gh repo view --json defaultBranchRef --jq .defaultBranchRef.name`: main\n`gh issue view 77`: title: Add --json to the export command. The export command prints a table; people pipe it into jq and have to parse columns.\n\nThe repository has .github/pull_request_template.md:\n```\n## What\n<what changes>\n\n## Why\n<why it changes>\n\n## How to verify\n<steps>\n\n## Risk\n<risk and rollback>\n```\n\nThe diff adds a --json flag to packages/cli/src/export.ts and a test in packages/cli/test/export.test.ts. `pnpm test` fails before the change on the new test and passes after. Write the body to body.md and show the exact commands you would run to push and open the pull request.",
+      "expected_output": "A body that fills the repository template in its order, Closes #77 first, a conventional title, a push naming the branch, and gh pr create with --body-file.",
+      "files": [],
+      "expectations": [
+        "The body's first line is Closes #77",
+        "The body holds the four sections of the template, What, Why, How to verify and Risk, in that order",
+        "The body has no Summary, Evidence or Merge Danger heading of the fixed shape",
+        "The title matches the conventional form type(scope): subject, lowercase and imperative, such as feat(cli): add a --json flag to export",
+        "The push command names the branch: git push -u origin feat/export-json",
+        "The pull request is opened with gh pr create and --body-file pointing outside the repository, with no heredoc for the body",
+        "The body carries no Generated with footer",
+        "The skill does not merge, request a review or start /sdlc-pr-ship"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "repo-without-template-ticket-key",
+      "prompt": "Your dev asked you to open a pull request for branch VER-412-retry-limit. The source is no GitHub issue. In place of running them, take these as what the commands printed, and run nothing else.\n\n`dw-sdlc config`, exit 0:\ncommitted  .ai/agentic.config.json  valid\nlocal      .ai/agentic.config.local.json  absent\n{\"commit\":{\"convention\":\"ticket-key\",\"trailer\":\"Co-Authored-By\"},\"pr\":{\"merge\":\"auto\"}}\n\n`git rev-parse --abbrev-ref HEAD`: VER-412-retry-limit\n`git rev-parse --abbrev-ref @{u}`: origin/main\n`gh pr list --head VER-412-retry-limit --state open --json number,url`: []\n`gh repo view --json defaultBranchRef --jq .defaultBranchRef.name`: main\n\nThe repository has no pull request template and no GLOSSARY.md. The change: the uploader retried forever on a 503; it now stops after 5 tries with a clear error. The diff touches src/uploader.ts, which gains a MAX_TRIES constant and a loop bound, and test/uploader.test.ts. The test `gives up after 5 tries on a 503` fails before the change (it times out) and passes after. A revert undoes the change and it touches only the uploader. Write the body to body.md and show the commands you would run to push and open the pull request.",
+      "expected_output": "A body in the fixed shape without a Closes line, a ticket-key title, a push naming the branch even though the upstream is origin/main, and gh pr create.",
+      "files": [],
+      "expectations": [
+        "The title has the ticket-key form [VER-412] type: subject",
+        "The body does not start with Closes, since the source is no issue",
+        "The body gives the why in one to three sentences before the Summary",
+        "The body has a Summary, an Evidence and a Merge Danger section in that order",
+        "The Summary is a small view such as a diff sketch or call tree and not a list of the changed files",
+        "The Evidence names the failing test before and the passing test after",
+        "The Merge Danger names a two-way door and a one-word blast radius",
+        "Because the upstream is origin/main, the push names the branch: git push -u origin VER-412-retry-limit, never a bare git push",
+        "The body carries no Generated with footer"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "branch-with-open-pr-rewrite-after-review",
+      "prompt": "Pull request #58 is open for branch fix/stale-cache. A review asked you to drop the second cache layer, and you did: the fix is pushed. The body of #58 still describes the two-layer design. Rewrite the body. In place of running them, take these as what the commands printed, and run nothing else.\n\n`dw-sdlc config`, exit 0:\ncommitted  .ai/agentic.config.json  valid\nlocal      .ai/agentic.config.local.json  absent\n{\"commit\":{\"convention\":\"conventional\",\"trailer\":\"Co-Authored-By\"},\"pr\":{\"merge\":\"auto\"}}\n\n`git rev-parse --abbrev-ref HEAD`: fix/stale-cache\n`git rev-parse --abbrev-ref @{u}`: origin/fix/stale-cache\n`gh pr list --head fix/stale-cache --state open --json number,url`: [{\"number\":58,\"url\":\"https://github.com/acme/tool/pull/58\"}]\n`gh pr view 58 --json body`: Closes #51\\n\\nAdds a memory cache and a disk cache in front of the lookup.\\n\\n## Summary\\n\\nlookup -> memory -> disk -> source\\n\\n## Evidence\\n\\nBefore: stale read test fails. After: passes.\\n\\n## Merge Danger\\n\\n**Door:** two-way\\n**Blast Radius:** lookups\n\nThe repository has no template. The diff as it stands: one memory cache with a 30 second TTL in src/lookup.ts, the stale read test in test/lookup.test.ts passing. Everything is pushed. Write the new body to body.md and show the commands you would run.",
+      "expected_output": "A body written whole from the diff as it stands, with no review history, applied with gh pr edit 58 and no second pull request.",
+      "files": [],
+      "expectations": [
+        "The body describes one memory cache with a 30 second TTL and does not mention a disk cache",
+        "The body still starts with Closes #51",
+        "The body has no section or sentence about review feedback, a change since the first version, or what was removed, such as: removed the disk cache per review",
+        "The body is in the present tense",
+        "The command that applies it is gh pr edit 58 --body-file with a path outside the repository",
+        "No gh pr create runs, and no second pull request is opened",
+        "No git push runs, since the branch has its own upstream and nothing is unpushed",
+        "The skill does not merge or start /sdlc-pr-ship"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "issue-source-from-a-brief-mermaid-for-a-flow",
+      "prompt": "You are the Worker on issue #120, and your Brief says: Ship: open the pull request and carry it through /sdlc-pr-ship. The pull request body states what changes and why and fills the pull request template of the repository when there is one. It starts with `Closes #120`. The work is committed on branch feat/queue-retry. Open the pull request, and stop before anything that follows it. In place of running them, take these as what the commands printed, and run nothing else.\n\n`dw-sdlc config`, exit 0:\ncommitted  .ai/agentic.config.json  valid\nlocal      .ai/agentic.config.local.json  absent\n{\"commit\":{\"convention\":\"conventional\",\"trailer\":\"Co-Authored-By\"},\"pr\":{\"merge\":\"auto\"}}\n\n`git rev-parse --abbrev-ref HEAD`: feat/queue-retry\n`git rev-parse --abbrev-ref @{u}`: fatal: no upstream configured for branch 'feat/queue-retry'\n`gh pr list --head feat/queue-retry --state open --json number,url`: []\n`gh repo view --json defaultBranchRef --jq .defaultBranchRef.name`: main\n`gh issue view 120`: title: Retry a failed job once. A job that fails goes straight to the dead letter queue.\n\nNo template, and GLOSSARY.md defines the term Dead letter queue as the queue where a job lands after it gave up. The diff: a failed job now returns to the work queue once, with a retry flag, and goes to the dead letter queue only on its second failure. The test `retries a failed job once` fails before and passes after. Writes go through src/queue.ts only. Write the body to body.md and show the commands you would run.",
+      "expected_output": "A fixed-shape body starting with Closes #120, a mermaid sequence or flow in the Summary because the change moves a flow, the glossary term, and gh pr create. The skill stops without starting /sdlc-pr-ship.",
+      "files": [],
+      "expectations": [
+        "The body's first line is Closes #120",
+        "The Summary holds a mermaid diagram, since the change moves the flow of a job through the queues",
+        "The body uses the term Dead letter queue as GLOSSARY.md defines it",
+        "The title matches the conventional form, such as feat(queue): retry a failed job once",
+        "The push is git push -u origin feat/queue-retry and the pull request opens with gh pr create --body-file",
+        "The answer stops after the pull request's URL and does not run or start /sdlc-pr-ship, which the Brief assigns to the next step",
+        "The body carries no Generated with footer"
+      ]
+    }
+  ]
+}

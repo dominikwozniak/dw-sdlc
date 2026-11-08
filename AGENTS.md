@@ -21,9 +21,9 @@ is its long form: how a guard works, why the design, adopting and releasing.
 - `plugins/sdlc/` — the plugin `.claude-plugin/marketplace.json` lists first, enabled at user
   scope: `hooks/` the bash guards on a shared `lib.sh` plus the jq config contract, and the session
   hooks, the report and the Sync; `skills/` holding `sdlc-setup`, `sdlc-doctor`,
-  `sdlc-references-add`, `sdlc-pr-ship` and `sdlc-sweep`; `agents/` the `sdlc-reviewer` subagent a `light` Review
-  spawns; `dw-sdlc` a link to the package, whose bin hooks and skills run; `test/` the hook
-  tests, mirroring `hooks/`, each spawning a hook on its stdin payload, and the manifest test
+  `sdlc-references-add`, `sdlc-pr-open`, `sdlc-pr-ship` and `sdlc-sweep`; `agents/` the `sdlc-reviewer` subagent a `light`
+  Review spawns; `dw-sdlc` a link to the package, whose bin hooks and skills run; `test/` the hook
+  tests, mirroring `hooks/`, each spawning a hook on its payload, and the manifest test
 - `.ai/` — `agentic.config.json`, this repo's agent rules against the package's schema;
   `references.json`, the References this repo reads; `primitives.json`, the catalogue of what this
   repo exposes to an agent, held to the tree by the `primitives` Check; `file-size-ratchet.baseline.json`, the files the Ratchet lets stay over
@@ -83,7 +83,7 @@ is its long form: how a guard works, why the design, adopting and releasing.
 ## Commands
 
 ```bash
-pnpm check                      # dw-sdlc gate: the gate.steps of .ai/agentic.config.json in order, then its Checks; = CI
+pnpm check                      # dw-sdlc gate: the gate.steps of .ai/agentic.config.json, then its Checks; = CI
 pnpm exec dw-sdlc gate [--json] [--verbose] [--update-baseline | --cache] # a line per Step and Check, --verbose streams all; exit 0 green, 1 failed or a Step wrote the tree (Drift), 2 cannot run
 pnpm exec dw-sdlc check <name> [--json] # one Check of the Gate by name, no Step; off in the config, it runs on its defaults
 pnpm exec dw-sdlc primitives --paths <files> [--json] # the Primitives that own each path, with their docs

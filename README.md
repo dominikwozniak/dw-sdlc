@@ -4,8 +4,9 @@
 
 A plugin marketplace and the code behind it. The process is proven in this repository before it goes
 wider. The marketplace ships two plugins. `sdlc` carries the guards, the Sync of the repositories an
-agent reads for prior art, and four skills: `/sdlc-setup` sets a repository up, `/sdlc-doctor` checks a
-machine, `/sdlc-references-add` adds a Reference, `/sdlc-pr-ship` ships a pull request.
+agent reads for prior art, and six skills: `/sdlc-setup` sets a repository up, `/sdlc-doctor` checks a
+machine, `/sdlc-references-add` adds a Reference, `/sdlc-pr-open` opens a pull request and writes its body,
+`/sdlc-pr-ship` ships it, `/sdlc-sweep` removes what has landed.
 [`sdlc-sessions`](plugins/sdlc-sessions/README.md) depends on it and carries `/sdlc-recap`, which says
 where a session stands, `/sdlc-brief`, which writes the start of a Worker session, and `/sdlc-delegate`,
 which makes a session a Lead that runs Workers.

@@ -2,7 +2,7 @@
 
 The software delivery process for a Claude Code session, shipped as one plugin: deterministic guards
 on the agent's tool calls, the session hooks, the Sync of a repository's [References](#references),
-the skills that set a repository up, check a machine, add a Reference and ship a pull request, and
+the skills that set a repository up, check a machine, add a Reference, open a pull request and ship it, and
 the subagent that reads a change at the `light` Review depth.
 Every guard is a shell hook that reads the tool call on stdin and refuses it with exit 2, or asks for
 a prompt, before the call runs. The rules a repository wants come from its `.ai/agentic.config.json`; a machine adds its
@@ -63,10 +63,12 @@ disk is in the next session, a broken edit included.
   the setup writes. `claude plugin install` copies the link as a real directory, so the installed
   plugin carries the package's code.
 - `skills/sdlc-setup/`, `skills/sdlc-doctor/`, `skills/sdlc-references-add/`,
-  `skills/sdlc-pr-ship/`, `skills/sdlc-sweep/` — the skills: the [Setup](#setup), the
-  [Doctor](#doctor), [Adding a Reference](#adding-a-reference), [Shipping a pull request](#shipping-a-pull-request)
-  and [Sweeping](#sweeping). A user invokes each one; the model starts only `sdlc-pr-ship`, on a
-  Worker's Brief, and `sdlc-sweep`, on the dev's "go" on a Recap follow-up.
+  `skills/sdlc-pr-open/`, `skills/sdlc-pr-ship/`, `skills/sdlc-sweep/` — the skills: the [Setup](#setup), the
+  [Doctor](#doctor), [Adding a Reference](#adding-a-reference), [Opening a pull request](#opening-a-pull-request),
+  [Shipping a pull request](#shipping-a-pull-request) and [Sweeping](#sweeping). A user invokes each
+  one, but three: the model starts `sdlc-pr-open` itself whenever it opens a pull request or writes
+  its body, `sdlc-pr-ship` only on a Worker's Brief, and `sdlc-sweep` only on the dev's "go" on a
+  Recap follow-up.
 - `agents/sdlc-reviewer.md` — the subagent of a `light` Review, which `sdlc-pr-ship` spawns as
   `sdlc:sdlc-reviewer`: [Shipping a pull request](#shipping-a-pull-request).
 - `test/` — the hook tests, mirroring `hooks/`, and the manifest's: [Tests](#tests).
@@ -587,6 +589,28 @@ settings file that is not a JSON object is refused and left as it is, and so is 
 that ignores `references/` itself, since git then tracks nothing under it, and a Router with one
 marker and not the other, or whose file or leftover key fails the parser; the run then exits 1.
 
+## Opening a pull request
+
+`sdlc-pr-open` opens the pull request of the current branch, or rewrites the body of the one it has.
+The model starts it itself, in any repository with the plugin, whenever it opens a pull request or
+writes or rewrites a body; its description rules out merging, a review and CI, so those never start
+it. The dev, a Brief or the repository's rules decide that a pull request is wanted; the skill never
+does, never merges and never starts `/sdlc-pr-ship`, which comes after it.
+
+- The title follows `commit.convention` from `dw-sdlc config`, and `commit.pattern` when one is set.
+- The body goes to a file outside the repository and `--body-file` passes it. A pull request template
+  of the repository wins: the skill reads it and fills it, since `--body-file` applies none. Without
+  one the body is `Closes #<n>` when the source is an issue, why the change exists, a Summary, the
+  Evidence and the Merge Danger; `references/summary-views.md` holds the views for the Summary.
+- The body is a snapshot in the present tense: after a review it is rewritten whole, never appended
+  to. It carries no "Generated with" footer.
+- The branch is pushed by name, `git push -u origin <branch>`, when it has no upstream of its own
+  name, since a branch cut from `origin/main` tracks `origin/main`. `gh pr create` opens the pull
+  request; a branch that has one gets `gh pr edit`, never a second pull request.
+- `evals/trigger.json` holds the queries that must start it and the near misses that must not, such
+  as "merge it" and "is CI green?"; `evals/evals.json` holds four behaviours: a repository with a
+  template, one without, a branch that has a pull request, and an issue as the source.
+
 ## Shipping a pull request
 
 `/sdlc-pr-ship [<n>]` drives one pull request to merged through the Ship script, `dw-sdlc pr ship`,
@@ -704,8 +728,9 @@ empty.
 `test/references-harness.ts` through the link, which builds throwaway repositories apart from the
 machine's git config. `test/manifest.test.ts` holds the manifest to the tree: each hook script wired
 to its event and matcher, run by the dispatcher or left to git, each skill under its name, with
-every plugin path it runs on disk and left for the user to invoke. Two skills are the exception, and
-their descriptions hold the model to a Brief or the dev's "go". `sdlc-sweep` runs the bin through
+every plugin path it runs on disk and left for the user to invoke. Three skills are the exception:
+`sdlc-pr-open`'s description triggers on opening a pull request and writing its body, and the other two
+hold the model to a Brief or the dev's "go". `sdlc-sweep` runs the bin through
 the link and never a kept item's command. The manifest test also holds each subagent under its name, at
 medium effort on the session's model with no tool that edits a file, the link to the package, and
 the marketplace listing this plugin at the manifest's version.

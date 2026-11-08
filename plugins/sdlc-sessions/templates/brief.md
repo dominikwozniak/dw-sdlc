@@ -16,7 +16,7 @@ You are the Worker: do it yourself, start no other session. A subagent a skill r
 May write: <the paths or areas>.
 Must not: <what the source or the dev rules out>, or change anything outside May write.
 Proof: <what shows it is done: the checks to run and their result>.
-Ship: open the pull request and carry it through `/sdlc-pr-ship`. The pull request body states what changes and why and fills the pull request template of the repository when there is one. It starts with `Closes #<n>` when the source is an issue. `pr.merge` in the config decides whether you end at merged or parked for the dev.
+Ship: open the pull request with `/sdlc-pr-open` and carry it through `/sdlc-pr-ship`. The pull request body states what changes and why and fills the pull request template of the repository when there is one. It starts with `Closes #<n>` when the source is an issue. `pr.merge` in the config decides whether you end at merged or parked for the dev.
 Questions: <the questions instruction>
 Report: <the report instruction>
 Model and effort: `<model>`, `<effort>`: <the reason, one clause>.
