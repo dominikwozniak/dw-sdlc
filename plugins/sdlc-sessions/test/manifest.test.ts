@@ -95,14 +95,17 @@ describe("the sdlc-sessions plugin", () => {
     assert.match(text, /`\/sdlc-sweep`/, "the follow-up names the skill the dev's go runs")
   })
 
-  it("has sdlc-delegate leave no Worker's terminal or worktree to the dev, its combined Recap carrying the Sweep", () => {
+  it("has the combined Recap of sdlc-delegate carry the Sweep follow-up, which the dev's go runs", () => {
     const text = skillText("sdlc-delegate")
-    assert.doesNotMatch(text, /removing them is the dev's call/)
-    assert.match(text, /Sweep follow-up/)
+    assert.match(text, /carries the Sweep follow-up/)
     assert.match(text, /"go" runs `\/sdlc-sweep`/)
+    assert.match(text, /Never remove a Worker's terminal or worktree yourself/)
+  })
+
+  it("has the README say the Recap offers the Sweep and the Lead's combined Recap carries it", () => {
     const readme = readFileSync(join(PLUGIN_ROOT, "README.md"), "utf8")
-    assert.doesNotMatch(readme, /leaves the Workers' terminals and worktrees for the dev/)
-    assert.match(readme, /Sweep follow-up/)
+    assert.match(readme, /lists a Sweep as a follow-up `now`/)
+    assert.match(readme, /combined\s+Recap carries the Sweep follow-up/)
   })
 
   it("has every skill that writes a Brief read the one template, which holds the rules they share", () => {

@@ -82,7 +82,7 @@ Exit 0 and exit 1 both print a document, and its `removed` is what a Sweep would
 origin and changes nothing else. When `removed` is empty, list no follow-up. Otherwise list one, in "This
 session", with the disposition `now`: a Sweep, `/sdlc-sweep`, counting the items of `removed` by `kind`,
 such as "removes 3 branches, 2 worktrees and 1 terminal", a kind with none left out; a `lock` item is
-lifted with its worktree and counts as none. A Worker's terminal a Sweep would stop is what the close
+lifted with its worktree and adds nothing to the count. A Worker's terminal a Sweep would stop is what the close
 line's `workers` reason waits on: say that "go" clears it. On exit 2, list none and say in one line that
 the Sweep could not be read, with its reason.
 

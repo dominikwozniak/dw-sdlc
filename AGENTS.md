@@ -27,7 +27,7 @@ is its long form: how a guard works, why the design, adopting and releasing.
 - `.ai/` — `agentic.config.json`, this repo's agent rules against the package's schema;
   `references.json`, the References this repo reads; `primitives.json`, the catalogue of what this
   repo exposes to an agent, held to the tree by the `primitives` Check; `file-size-ratchet.baseline.json`, the files the Ratchet lets stay over
-  their limit (`agentic.config.local.json` is one machine's layer, excluded from git)
+  their limit (`agentic.config.local.json` is one machine's layer, git-excluded)
 - `.claude/settings.json` — tracked; turns the dw-solo plugins off in this repo and keeps the clones'
   `CLAUDE.md` and `AGENTS.md` out of context. `.claude/settings.local.json` is one machine's
   permission backstop, written by the setup, git-excluded. A worktree reads it and the local
@@ -90,7 +90,7 @@ pnpm exec dw-sdlc primitives --paths <files> [--json] # the Primitives that own 
 pnpm exec dw-sdlc pr ship [<n>] [-R owner/name] [--merge] [--review full|light|off] [--dry-run] [--json] [--verbose] # the Action one pull request needs next, performed when the script owns it; exit 0 done, 10 act, 20 wait, 30 park, 2 cannot run
 pnpm exec dw-sdlc pr reviewed <n> [-R owner/name] --head <sha> [--findings | --accept] [--json] # post dw-sdlc/review on that head; exit 2 when it moved or cannot run
 pnpm exec dw-sdlc recap [--json] # a Recap's facts and the close verdict, read-only; exit 0 can close, 1 cannot, 2 cannot run
-pnpm exec dw-sdlc sweep [--dry-run] [--json] # main checkout only: removes Landed branches, clean worktrees, stale locks and its Workers' terminals, names the rest; exit 0 none kept, 1 some, 2 cannot run
+pnpm exec dw-sdlc sweep [--dry-run] [--json] # main checkout only: removes Landed branches, clean worktrees, stale locks and its own Workers' terminals, names the rest; exit 0 none kept, 1 some, 2 cannot run
 pnpm exec dw-sdlc worker start --brief <file> --name <name> [--model] [--effort] [--json] # a Worker on a Brief in a herdr terminal; exit 0 delivered, 1 not, 2 cannot run
 pnpm exec dw-sdlc worker ls [--json] # this Lead's Workers: state, status, folder
 pnpm exec dw-sdlc worker report --to <lead> --recap <file> # a Recap to the Lead, retried while it is blocked; exit 1 gives up
