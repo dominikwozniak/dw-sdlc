@@ -2,8 +2,7 @@
 // (plugins/sdlc/hooks/lib-git.sh) judges it. The guard keeps its own bash version; docs/adr/0015 says why there
 // are two, and the shared table of scenarios, plugins/sdlc/test/landed-scenarios.ts, holds them to one meaning.
 
-import { spawnSync } from "node:child_process"
-
+import { exec, SLOW_LIMIT_MS } from "./exec.ts"
 import { repositoryFreeEnv } from "./git-env.ts"
 
 /** The base commits read, newest first: a branch that forked further back is kept rather than read for seconds. */
@@ -17,12 +16,7 @@ function localEnv(): NodeJS.ProcessEnv {
 type Ran = { status: number; stdout: string }
 
 function git(root: string, args: string[], input?: string): Ran {
-  const result = spawnSync("git", ["-C", root, ...args], {
-    encoding: "utf8",
-    env: localEnv(),
-    input,
-    maxBuffer: 64 * 1024 * 1024
-  })
+  const result = exec("git", ["-C", root, ...args], { env: localEnv(), ...(input === undefined ? {} : { input }) })
   return { status: result.status ?? 1, stdout: result.stdout ?? "" }
 }
 
@@ -54,10 +48,9 @@ function baseHoldsPatch(root: string, range: string, patch: string): boolean {
       "git patch-id --verbatim"
     ].join(" | ")
   ].join("; ")
-  const result = spawnSync("bash", ["-c", pipeline, "bash", root, String(SCAN), range], {
-    encoding: "utf8",
+  const result = exec("bash", ["-c", pipeline, "bash", root, String(SCAN), range], {
     env: localEnv(),
-    maxBuffer: 64 * 1024 * 1024
+    limitMs: SLOW_LIMIT_MS
   })
   if (result.status !== 0) {
     return false

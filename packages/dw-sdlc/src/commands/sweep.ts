@@ -1,11 +1,11 @@
 // `dw-sdlc sweep`: removes each linked worktree whose whole set passes and each Landed local branch.
 // docs/adr/0015 sets its bounds: it runs from the main checkout, never forces and never writes to a remote.
 
-import { spawnSync } from "node:child_process"
 import { existsSync } from "node:fs"
 import { parseArgs } from "node:util"
 
 import { findRepository, mainCheckout, resolveConfig } from "../agentic-config.ts"
+import { exec, SLOW_LIMIT_MS } from "../exec.ts"
 import { repositoryFreeEnv } from "../git-env.ts"
 import { isCommitLanded, isLanded } from "../landed.ts"
 import { shellLine } from "../pr/decide.ts"
@@ -95,8 +95,10 @@ function fetchOrigin(root: string): void {
   if (asked(root, ["remote", "get-url", "origin"]) === undefined) {
     return
   }
-  const env = { ...repositoryFreeEnv(), GIT_TERMINAL_PROMPT: "0" }
-  const result = spawnSync("git", ["-C", root, "fetch", "--quiet", "origin"], { encoding: "utf8", env, stdio: "pipe" })
+  const result = exec("git", ["-C", root, "fetch", "--quiet", "origin"], {
+    env: repositoryFreeEnv(),
+    limitMs: SLOW_LIMIT_MS
+  })
   if (result.status !== 0) {
     const said = result.stderr.split("\n").find((line) => line.trim() !== "")
     throw new CannotRun(

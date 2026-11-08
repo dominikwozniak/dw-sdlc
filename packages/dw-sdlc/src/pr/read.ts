@@ -2,8 +2,7 @@
 // its state from one GraphQL request with the compares that tell whether its head carries an earlier Review
 // and that size its changes, and beside them the default branch and the clock the decision reads.
 
-import { spawnSync } from "node:child_process"
-
+import { exec, TimedOut } from "../exec.ts"
 import { behindOf, changedOf, changesOf, compareArgs, sameChanges } from "./delta.ts"
 import { awaitsReview, parseDefaultBranch, parsePr, parseView, type PrState, QUERY, ReplyError } from "./state.ts"
 
@@ -54,8 +53,20 @@ function authProblem(stderr: string): string {
   return marked === undefined ? firstLine(stderr) : marked.trim().slice(2)
 }
 
+/** `gh args` as a child process; past its limit it stops the command as any other failed read does. */
+function reachGh(args: string[]): ReturnType<typeof exec> {
+  try {
+    return exec("gh", args)
+  } catch (error) {
+    if (error instanceof TimedOut) {
+      throw new CannotRun(error.message, REMEDIES.read)
+    }
+    throw error
+  }
+}
+
 export function gh(args: string[]): { status: number; stdout: string; stderr: string } {
-  const result = spawnSync("gh", args, { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 })
+  const result = reachGh(args)
   if (result.error !== undefined) {
     if ("code" in result.error && result.error.code === "ENOENT") {
       throw new CannotRun("gh is not on PATH", REMEDIES.missing)

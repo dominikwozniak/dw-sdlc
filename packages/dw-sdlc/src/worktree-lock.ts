@@ -2,8 +2,7 @@
 // `claude session <name> (pid <N> start <time>)`, <time> as `ps -o lstart` writes it in UTC. Such a lock is
 // stale once no process N runs or N started at another time. Any other reason is the dev's to lift.
 
-import { spawnSync } from "node:child_process"
-
+import { exec } from "./exec.ts"
 import { shellLine } from "./pr/decide.ts"
 
 const CLAUDE_LOCK = /^claude session .* \(pid (?<pid>\d{1,10}) start (?<start>.+)\)$/
@@ -36,7 +35,7 @@ function runningOf(pid: number): Running {
   const starts = [{ TZ: "UTC" }, {}]
     .map((zone) => {
       const env = { ...process.env, LC_ALL: "C", ...zone }
-      const result = spawnSync("ps", ["-o", "lstart=", "-p", String(pid)], { encoding: "utf8", env })
+      const result = exec("ps", ["-o", "lstart=", "-p", String(pid)], { env })
       return result.status === 0 ? squeezed(result.stdout) : ""
     })
     .filter((start) => start !== "")
