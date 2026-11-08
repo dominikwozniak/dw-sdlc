@@ -13,6 +13,8 @@ export type LandedScenario = {
   branch: string
   /** Whether the branch is Landed as the local objects show it, before any fetch. */
   landed: boolean
+  /** Whether it is Landed once origin is fetched, when that differs from `landed`: the Sweep fetches first. */
+  landedAfterFetch?: boolean
   /** Builds the branch from the tip of main and leaves the checkout on main. */
   build: (repo: string) => void
   /** Whether the branch is pushed to origin with main. */
@@ -164,6 +166,7 @@ export const LANDED_SCENARIOS: readonly LandedScenario[] = [
     name: "squashed after the last fetch",
     branch: "late",
     landed: false,
+    landedAfterFetch: true,
     pushed: true,
     build: (repo) => {
       git(repo, "switch", "-q", "-c", "late", "main")

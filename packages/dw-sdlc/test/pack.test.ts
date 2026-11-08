@@ -7,6 +7,7 @@ import { join } from "node:path"
 import { before, describe, it } from "node:test"
 import { pathToFileURL } from "node:url"
 
+import { buildLandedRepo, LANDED_SCENARIOS } from "../../../plugins/sdlc/test/landed-scenarios.ts"
 import {
   commit,
   git,
@@ -125,6 +126,20 @@ describe("the packed package", () => {
       const gate = runCommand(join(consumer, INSTALLED_BIN), ["gate"], consumer)
       assert.equal(gate.status, 0, gate.stderr)
       assert.deepEqual(timed(gate.stdout), ["gate: step true — pass (N s)", "gate: green — 1 step, 0 checks"])
+    })
+
+    it("runs dw-sdlc sweep from node_modules: a Landed branch goes, one with unmerged work stays", () => {
+      const dir = scratch("sweep")
+      const scenarios = LANDED_SCENARIOS.filter(({ branch }) => ["merged", "never"].includes(branch))
+      const clone = buildLandedRepo(join(dir, "clone"), join(dir, "origin.git"), scenarios)
+      const sweep = runCommand(join(consumer, INSTALLED_BIN), ["sweep"], clone)
+      assert.equal(sweep.status, 1, sweep.stderr)
+      assert.deepEqual(lines(sweep.stdout), [
+        "removed branch merged — Landed on origin/main",
+        "kept branch main — the default branch",
+        "kept branch never — its work is on no commit of origin/main since it forked; to remove it yourself: git branch -D never"
+      ])
+      assert.deepEqual(lines(git(clone, "for-each-ref", "--format=%(refname:short)", "refs/heads")), ["main", "never"])
     })
 
     it("exports the config resolver as JavaScript", () => {
