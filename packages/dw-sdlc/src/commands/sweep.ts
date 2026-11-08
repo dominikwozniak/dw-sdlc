@@ -14,14 +14,16 @@ import {
   byHand,
   type Holder,
   holdersOf,
+  keptIn,
+  lockAfterStop,
+  lockHolder,
   outsideWorktrees,
   readTerminals,
   removeTerminal,
   stopsOf,
   sweepingTerminal,
   type Terminals,
-  whyHeld,
-  atWork
+  whyHeld
 } from "../sweep-terminals.ts"
 import { dirtyFiles, must, pausedOperation, type Tree, worktreesOf } from "../sweep-trees.ts"
 import { asked, git } from "../working-tree.ts"
@@ -49,12 +51,14 @@ kept with git's words, and the sweep goes on.
 
 In herdr ($HC_TERMINAL_ID set) it reads, with hc, the Workers of this session, the terminals whose parent is
 this one, and every other live terminal. A Worker whose status is none of working, blocked or yet to report
-is stopped (hc kill) and then removed (hc rm) when its worktree goes in the same Sweep or its folder is
-already gone; a worktree is judged whole first, so no Worker is stopped beside work it could still commit. A
-finished Worker of this session is removed. It never stops this session's own terminal or another session's:
-a worktree one of those is in stays, named with the terminal's address and place and hc kill as the dev's
-command. Outside herdr no terminal is read, and the output says so. An hc that fails ends the Sweep with
-exit 2 before anything is removed.
+is stopped (hc kill) then removed (hc rm) when its worktree goes in the same Sweep or its folder is already
+gone; a worktree is judged whole first, so no Worker is stopped beside work it could still commit. A live
+Claude Code lock on that worktree that names the Worker's own program, the pid hc get reports, does not keep
+it: once the Worker is stopped the lock is read again and lifted only when it is stale then, else the
+worktree stays. A finished Worker of this session is removed. This session's own terminal and another
+session's are never stopped: a worktree one is in stays, named with the terminal's address and place and
+hc kill as the dev's command. Outside herdr no terminal is read, and the output says so. An hc that fails
+ends the Sweep with exit 2 before anything is removed.
 
 --dry-run removes and stops nothing and answers the same items. One line an item, or one document with --json:
   { dryRun, terminalsRead, base, removed: [item], kept: [item] }, an item { kind, name, reason, command? },
@@ -66,8 +70,14 @@ cannot run: in a linked worktree, with no base to read, when the fetch fails or 
 
 type Item = { kind: "branch" | "worktree" | "lock" | "terminal"; name: string; reason: string }
 type Kept = Item & { command: string | null; dev: boolean }
-/** An item to remove: a worktree's `holds` is the branch it has checked out, `stale` the lock to lift first; a terminal's `stop` says it is stopped first, `tree` the worktree it is in. */
-type Planned = Item & { holds?: string; stale?: StaleLock; stop?: boolean; tree?: string }
+/** An item to remove: a worktree's `holds` branch, `stale` lock, `workerLock` its Worker's program holds; a terminal's `stop`, `tree`. */
+type Planned = Item & {
+  holds?: string
+  stale?: StaleLock
+  stop?: boolean
+  tree?: string
+  workerLock?: { pid: number }
+}
 type Shown = Item & { command?: string | null }
 
 type Sweep = { dryRun: boolean; terminalsRead: boolean; base: string; removed: Shown[]; kept: Shown[] }
@@ -232,7 +242,10 @@ function judge(root: string, terminals: Terminals | undefined): Judged {
   const verdicts = linked.map((tree) => {
     const lock = lockVerdict(tree.path, tree.lock)
     const here = holders.get(tree.path) ?? []
-    return { tree, lock, here, why: whyTreeStays(root, base.ref, tree, lock, here) }
+    const pid = lock.state === "stays" ? lock.pid : undefined
+    const workerLock = pid !== undefined && lockHolder(pid, here) !== undefined ? { pid } : undefined
+    const why = whyTreeStays(root, base.ref, tree, workerLock === undefined ? lock : { state: "none" }, here)
+    return { tree, lock, here, why, workerLock }
   })
   const staying = verdicts.filter(({ why }) => why !== null).map(({ tree }) => tree)
   const held = new Map<string, string>()
@@ -273,21 +286,10 @@ function judge(root: string, terminals: Terminals | undefined): Judged {
   for (const { name, reason } of outside.keep) {
     kept.push({ kind: "terminal", name, reason, command: null, dev: true })
   }
-  for (const { tree, lock, here, why } of verdicts) {
+  for (const { tree, lock, here, why, workerLock } of verdicts) {
     if (why !== null) {
       kept.push({ kind: "worktree", name: tree.path, ...why, dev: true })
-      for (const holder of here) {
-        if (holder.role === "other") {
-          const { address, place } = holder.terminal
-          const reason = `another session's terminal, in the worktree at ${tree.path}, at ${place}`
-          kept.push({ kind: "terminal", name: address, reason, command: shellLine(["hc", "kill", address]), dev: true })
-        } else if (holder.role === "worker") {
-          const { name, address, status } = holder.worker
-          const at = atWork(holder.worker)
-          const reason = `Worker ${name} is ${at ?? status}${at === undefined ? ", but its worktree stays" : ""}`
-          kept.push({ kind: "terminal", name: address, reason, command: null, dev: true })
-        }
-      }
+      kept.push(...keptIn(here, tree.path).map((item) => ({ kind: "terminal" as const, ...item, dev: true })))
       continue
     }
     removed.push(...stopsOf(here, tree.path))
@@ -297,7 +299,8 @@ function judge(root: string, terminals: Terminals | undefined): Judged {
       name: tree.path,
       reason,
       ...(tree.branch === undefined ? {} : { holds: tree.branch }),
-      ...(lock.state === "stale" ? { stale: lock } : {})
+      ...(lock.state === "stale" ? { stale: lock } : {}),
+      ...(workerLock === undefined ? {} : { workerLock })
     })
     if (tree.branch !== undefined) {
       judgeBranch(tree.branch)
@@ -341,6 +344,16 @@ function removal(
     const unstoppable = unstopped.get(item.name)
     if (unstoppable !== undefined) {
       return refusedWith(unstoppable, null)
+    }
+    if (item.workerLock !== undefined) {
+      const now = lockAfterStop(root, item.name)
+      if (now.state === "stays") {
+        return refusedWith(`its Worker's terminal was stopped, but ${now.reason}`, now.command)
+      }
+      if (now.state === "stale") {
+        item.stale = now
+      }
+      delete item.workerLock
     }
     if (item.stale !== undefined) {
       const lifted = git(root, ["worktree", "unlock", "--", item.name])
@@ -387,8 +400,12 @@ function apply({ base, removed, kept }: Judged, root: string): Judged {
 
 /** The removed items as the Sweep tells them: a stale lock lifted comes just before its worktree. */
 function shownOf(removed: Planned[]): Shown[] {
-  return removed.flatMap(({ kind, name, reason, stale }) => {
+  return removed.flatMap(({ kind, name, reason, stale, workerLock }) => {
     const item: Shown = { kind, name, reason }
+    if (workerLock !== undefined) {
+      const why = `held by its Worker's program, pid ${workerLock.pid}: lifted once the stop leaves it stale`
+      return [{ kind: "lock", name, reason: why }, item]
+    }
     return stale === undefined ? [item] : [{ kind: "lock", name, reason: stale.why }, item]
   })
 }

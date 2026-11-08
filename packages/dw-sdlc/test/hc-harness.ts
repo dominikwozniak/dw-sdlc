@@ -8,8 +8,8 @@ import { lines, scratch, write, writeJson } from "./harness.ts"
 
 const FAKE = join(import.meta.dirname, "fake-hc.ts")
 
-/** What one call prints and exits with; an empty one prints nothing and exits 0. */
-export type Reply = { stdout?: string; stderr?: string; exit?: number }
+/** What one call prints and exits with; an empty one prints nothing and exits 0. `kill` is a process the call ends first. */
+export type Reply = { stdout?: string; stderr?: string; exit?: number; kill?: number }
 /** A tool's table: a call's first two words, else its first, to one reply or to the replies served in order. */
 export type Table = Record<string, Reply | Reply[]>
 export type Scenario = { hc?: Table; "herdr-app"?: Table }
@@ -78,9 +78,11 @@ export function terminal(
     firstMessage?: { sent: boolean; reason?: string }
     /** The folder its foreground program works in, which herdr reports beside the launch folder. */
     foreground?: string
+    /** The pid of its foreground program. */
+    pid?: number
   } = {}
 ): Reply {
-  const { name, parent, state = "live", status = "working", labels = {}, firstMessage, foreground } = extra
+  const { name, parent, state = "live", status = "working", labels = {}, firstMessage, foreground, pid = 1 } = extra
   return {
     stdout: JSON.stringify({
       address,
@@ -90,7 +92,7 @@ export function terminal(
       labels,
       ...(status === null ? {} : { status: { app: "claude-code", state: status } }),
       ...(firstMessage === undefined ? {} : { first_message: firstMessage }),
-      ...(foreground === undefined ? {} : { foreground: { argv: ["claude"], cwd: foreground, pid: 1 } })
+      ...(foreground === undefined ? {} : { foreground: { argv: ["claude"], cwd: foreground, pid } })
     })
   }
 }

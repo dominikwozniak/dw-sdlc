@@ -537,6 +537,10 @@ sets its bounds: it never forces, and it never writes to a remote.
   blocked or unknown, the last being a Worker yet to report, is stopped (`hc kill`) and then removed (`hc
   rm`) when its worktree goes in the same Sweep: the Worker's terminal, the stale lock, the worktree, then
   its branch. The worktree is judged whole first, so a Worker beside a dirty worktree is never stopped. A
+  done Worker's own Claude Code session holds a live lock on its worktree, naming the pid `hc get` reports
+  as its foreground program. That lock alone does not keep the worktree: after the stop the Sweep reads the
+  lock again, giving the program a moment to end, and lifts it only when it is stale then. A lock still live
+  keeps the worktree, saying so, and a live lock that names any other process keeps it. A
   Worker whose folder is gone, with no worktree around it, could commit nothing, so it goes under the same
   status rule. A finished
   Worker of the sweeping session is removed, never stopped. Another session's terminal in a worktree keeps

@@ -12,7 +12,10 @@ const MAX_PID = 2 ** 31 - 1
 /** The process is gone: `held` is the reason to put back should the removal fail, `why` what the Sweep tells. */
 export type StaleLock = { state: "stale"; held: string; why: string }
 
-export type LockVerdict = { state: "none" } | StaleLock | { state: "stays"; reason: string; command: string | null }
+/** A lock that keeps the worktree; `pid` is the live process a Claude Code lock names. */
+export type LockStays = { state: "stays"; reason: string; command: string | null; pid?: number }
+
+export type LockVerdict = { state: "none" } | StaleLock | LockStays
 
 type Running = { at: "gone" } | { at: "unknown" } | { at: "running"; starts: string[] }
 
@@ -70,6 +73,7 @@ export function lockVerdict(path: string, reason: string | undefined): LockVerdi
   return {
     state: "stays",
     reason: `locked by a live Claude Code session: pid ${pid} is running (${reason})`,
-    command: null
+    command: null,
+    pid
   }
 }

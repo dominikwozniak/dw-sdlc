@@ -6,18 +6,23 @@ import { existsSync, realpathSync } from "node:fs"
 import { isObject, parseObject } from "./json-text.ts"
 import { shellLine } from "./pr/decide.ts"
 import { CannotRun } from "./pr/read.ts"
+import { worktreesOf } from "./sweep-trees.ts"
 import { call, hcObject, isLive, Refusal, said, type Worker, workersOf } from "./worker/herdr.ts"
+import { type LockVerdict, lockVerdict } from "./worktree-lock.ts"
 
 /** A live terminal of another session, or the sweeping one's own, with the place herdr shows it at. */
 type Seen = { address: string; name: string; folder: string; place: string }
 
-export type Terminals = { own: Seen | undefined; workers: Worker[]; others: Seen[] }
+/** A Worker with the pid of the program `hc get` reports in its terminal, which a Claude Code lock names. */
+export type Located = Worker & { pid: number | undefined }
+
+export type Terminals = { own: Seen | undefined; workers: Located[]; others: Seen[] }
 
 /** What holds a worktree: the terminal of this session, another session's, or a Worker of this one. */
 export type Holder =
   | { role: "own"; terminal: Seen }
   | { role: "other"; terminal: Seen }
-  | { role: "worker"; worker: Worker }
+  | { role: "worker"; worker: Located }
 
 /** The terminal to stop and remove, or only to remove once it has finished. */
 export type TerminalPlan = { kind: "terminal"; name: string; reason: string; stop: boolean; tree?: string }
@@ -43,10 +48,10 @@ function word(value: unknown): string | undefined {
  * Each live terminal with the folder it works in, `hc get`'s foreground. An `hc get` that fails stops the
  * Sweep, since a terminal in a folder it cannot see must not count as absent; one gone since the listing is dropped.
  */
-function foldersOf(list: Worker[]): Worker[] {
+function foldersOf(list: Worker[]): Located[] {
   return list.flatMap((worker) => {
     if (!isLive(worker)) {
-      return [worker]
+      return [{ ...worker, pid: undefined }]
     }
     const got = call("hc", ["get", worker.address, "--json"])
     if (got.status === 3) {
@@ -58,8 +63,9 @@ function foldersOf(list: Worker[]): Worker[] {
         `hc get ${worker.address} failed: ${got.status === 0 ? "its reply is no JSON object" : said(got)}`
       )
     }
-    const cwd = isObject(parsed.foreground) ? parsed.foreground.cwd : undefined
-    return [typeof cwd === "string" && cwd !== "" ? { ...worker, folder: cwd } : worker]
+    const { cwd, pid } = isObject(parsed.foreground) ? parsed.foreground : { cwd: undefined, pid: undefined }
+    const there = typeof cwd === "string" && cwd !== "" ? { ...worker, folder: cwd } : worker
+    return [{ ...there, pid: typeof pid === "number" ? pid : undefined }]
   })
 }
 
@@ -256,4 +262,48 @@ export function byHand(item: { name: string; stop?: boolean }): string {
   return item.stop === true
     ? `${shellLine(["hc", "kill", item.name])}; ${shellLine(["hc", "rm", item.name])}`
     : shellLine(["hc", "rm", item.name])
+}
+
+/** The Worker in `holders` whose program is the process a live lock names, when it may be stopped. */
+export function lockHolder(pid: number, holders: Holder[]): Located | undefined {
+  for (const holder of holders) {
+    if (holder.role === "worker" && holder.worker.pid === pid && atWork(holder.worker) === undefined) {
+      return holder.worker
+    }
+  }
+  return undefined
+}
+
+/** The lock of the worktree at `path` read again once its Worker is stopped, given the program a moment to end. */
+export function lockAfterStop(root: string, path: string): LockVerdict {
+  let verdict: LockVerdict = { state: "none" }
+  for (let attempt = 0; attempt < 15; attempt++) {
+    verdict = lockVerdict(path, worktreesOf(root).find((tree) => tree.path === path)?.lock)
+    if (verdict.state !== "stays") {
+      return verdict
+    }
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100)
+  }
+  return verdict
+}
+
+type KeptTerminal = { name: string; reason: string; command: string | null }
+
+/** The terminals in a worktree that stays which the Sweep lists as kept: Workers, and another session's terminals. */
+export function keptIn(holders: Holder[], tree: string): KeptTerminal[] {
+  return holders.flatMap((holder): KeptTerminal[] => {
+    if (holder.role === "other") {
+      const { address, place } = holder.terminal
+      const reason = `another session's terminal, in the worktree at ${tree}, at ${place}`
+      return [{ name: address, reason, command: shellLine(["hc", "kill", address]) }]
+    }
+    if (holder.role === "worker") {
+      const { name, address, status } = holder.worker
+      const at = atWork(holder.worker)
+      return [
+        { name: address, reason: `Worker ${name} is ${at ?? `${status}, but its worktree stays`}`, command: null }
+      ]
+    }
+    return []
+  })
 }
