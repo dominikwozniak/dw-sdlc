@@ -2,7 +2,7 @@
 # PreToolUse Bash — the plugin's one wiring of `rtk hook claude`: not a guard, and silent without
 # rtk. In a linked worktree every command goes through unrewritten: README.md#guards says why.
 set -uo pipefail
-source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+source "${BASH_SOURCE[0]%/*}/lib.sh"
 
 command -v rtk >/dev/null 2>&1 || exit 0
 INPUT=$(cat)

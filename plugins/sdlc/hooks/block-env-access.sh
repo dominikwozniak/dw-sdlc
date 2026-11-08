@@ -3,7 +3,7 @@
 # and defaults in README.md#guards. A file tool is judged on its path, a Grep of a directory on what
 # its glob reaches, a Bash command on its words: README.md#paths-in-a-command. Not a security boundary.
 set -uo pipefail
-source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+source "${BASH_SOURCE[0]%/*}/lib.sh"
 
 guard_read_payload "$@" || exit 0
 

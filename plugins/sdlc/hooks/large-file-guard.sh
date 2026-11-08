@@ -3,7 +3,7 @@
 # the write, so the size is exact and not read off text the model may still be streaming; exit 2
 # puts it before the model while keeping or deleting the file is still its call.
 set -uo pipefail
-source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+source "${BASH_SOURCE[0]%/*}/lib.sh"
 
 # The payload is read in full before any early exit: returning early once left the writer on the
 # other end of the pipe with SIGPIPE, an exit 141 the self-test caught only under load.
