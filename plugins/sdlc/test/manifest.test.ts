@@ -32,9 +32,12 @@ const DISPATCHED = [
 ]
 /** A git hook a repository wires itself, never Claude Code. */
 const GIT_HOOKS = ["commit-msg.sh"]
-const SKILLS = ["sdlc-doctor", "sdlc-pr-ship", "sdlc-references-add", "sdlc-setup"]
+const SKILLS = ["sdlc-doctor", "sdlc-pr-ship", "sdlc-references-add", "sdlc-setup", "sdlc-sweep"]
 /** The skill a Worker starts itself, its description holding the model to a Brief's instruction. */
 const WORKER_STARTED_SKILL = "sdlc-pr-ship"
+/** The skill the model starts on the dev's word alone, "go" on a Recap follow-up, its description holding it there. */
+const WORD_STARTED_SKILL = "sdlc-sweep"
+const MODEL_REACHABLE = [WORKER_STARTED_SKILL, WORD_STARTED_SKILL]
 /** The subagents under `agents/`, each a file named as its `name`, spawned as `sdlc:<name>`. */
 const AGENTS = ["sdlc-reviewer"]
 /** The tools a subagent of the plugin may list: none that edits a file. Its instructions keep Bash to git's reads. */
@@ -108,8 +111,8 @@ describe("the sdlc plugin", () => {
     }
   })
 
-  it("leaves each skill for the user to invoke, never the model, but the one a Worker starts", () => {
-    for (const name of SKILLS.filter((skill) => skill !== WORKER_STARTED_SKILL)) {
+  it("leaves each skill for the user to invoke, never the model, but the two a Brief or the dev's go starts", () => {
+    for (const name of SKILLS.filter((skill) => !MODEL_REACHABLE.includes(skill))) {
       assert.match(skillFrontmatter(name), /^disable-model-invocation: true$/m, `${name} is user-invoked`)
     }
   })
@@ -121,6 +124,22 @@ describe("the sdlc plugin", () => {
     assert.match(description, /Invoke it only when the dev types \/sdlc-pr-ship, or when a Brief tells/)
     assert.match(description, /carry its pull request through/)
     assert.doesNotMatch(description, /: /, "a colon and a space end a plain YAML value")
+  })
+
+  it("lets the dev's go reach sdlc-sweep, its description limiting the model to /sdlc-sweep and a go on a Recap", () => {
+    const frontmatter = skillFrontmatter(WORD_STARTED_SKILL)
+    assert.doesNotMatch(frontmatter, /^disable-model-invocation:/m)
+    const description = /^description: (.+)$/m.exec(frontmatter)?.[1] ?? ""
+    assert.match(description, /It runs only on the dev's word, when the dev types \/sdlc-sweep or says go on a Recap/)
+    assert.match(description, /is never this skill/)
+    assert.doesNotMatch(description, /: /, "a colon and a space end a plain YAML value")
+  })
+
+  it("runs the sweep through the plugin's link, never a dw-sdlc from PATH, and never a kept item's command", () => {
+    const text = readFileSync(join(PLUGIN_ROOT, "skills", WORD_STARTED_SKILL, "SKILL.md"), "utf8")
+    assert.match(text, /node "\$\{CLAUDE_PLUGIN_ROOT\}\/dw-sdlc\/src\/cli\.ts" sweep --json/)
+    assert.doesNotMatch(text, /^\s*(?:dw-sdlc|pnpm)\b/m)
+    assert.match(text, /Never run a kept item's command/)
   })
 
   it("ships each subagent under its name, at medium effort on the session's model, with no tool that edits a file", () => {

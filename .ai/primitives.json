@@ -396,6 +396,17 @@
       ]
     },
     {
+      "id": "skills.sweep",
+      "name": "sdlc-sweep",
+      "group": "skills",
+      "summary": "Runs the Sweep on the dev's word, reports what it removed and kept in one table, and never runs a kept command.",
+      "code": ["plugins/sdlc/skills/sdlc-sweep/SKILL.md"],
+      "docs": [
+        "plugins/sdlc/README.md#sweeping",
+        "docs/adr/0015-a-sweep-deletes-only-what-the-guards-let-an-agent-delete.md"
+      ]
+    },
+    {
       "id": "agents.reviewer",
       "name": "sdlc-reviewer",
       "group": "agents",
