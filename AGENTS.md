@@ -13,7 +13,7 @@ is its long form: how a guard works, why the design, adopting and releasing.
   module under `commands/` (`gate`, `check`, `primitives`, `setup`, `doctor`, `config`,
   `references sync`, `references setup`, `pr ship`, `pr reviewed`, `recap`, `sweep`, `worker start`, `worker ls`, `worker report`), one module per Check it ships
   under `checks/` beside the modules they share, and under `pr/` the read the `pr` commands and
-  `recap` share and the Ship script's decision; `config/` the JSON Schema for `.ai/agentic.config.json`, and the one for `.ai/references.json`; `templates/` the
+  `recap` share and the Ship script's decision; `config/` the JSON Schemas of `.ai/agentic.config.json` and `.ai/references.json`; `templates/` the
   Router the setup writes; `test/` their tests, the bin spawned on a throwaway repo, from the source
   and from the packed tarball; `dist/` the JavaScript `pnpm pack` emits, ignored
 - `plugins/sdlc-sessions/` — the session helpers, depending on `sdlc`: `skills/`, `templates/brief.md`,
@@ -21,29 +21,29 @@ is its long form: how a guard works, why the design, adopting and releasing.
 - `plugins/sdlc/` — the plugin `.claude-plugin/marketplace.json` lists first, enabled at user
   scope: `hooks/` the bash guards on a shared `lib.sh` plus the jq config contract, and the session
   hooks, the report and the Sync; `skills/` holding `sdlc-setup`, `sdlc-doctor`,
-  `sdlc-references-add` and `sdlc-pr-ship`; `agents/` the `sdlc-reviewer` subagent a `light` Review
-  spawns; `dw-sdlc` a link to the package, whose bin the hooks and skills run; `test/` the hook
-  tests, mirroring `hooks/`, each spawning a hook on the real stdin payload, and the manifest test
+  `sdlc-references-add`, `sdlc-pr-ship` and `sdlc-sweep`; `agents/` the `sdlc-reviewer` subagent a `light` Review
+  spawns; `dw-sdlc` a link to the package, whose bin hooks and skills run; `test/` the hook
+  tests, mirroring `hooks/`, each spawning a hook on its stdin payload, and the manifest test
 - `.ai/` — `agentic.config.json`, this repo's agent rules against the package's schema;
   `references.json`, the References this repo reads; `primitives.json`, the catalogue of what this
-  repo exposes to an agent, held to the tree by the `primitives` Check; `file-size-ratchet.baseline.json`, the files the Ratchet lets stay over their
-  limit (`agentic.config.local.json` is one machine's layer, excluded from git)
+  repo exposes to an agent, held to the tree by the `primitives` Check; `file-size-ratchet.baseline.json`, the files the Ratchet lets stay over
+  their limit (`agentic.config.local.json` is one machine's layer, git-excluded)
 - `.claude/settings.json` — tracked; turns the dw-solo plugins off in this repo and keeps the clones'
   `CLAUDE.md` and `AGENTS.md` out of context. `.claude/settings.local.json` is one machine's
-  permission backstop, written by the setup and excluded from git. A worktree reads it and the local
+  permission backstop, written by the setup, git-excluded. A worktree reads it and the local
   config from the main checkout
-- `.agents/skills/` — the engineering skills this repo works with, pinned in `skills-lock.json`;
+- `.agents/skills/` — the engineering skills it works with, pinned in `skills-lock.json`;
   `.claude/skills/` links to them
 - `docs/agents/` — how those skills use this repo: the issue tracker and the domain docs
-- `docs/overview.md` — the long form of the README; `docs/adr/` — decision records, one paragraph each,
+- `docs/overview.md` — the README's long form; `docs/adr/` — decision records, a paragraph each,
   written only for a choice that is hard to reverse, surprising without context and a real trade-off;
   read the ones naming a file before changing it
 - `docs/specs/` — the design record of a built feature: problem, goal, decisions, testing, tasks,
-  notes; `docs/research/<feature>/` — the outside facts that spec rests on, dated. New work is
-  specified in GitHub Issues, not here
+  notes; `docs/research/<feature>/` — the outside facts that spec rests on, dated. New work goes in
+  GitHub Issues
 - `GLOSSARY.md` — what a word means in this repo
 - `references/` — repositories cloned on each machine for reading, never tracked; the Router is
-  `references/AGENTS.md`, its table written from `.ai/references.json`; the plugin's Sync hook fetches them
+  `references/AGENTS.md`, its table written from `.ai/references.json`; the Sync hook fetches them
 - `ideas/` — local-only notes, gitignored but for `.gitkeep`
 - `.github/` — CI: `workflows/quality-gate.yaml` runs `pnpm check` on every pull request and on `main`;
   `workflows/release.yaml` turns the changesets under `.changeset/` into a version pull request and,
@@ -76,7 +76,7 @@ is its long form: how a guard works, why the design, adopting and releasing.
   every commit, a terminal's included. `pnpm install` installs it and the pre-commit hook.
 - `main` is a protected branch: a change reaches it through a pull request, after `pnpm check` passes
   in CI. For a small fix the agent commits on `main` and the push comes from Dominik's own terminal;
-  the guards judge only the agent's tool calls. GitHub branch protection is not available on this private
+  the guards judge only the agent's tool calls. GitHub branch protection is unavailable on this private
   repository, so the guard is the only check.
 - Commit before `/code-review`: it reads committed work only, the diff from its fixed point to `HEAD`.
 
@@ -90,7 +90,7 @@ pnpm exec dw-sdlc primitives --paths <files> [--json] # the Primitives that own 
 pnpm exec dw-sdlc pr ship [<n>] [-R owner/name] [--merge] [--review full|light|off] [--dry-run] [--json] [--verbose] # the Action one pull request needs next, performed when the script owns it; exit 0 done, 10 act, 20 wait, 30 park, 2 cannot run
 pnpm exec dw-sdlc pr reviewed <n> [-R owner/name] --head <sha> [--findings | --accept] [--json] # post dw-sdlc/review on that head; exit 2 when it moved or cannot run
 pnpm exec dw-sdlc recap [--json] # a Recap's facts and the close verdict, read-only; exit 0 can close, 1 cannot, 2 cannot run
-pnpm exec dw-sdlc sweep [--dry-run] [--json] # main checkout only: delete Landed branches, name the rest; exit 0 none kept, 1 some, 2 cannot run
+pnpm exec dw-sdlc sweep [--dry-run] [--json] # main checkout only: removes Landed branches, clean worktrees, stale locks and its own Workers' terminals, names the rest; exit 0 none kept, 1 some, 2 cannot run
 pnpm exec dw-sdlc worker start --brief <file> --name <name> [--model] [--effort] [--json] # a Worker on a Brief in a herdr terminal; exit 0 delivered, 1 not, 2 cannot run
 pnpm exec dw-sdlc worker ls [--json] # this Lead's Workers: state, status, folder
 pnpm exec dw-sdlc worker report --to <lead> --recap <file> # a Recap to the Lead, retried while it is blocked; exit 1 gives up

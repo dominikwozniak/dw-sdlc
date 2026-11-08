@@ -39,6 +39,10 @@ Each follow-up is "this session" or "a new session", with one recommended dispos
 one "go" carries out every recommendation, "go, but 2 issue" changes one, and nothing runs before it. The
 skill starts no session, so "go" hands a `worker` to the dev as its description, for them to start.
 
+In the main checkout the Recap also reads `dw-sdlc sweep --dry-run --json`. When a Sweep would remove
+anything, it lists a Sweep as a follow-up `now`, counting the branches, worktrees and terminals, so the dev's
+"go" runs `/sdlc-sweep`. A Recap in a linked worktree lists none, since the Sweep refuses there.
+
 The Recap is written in the conversation's language. It links pull requests and issues instead of
 listing files, and it checks every "merged" or "green" live with `gh`.
 
@@ -165,10 +169,12 @@ While it has live Workers, the Lead:
 - writes no code and never merges: each Worker carries its own pull request through `/sdlc-pr-ship`;
 - answers no Worker's question outside the Brief, and relays a parked question to the dev;
 - takes the dev's answer given in a Worker's own terminal from that Worker's next Recap;
-- leaves the Workers' terminals and worktrees for the dev to remove.
+- removes no Worker's terminal or worktree itself: the Sweep does, on the dev's "go".
 
 When the Workers have reported their end, or the dev asks, it gives one combined Recap in the shape of
-`/sdlc-recap`, whose close line counts the live Workers. On the dev's ask it renames its herdr tab to
+`/sdlc-recap`, whose close line counts the live Workers. Once every Worker has reported, the combined
+Recap carries the Sweep follow-up, so the dev's "go" runs `/sdlc-sweep`, which removes the Workers'
+terminals and worktrees and lets the Lead close. On the dev's ask it renames its herdr tab to
 `lead-<topic>`, through `herdr-app`, and labels its terminal `role=lead` and `name=lead-<topic>`.
 
 ## Evals
