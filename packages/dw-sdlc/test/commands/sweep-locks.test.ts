@@ -157,7 +157,7 @@ describe("a lock that stays", () => {
     assert.deepEqual(removed, [])
     const item = kept.find(({ kind }) => kind === "worktree")
     assert.match(item?.reason ?? "", /new\.txt/)
-    assert.equal(item?.command, `git worktree remove --force ${tree}`)
+    assert.equal(item?.command, `git worktree remove --force --force ${tree}`)
     assert.equal(lockOf(root, tree), reason)
     assert.deepEqual(trees(root), [root, tree])
     assert.equal(run.status, 1)

@@ -62,8 +62,9 @@ function forcedDelete(branch: string): string {
   return shellLine(["git", "branch", "-D", branch])
 }
 
-function forcedRemoval(path: string): string {
-  return shellLine(["git", "worktree", "remove", "--force", path])
+/** The forced removal; git wants --force twice for a worktree still locked. */
+function forcedRemoval(path: string, locked = false): string {
+  return shellLine(["git", "worktree", "remove", "--force", ...(locked ? ["--force"] : []), path])
 }
 
 function fetchOrigin(root: string): void {
@@ -204,7 +205,10 @@ function whyTreeStays(
     return { reason: files.error, command: null }
   }
   if (files.length > 0) {
-    return { reason: `modified or untracked: ${files.join(", ")}`, command: forcedRemoval(path) }
+    return {
+      reason: `modified or untracked: ${files.join(", ")}`,
+      command: forcedRemoval(path, lock.state === "stale")
+    }
   }
   if (!isCommitLanded(root, baseRef, tree.head)) {
     const at = tree.branch === undefined ? `its detached HEAD ${tree.head.slice(0, 9)}` : `its HEAD on ${tree.branch}`
@@ -344,7 +348,7 @@ function removal(root: string, item: Planned, heldBy: Map<string, string>): Kept
         : git(root, ["worktree", "lock", "--reason", item.stale.held, "--", item.name])
     const lost =
       relocked !== undefined && "error" in relocked ? `; its lock could not be put back: ${relocked.error}` : ""
-    return refusedWith(`${result.error}${lost}`, forcedRemoval(item.name))
+    return refusedWith(`${result.error}${lost}`, forcedRemoval(item.name, item.stale !== undefined))
   }
   const path = heldBy.get(item.name)
   if (path !== undefined) {
