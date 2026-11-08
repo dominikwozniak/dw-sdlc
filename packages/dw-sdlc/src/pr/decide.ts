@@ -28,6 +28,7 @@ export type Action =
   | "mark-ready"
   | "awaiting-author"
   | "awaiting-approval"
+  | "partial-read"
   | "ready-to-merge"
   | "merge"
 /** The Actions the script performs itself, each one gh command. */
@@ -411,6 +412,17 @@ const ROWS: Row[] = [
       action: "awaiting-approval",
       actor: "dev",
       reason: "an approving review is required"
+    })
+  },
+  {
+    // A failure or an open thread past what the read holds shows in no row above.
+    when: (pr) => pr.cutOff.length > 0,
+    answer: (pr, _, policy) => ({
+      status: "park",
+      action: "partial-read",
+      actor: "dev",
+      reason: `the read holds only ${pr.cutOff.join(" and ")}: the merge is the dev's`,
+      command: devCommand(pr, "merge", policy)
     })
   },
   {

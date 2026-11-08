@@ -82,7 +82,11 @@ export type Pr = {
   baseDeleted?: boolean
   mergeCommit: string | null
   checks: Context[]
+  /** Whether more checks follow `checks` than the one read holds; none when left out. */
+  moreChecks?: boolean
   threads: Thread[]
+  /** Whether more threads follow `threads` than the one read holds; none when left out. */
+  moreThreads?: boolean
   /** Each reviewer's latest review; none when left out. */
   reviews?: Review[]
   /** The pull request's commits before the head, oldest first, each with its dw-sdlc/review state. */
@@ -169,7 +173,10 @@ function commitOf({ oid, review, described = "a clean review of this head", pare
 
 /** The `pullRequest` node of the reply, an object a test may break before serving it. */
 export function pullRequestOf(pr: Pr): Record<string, unknown> {
-  const rollup = pr.checks.length === 0 ? null : { contexts: { nodes: pr.checks.map(contextOf) } }
+  const rollup =
+    pr.checks.length === 0
+      ? null
+      : { contexts: { pageInfo: { hasNextPage: pr.moreChecks === true }, nodes: pr.checks.map(contextOf) } }
   return {
     url: `https://github.com/${pr.repo}/pull/${pr.number}`,
     number: pr.number,
@@ -185,7 +192,7 @@ export function pullRequestOf(pr: Pr): Record<string, unknown> {
     baseRef: pr.baseDeleted === true ? null : { target: { oid: pr.baseOid } },
     viewerDidAuthor: pr.viewerDidAuthor,
     mergeCommit: pr.mergeCommit === null ? null : { oid: pr.mergeCommit },
-    reviewThreads: { nodes: pr.threads.map(threadOf) },
+    reviewThreads: { pageInfo: { hasNextPage: pr.moreThreads === true }, nodes: pr.threads.map(threadOf) },
     latestReviews: {
       nodes: (pr.reviews ?? []).map(({ author, state, commit }) => ({
         state,
