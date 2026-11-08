@@ -96,6 +96,7 @@ describe("what stays whatever its work", () => {
     git(root, "branch", "held")
     const held = join(scratch("held"), "tree")
     git(root, "worktree", "add", "-q", held, "held")
+    writeFileSync(join(held, "wip.txt"), "wip\n")
     git(root, "branch", "plain")
     writeJson(join(root, ".ai/agentic.config.json"), { version: 1, guardrails: { protectedBranches: ["release"] } })
     const run = runBin(["sweep", "--json"], root)
@@ -106,6 +107,7 @@ describe("what stays whatever its work", () => {
     )
     const reasons = Object.fromEntries(kept.map(({ name, reason }) => [name, reason]))
     assert.deepEqual(reasons, {
+      [held]: "modified or untracked: wip.txt",
       main: "the default branch",
       release: "a protected branch",
       held: `checked out in the worktree at ${held}`
@@ -121,7 +123,9 @@ describe("what stays whatever its work", () => {
     git(root, "branch", "develop", "origin/develop")
     git(root, "branch", "plain")
     writeJson(join(root, ".ai/agentic.config.json"), { version: 1, baseBranch: "develop" })
-    const { removed, kept, base } = documentOf(runBin(["sweep", "--json"], root).stdout)
+    const run = runBin(["sweep", "--json"], root)
+    const { removed, kept, base } = documentOf(run.stdout)
+    assert.equal(run.status, 0)
     assert.equal(base, "origin/develop")
     assert.deepEqual(
       removed.map(({ name }) => name),
@@ -177,7 +181,7 @@ describe("what the dev sees", () => {
       "would remove branch merged — Landed on origin/main",
       "kept branch main — the default branch"
     ])
-    assert.equal(run.status, 1)
+    assert.equal(run.status, 0)
   })
 
   it("keeps a branch git refuses to delete, with git's words, and goes on", () => {
@@ -267,6 +271,9 @@ describe("the usage", () => {
   })
 
   it("sits in the bin's list of commands", () => {
-    assert.match(runBin(["--help"], scratch("list")).stdout, /^ {2}sweep {2,}removes each Landed local branch/m)
+    assert.match(
+      runBin(["--help"], scratch("list")).stdout,
+      /^ {2}sweep {2,}removes Landed branches and clean worktrees/m
+    )
   })
 })

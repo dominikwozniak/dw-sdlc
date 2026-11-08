@@ -65,19 +65,21 @@ function baseHoldsPatch(root: string, range: string, patch: string): boolean {
   return result.stdout.split("\n").some((line) => line.split(" ")[0] === patch)
 }
 
-/**
- * Whether the work of the local `branch` is on `baseRef`: the tip is on it, or a base commit since the fork
- * holds the tip's tree or the verbatim patch-id of its whole diff, as a squash merge leaves them.
- */
+/** Whether the work of the local `branch` is on `baseRef`; see `isCommitLanded`. */
 export function isLanded(root: string, baseRef: string, branch: string): boolean {
   const ref = `refs/heads/${branch}`
   if (answer(root, ["check-ref-format", ref]) === undefined) {
     return false
   }
   const tip = answer(root, ["rev-parse", "--verify", "-q", `${ref}^{commit}`])
-  if (tip === undefined) {
-    return false
-  }
+  return tip !== undefined && isCommitLanded(root, baseRef, tip)
+}
+
+/**
+ * Whether the work of the commit `tip` is on `baseRef`: it is on it, or a base commit since the fork holds
+ * its tree or the verbatim patch-id of its whole diff, as a squash merge leaves them.
+ */
+export function isCommitLanded(root: string, baseRef: string, tip: string): boolean {
   if (git(root, ["merge-base", "--is-ancestor", tip, baseRef]).status === 0) {
     return true
   }
