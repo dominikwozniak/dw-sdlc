@@ -124,8 +124,9 @@ with `gh`. Waiting on names each Worker still live and what it waits on.
 
 Once every Worker has reported its end, the Recap carries the Sweep follow-up that `sdlc-recap` describes.
 The dev's "go" runs `/sdlc-sweep`, which stops and removes the terminals of this Lead's Workers whose turn
-has ended and clears their worktrees, so the Lead can close. A Worker still working or blocked stays, and
-the Recap names it under Waiting on.
+has ended and clears their worktrees, which lets the Lead close. A Worker still working or blocked stays,
+and so does a finished Worker whose worktree the Sweep keeps, such as one with uncommitted files. After the
+Sweep, report what it kept, and name each Worker that stays under Waiting on.
 
 ## Naming the Lead
 

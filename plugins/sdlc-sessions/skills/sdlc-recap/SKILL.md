@@ -83,7 +83,7 @@ origin and changes nothing else. When `removed` is empty, list no follow-up. Oth
 session", with the disposition `now`: a Sweep, `/sdlc-sweep`, counting the items of `removed` by `kind`,
 such as "removes 3 branches, 2 worktrees and 1 terminal", a kind with none left out; a `lock` item is
 lifted with its worktree and adds nothing to the count. A Worker's terminal a Sweep would stop is what the close
-line's `workers` reason waits on: say that "go" clears it. On exit 2, list none and say in one line that
+line's `workers` reason waits on: say that "go" clears it unless the Sweep keeps the worktree. On exit 2, list none and say in one line that
 the Sweep could not be read, with its reason.
 
 End this section with one line telling the dev that "go" carries out every recommendation, and that
