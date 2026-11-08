@@ -307,7 +307,11 @@
       "name": "dw-sdlc sweep",
       "group": "tools",
       "summary": "Fetches origin and deletes each Landed local branch but the default, a protected and a checked-out one; names the rest.",
-      "code": ["packages/dw-sdlc/src/commands/sweep.ts", "packages/dw-sdlc/src/landed.ts"],
+      "code": [
+        "packages/dw-sdlc/src/commands/sweep.ts",
+        "packages/dw-sdlc/src/landed.ts",
+        "packages/dw-sdlc/src/worktree-lock.ts"
+      ],
       "docs": [
         "docs/overview.md#how-a-sweep-removes-what-finished-work-leaves",
         "docs/adr/0015-a-sweep-deletes-only-what-the-guards-let-an-agent-delete.md",
