@@ -36,3 +36,5 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - run: pnpm check --verbose
+        env:
+          NODE_COMPILE_CACHE: ${{ runner.temp }}/node-compile-cache
