@@ -147,22 +147,18 @@ describe("the sdlc-sessions plugin", () => {
     }
   })
 
-  it("has the Ship line say how the pull request body is written, holding no single quote", () => {
+  it("has the Ship line name both skills and leave the rules of the body to /sdlc-pr-open", () => {
     const template = readFileSync(join(PLUGIN_ROOT, BRIEF_TEMPLATE), "utf8")
     const ship = /^Ship: .+$/m.exec(template)?.[0] ?? ""
-    assert.ok(ship.includes("states what changes and why"), "the Ship line asks for what and why")
-    assert.ok(
-      ship.includes("fills the pull request template of the repository when there is one"),
-      "it asks for the template"
-    )
-    assert.ok(ship.includes("starts with `Closes #<n>` when the source is an issue"), "it asks for the Closes line")
+    assert.ok(ship.includes("open the pull request with `/sdlc-pr-open`"), "it opens with /sdlc-pr-open")
+    assert.ok(ship.includes("carry it through `/sdlc-pr-ship`"), "it carries on with /sdlc-pr-ship")
+    assert.ok(ship.includes("`pr.merge` in the config decides"), "it leaves the end to pr.merge")
+    for (const rule of ["states what changes", "template", "Closes"]) {
+      assert.ok(!ship.includes(rule), `the Ship line states no rule of the body: ${rule}`)
+    }
     assert.ok(!ship.includes("'"), "the start line quotes the whole Brief in single quotes")
     const note = /- \*\*Ship\.\*\*[\s\S]*?(?=\n- \*\*)/.exec(template)?.[0] ?? ""
-    assert.match(
-      note,
-      /source is no issue[\s\S]*leave out the sentence that starts\s+with `Closes`/,
-      "the note drops Closes"
-    )
+    assert.ok(!note.includes("Closes"), "the note speaks of no Closes sentence")
   })
 
   it("is listed beside sdlc, each at its manifest's version", () => {

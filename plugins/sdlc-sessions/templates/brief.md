@@ -16,7 +16,7 @@ You are the Worker: do it yourself, start no other session. A subagent a skill r
 May write: <the paths or areas>.
 Must not: <what the source or the dev rules out>, or change anything outside May write.
 Proof: <what shows it is done: the checks to run and their result>.
-Ship: open the pull request with `/sdlc-pr-open` and carry it through `/sdlc-pr-ship`. The pull request body states what changes and why and fills the pull request template of the repository when there is one. It starts with `Closes #<n>` when the source is an issue. `pr.merge` in the config decides whether you end at merged or parked for the dev.
+Ship: open the pull request with `/sdlc-pr-open` and carry it through `/sdlc-pr-ship`. `pr.merge` in the config decides whether you end at merged or parked for the dev.
 Questions: <the questions instruction>
 Report: <the report instruction>
 Model and effort: `<model>`, `<effort>`: <the reason, one clause>.
@@ -32,11 +32,8 @@ Model and effort: `<model>`, `<effort>`: <the reason, one clause>.
 - **Proof.** Every acceptance criterion of the source checked, and the config's `gate.command` green, when
   they exist, named as "every acceptance criterion of #<n>" and never copied. Otherwise the check that
   shows the goal is met.
-- **Ship.** Drop this line for read-only work. Fill `<n>` with the number the kickoff line names. When the
-  source is no issue, a spec in a file or an idea, there is no number: leave out the sentence that starts
-  with `Closes`, and keep the rest. In an issue's body, which cannot name its own number, the sentence
-  stays as it is: `/implement #<that issue>` starts the Worker, and `<n>` is that issue, never the one the
-  Source line points at.
+- **Ship.** Drop this line for read-only work. The skill `/sdlc-pr-open` writes the pull request body, so the
+  Brief states no rule of it.
 - **Questions and Report, without a Lead.**
   - `on a question outside this Brief, commit nothing more, ask, and end your turn. The answer comes from the dev in this terminal.`
   - `when the work is done, end with /sdlc-recap and stop. A wait from /sdlc-pr-ship is no end: tell the dev what it waits on and end your turn, and the next message from the dev resumes it.`
