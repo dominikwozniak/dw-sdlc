@@ -2,7 +2,6 @@
 // repository holding --root and the user's home; it installs nothing. FAIL is a guard that does not guard
 // (no jq, plugin absent or disabled, an invalid config), WARN a layer missing, loose or out of step, INFO one that does not apply.
 
-import { spawnSync } from "node:child_process"
 import { existsSync, readFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { join } from "node:path"
@@ -18,6 +17,7 @@ import {
   sessionsEnabled,
   versionBefore
 } from "../doctor-plugins.ts"
+import { exec, TimedOut } from "../exec.ts"
 import { isObject } from "../json-text.ts"
 
 export type Level = "PASS" | "WARN" | "FAIL" | "INFO"
@@ -59,18 +59,30 @@ export function claudeConfigDir(env: Record<string, string | undefined>, home: s
 export const RTK_FIND_EXEC_FIXED = "0.46.0"
 export const PNPM_MINIMUM_RELEASE_AGE = 10080
 
+/** A probe past its limit answers as a tool that could not run, so its check reports it and the rest still run. */
+function probed(tool: string, args: string[], cwd?: string): ReturnType<typeof exec> | undefined {
+  try {
+    return exec(tool, args, cwd === undefined ? {} : { cwd })
+  } catch (error) {
+    if (error instanceof TimedOut) {
+      return undefined
+    }
+    throw error
+  }
+}
+
 export const realProbe: Probe = {
   run(command, args, cwd) {
-    const result = spawnSync(command, args, { cwd, encoding: "utf8" })
-    return { status: result.status ?? 127, stdout: result.stdout ?? "" }
+    const result = probed(command, args, cwd)
+    return { status: result?.status ?? 127, stdout: result?.stdout ?? "" }
   },
   read(path) {
     return existsSync(path) ? readFileSync(path, "utf8") : undefined
   },
   shell(script) {
     const shell = process.env.SHELL ?? "/bin/sh"
-    const result = spawnSync(shell, ["-l", "-c", script], { encoding: "utf8" })
-    return (result.stdout ?? "").trim().split("\n")[0] ?? ""
+    const result = probed(shell, ["-l", "-c", script])
+    return (result?.stdout ?? "").trim().split("\n")[0] ?? ""
   }
 }
 

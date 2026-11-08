@@ -1,10 +1,10 @@
 // `file-size-ratchet`: each file of code within the line limit of its group or, listed in the baseline,
 // within the count recorded there. A refresh only tightens the baseline: it lowers and drops, and adds no file.
 
-import { spawnSync } from "node:child_process"
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs"
 import { dirname, join, matchesGlob } from "node:path"
 
+import { exec } from "../exec.ts"
 import { CannotRun, type Check, type Finding } from "./check.ts"
 import { matching, treeFiles } from "./tree.ts"
 
@@ -88,7 +88,7 @@ function keyLines(text: string, path: string): number[] {
 function readBaseline(root: string): BaselineRead {
   const path = join(root, BASELINE)
   if (!existsSync(path)) {
-    const committed = spawnSync("git", ["-C", root, "cat-file", "-e", `HEAD:${BASELINE}`]).status === 0
+    const committed = exec("git", ["-C", root, "cat-file", "-e", `HEAD:${BASELINE}`]).status === 0
     return { state: "missing", committed }
   }
   const text = readFileSync(path, "utf8")

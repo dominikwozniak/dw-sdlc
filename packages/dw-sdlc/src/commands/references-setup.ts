@@ -2,11 +2,11 @@
 // each written only when it would change. A list gains the entries it lacks at its end; the one removal
 // is a `references` key moving out of the agentic config. A file it cannot read as expected is refused.
 
-import { spawnSync } from "node:child_process"
 import { existsSync, lstatSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { parseArgs } from "node:util"
 
+import { exec } from "../exec.ts"
 import { parseObject, removeKey, render } from "../json-text.ts"
 import {
   CONFIG,
@@ -198,7 +198,7 @@ function source(root: string): Source | { problem: string; file?: Change } {
 
 /** The repository `dir` sits in, or `dir` itself outside one. */
 function toplevel(dir: string): string {
-  const result = spawnSync("git", ["-C", dir, "rev-parse", "--show-toplevel"], { encoding: "utf8" })
+  const result = exec("git", ["-C", dir, "rev-parse", "--show-toplevel"])
   return result.status === 0 ? result.stdout.trim() : dir
 }
 

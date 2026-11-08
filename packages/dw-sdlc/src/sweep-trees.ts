@@ -1,10 +1,10 @@
 // What a Sweep reads of a repository's linked worktrees: where each lies, what it has checked out, its lock,
 // the files that hold it and the operation paused in it.
 
-import { spawnSync } from "node:child_process"
 import { existsSync } from "node:fs"
 import { join } from "node:path"
 
+import { exec } from "./exec.ts"
 import { repositoryFreeEnv } from "./git-env.ts"
 import { CannotRun } from "./pr/read.ts"
 import { asked, git } from "./working-tree.ts"
@@ -50,7 +50,7 @@ export function worktreesOf(root: string): Tree[] {
 /** The files `git status` lists in the worktree at `path`, ignored ones aside, or why it cannot be read. */
 export function dirtyFiles(path: string): string[] | { error: string } {
   const args = ["-C", path, "status", "--porcelain=v1", "-z", "--untracked-files=all"]
-  const result = spawnSync("git", args, { encoding: "utf8", env: repositoryFreeEnv(), maxBuffer: 64 * 1024 * 1024 })
+  const result = exec("git", args, { env: repositoryFreeEnv() })
   if (result.status !== 0) {
     const said = result.stderr.split("\n").find((line) => line.trim() !== "")
     return { error: `git status: ${said?.trim() ?? `exited ${result.status ?? "on a signal"}`}` }

@@ -522,6 +522,7 @@
       "code": [
         "packages/dw-sdlc/src/commands/gate.ts",
         "packages/dw-sdlc/src/run-command.ts",
+        "packages/dw-sdlc/src/exec.ts",
         "packages/dw-sdlc/src/report.ts",
         "packages/dw-sdlc/src/gate-cache.ts",
         "packages/dw-sdlc/src/working-tree.ts",

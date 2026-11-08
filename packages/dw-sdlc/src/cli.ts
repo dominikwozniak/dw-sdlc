@@ -63,5 +63,11 @@ async function main(argv: string[]): Promise<number> {
 }
 
 if (import.meta.main) {
-  process.exitCode = await main(process.argv.slice(2))
+  try {
+    process.exitCode = await main(process.argv.slice(2))
+  } catch (error) {
+    // What no command answered for stopped it before a verdict: exit 1 would read as one.
+    process.stderr.write(`dw-sdlc: ${error instanceof Error ? error.message : String(error)}\n`)
+    process.exitCode = 2
+  }
 }

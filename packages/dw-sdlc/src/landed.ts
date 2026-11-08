@@ -2,8 +2,7 @@
 // (plugins/sdlc/hooks/lib-git.sh) judges it. The guard keeps its own bash version; docs/adr/0015 says why there
 // are two, and the shared table of scenarios, plugins/sdlc/test/landed-scenarios.ts, holds them to one meaning.
 
-import { spawnSync } from "node:child_process"
-
+import { exec, SLOW_LIMIT_MS } from "./exec.ts"
 import { repositoryFreeEnv } from "./git-env.ts"
 
 /** The base commits read, newest first: a branch that forked further back is kept rather than read for seconds. */
@@ -16,19 +15,18 @@ function localEnv(): NodeJS.ProcessEnv {
 
 type Ran = { status: number; stdout: string }
 
-function git(root: string, args: string[], input?: string): Ran {
-  const result = spawnSync("git", ["-C", root, ...args], {
-    encoding: "utf8",
+function git(root: string, args: string[], input?: string, limitMs?: number): Ran {
+  const result = exec("git", ["-C", root, ...args], {
     env: localEnv(),
-    input,
-    maxBuffer: 64 * 1024 * 1024
+    ...(input === undefined ? {} : { input }),
+    ...(limitMs === undefined ? {} : { limitMs })
   })
   return { status: result.status ?? 1, stdout: result.stdout ?? "" }
 }
 
 /** What `git <args>` prints, or undefined when it exits non-zero. */
-function answer(root: string, args: string[], input?: string): string | undefined {
-  const ran = git(root, args, input)
+function answer(root: string, args: string[], input?: string, limitMs?: number): string | undefined {
+  const ran = git(root, args, input, limitMs)
   return ran.status === 0 ? ran.stdout.trim() : undefined
 }
 
@@ -54,10 +52,9 @@ function baseHoldsPatch(root: string, range: string, patch: string): boolean {
       "git patch-id --verbatim"
     ].join(" | ")
   ].join("; ")
-  const result = spawnSync("bash", ["-c", pipeline, "bash", root, String(SCAN), range], {
-    encoding: "utf8",
+  const result = exec("bash", ["-c", pipeline, "bash", root, String(SCAN), range], {
     env: localEnv(),
-    maxBuffer: 64 * 1024 * 1024
+    limitMs: SLOW_LIMIT_MS
   })
   if (result.status !== 0) {
     return false
@@ -89,7 +86,7 @@ export function isCommitLanded(root: string, baseRef: string, tip: string): bool
     return false
   }
   const range = `${fork}..${baseRef}`
-  const trees = answer(root, ["log", "--format=%T", `--max-count=${SCAN}`, range]) ?? ""
+  const trees = answer(root, ["log", "--format=%T", `--max-count=${SCAN}`, range], undefined, SLOW_LIMIT_MS) ?? ""
   if (trees.split("\n").includes(tree)) {
     return true
   }

@@ -1,21 +1,18 @@
 // A checkout's working tree as git would commit it: the tree of every file git tracks or would track,
 // hashed on a copy of the index. The Gate's cache fingerprints it and the watch for Drift records it.
 
-import { spawnSync } from "node:child_process"
 import { copyFileSync, existsSync, mkdtempSync, rmSync, statSync, utimesSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
+import { exec } from "./exec.ts"
 import { repositoryFreeEnv } from "./git-env.ts"
 
 /** `git <args>` in the repository at `root`, on `index` when given. */
 export function git(root: string, args: string[], index?: string): { out: string } | { error: string } {
   const env = repositoryFreeEnv()
-  const result = spawnSync("git", ["-C", root, ...args], {
-    encoding: "utf8",
-    env: index === undefined ? env : { ...env, GIT_INDEX_FILE: index },
-    // A Step that writes thousands of files makes a diff-tree past the default 1 MiB.
-    maxBuffer: 64 * 1024 * 1024
+  const result = exec("git", ["-C", root, ...args], {
+    env: index === undefined ? env : { ...env, GIT_INDEX_FILE: index }
   })
   if (result.status === 0) {
     return { out: result.stdout.trim() }
