@@ -505,27 +505,38 @@ terminal herdr started: `$HC_TERMINAL_ID` is the Lead's address, and without it 
 
 ## How a Sweep removes what finished work leaves
 
-`dw-sdlc sweep [--dry-run] [--json]` deletes the local branches finished work leaves behind. The dev's word
-starts it, and it runs from the main checkout: in a linked worktree it exits 2 and names the line to run
-from the main checkout, since git run inside the command is out of sight of Claude Code's worktree
-isolation. [ADR 0015](adr/0015-a-sweep-deletes-only-what-the-guards-let-an-agent-delete.md) sets its bounds:
-it never forces, and it never writes to a remote.
+`dw-sdlc sweep [--dry-run] [--json]` removes the worktrees and the local branches finished work leaves
+behind. The dev's word starts it, and it runs from the main checkout: in a linked worktree it exits 2 and
+names the line to run from the main checkout, since git run inside the command is out of sight of Claude
+Code's worktree isolation. [ADR 0015](adr/0015-a-sweep-deletes-only-what-the-guards-let-an-agent-delete.md)
+sets its bounds: it never forces, and it never writes to a remote.
 
 - It fetches origin first, so a branch squash-merged since the last fetch counts. The fetch writes
   remote-tracking refs only; origin's own refs stay as they were.
 - It reads the base as the guard does: `baseBranch` of the config, else the branch `origin/HEAD` names. With
   no base it exits 2 and removes nothing.
+- A linked worktree goes when its whole set passes, wherever it lies: Claude Code's worktree folder, beside
+  the checkout or in an old session's scratchpad. The set: no modified or untracked file, ignored files such
+  as installed dependencies aside; no paused rebase, merge, cherry-pick, revert or bisect; no lock; its HEAD
+  Landed, on a branch or detached. It removes the worktree without force, then deletes the branch that
+  worktree had checked out, in the same run. The main checkout is never removed.
+- A worktree that fails the set stays, with its reason: the files that hold it, with the forced removal as
+  the command for the dev to run; the paused operation; the lock's reason, with `git worktree unlock`; a
+  HEAD that is not Landed. A worktree git refuses to remove stays with git's words, its branch with it, and
+  the Sweep goes on.
 - A branch goes when it is Landed (see [`GLOSSARY.md`](../GLOSSARY.md)). `packages/dw-sdlc/src/landed.ts`
   follows the guard's rule in `lib-git.sh`: the tip is on the base, or a base commit since the fork holds the
   tip's tree or the verbatim patch-id of its whole diff. It reads the same 5000 base commits and only local
   objects. The guard keeps its own bash version; one table of scenarios,
   `plugins/sdlc/test/landed-scenarios.ts`, which both suites read, holds the two to one meaning.
-- It keeps the default branch, the base branch, a protected branch and a branch any worktree has checked
+- It keeps the default branch, the base branch, a protected branch and a branch a kept worktree has checked
   out, each with its reason. A branch whose work is on no commit of the base stays, with the forced delete
   as the command for the dev to run. A delete git refuses is kept with git's words, and the Sweep goes on.
-- One line an item, or one document with `--json`: `removed` and `kept`, each item with its kind, name,
-  reason and, for a kept one, the dev's command. `--dry-run` removes nothing and answers the same items.
-  Exit 0 when nothing is kept, 1 when something is, 2 when it cannot run.
+- One line an item, or one document with `--json`: `removed` and `kept`, each item with its kind (branch or
+  worktree), name (a worktree's path), reason and, for a kept one, the dev's command. `--dry-run` removes
+  nothing and answers the same items. Exit 0 when nothing is kept but the default, the base or a protected
+  branch, which are never the dev's to decide and are still listed; 1 when something else is; 2 when it
+  cannot run.
 
 ## Releasing the plugin
 
