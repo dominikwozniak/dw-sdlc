@@ -3,7 +3,7 @@
 // worktrees are other sessions' work.
 
 import assert from "node:assert/strict"
-import { chmodSync, existsSync, mkdirSync, writeFileSync } from "node:fs"
+import { chmodSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { describe, it } from "node:test"
 
@@ -179,6 +179,17 @@ describe("a worktree that stays", () => {
     assert.equal(item?.command, `git worktree unlock ${tree}`)
     assert.deepEqual(trees(root), [root, tree])
     assert.equal(run.status, 1)
+  })
+
+  it("names the lock's reason of a locked worktree whose folder is gone", () => {
+    const root = clone()
+    const tree = addTree(root, join(scratch("gone"), "tree"), "topic")
+    git(root, "worktree", "lock", "--reason", "claude session abc (pid 1 start 2)", tree)
+    rmSync(tree, { recursive: true })
+    const { kept } = documentOf(runBin(["sweep", "--json"], root).stdout)
+    const item = kept.find(({ kind }) => kind === "worktree")
+    assert.match(item?.reason ?? "", /claude session abc/)
+    assert.equal(item?.command, `git worktree unlock ${tree}`)
   })
 
   it("keeps a worktree git refuses to remove with git's words, its branch with it, and goes on", () => {

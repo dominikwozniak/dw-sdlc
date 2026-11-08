@@ -177,12 +177,12 @@ function pausedOperation(path: string): string | undefined {
 /** Why the worktree stays, with the dev's command when there is one, or null when its whole set passes. */
 function whyTreeStays(root: string, baseRef: string, tree: Tree): Pick<Kept, "reason" | "command"> | null {
   const { path } = tree
-  if (tree.prunable) {
-    return { reason: "its folder is gone", command: shellLine(["git", "worktree", "prune"]) }
-  }
   if (tree.lock !== undefined) {
     const reason = tree.lock === "" ? "locked, with no reason given" : `locked: ${tree.lock}`
     return { reason, command: shellLine(["git", "worktree", "unlock", path]) }
+  }
+  if (tree.prunable) {
+    return { reason: "its folder is gone", command: shellLine(["git", "worktree", "prune"]) }
   }
   const operation = pausedOperation(path)
   if (operation !== undefined) {
