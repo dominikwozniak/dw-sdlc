@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "check": "dw-sdlc gate",
-    "test": "node --test \"packages/*/test/**/*.test.ts\" \"plugins/*/test/**/*.test.ts\"",
+    "test": "node --test --test-concurrency=$(node -p 'Math.max(2, os.availableParallelism() - 1)') \"packages/*/test/**/*.test.ts\" \"plugins/*/test/**/*.test.ts\"",
     "agentic:check": "dw-sdlc config",
     "guardrails:setup": "dw-sdlc setup",
     "guardrails:doctor": "dw-sdlc doctor",

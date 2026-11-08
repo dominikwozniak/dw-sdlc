@@ -74,7 +74,7 @@ does not stop the next: first a repository's own scripts, which join through `ga
 package does not ship. `gate.command` is the command an agent or a person runs, inferred as
 `pnpm check` from the `check` script of `package.json` when no layer sets it.
 
-The Gate is quiet in a terminal, for an agent and in CI alike, so its whole report fits in what an
+The Gate is quiet in a terminal and for an agent alike, so its whole report fits in what an
 agent's Bash tool shows. A Step or run script runs with its two output streams captured into one, in
 the order written, and prints none of it when it passes. A green run prints one line per Step with
 its time, one per Check and a last line saying it is green:
@@ -103,7 +103,8 @@ gate: failed — 1 failure
 No file keeps the full output: the failure line names the command to run alone. In a terminal a
 Step's line shows when it starts and takes its result in place when it ends; elsewhere each line
 prints once, finished. `--verbose` passes each command's output through live instead, colours kept,
-under a `gate: step <command>` or `gate: check <name>` line, and keeps no tail.
+under a `gate: step <command>` or `gate: check <name>` line, and keeps no tail. The Quality Gate
+workflow runs it this way, so the log of a job that times out shows how far the tests got.
 
 SIGINT or SIGTERM sent while a command runs, from Ctrl-C or a cancelled CI job, stops that command
 and every command and Check after it, and the report still prints: the stopped command's last 50

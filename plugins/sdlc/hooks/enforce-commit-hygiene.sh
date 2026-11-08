@@ -3,7 +3,7 @@
 # backtick and a `git add` of the whole tree, each in README.md#guards. A lexer of its own, as BSD
 # `xargs -n1` dies on a quoted newline; it keys off a `git` token, so launchers need no handling.
 set -uo pipefail
-source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+source "${BASH_SOURCE[0]%/*}/lib.sh"
 
 guard_read_payload "$@" || exit 0
 [[ -n "$GUARD_COMMAND" ]] || exit 0

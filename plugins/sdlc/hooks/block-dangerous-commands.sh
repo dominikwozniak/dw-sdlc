@@ -3,7 +3,7 @@
 # git and gh read as words, rm, find and shred read in place, each rule in README.md#guards. Not a
 # security boundary: a command assembled at runtime, an alias or a script on disk is not read.
 set -uo pipefail
-source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+source "${BASH_SOURCE[0]%/*}/lib.sh"
 
 guard_read_payload "$@" || exit 0
 [[ -n "$GUARD_COMMAND" ]] || exit 0

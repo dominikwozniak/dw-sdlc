@@ -3,7 +3,7 @@
 # command with `--confirm`, and an `asc` call that is no read, both in README.md#guards. Only the
 # owner writes to the store, at a terminal. Not a security boundary.
 set -uo pipefail
-source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+source "${BASH_SOURCE[0]%/*}/lib.sh"
 
 guard_read_payload "$@" || exit 0
 [[ -n "$GUARD_COMMAND" ]] || exit 0

@@ -3,7 +3,7 @@
 # trigger lists are the plugin's whole policy, which a guard's own self-test cannot see, so
 # test/hooks/bash-guard.test.ts pins that each guard is spawned at all.
 set -uo pipefail
-source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+source "${BASH_SOURCE[0]%/*}/lib.sh"
 
 guard_read_payload "$@" || exit 0
 [[ -n "$GUARD_COMMAND" ]] || exit 0

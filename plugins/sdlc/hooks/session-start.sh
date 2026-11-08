@@ -14,7 +14,7 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 0
 fi
 
-source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+source "${BASH_SOURCE[0]%/*}/lib.sh"
 guard_read_payload "$@" || exit 0
 cwd="$GUARD_CWD"
 

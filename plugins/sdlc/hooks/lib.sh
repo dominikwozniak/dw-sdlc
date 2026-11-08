@@ -8,8 +8,8 @@
 # bash finds `${s:i:1}` by counting characters from the start, and a 10 KB command took seconds.
 export LC_ALL=C
 
-GUARD_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-GUARD_PLUGIN_ROOT="$(dirname "$GUARD_LIB_DIR")"
+GUARD_LIB_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
+GUARD_PLUGIN_ROOT="${GUARD_LIB_DIR%/*}"
 GUARD_SCHEMA="$GUARD_PLUGIN_ROOT/dw-sdlc/config/agentic.config.schema.json"
 GUARD_COMMITTED_FILE=".ai/agentic.config.json"
 GUARD_LOCAL_FILE=".ai/agentic.config.local.json"
