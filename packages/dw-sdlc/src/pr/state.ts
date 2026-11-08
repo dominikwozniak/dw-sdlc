@@ -19,6 +19,7 @@ export const QUERY = `query($owner: String!, $name: String!, $number: Int!) {
     pullRequest(number: $number) {
       url number state isDraft mergeable mergeStateStatus reviewDecision headRefOid headRefName baseRefName baseRefOid
       baseRef { target { oid } } viewerDidAuthor mergeCommit { oid }
+      latestReviews(first: 100) { nodes { state author { login } commit { oid } } }
       reviewThreads(first: 100) { nodes { id isResolved isOutdated path line
         comments(first: 1) { nodes { author { login } body } }
         latest: comments(last: 1) { nodes { viewerDidAuthor } } } }
@@ -55,6 +56,9 @@ const STATES = ["OPEN", "CLOSED", "MERGED"] as const
 const MERGEABLE = ["MERGEABLE", "CONFLICTING", "UNKNOWN"] as const
 const REVIEW_DECISIONS = ["APPROVED", "CHANGES_REQUESTED", "REVIEW_REQUIRED"] as const
 
+/** A reviewer whose latest review requests changes, and whether a push has answered it. */
+export type ChangeRequest = { reviewer: string; answered: boolean }
+
 export type PrState = {
   url: string
   repo: string
@@ -79,6 +83,8 @@ export type PrState = {
   checks: CiCheck[]
   /** The threads neither resolved nor outdated. */
   unresolvedThreads: Thread[]
+  /** Each reviewer's latest review that requests changes, in the order GitHub lists them. */
+  changeRequests: ChangeRequest[]
   /** The oids of the pull request's last 100 commits, oldest first, the head last. */
   commits: string[]
   /**
@@ -369,6 +375,29 @@ function lastReadOf(history: Posted[], head: string): LastRead | null {
   return { commit: last.oid, clean: last.read === "clean", mergesOnly: mergesOnlyAfter(index) }
 }
 
+/**
+ * Whether a non-merge commit follows `commit` in the history, oldest first, as `lastReadOf` judges a read
+ * mark. A commit outside the history, after a force-push or past the last 100, is not answered.
+ */
+function answeredAfter(history: Posted[], commit: string | null): boolean {
+  const index = history.findIndex(({ oid }) => oid === commit)
+  return index >= 0 && history.slice(index + 1).some(({ merge }) => !merge)
+}
+
+/** The reviewers whose latest review requests changes, each judged against the history. */
+function changeRequestsOf(pr: Node, history: Posted[]): ChangeRequest[] {
+  return nodes(pr, "latestReviews")
+    .filter((review) => string(review, "state") === "CHANGES_REQUESTED")
+    .map((review) => {
+      const author = childOrNull(review, "author")
+      const commit = childOrNull(review, "commit")
+      return {
+        reviewer: author === null ? "ghost" : string(author, "login"),
+        answered: answeredAfter(history, commit === null ? null : string(commit, "oid"))
+      }
+    })
+}
+
 function readMarksOf(history: Posted[]): ReadMarks {
   const success = history.findLastIndex(({ posted }) => posted === "clean" || posted === "off")
   const count = history.slice(success + 1).filter(({ posted }) => posted === "findings").length
@@ -419,6 +448,7 @@ export function parsePr(reply: string, repo: string): Omit<PrState, "carried" | 
     unresolvedThreads: nodes(pr, "reviewThreads")
       .filter((thread) => !boolean(thread, "isResolved") && !boolean(thread, "isOutdated"))
       .map(threadOf),
+    changeRequests: changeRequestsOf(pr, history),
     commits: history.map(({ oid }) => oid),
     lastRead: lastReadOf(history, head),
     marks: readMarksOf(history)

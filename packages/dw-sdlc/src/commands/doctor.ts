@@ -14,6 +14,7 @@ import {
   checkSessions,
   parseJson,
   runningPluginRoot,
+  sessionsEnabled,
   versionBefore
 } from "../doctor-plugins.ts"
 import { exec, TimedOut } from "../exec.ts"
@@ -185,11 +186,18 @@ function checkRtk(probe: Probe, home: string, claude: string): Check {
   }
 }
 
-/** herdr's `hc` in the agent's shell, which a Lead starts its Workers through; a machine may go without it. */
+/**
+ * herdr's `hc` in the agent's shell, which a Lead starts its Workers through. Its absence warns only where
+ * `sdlc-sessions` is enabled: a machine with only the guards has no reason to install herdr.
+ */
 function checkHc(probe: Probe): Check {
   const hc = probe.shell("command -v hc")
   if (hc === "") {
-    return { name: "hc", level: "INFO", detail: "no hc on PATH, so no /sdlc-delegate: install herdr to run Workers" }
+    return {
+      name: "hc",
+      level: sessionsEnabled(probe) ? "WARN" : "INFO",
+      detail: "no hc on PATH, so no /sdlc-delegate: install herdr to run Workers"
+    }
   }
   return { name: "hc", level: "PASS", detail: `${hc}, so a Lead can start Workers` }
 }

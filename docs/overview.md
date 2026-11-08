@@ -371,10 +371,17 @@ Action may have landed, so a caller does not run it blind again.
 The agent owns four: `fix-conflicts`, `fix-ci`, `address-review` and `review`. Under `details`,
 `fix-ci` lists each failing check with its link and, for a GitHub Actions job, the command that
 prints its log; `address-review` lists each open thread someone else commented on last, and with
-none answers a review that requests changes. Every later Action that holds the pull request back
+none answers a review that requests changes while it is unanswered. A review is answered when a
+non-merge commit follows the commit it read, which the same GraphQL query reads from
+`latestReviews` and finds in the commit history; a review whose commit has left the history, after a
+force-push or past the last 100 commits, stays unanswered, and so does the pull request while any
+one of several reviewers' reviews is. Every later Action that holds the pull request back
 rides in `blockers`, so one push can fix several. The dev owns the rest: a closed pull request, a
 head no check reported on within 120 s of its commit date, CI pending past its 40-minute budget, a
-thread whose last comment is the viewer's and so awaits the reviewer, another author's draft, which
+thread whose last comment is the viewer's and so awaits the reviewer, a review that requests
+changes and a push has answered (`awaiting-review`, named for the reviewer, with no command: only
+they can review again or dismiss it), which sits after `awaiting-reply` so the pull request's own
+Review and CI run first, another author's draft, which
 is the author's to mark ready, a required approval, three Reviews with no success between them, and
 the merge when it is not the script's.
 

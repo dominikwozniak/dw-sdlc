@@ -24,6 +24,7 @@ export type Action =
   | "unverified"
   | "ci-stuck"
   | "awaiting-reply"
+  | "awaiting-review"
   | "mark-ready"
   | "awaiting-author"
   | "awaiting-approval"
@@ -113,6 +114,24 @@ function failure({ name, link, log }: CiCheck): Record<string, unknown> {
 /** The unresolved threads whose last comment is the viewer's, or with `false` someone else's. */
 function threads(pr: PrState, lastByViewer: boolean): Thread[] {
   return pr.unresolvedThreads.filter((thread) => thread.lastByViewer === lastByViewer)
+}
+
+/**
+ * Whether the decision is changes requested and every reviewer asking for them has been answered by a
+ * push. One review still unanswered, or none in the reply to judge, keeps the agent's turn.
+ */
+function reviewAnswered({ reviewDecision, changeRequests }: PrState): boolean {
+  return (
+    reviewDecision === "CHANGES_REQUESTED" &&
+    changeRequests.length > 0 &&
+    changeRequests.every(({ answered }) => answered)
+  )
+}
+
+/** The names, `a`, `a and b` or `a, b and c`. */
+function namesOf(names: string[]): string {
+  const last = names.at(-1)
+  return names.length < 2 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${last}`
 }
 
 function listed({ id, path, line, author, body }: Thread): Record<string, unknown> {
@@ -287,7 +306,7 @@ const ROWS: Row[] = [
     })
   },
   {
-    when: (pr) => pr.reviewDecision === "CHANGES_REQUESTED",
+    when: (pr) => pr.reviewDecision === "CHANGES_REQUESTED" && !reviewAnswered(pr),
     answer: () => ({ status: "act", action: "address-review", actor: "agent", reason: "changes requested" })
   },
   {
@@ -359,6 +378,17 @@ const ROWS: Row[] = [
       actor: "dev",
       reason: `${threads(pr, true).length} thread(s) await a reply`,
       details: { threads: threads(pr, true).map(listed) }
+    })
+  },
+  {
+    // After awaiting-reply, so the pull request's own Review and CI run first and the reviewer gets a
+    // verified fix. Only the reviewer can act: their review stands until they review again or dismiss it.
+    when: reviewAnswered,
+    answer: (pr) => ({
+      status: "park",
+      action: "awaiting-review",
+      actor: "dev",
+      reason: `changes requested by ${namesOf(pr.changeRequests.map(({ reviewer }) => reviewer))}, answered by a push: the next review is the reviewer's`
     })
   },
   {

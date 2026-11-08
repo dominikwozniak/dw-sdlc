@@ -138,6 +138,10 @@ function hc(machine: Fake): Check {
   return line(diagnose({ root: ROOT, home: HOME, probe: fake(machine), config: CONFIG }), "hc")
 }
 
+function withoutHc(machine: Fake): Fake {
+  return withShell(machine, "command -v hc", "")
+}
+
 function rtkLine(machine: Fake): Check {
   return line(diagnose({ root: ROOT, home: HOME, probe: fake(machine), config: CONFIG }), "rtk")
 }
@@ -241,7 +245,10 @@ describe("diagnose", () => {
     it("is INFO when absent, or when claude plugin list does not answer: a machine may go without it", () => {
       const absent = sessions(listing(SDLC_ENTRY))
       assert.equal(absent.level, "INFO")
-      assert.equal(absent.detail, "no sdlc-sessions@dw-sdlc, so no /sdlc-recap")
+      assert.equal(
+        absent.detail,
+        "no sdlc-sessions@dw-sdlc, so no /sdlc-recap, /sdlc-brief or /sdlc-delegate. claude plugin install sdlc-sessions@dw-sdlc --scope user"
+      )
       const silent = sessions(withCommand(HEALTHY, "claude plugin list --json", undefined))
       assert.equal(silent.level, "INFO")
       assert.equal(silent.detail, "claude plugin list did not answer")
@@ -291,16 +298,28 @@ describe("diagnose", () => {
     })
   })
 
-  it("hc: on the agent's PATH a PASS, absent INFO, since a machine may go without herdr", () => {
-    assert.deepEqual(hc(HEALTHY), {
-      name: "hc",
-      level: "PASS",
-      detail: "/home/t/.local/bin/hc, so a Lead can start Workers"
+  describe("hc", () => {
+    const NO_HC = "no hc on PATH, so no /sdlc-delegate: install herdr to run Workers"
+
+    it("passes with its path on the agent's PATH", () => {
+      assert.deepEqual(hc(HEALTHY), {
+        name: "hc",
+        level: "PASS",
+        detail: "/home/t/.local/bin/hc, so a Lead can start Workers"
+      })
     })
-    assert.deepEqual(hc(withShell(HEALTHY, "command -v hc", "")), {
-      name: "hc",
-      level: "INFO",
-      detail: "no hc on PATH, so no /sdlc-delegate: install herdr to run Workers"
+
+    it("warns when absent and sdlc-sessions is enabled: /sdlc-delegate has nothing to start Workers with", () => {
+      assert.deepEqual(hc(withoutHc(HEALTHY)), { name: "hc", level: "WARN", detail: NO_HC })
+    })
+
+    it("is INFO when absent and sdlc-sessions is off: a machine with only the guards goes without herdr", () => {
+      const notInstalled = withoutHc(listing(SDLC_ENTRY))
+      const disabled = withoutHc(listing(SDLC_ENTRY, { ...SESSIONS_ENTRY, enabled: false }))
+      const silent = withoutHc(withCommand(HEALTHY, "claude plugin list --json", undefined))
+      for (const machine of [notInstalled, disabled, silent]) {
+        assert.deepEqual(hc(machine), { name: "hc", level: "INFO", detail: NO_HC })
+      }
     })
   })
 

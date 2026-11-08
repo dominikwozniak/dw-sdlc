@@ -142,6 +142,11 @@ export function checkPackage(probe: Probe, claude: string, root: string | undefi
   return { name, level: "PASS", detail: `${PACKAGE} ${linked} in the plugin and in the repository` }
 }
 
+/** Whether `sdlc-sessions` is installed and enabled here, so `/sdlc-delegate` is one the dev can start. */
+export function sessionsEnabled(probe: Probe): boolean {
+  return listedPlugins(probe)?.find((item) => item.id === SESSIONS_ID)?.enabled === true
+}
+
 /**
  * `sdlc-sessions`, which a machine may go without, so it never fails. Its copy of the package against
  * the sdlc plugin's copy: the `package` line holds that one to the repository's pin.
@@ -151,7 +156,10 @@ export function checkSessions(probe: Probe, claude: string): Check {
   const list = listedPlugins(probe)
   const entry = list?.find((item) => item.id === SESSIONS_ID)
   if (entry === undefined) {
-    const detail = list === undefined ? "claude plugin list did not answer" : `no ${SESSIONS_ID}, so no /sdlc-recap`
+    const detail =
+      list === undefined
+        ? "claude plugin list did not answer"
+        : `no ${SESSIONS_ID}, so no /sdlc-recap, /sdlc-brief or /sdlc-delegate. claude plugin install ${SESSIONS_ID} --scope user`
     return { name, level: "INFO", detail }
   }
   const version = typeof entry.version === "string" ? entry.version : "?"

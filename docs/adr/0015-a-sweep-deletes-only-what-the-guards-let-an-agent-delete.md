@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # A Sweep deletes only what the guards let an agent delete by hand

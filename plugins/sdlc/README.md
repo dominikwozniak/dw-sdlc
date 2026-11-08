@@ -392,7 +392,7 @@ the key.
 `dw-sdlc doctor` prints one PASS / WARN / FAIL line per machine check and installs
 nothing: `jq`, the plugin enabled, the package the plugin links against the one the repository pins,
 the session helpers' plugin and its copy of the package, rtk not wired by hand beside the plugin's hook and the filters that misbehave on the installed
-release excluded (`find` below rtk 0.46.0), herdr's `hc` on the agent's PATH (INFO when absent), Safe Chain visible to the agent's login shell with `npm`
+release excluded (`find` below rtk 0.46.0), herdr's `hc` on the agent's PATH (when absent, a WARN with `sdlc-sessions` enabled and INFO without it), Safe Chain visible to the agent's login shell with `npm`
 going through it (a WARN when absent), pnpm's global `minimumReleaseAge`, commit signing, and the
 resolved config of the repository holding `--root` or the current directory. A check that does not
 apply here is INFO, the config outside any repository among them. Exit 1 on a FAIL.
@@ -406,15 +406,16 @@ repository's Gate, and it names the fix: `claude plugin update sdlc@dw-sdlc` whe
 behind, the exact pin when the repository is. A repository that pins no `dw-sdlc` gets INFO.
 
 The `sessions` line reports [`sdlc-sessions`](../sdlc-sessions/README.md), which a machine may go
-without, so it never fails: INFO when it is not installed, a WARN when it is disabled or carries no
-package. Its own copy of the package is compared with the copy `sdlc` runs, which the `package` line holds
+without, so it never fails: INFO when it is not installed, naming the skills that are missing and the
+command that installs it, a WARN when it is disabled or carries no package. Its own copy of the package is compared with the copy `sdlc` runs, which the `package` line holds
 to the repository's pin. Different versions are a WARN that starts with `drift:` and names the plugin
 to update.
 
 The `hc` line reports herdr's `hc`, which a Lead starts its Workers through. It asks the agent's login
-shell for `command -v hc`: PASS with the path it finds, so a Lead can start Workers; INFO when there is
-none, since a machine may go without herdr, and the line says to install herdr to run Workers. It never
-warns or fails.
+shell for `command -v hc`: PASS with the path it finds, so a Lead can start Workers. With none, the line
+says to install herdr to run Workers, as a WARN when `sdlc-sessions` is enabled, since `/sdlc-delegate` then
+has nothing to start Workers with, and as INFO otherwise, since a machine with only the guards has no reason
+to install herdr. It never fails.
 
 The `sdlc-doctor` skill runs it as `node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" doctor` from the
 repository, and the setup skill runs it last; a terminal runs
@@ -625,8 +626,10 @@ The dev invokes it, or a Worker whose Brief tells it to. The skill reads each an
   then stops: that command accepts the head with its Findings open, and is the dev's to run, never
   the skill's. The agent's other `blockers` go
   into the same push, all but `review`, which needs the head the push makes, and the skill calls the
-  script again. An `act` that leaves nothing to change, as changes requested once a push answers
-  them, stops it: the reviewer's turn.
+  script again. An `act` that leaves nothing to change, as a review that requests changes and is
+  still unanswered, stops it: the reviewer's turn. A push that answers a review that requests changes, a
+  non-merge commit after the commit it read, makes the script answer `park awaiting-review` with
+  no command: only the reviewer can review again or dismiss it.
 - `wait`: it tells the dev the reason and `recheckAfter` and ends the turn. The next call comes with
   the dev's next message or a `/loop` wake-up, never from a sleep in a shell.
 - `park` and `done`: it prints the reason, and the command when there is one, and stops, a script
