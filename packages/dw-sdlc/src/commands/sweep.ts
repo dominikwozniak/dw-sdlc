@@ -12,7 +12,7 @@ import { isCommitLanded, isLanded } from "../landed.ts"
 import { shellLine } from "../pr/decide.ts"
 import { CannotRun } from "../pr/read.ts"
 import { asked, git } from "../working-tree.ts"
-import { type LockVerdict, lockVerdict } from "../worktree-lock.ts"
+import { type LockVerdict, lockVerdict, type StaleLock } from "../worktree-lock.ts"
 
 export const summary = "removes Landed branches and clean worktrees whose work has landed, names what it keeps"
 
@@ -44,7 +44,7 @@ cannot run: in a linked worktree, with no base to read, or when the fetch fails.
 type Item = { kind: "branch" | "worktree" | "lock"; name: string; reason: string }
 type Kept = Item & { command: string | null; dev: boolean }
 /** An item to remove; a worktree's `holds` is the branch it has checked out, `stale` the lock to lift first. */
-type Planned = Item & { holds?: string; stale?: Extract<LockVerdict, { state: "stale" }> }
+type Planned = Item & { holds?: string; stale?: StaleLock }
 type Shown = Item & { command?: string | null }
 
 type Sweep = { dryRun: boolean; base: string; removed: Shown[]; kept: Shown[] }
@@ -322,23 +322,29 @@ function removal(root: string, item: Planned, heldBy: Map<string, string>): Kept
     dev: true
   })
   if (item.kind === "worktree") {
+    const refusedWith = (reason: string, command: string): Kept => {
+      if (item.holds !== undefined) {
+        heldBy.set(item.holds, item.name)
+      }
+      return refused(reason, command)
+    }
     if (item.stale !== undefined) {
       const lifted = git(root, ["worktree", "unlock", "--", item.name])
       if ("error" in lifted) {
-        return refused(lifted.error, shellLine(["git", "worktree", "unlock", item.name]))
+        return refusedWith(lifted.error, shellLine(["git", "worktree", "unlock", item.name]))
       }
     }
     const result = git(root, ["worktree", "remove", "--", item.name])
     if (!("error" in result)) {
       return undefined
     }
-    if (item.stale !== undefined && item.stale.held !== "") {
-      git(root, ["worktree", "lock", "--reason", item.stale.held, "--", item.name])
-    }
-    if (item.holds !== undefined) {
-      heldBy.set(item.holds, item.name)
-    }
-    return refused(result.error, forcedRemoval(item.name))
+    const relocked =
+      item.stale === undefined
+        ? undefined
+        : git(root, ["worktree", "lock", "--reason", item.stale.held, "--", item.name])
+    const lost =
+      relocked !== undefined && "error" in relocked ? `; its lock could not be put back: ${relocked.error}` : ""
+    return refusedWith(`${result.error}${lost}`, forcedRemoval(item.name))
   }
   const path = heldBy.get(item.name)
   if (path !== undefined) {

@@ -522,7 +522,8 @@ sets its bounds: it never forces, and it never writes to a remote.
   then deletes the branch that worktree had checked out, in the same run. The main checkout is never
   removed.
 - Claude Code locks the worktree of a session with the reason `claude session <name> (pid <N> start
-  <time>)`. The lock is stale when no process N runs, or when N started at another time, as a reused pid
+  <time>)`, the time being the process's start in UTC as `ps -o lstart` writes it; local time reads as well,
+  so a live lock is never taken for stale over a time zone. The lock is stale when no process N runs, or when N started at another time, as a reused pid
   does. The Sweep lifts a stale lock just before it removes the worktree, and only when the rest of the set
   passes; if git then refuses the removal, it puts the lock back. A live lock keeps the worktree, named by
   its pid. A lock with any other reason keeps it too, with the reason and `git worktree unlock` as the

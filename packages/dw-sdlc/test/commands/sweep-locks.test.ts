@@ -43,9 +43,10 @@ function lockOf(root: string, path: string): string | undefined {
   return row === undefined || row === "" ? undefined : row.slice("locked".length).trim()
 }
 
-/** The start time of process `pid` as ps writes it, the form Claude Code's lock reason carries. */
-function startOf(pid: number): string {
-  const result = spawnSync("ps", ["-o", "lstart=", "-p", String(pid)], { encoding: "utf8", env: { LC_ALL: "C" } })
+/** The start time of process `pid` as ps writes it, in the time zone `zone` names: Claude Code writes UTC. */
+function startOf(pid: number, zone: "UTC" | "local"): string {
+  const env = zone === "UTC" ? { LC_ALL: "C", TZ: "UTC" } : { LC_ALL: "C" }
+  const result = spawnSync("ps", ["-o", "lstart=", "-p", String(pid)], { encoding: "utf8", env })
   return result.stdout.trim().replace(/\s+/g, " ")
 }
 
@@ -56,14 +57,14 @@ function exitedPid(): number {
   return child.pid
 }
 
-/** A folder holding a `git` that refuses `worktree remove` and runs the real one for anything else. */
-function gitRefusingRemoval(): string {
+/** A folder holding a `git` that refuses `worktree remove`, and `worktree lock` too when asked, and runs the real one for the rest. */
+function gitRefusingRemoval(alsoLock = false): string {
   const real = spawnSync("which", ["git"], { encoding: "utf8" }).stdout.trim()
   const dir = scratch("git-shim")
   const shim = join(dir, "git")
   writeFileSync(
     shim,
-    `#!/bin/sh\ncase " $* " in *" worktree remove "*) echo "fatal: refused" >&2; exit 128;; esac\nexec ${real} "$@"\n`
+    `#!/bin/sh\ncase " $* " in *" worktree remove "*${alsoLock ? '|*" worktree lock "*' : ""}) echo "fatal: refused" >&2; exit 128;; esac\nexec ${real} "$@"\n`
   )
   chmodSync(shim, 0o755)
   return dir
@@ -127,21 +128,23 @@ describe("a worktree locked by a Claude Code session whose process is gone", () 
 })
 
 describe("a lock that stays", () => {
-  it("keeps a worktree locked by the live process the lock names, named by its pid", () => {
-    const root = clone()
-    const tree = addTree(root, join(scratch("live"), "tree"), "topic")
-    const reason = claudeLock(process.pid, startOf(process.pid))
-    lock(root, tree, reason)
-    const run = runBin(["sweep", "--json"], root)
-    const { removed, kept } = documentOf(run.stdout)
-    assert.deepEqual(removed, [])
-    const item = kept.find(({ kind }) => kind === "worktree")
-    assert.equal(item?.name, tree)
-    assert.match(item?.reason ?? "", new RegExp(`pid ${process.pid} is running`))
-    assert.equal(lockOf(root, tree), reason)
-    assert.deepEqual(trees(root), [root, tree])
-    assert.equal(run.status, 1)
-  })
+  for (const zone of ["UTC", "local"] as const) {
+    it(`keeps a worktree locked by the live process the lock names, its start time in ${zone}, named by its pid`, () => {
+      const root = clone()
+      const tree = addTree(root, join(scratch("live"), "tree"), "topic")
+      const reason = claudeLock(process.pid, startOf(process.pid, zone))
+      lock(root, tree, reason)
+      const run = runBin(["sweep", "--json"], root)
+      const { removed, kept } = documentOf(run.stdout)
+      assert.deepEqual(removed, [])
+      const item = kept.find(({ kind }) => kind === "worktree")
+      assert.equal(item?.name, tree)
+      assert.match(item?.reason ?? "", new RegExp(`pid ${process.pid} is running`))
+      assert.equal(lockOf(root, tree), reason)
+      assert.deepEqual(trees(root), [root, tree])
+      assert.equal(run.status, 1)
+    })
+  }
 
   it("lifts nothing for a stale lock on a dirty worktree", () => {
     const root = clone()
@@ -197,6 +200,16 @@ describe("a lock that stays", () => {
     assert.match(item?.reason ?? "", /refused/)
     assert.equal(lockOf(root, tree), reason)
     assert.deepEqual(trees(root), [root, tree])
+    assert.equal(run.status, 1)
+  })
+
+  it("says so when the lock of a worktree git refused cannot be put back", () => {
+    const root = clone()
+    const tree = addTree(root, join(scratch("lost"), "tree"), "topic")
+    lock(root, tree, claudeLock(exitedPid(), "Sat Nov  7 20:44:18 2026"))
+    const run = runBin(["sweep", "--json"], root, { PATH: `${gitRefusingRemoval(true)}:${process.env.PATH}` })
+    const item = documentOf(run.stdout).kept.find(({ kind }) => kind === "worktree")
+    assert.match(item?.reason ?? "", /its lock could not be put back/)
     assert.equal(run.status, 1)
   })
 

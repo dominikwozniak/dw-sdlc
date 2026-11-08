@@ -1,37 +1,43 @@
 // What a worktree's lock means to a Sweep. Claude Code locks the worktree of a session with the reason
-// `claude session <name> (pid <N> start <time>)`, <time> as `ps -o lstart` writes it. Such a lock is stale
-// once no process N runs or N started at another time. Any other reason is the dev's to lift.
+// `claude session <name> (pid <N> start <time>)`, <time> as `ps -o lstart` writes it in UTC. Such a lock is
+// stale once no process N runs or N started at another time. Any other reason is the dev's to lift.
 
 import { spawnSync } from "node:child_process"
 
 import { shellLine } from "./pr/decide.ts"
 
-const CLAUDE_LOCK = /^claude session (.*) \(pid (\d{1,10}) start (.+)\)$/
+const CLAUDE_LOCK = /^claude session .* \(pid (?<pid>\d{1,10}) start (?<start>.+)\)$/
 const MAX_PID = 2 ** 31 - 1
 
-export type LockVerdict =
-  | { state: "none" }
-  /** The process is gone: `held` is the reason to put back should the removal fail, `why` what the Sweep tells. */
-  | { state: "stale"; held: string; why: string }
-  | { state: "stays"; reason: string; command: string | null }
+/** The process is gone: `held` is the reason to put back should the removal fail, `why` what the Sweep tells. */
+export type StaleLock = { state: "stale"; held: string; why: string }
 
-type Process = { at: "gone" } | { at: "unknown" } | { at: "running"; start: string }
+export type LockVerdict = { state: "none" } | StaleLock | { state: "stays"; reason: string; command: string | null }
 
-/** Whether process `pid` runs and, if so, the start time `ps` reports, whitespace collapsed. */
-function processOf(pid: number): Process {
+type Running = { at: "gone" } | { at: "unknown" } | { at: "running"; starts: string[] }
+
+const squeezed = (text: string): string => text.trim().replace(/\s+/g, " ")
+
+/**
+ * Whether process `pid` runs and, if so, its start time as `ps` writes it in UTC and in local time, so a
+ * live lock is never taken for stale over a time zone.
+ */
+function runningOf(pid: number): Running {
   try {
     process.kill(pid, 0)
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ESRCH") {
+    if (error instanceof Error && "code" in error && error.code === "ESRCH") {
       return { at: "gone" }
     }
   }
-  const result = spawnSync("ps", ["-o", "lstart=", "-p", String(pid)], {
-    encoding: "utf8",
-    env: { ...process.env, LC_ALL: "C" }
-  })
-  const start = result.status === 0 ? result.stdout.trim().replace(/\s+/g, " ") : ""
-  return start === "" ? { at: "unknown" } : { at: "running", start }
+  const starts = [{ TZ: "UTC" }, {}]
+    .map((zone) => {
+      const env = { ...process.env, LC_ALL: "C", ...zone }
+      const result = spawnSync("ps", ["-o", "lstart=", "-p", String(pid)], { encoding: "utf8", env })
+      return result.status === 0 ? squeezed(result.stdout) : ""
+    })
+    .filter((start) => start !== "")
+  return starts.length === 0 ? { at: "unknown" } : { at: "running", starts }
 }
 
 /** What the lock of the worktree at `path`, held for `reason`, says about whether the Sweep may lift it. */
@@ -40,25 +46,25 @@ export function lockVerdict(path: string, reason: string | undefined): LockVerdi
     return { state: "none" }
   }
   const unlock = shellLine(["git", "worktree", "unlock", path])
-  const match = CLAUDE_LOCK.exec(reason)
-  const pid = Number(match?.[2])
-  if (match === null || pid < 1 || pid > MAX_PID) {
+  const { pid: pidText = "", start = "" } = CLAUDE_LOCK.exec(reason)?.groups ?? {}
+  const pid = Number(pidText)
+  if (pidText === "" || pid < 1 || pid > MAX_PID) {
     const said = reason === "" ? "locked, with no reason given" : `locked: ${reason}`
     return { state: "stays", reason: said, command: unlock }
   }
-  const [, , , start = ""] = match
-  const now = processOf(pid)
+  const now = runningOf(pid)
   if (now.at === "gone") {
     return { state: "stale", held: reason, why: `pid ${pid} is gone, no process runs under it` }
   }
   if (now.at === "unknown") {
     return { state: "stays", reason: `locked: ${reason}; ps could not say whether pid ${pid} runs`, command: unlock }
   }
-  if (now.start !== start.trim().replace(/\s+/g, " ")) {
+  if (!now.starts.includes(squeezed(start))) {
+    const started = now.starts[0] ?? ""
     return {
       state: "stale",
       held: reason,
-      why: `pid ${pid} is gone, it now belongs to another process (started ${now.start})`
+      why: `pid ${pid} is gone, it now belongs to another process (started ${started} UTC)`
     }
   }
   return {
