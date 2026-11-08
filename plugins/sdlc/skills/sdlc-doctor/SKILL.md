@@ -20,5 +20,5 @@ another `dw-sdlc` than the repository's Gate; the line names the update that bri
 The `sessions` line reports the optional `sdlc-sessions` plugin; its `drift:` compares the two plugins'
 copies of the package, and it too names the update.
 The `hc` line reports whether herdr's `hc`, which a Lead starts its Workers through, is on the agent's
-PATH: PASS with its path, INFO when absent, since a machine may go without herdr. It never fails; to run
-Workers, install herdr.
+PATH: PASS with its path; when absent, a WARN with `sdlc-sessions` enabled and INFO without it. It never
+fails; to run Workers, install herdr.
