@@ -96,13 +96,13 @@ function baseOf(root: string, head: string | undefined): { name: string; ref: st
   return { name, ref }
 }
 
-/** The local branches, and each worktree's checked-out branch with the worktree's path. */
 function branchesOf(root: string): string[] {
   return must(root, ["for-each-ref", "--format=%(refname:lstrip=2)", "refs/heads"])
     .split("\n")
     .filter((name) => name !== "")
 }
 
+/** Each branch a worktree has checked out, with that worktree's path. */
 function checkedOut(root: string): Map<string, string> {
   const held = new Map<string, string>()
   let path = ""
@@ -117,14 +117,19 @@ function checkedOut(root: string): Map<string, string> {
 }
 
 /** What keeps a branch whatever its work: the default branch, the base, a protected branch, a worktree's. */
-type Footing = { head: string | undefined; base: string; protectedBranches: string[]; held: Map<string, string> }
+type Footing = {
+  head: string | undefined
+  baseBranch: string
+  protectedBranches: string[]
+  held: Map<string, string>
+}
 
 /** Why `branch` stays whatever its work, or null when only its work decides. */
-function stays(branch: string, { head, base, protectedBranches, held }: Footing): string | null {
+function stays(branch: string, { head, baseBranch, protectedBranches, held }: Footing): string | null {
   if (branch === head) {
     return "the default branch"
   }
-  if (branch === base) {
+  if (branch === baseBranch) {
     return "the base branch"
   }
   if (protectedBranches.includes(branch)) {
@@ -144,7 +149,7 @@ function judge(root: string): Judged {
   const baseName = `origin/${base.name}`
   const footing: Footing = {
     head,
-    base: base.name,
+    baseBranch: base.name,
     protectedBranches: resolveConfig(root).config.guardrails.protectedBranches,
     held: checkedOut(root)
   }

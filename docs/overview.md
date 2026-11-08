@@ -517,7 +517,7 @@ it never forces, and it never writes to a remote.
 - A branch goes when it is Landed (see [`GLOSSARY.md`](../GLOSSARY.md)). `packages/dw-sdlc/src/landed.ts`
   follows the guard's rule in `lib-git.sh`: the tip is on the base, or a base commit since the fork holds the
   tip's tree or the verbatim patch-id of its whole diff. It reads the same 5000 base commits and only local
-  objects. The guard's bash stays as it is; one table of scenarios,
+  objects. The guard keeps its own bash version; one table of scenarios,
   `plugins/sdlc/test/landed-scenarios.ts`, which both suites read, holds the two to one meaning.
 - It keeps the default branch, the base branch, a protected branch and a branch any worktree has checked
   out, each with its reason. A branch whose work is on no commit of the base stays, with the forced delete

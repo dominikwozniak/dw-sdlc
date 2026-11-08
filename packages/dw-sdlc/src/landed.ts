@@ -1,6 +1,6 @@
 // Whether a local branch is Landed: its work is on the base, as the guard's `guard_landed`
-// (plugins/sdlc/hooks/lib-git.sh) judges it. The guard's bash stays as it is; docs/adr/0015 says why there are
-// two, and the shared table of scenarios, plugins/sdlc/test/landed-scenarios.ts, holds them to one meaning.
+// (plugins/sdlc/hooks/lib-git.sh) judges it. The guard keeps its own bash version; docs/adr/0015 says why there
+// are two, and the shared table of scenarios, plugins/sdlc/test/landed-scenarios.ts, holds them to one meaning.
 
 import { spawnSync } from "node:child_process"
 
