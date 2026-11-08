@@ -76,7 +76,8 @@ function parseCli(argv: string[]): Cli | "help" | { error: string } {
     if (values.findings === true && values.accept === true) {
       return { error: "--findings and --accept contradict: name one" }
     }
-    const status = STATUS[values.findings === true ? "findings" : values.accept === true ? "accept" : "clean"]
+    const kind = values.findings === true ? "findings" : "clean"
+    const status = STATUS[values.accept === true ? "accept" : kind]
     return { json: values.json === true, number: Number(number), repo, head, status }
   } catch (error) {
     return { error: error instanceof Error ? error.message : String(error) }

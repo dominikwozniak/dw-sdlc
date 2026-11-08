@@ -79,7 +79,7 @@ const BUDGET_MINUTES = 40
  * next call parks the pull request for the dev. A constant, like the depth rules, so no repository turns
  * the loop back on.
  */
-export const REVIEW_LIMIT = 3
+const REVIEW_LIMIT = 3
 /** The prefix of the contexts the script posts itself, as `dw-sdlc/review`: never CI. */
 const OWN_PREFIX = "dw-sdlc/"
 /**
