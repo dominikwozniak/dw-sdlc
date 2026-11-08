@@ -63,9 +63,10 @@ disk is in the next session, a broken edit included.
   the setup writes. `claude plugin install` copies the link as a real directory, so the installed
   plugin carries the package's code.
 - `skills/sdlc-setup/`, `skills/sdlc-doctor/`, `skills/sdlc-references-add/`,
-  `skills/sdlc-pr-ship/` — the skills: the [Setup](#setup), the [Doctor](#doctor),
-  [Adding a Reference](#adding-a-reference) and [Shipping a pull request](#shipping-a-pull-request).
-  A user invokes each one; the model cannot start one on its own.
+  `skills/sdlc-pr-ship/`, `skills/sdlc-sweep/` — the skills: the [Setup](#setup), the
+  [Doctor](#doctor), [Adding a Reference](#adding-a-reference), [Shipping a pull request](#shipping-a-pull-request)
+  and [Sweeping](#sweeping). A user invokes each one; the model starts only `sdlc-pr-ship`, on a
+  Worker's Brief, and `sdlc-sweep`, on the dev's "go" on a Recap follow-up.
 - `agents/sdlc-reviewer.md` — the subagent of a `light` Review, which `sdlc-pr-ship` spawns as
   `sdlc:sdlc-reviewer`: [Shipping a pull request](#shipping-a-pull-request).
 - `test/` — the hook tests, mirroring `hooks/`, and the manifest's: [Tests](#tests).
@@ -664,6 +665,15 @@ else, skips what the Gate checks, and reports under 300 words, its first line `c
 the change neither touches nor reaches as `follow-up:`, and a named Finding the fix answers as
 `fixed:`; none changes the count.
 
+## Sweeping
+
+`/sdlc-sweep` runs a Sweep, `dw-sdlc sweep`, through the plugin's link to the package with `--json`,
+never a `dw-sdlc` from PATH. It acts only on the dev's word: the slash command, or "go" on a Recap
+follow-up that names a Sweep. It runs from the main checkout; in a linked worktree the command exits
+2, and the skill says so in one line and stops. It reports in one short table what the Sweep removed
+and what it kept, quotes each kept item's command as the dev's to run, and stops. It never runs
+that command itself, and it adds `--dry-run` only when the dev asks to look first.
+
 ## Tests
 
 `test/` mirrors `hooks/`: `test/hooks/<guard>.test.ts` spawns the guard on the real stdin payload
@@ -681,7 +691,9 @@ empty.
 `test/references-harness.ts` through the link, which builds throwaway repositories apart from the
 machine's git config. `test/manifest.test.ts` holds the manifest to the tree: each hook script wired
 to its event and matcher, run by the dispatcher or left to git, each skill under its name, with
-every plugin path it runs on disk and left for the user to invoke, each subagent under its name, at
+every plugin path it runs on disk and left for the user to invoke. Two skills are the exception, and
+their descriptions hold the model to a Brief or the dev's "go". `sdlc-sweep` runs the bin through
+the link and never a kept item's command. The manifest test also holds each subagent under its name, at
 medium effort on the session's model with no tool that edits a file, the link to the package, and
 the marketplace listing this plugin at the manifest's version.
 
