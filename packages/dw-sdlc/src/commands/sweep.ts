@@ -12,6 +12,7 @@ import { isCommitLanded, isLanded } from "../landed.ts"
 import { shellLine } from "../pr/decide.ts"
 import { CannotRun } from "../pr/read.ts"
 import { asked, git } from "../working-tree.ts"
+import { type LockVerdict, lockVerdict } from "../worktree-lock.ts"
 
 export const summary = "removes Landed branches and clean worktrees whose work has landed, names what it keeps"
 
@@ -20,28 +21,30 @@ const USAGE = `Usage: dw-sdlc sweep [--dry-run] [--json]
 Run from the main checkout. Fetches origin, reads the base branch as the guards do (baseBranch of the
 config, else the branch origin/HEAD names) and removes, never forcing:
   every linked worktree, wherever it lies, whose whole set passes: no modified or untracked file (ignored
-  files aside), no paused rebase, merge, cherry-pick, revert or bisect, no lock, and its HEAD Landed, on a
-  branch or detached; the branch it had checked out goes right after it;
+  files aside), no paused rebase, merge, cherry-pick, revert or bisect, no lock but a stale Claude Code
+  one, and its HEAD Landed, on a branch or detached; the branch it had checked out goes right after it. A
+  Claude Code lock, "claude session <name> (pid <N> start <time>)", is stale when no process N runs or N
+  started at another time; it is lifted just before its worktree goes, and lifted for no worktree that stays;
   every other local branch that is Landed: its work is on the base, as a squash merge leaves it.
 It keeps, and names with the reason and the command to run yourself:
   a worktree that fails the set: the files that hold it with the forced removal, the paused operation, the
-  lock's reason, a HEAD that is not Landed;
+  lock's reason with git worktree unlock, a live Claude Code lock named by its pid, a HEAD that is not Landed;
   the default branch, the base branch, a protected branch and a branch a kept worktree has checked out;
   a branch whose work is on no commit of the base, with the forced delete.
 It never changes anything on a remote: the fetch only writes remote-tracking refs. A removal git refuses is
 kept with git's words, and the sweep goes on.
 
 --dry-run removes nothing and answers the same items. One line an item, or one document with --json:
-  { dryRun, base, removed: [item], kept: [item] }, an item { kind, name, reason, command? }, kind branch or
-  worktree, name its path, command the one the dev would run for a kept item.
+  { dryRun, base, removed: [item], kept: [item] }, an item { kind, name, reason, command? }, kind branch, worktree
+  or lock (a lifted one), name its path, command the one the dev would run for a kept item.
 
 Exit 0 nothing is kept but the default, the base or a protected branch, 1 something else is, 2 when it
 cannot run: in a linked worktree, with no base to read, or when the fetch fails.`
 
-type Item = { kind: "branch" | "worktree"; name: string; reason: string }
+type Item = { kind: "branch" | "worktree" | "lock"; name: string; reason: string }
 type Kept = Item & { command: string | null; dev: boolean }
-/** An item to remove; a worktree's `holds` is the branch it has checked out. */
-type Planned = Item & { holds?: string }
+/** An item to remove; a worktree's `holds` is the branch it has checked out, `stale` the lock to lift first. */
+type Planned = Item & { holds?: string; stale?: Extract<LockVerdict, { state: "stale" }> }
 type Shown = Item & { command?: string | null }
 
 type Sweep = { dryRun: boolean; base: string; removed: Shown[]; kept: Shown[] }
@@ -175,14 +178,22 @@ function pausedOperation(path: string): string | undefined {
 }
 
 /** Why the worktree stays, with the dev's command when there is one, or null when its whole set passes. */
-function whyTreeStays(root: string, baseRef: string, tree: Tree): Pick<Kept, "reason" | "command"> | null {
+function whyTreeStays(
+  root: string,
+  baseRef: string,
+  tree: Tree,
+  lock: LockVerdict
+): Pick<Kept, "reason" | "command"> | null {
   const { path } = tree
-  if (tree.lock !== undefined) {
-    const reason = tree.lock === "" ? "locked, with no reason given" : `locked: ${tree.lock}`
-    return { reason, command: shellLine(["git", "worktree", "unlock", path]) }
+  if (lock.state === "stays") {
+    return lock
   }
-  if (tree.prunable) {
-    return { reason: "its folder is gone", command: shellLine(["git", "worktree", "prune"]) }
+  if (tree.prunable || !existsSync(path)) {
+    const prune = shellLine(["git", "worktree", "prune"])
+    return {
+      reason: "its folder is gone",
+      command: lock.state === "stale" ? `${shellLine(["git", "worktree", "unlock", path])} && ${prune}` : prune
+    }
   }
   const operation = pausedOperation(path)
   if (operation !== undefined) {
@@ -245,7 +256,10 @@ function judge(root: string): Judged {
   if (checkout === undefined) {
     throw new CannotRun("git lists no worktree", "check the repository with git worktree list")
   }
-  const verdicts = linked.map((tree) => ({ tree, why: whyTreeStays(root, base.ref, tree) }))
+  const verdicts = linked.map((tree) => {
+    const lock = lockVerdict(tree.path, tree.lock)
+    return { tree, lock, why: whyTreeStays(root, base.ref, tree, lock) }
+  })
   const staying = verdicts.filter(({ why }) => why !== null).map(({ tree }) => tree)
   const held = new Map<string, string>()
   for (const { path, branch } of [checkout, ...staying]) {
@@ -277,17 +291,19 @@ function judge(root: string): Judged {
       kept.push({ kind: "branch", name, reason, command: forcedDelete(name), dev: true })
     }
   }
-  for (const { tree, why } of verdicts) {
+  for (const { tree, lock, why } of verdicts) {
     if (why !== null) {
       kept.push({ kind: "worktree", name: tree.path, ...why, dev: true })
       continue
     }
     const reason = `clean, its HEAD is Landed on ${baseName}`
-    removed.push(
-      tree.branch === undefined
-        ? { kind: "worktree", name: tree.path, reason }
-        : { kind: "worktree", name: tree.path, reason, holds: tree.branch }
-    )
+    removed.push({
+      kind: "worktree",
+      name: tree.path,
+      reason,
+      ...(tree.branch === undefined ? {} : { holds: tree.branch }),
+      ...(lock.state === "stale" ? { stale: lock } : {})
+    })
     if (tree.branch !== undefined) {
       judgeBranch(tree.branch)
     }
@@ -306,9 +322,18 @@ function removal(root: string, item: Planned, heldBy: Map<string, string>): Kept
     dev: true
   })
   if (item.kind === "worktree") {
+    if (item.stale !== undefined) {
+      const lifted = git(root, ["worktree", "unlock", "--", item.name])
+      if ("error" in lifted) {
+        return refused(lifted.error, shellLine(["git", "worktree", "unlock", item.name]))
+      }
+    }
     const result = git(root, ["worktree", "remove", "--", item.name])
     if (!("error" in result)) {
       return undefined
+    }
+    if (item.stale !== undefined && item.stale.held !== "") {
+      git(root, ["worktree", "lock", "--reason", item.stale.held, "--", item.name])
     }
     if (item.holds !== undefined) {
       heldBy.set(item.holds, item.name)
@@ -339,9 +364,24 @@ function apply({ base, removed, kept }: Judged, root: string): Judged {
   return { base, removed: gone, kept: [...kept, ...refused] }
 }
 
+/** The removed items as the Sweep tells them: a stale lock lifted comes just before its worktree. */
+function shownOf(removed: Planned[]): Shown[] {
+  return removed.flatMap(({ kind, name, reason, stale }) => {
+    const item: Shown = { kind, name, reason }
+    return stale === undefined ? [item] : [{ kind: "lock", name, reason: stale.why }, item]
+  })
+}
+
+function verbOf(kind: string, dryRun: boolean): string {
+  if (kind === "lock") {
+    return dryRun ? "would lift" : "lifted"
+  }
+  return dryRun ? "would remove" : "removed"
+}
+
 function linesOf({ dryRun, removed, kept }: Sweep): string {
   const out = [
-    ...removed.map(({ kind, name, reason }) => `${dryRun ? "would remove" : "removed"} ${kind} ${name} — ${reason}`),
+    ...removed.map(({ kind, name, reason }) => `${verbOf(kind, dryRun)} ${kind} ${name} — ${reason}`),
     ...kept.map(({ kind, name, reason, command }) => {
       return `kept ${kind} ${name} — ${reason}${command === null || command === undefined ? "" : `; to remove it yourself: ${command}`}`
     })
@@ -386,7 +426,7 @@ function sweep(json: boolean, dryRun: boolean): number {
   const done: Sweep = {
     dryRun,
     base,
-    removed: removed.map(({ kind, name, reason }) => ({ kind, name, reason })),
+    removed: shownOf(removed),
     kept: kept.map(({ kind, name, reason, command }) => ({ kind, name, reason, command }))
   }
   process.stdout.write(`${json ? JSON.stringify(done, null, 2) : linesOf(done)}\n`)

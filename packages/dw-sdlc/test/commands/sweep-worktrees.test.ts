@@ -170,12 +170,12 @@ describe("a worktree that stays", () => {
   it("keeps a locked worktree with the lock's reason", () => {
     const root = clone()
     const tree = addTree(root, join(scratch("locked"), "tree"), "topic")
-    git(root, "worktree", "lock", "--reason", "claude session abc (pid 1 start 2)", tree)
+    git(root, "worktree", "lock", "--reason", "held by a backup job", tree)
     const run = runBin(["sweep", "--json"], root)
     const { removed, kept } = documentOf(run.stdout)
     assert.deepEqual(removed, [])
     const item = kept.find(({ kind }) => kind === "worktree")
-    assert.match(item?.reason ?? "", /claude session abc \(pid 1 start 2\)/)
+    assert.match(item?.reason ?? "", /held by a backup job/)
     assert.equal(item?.command, `git worktree unlock ${tree}`)
     assert.deepEqual(trees(root), [root, tree])
     assert.equal(run.status, 1)
@@ -184,11 +184,11 @@ describe("a worktree that stays", () => {
   it("names the lock's reason of a locked worktree whose folder is gone", () => {
     const root = clone()
     const tree = addTree(root, join(scratch("gone"), "tree"), "topic")
-    git(root, "worktree", "lock", "--reason", "claude session abc (pid 1 start 2)", tree)
+    git(root, "worktree", "lock", "--reason", "held by a backup job", tree)
     rmSync(tree, { recursive: true })
     const { kept } = documentOf(runBin(["sweep", "--json"], root).stdout)
     const item = kept.find(({ kind }) => kind === "worktree")
-    assert.match(item?.reason ?? "", /claude session abc/)
+    assert.match(item?.reason ?? "", /held by a backup job/)
     assert.equal(item?.command, `git worktree unlock ${tree}`)
   })
 

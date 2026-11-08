@@ -517,12 +517,18 @@ sets its bounds: it never forces, and it never writes to a remote.
   no base it exits 2 and removes nothing.
 - A linked worktree goes when its whole set passes, wherever it lies: Claude Code's worktree folder, beside
   the checkout or in an old session's scratchpad. The set: no modified or untracked file, ignored files such
-  as installed dependencies aside; no paused rebase, merge, cherry-pick, revert or bisect; no lock; its HEAD
-  Landed, on a branch or detached. It removes the worktree without force, then deletes the branch that
-  worktree had checked out, in the same run. The main checkout is never removed.
+  as installed dependencies aside; no paused rebase, merge, cherry-pick, revert or bisect; no lock but a
+  stale Claude Code one; its HEAD Landed, on a branch or detached. It removes the worktree without force,
+  then deletes the branch that worktree had checked out, in the same run. The main checkout is never
+  removed.
+- Claude Code locks the worktree of a session with the reason `claude session <name> (pid <N> start
+  <time>)`. The lock is stale when no process N runs, or when N started at another time, as a reused pid
+  does. The Sweep lifts a stale lock just before it removes the worktree, and only when the rest of the set
+  passes; if git then refuses the removal, it puts the lock back. A live lock keeps the worktree, named by
+  its pid. A lock with any other reason keeps it too, with the reason and `git worktree unlock` as the
+  command for the dev to run. A lifted lock is an item of kind `lock` in `removed`, just before its worktree.
 - A worktree that fails the set stays, with its reason: the files that hold it, with the forced removal as
-  the command for the dev to run; the paused operation; the lock's reason, with `git worktree unlock`; a
-  HEAD that is not Landed. A worktree git refuses to remove stays with git's words, its branch with it, and
+  the command for the dev to run; the paused operation; the lock's reason; a HEAD that is not Landed. A worktree git refuses to remove stays with git's words, its branch with it, and
   the Sweep goes on.
 - A branch goes when it is Landed (see [`GLOSSARY.md`](../GLOSSARY.md)). `packages/dw-sdlc/src/landed.ts`
   follows the guard's rule in `lib-git.sh`: the tip is on the base, or a base commit since the fork holds the
@@ -532,8 +538,8 @@ sets its bounds: it never forces, and it never writes to a remote.
 - It keeps the default branch, the base branch, a protected branch and a branch a kept worktree has checked
   out, each with its reason. A branch whose work is on no commit of the base stays, with the forced delete
   as the command for the dev to run. A delete git refuses is kept with git's words, and the Sweep goes on.
-- One line an item, or one document with `--json`: `removed` and `kept`, each item with its kind (branch or
-  worktree), name (a worktree's path), reason and, for a kept one, the dev's command. `--dry-run` removes
+- One line an item, or one document with `--json`: `removed` and `kept`, each item with its kind (branch,
+  worktree or lock), name (a worktree's path), reason and, for a kept one, the dev's command. `--dry-run` removes
   nothing and answers the same items. Exit 0 when nothing is kept but the default, the base or a protected
   branch, which are never the dev's to decide and are still listed; 1 when something else is; 2 when it
   cannot run.
