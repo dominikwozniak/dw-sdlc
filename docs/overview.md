@@ -537,11 +537,14 @@ sets its bounds: it never forces, and it never writes to a remote.
   blocked or unknown, the last being a Worker yet to report, is stopped (`hc kill`) and then removed (`hc
   rm`) when its worktree goes in the same Sweep: the Worker's terminal, the stale lock, the worktree, then
   its branch. The worktree is judged whole first, so a Worker beside a dirty worktree is never stopped. A
-  Worker whose folder is already gone could commit nothing, so it goes under the same status rule. A finished
+  Worker whose folder is gone, with no worktree around it, could commit nothing, so it goes under the same
+  status rule. A finished
   Worker of the sweeping session is removed, never stopped. Another session's terminal in a worktree keeps
-  that worktree, named with the terminal's address and place and `hc kill` as the command for the dev to run;
+  that worktree, named with the terminal's address and place and `hc kill` as the command for the dev to run,
+  and is listed as a kept terminal itself;
   the sweeping session's own terminal is never stopped and keeps its worktree too. Outside herdr no terminal
-  is read and the output says so. In herdr an `hc` that fails ends the Sweep with exit 2 before any removal; a
+  is read and the output says so. In herdr an `hc` that fails, `hc get` included, since it says where a
+  terminal works, ends the Sweep with exit 2 before any removal; a
   stop or removal that fails later keeps the Worker's worktree, with `hc`'s words, and the Sweep goes on.
 - A branch goes when it is Landed (see [`GLOSSARY.md`](../GLOSSARY.md)). `packages/dw-sdlc/src/landed.ts`
   follows the guard's rule in `lib-git.sh`: the tip is on the base, or a base commit since the fork holds the

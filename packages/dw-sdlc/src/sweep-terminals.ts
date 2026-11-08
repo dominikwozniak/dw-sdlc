@@ -3,10 +3,10 @@
 
 import { existsSync, realpathSync } from "node:fs"
 
-import { isObject } from "./json-text.ts"
+import { isObject, parseObject } from "./json-text.ts"
 import { shellLine } from "./pr/decide.ts"
 import { CannotRun } from "./pr/read.ts"
-import { call, hcObject, isLive, Refusal, said, type Worker, workersOf, workingFolders } from "./worker/herdr.ts"
+import { call, hcObject, isLive, Refusal, said, type Worker, workersOf } from "./worker/herdr.ts"
 
 /** A live terminal of another session, or the sweeping one's own, with the place herdr shows it at. */
 type Seen = { address: string; name: string; folder: string; place: string }
@@ -20,7 +20,7 @@ export type Holder =
   | { role: "worker"; worker: Worker }
 
 /** The terminal to stop and remove, or only to remove once it has finished. */
-export type Planned = { kind: "terminal"; name: string; reason: string; stop: boolean; tree?: string }
+export type TerminalPlan = { kind: "terminal"; name: string; reason: string; stop: boolean; tree?: string }
 
 /** Statuses of a Worker that is not at the end of its turn, with how the Sweep says it. */
 const AT_WORK: Record<string, string> = {
@@ -39,6 +39,30 @@ function word(value: unknown): string | undefined {
   return typeof value === "string" && value !== "" ? value : undefined
 }
 
+/**
+ * Each live terminal with the folder it works in, `hc get`'s foreground. An `hc get` that fails stops the
+ * Sweep, since a terminal in a folder it cannot see must not count as absent; one gone since the listing is dropped.
+ */
+function foldersOf(list: Worker[]): Worker[] {
+  return list.flatMap((worker) => {
+    if (!isLive(worker)) {
+      return [worker]
+    }
+    const got = call("hc", ["get", worker.address, "--json"])
+    if (got.status === 3) {
+      return []
+    }
+    const parsed = got.status === 0 ? parseObject(got.stdout) : undefined
+    if (parsed === undefined) {
+      throw new Refusal(
+        `hc get ${worker.address} failed: ${got.status === 0 ? "its reply is no JSON object" : said(got)}`
+      )
+    }
+    const cwd = isObject(parsed.foreground) ? parsed.foreground.cwd : undefined
+    return [typeof cwd === "string" && cwd !== "" ? { ...worker, folder: cwd } : worker]
+  })
+}
+
 /** The live terminals `hc ls` lists, each with the folder it works in. */
 function liveTerminals(): Seen[] {
   const { terminals } = hcObject(["ls", "--json"])
@@ -55,7 +79,7 @@ function liveTerminals(): Seen[] {
     const name = word(entry.name) ?? address
     return [{ name, address, state: "live", status: word(entry.status) ?? "unknown", folder: entry.cwd }]
   })
-  return workingFolders(listed).map(({ name, address, folder }) => ({
+  return foldersOf(listed).map(({ name, address, folder }) => ({
     name,
     address,
     folder,
@@ -69,7 +93,7 @@ function liveTerminals(): Seen[] {
  */
 export function readTerminals(own: string): Terminals {
   try {
-    const workers = workingFolders(workersOf(own, true))
+    const workers = foldersOf(workersOf(own, true))
     const live = liveTerminals()
     const addresses = new Set(workers.map(({ address }) => address))
     return {
@@ -93,27 +117,31 @@ function canonical(path: string): string {
   }
 }
 
-function lies(folder: string, root: string): boolean {
+function isInside(folder: string, root: string): boolean {
   return folder === root || folder.startsWith(root.endsWith("/") ? root : `${root}/`)
 }
 
 /** The deepest of `roots` whose folder holds `folder`, or undefined. */
 function treeOf(folder: string, roots: string[]): string | undefined {
   const real = canonical(folder)
-  const holding = roots.filter((root) => lies(folder, root) || lies(real, canonical(root)))
+  const holding = roots.filter((root) => isInside(folder, root) || isInside(real, canonical(root)))
   return holding.toSorted((a, b) => b.length - a.length)[0]
 }
 
-/** A Worker whose terminal is live but whose folder is gone could commit nothing more. */
-export function workerWithoutFolder({ workers }: Terminals): Worker[] {
-  return workers.filter((worker) => isLive(worker) && !existsSync(worker.folder))
+/** A Worker whose terminal is live but whose folder is gone, with no worktree of `roots` around it, could commit nothing more. */
+export function workerWithoutFolder({ workers }: Terminals, roots: string[]): Worker[] {
+  const standing = roots.filter((root) => existsSync(root))
+  return workers.filter(
+    (worker) => isLive(worker) && !existsSync(worker.folder) && treeOf(worker.folder, standing) === undefined
+  )
 }
 
 /** The terminals in the folder of each of `trees`; the main checkout `main` takes those not in a linked one. */
 export function holdersOf({ own, workers, others }: Terminals, main: string, trees: string[]): Map<string, Holder[]> {
   const held = new Map<string, Holder[]>()
+  const standing = [main, ...trees].filter((root) => existsSync(root))
   const place = (folder: string, holder: Holder): void => {
-    const tree = treeOf(folder, [main, ...trees])
+    const tree = treeOf(folder, standing)
     if (tree !== undefined && tree !== main) {
       held.set(tree, [...(held.get(tree) ?? []), holder])
     }
@@ -125,7 +153,7 @@ export function holdersOf({ own, workers, others }: Terminals, main: string, tre
     place(terminal.folder, { role: "other", terminal })
   }
   for (const worker of workers) {
-    if (isLive(worker) && existsSync(worker.folder)) {
+    if (isLive(worker)) {
       place(worker.folder, { role: "worker", worker })
     }
   }
@@ -161,7 +189,7 @@ export function whyHeld(holders: Holder[]): { reason: string; command: string | 
 }
 
 /** The terminals of the Workers done in a worktree that goes, to stop and remove with it. */
-export function stopsOf(holders: Holder[], tree: string): Planned[] {
+export function stopsOf(holders: Holder[], tree: string): TerminalPlan[] {
   return holders.flatMap((holder) =>
     holder.role === "worker"
       ? [
@@ -202,13 +230,16 @@ export function removeTerminal(item: { name: string; stop?: boolean }): string |
 export type KeptWorker = { name: string; reason: string }
 
 /** The Workers no worktree of this Sweep decides: a finished one is removed, one whose folder is gone goes under the status rule. */
-export function outsideWorktrees(terminals: Terminals): { remove: Planned[]; keep: KeptWorker[] } {
-  const remove: Planned[] = []
+export function outsideWorktrees(
+  terminals: Terminals,
+  roots: string[]
+): { remove: TerminalPlan[]; keep: KeptWorker[] } {
+  const remove: TerminalPlan[] = []
   const keep: KeptWorker[] = []
   for (const worker of terminals.workers.filter((one) => !isLive(one))) {
     remove.push({ kind: "terminal", name: worker.address, reason: `Worker ${worker.name} is finished`, stop: false })
   }
-  for (const worker of workerWithoutFolder(terminals)) {
+  for (const worker of workerWithoutFolder(terminals, roots)) {
     const at = atWork(worker)
     if (at === undefined) {
       const reason = `Worker ${worker.name} is ${worker.status} and its folder ${worker.folder} is gone: stopped, then removed`
@@ -220,7 +251,7 @@ export function outsideWorktrees(terminals: Terminals): { remove: Planned[]; kee
   return { remove, keep }
 }
 
-/** The command that stops or removes the terminal of a Planned item by hand. */
+/** The command that stops or removes the terminal of a planned terminal by hand. */
 export function byHand(item: { name: string; stop?: boolean }): string {
   return item.stop === true
     ? `${shellLine(["hc", "kill", item.name])}; ${shellLine(["hc", "rm", item.name])}`

@@ -265,7 +265,10 @@ function judge(root: string, terminals: Terminals | undefined): Judged {
       kept.push({ kind: "branch", name, reason, command: forcedDelete(name), dev: true })
     }
   }
-  const outside = terminals === undefined ? { remove: [], keep: [] } : outsideWorktrees(terminals)
+  const outside =
+    terminals === undefined
+      ? { remove: [], keep: [] }
+      : outsideWorktrees(terminals, [checkout.path, ...linked.map(({ path }) => path)])
   removed.push(...outside.remove)
   for (const { name, reason } of outside.keep) {
     kept.push({ kind: "terminal", name, reason, command: null, dev: true })
@@ -274,7 +277,11 @@ function judge(root: string, terminals: Terminals | undefined): Judged {
     if (why !== null) {
       kept.push({ kind: "worktree", name: tree.path, ...why, dev: true })
       for (const holder of here) {
-        if (holder.role === "worker") {
+        if (holder.role === "other") {
+          const { address, place } = holder.terminal
+          const reason = `another session's terminal, in the worktree at ${tree.path}, at ${place}`
+          kept.push({ kind: "terminal", name: address, reason, command: shellLine(["hc", "kill", address]), dev: true })
+        } else if (holder.role === "worker") {
           const { name, address, status } = holder.worker
           const at = atWork(holder.worker)
           const reason = `Worker ${name} is ${at ?? status}${at === undefined ? ", but its worktree stays" : ""}`

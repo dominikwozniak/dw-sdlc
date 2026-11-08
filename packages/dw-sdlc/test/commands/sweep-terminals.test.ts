@@ -42,12 +42,15 @@ function worker(address: string, cwd: string, status?: string, state: Listed["st
   return { address, name: `worker-${address}`, parent: SELF, cwd, state, ...(status === undefined ? {} : { status }) }
 }
 
-type Herdr = { terminals: Listed[]; kill?: Reply | Reply[]; rm?: Reply; ls?: Reply[] }
+type Herdr = { terminals: Listed[]; kill?: Reply | Reply[]; rm?: Reply; ls?: Reply[]; get?: Reply }
+
+/** An `hc get` that reports a live terminal with no foreground folder, so the launch folder stands. */
+const GOT: Reply = { stdout: JSON.stringify({ address: "t0", state: "live" }) }
 
 /** Spawns the Sweep with the fake `hc` listing the terminals, the live ones answering the second `hc ls`. */
-function sweep(root: string, args: string[], { terminals, kill = {}, rm = {}, ls }: Herdr) {
+function sweep(root: string, args: string[], { terminals, kill = {}, rm = {}, ls, get = GOT }: Herdr) {
   const live = terminals.filter(({ state }) => state !== "finished")
-  const herdr = fakeHerdr({ hc: { "ls --json": ls ?? [listing(...terminals), listing(...live)], kill, rm } }, SELF)
+  const herdr = fakeHerdr({ hc: { "ls --json": ls ?? [listing(...terminals), listing(...live)], get, kill, rm } }, SELF)
   const run = runBin(["sweep", ...args], root, herdr.env)
   const hc = herdr.hcCalls().filter(([verb]) => verb === "kill" || verb === "rm")
   return { run, hc, herdr }
@@ -109,6 +112,7 @@ describe("a Worker done in a worktree that goes", () => {
             listing(self(root), worker("t5", root, "done")),
             listing(self(root), worker("t5", root, "done"))
           ],
+          get: GOT,
           "get t5": terminal("t5", { status: "done", foreground: tree }),
           kill: {},
           rm: {}
@@ -210,6 +214,18 @@ describe("a Worker whose worktree is already gone", () => {
   })
 })
 
+describe("a Worker in a folder that is gone inside a worktree that stays", () => {
+  it("is kept and not stopped, since its worktree is not gone", () => {
+    const root = clone()
+    const tree = addTree(root, join(scratch("subfolder"), "tree"), "dirty")
+    write(join(tree, "README.md"), "changed\n")
+    const { run, hc } = sweep(root, [], { terminals: [self(root), worker("t5", join(tree, "deleted"), "done")] })
+    assert.deepEqual(hc, [])
+    assert.equal(run.status, 1)
+    assert.deepEqual(trees(root), [root, tree])
+  })
+})
+
 describe("a finished Worker of the sweeping session", () => {
   it("is removed and not stopped", () => {
     const root = clone()
@@ -245,6 +261,10 @@ describe("a terminal of the sweeping session or of another", () => {
     assert.equal(item?.name, tree)
     assert.match(item?.reason ?? "", /another session's terminal t9 is in it, at repo \/ dev-tab/)
     assert.equal(item?.command, "hc kill t9")
+    const listed = kept.find(({ kind }) => kind === "terminal")
+    assert.equal(listed?.name, "t9")
+    assert.match(listed?.reason ?? "", /at repo \/ dev-tab/)
+    assert.equal(listed?.command, "hc kill t9")
     assert.deepEqual(trees(root), [root, tree])
     assert.equal(run.status, 1)
   })
@@ -317,6 +337,32 @@ describe("an hc that fails in herdr", () => {
       assert.deepEqual(branches(root).toSorted(), ["main", "topic"])
     })
   }
+
+  it("ends the Sweep with exit 2 when hc get cannot say where a terminal works", () => {
+    const root = clone()
+    const tree = addTree(root, join(scratch("get-fails"), "tree"), "topic")
+    const { run, hc } = sweep(root, [], {
+      terminals: [self(root), worker("t5", tree, "done")],
+      get: { exit: 1, stderr: "hc: core is down\n" }
+    })
+    assert.equal(run.status, 2)
+    assert.match(run.stderr, /hc get t\d failed: hc: core is down/)
+    assert.deepEqual(hc, [])
+    assert.deepEqual(trees(root), [root, tree])
+  })
+
+  it("goes on without a terminal that is gone since the listing", () => {
+    const root = clone()
+    const tree = addTree(root, join(scratch("get-gone"), "tree"), "topic")
+    const { run, hc } = sweep(root, [], {
+      terminals: [self(root), worker("t5", tree, "done")],
+      get: { exit: 3, stderr: "hc: not found\n" }
+    })
+    assert.equal(run.status, 0, run.stderr)
+    assert.deepEqual(hc, [])
+    assert.deepEqual(trees(root), [root])
+    assert.equal(existsSync(tree), false)
+  })
 
   it("ends the Sweep with exit 2 when hc is not on PATH", () => {
     const root = clone()
