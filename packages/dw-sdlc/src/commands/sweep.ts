@@ -3,7 +3,6 @@
 
 import { spawnSync } from "node:child_process"
 import { existsSync } from "node:fs"
-import { join } from "node:path"
 import { parseArgs } from "node:util"
 
 import { findRepository, mainCheckout, resolveConfig } from "../agentic-config.ts"
@@ -11,6 +10,22 @@ import { repositoryFreeEnv } from "../git-env.ts"
 import { isCommitLanded, isLanded } from "../landed.ts"
 import { shellLine } from "../pr/decide.ts"
 import { CannotRun } from "../pr/read.ts"
+import {
+  byHand,
+  type Holder,
+  holdersOf,
+  keptIn,
+  lockAfterStop,
+  lockHolder,
+  outsideWorktrees,
+  readTerminals,
+  removeTerminal,
+  stopsOf,
+  sweepingTerminal,
+  type Terminals,
+  whyHeld
+} from "../sweep-terminals.ts"
+import { dirtyFiles, must, pausedOperation, type Tree, worktreesOf } from "../sweep-trees.ts"
 import { asked, git } from "../working-tree.ts"
 import { type LockVerdict, lockVerdict, type StaleLock } from "../worktree-lock.ts"
 
@@ -34,29 +49,38 @@ It keeps, and names with the reason and the command to run yourself:
 It never changes anything on a remote: the fetch only writes remote-tracking refs. A removal git refuses is
 kept with git's words, and the sweep goes on.
 
---dry-run removes nothing and answers the same items. One line an item, or one document with --json:
-  { dryRun, base, removed: [item], kept: [item] }, an item { kind, name, reason, command? }, kind branch, worktree
-  or lock (a lifted one), name its path, command the one the dev would run for a kept item.
+In herdr ($HC_TERMINAL_ID set) it reads, with hc, the Workers of this session, the terminals whose parent is
+this one, and every other live terminal. A Worker whose status is none of working, blocked or yet to report
+is stopped (hc kill) then removed (hc rm) when its worktree goes in the same Sweep or its folder is already
+gone; a worktree is judged whole first, so no Worker is stopped beside work it could still commit. A live
+Claude Code lock on that worktree that names the Worker's own program, the pid hc get reports, does not keep
+it: once the Worker is stopped the lock is read again and lifted only when it is stale then, else the
+worktree stays. A finished Worker of this session is removed. This session's own terminal and another
+session's are never stopped: a worktree one is in stays, named with the terminal's address and place and
+hc kill as the dev's command. Outside herdr no terminal is read, and the output says so. An hc that fails
+ends the Sweep with exit 2 before anything is removed.
+
+--dry-run removes and stops nothing and answers the same items. One line an item, or one document with --json:
+  { dryRun, terminalsRead, base, removed: [item], kept: [item] }, an item { kind, name, reason, command? },
+  kind branch, worktree, lock (a lifted one) or terminal, name its path or its address, command the one the
+  dev would run for a kept item.
 
 Exit 0 nothing is kept but the default, the base or a protected branch, 1 something else is, 2 when it
-cannot run: in a linked worktree, with no base to read, or when the fetch fails.`
+cannot run: in a linked worktree, with no base to read, when the fetch fails or when hc fails in herdr.`
 
-type Item = { kind: "branch" | "worktree" | "lock"; name: string; reason: string }
+type Item = { kind: "branch" | "worktree" | "lock" | "terminal"; name: string; reason: string }
 type Kept = Item & { command: string | null; dev: boolean }
-/** An item to remove; a worktree's `holds` is the branch it has checked out, `stale` the lock to lift first. */
-type Planned = Item & { holds?: string; stale?: StaleLock }
+/** An item to remove: a worktree's `holds` branch, `stale` lock, `workerLock` its Worker's program holds; a terminal's `stop`, `tree`. */
+type Planned = Item & {
+  holds?: string
+  stale?: StaleLock
+  stop?: boolean
+  tree?: string
+  workerLock?: { pid: number }
+}
 type Shown = Item & { command?: string | null }
 
-type Sweep = { dryRun: boolean; base: string; removed: Shown[]; kept: Shown[] }
-
-/** `git <args>` at `root`, or a stop naming its problem. */
-function must(root: string, args: string[]): string {
-  const result = git(root, args)
-  if ("error" in result) {
-    throw new CannotRun(result.error, "check the repository with git status")
-  }
-  return result.out
-}
+type Sweep = { dryRun: boolean; terminalsRead: boolean; base: string; removed: Shown[]; kept: Shown[] }
 
 function forcedDelete(branch: string): string {
   return shellLine(["git", "branch", "-D", branch])
@@ -120,74 +144,21 @@ function branchesOf(root: string): string[] {
     .filter((name) => name !== "")
 }
 
-type Tree = { path: string; head: string; branch: string | undefined; lock: string | undefined; prunable: boolean }
-
-/** Every worktree of the repository, the main checkout first. */
-function worktreesOf(root: string): Tree[] {
-  const trees: Tree[] = []
-  let tree: Tree | undefined
-  for (const line of must(root, ["worktree", "list", "--porcelain"]).split("\n")) {
-    if (line.startsWith("worktree ")) {
-      tree = { path: line.slice("worktree ".length), head: "", branch: undefined, lock: undefined, prunable: false }
-      trees.push(tree)
-    } else if (tree !== undefined && line.startsWith("HEAD ")) {
-      tree.head = line.slice("HEAD ".length)
-    } else if (tree !== undefined && line.startsWith("branch refs/heads/")) {
-      tree.branch = line.slice("branch refs/heads/".length)
-    } else if (tree !== undefined && (line === "locked" || line.startsWith("locked "))) {
-      tree.lock = line.slice("locked".length).trim()
-    } else if (tree !== undefined && (line === "prunable" || line.startsWith("prunable "))) {
-      tree.prunable = true
-    }
-  }
-  return trees
-}
-
-/** The files `git status` lists in the worktree at `path`, ignored ones aside, or why it cannot be read. */
-function dirtyFiles(path: string): string[] | { error: string } {
-  const args = ["-C", path, "status", "--porcelain=v1", "-z", "--untracked-files=all"]
-  const result = spawnSync("git", args, { encoding: "utf8", env: repositoryFreeEnv(), maxBuffer: 64 * 1024 * 1024 })
-  if (result.status !== 0) {
-    const said = result.stderr.split("\n").find((line) => line.trim() !== "")
-    return { error: `git status: ${said?.trim() ?? `exited ${result.status ?? "on a signal"}`}` }
-  }
-  const files: string[] = []
-  const entries = result.stdout.split("\0").filter((entry) => entry !== "")
-  for (let index = 0; index < entries.length; index++) {
-    const entry = entries[index] ?? ""
-    files.push(entry.slice(3))
-    if (entry.startsWith("R") || entry.startsWith("C")) {
-      index++
-    }
-  }
-  return files
-}
-
-const OPERATIONS = [
-  ["rebase-merge", "rebase"],
-  ["rebase-apply", "rebase or am"],
-  ["MERGE_HEAD", "merge"],
-  ["CHERRY_PICK_HEAD", "cherry-pick"],
-  ["REVERT_HEAD", "revert"],
-  ["BISECT_LOG", "bisect"]
-] as const
-
-/** The operation paused in the worktree at `path`: its git dir holds the state git resumes it from. */
-function pausedOperation(path: string): string | undefined {
-  const dir = asked(path, ["rev-parse", "--absolute-git-dir"])
-  return dir === undefined ? undefined : OPERATIONS.find(([file]) => existsSync(join(dir, file)))?.[1]
-}
-
 /** Why the worktree stays, with the dev's command when there is one, or null when its whole set passes. */
 function whyTreeStays(
   root: string,
   baseRef: string,
   tree: Tree,
-  lock: LockVerdict
+  lock: LockVerdict,
+  holders: Holder[]
 ): Pick<Kept, "reason" | "command"> | null {
   const { path } = tree
   if (lock.state === "stays") {
     return lock
+  }
+  const held = whyHeld(holders)
+  if (held !== null) {
+    return held
   }
   if (tree.prunable || !existsSync(path)) {
     const prune = shellLine(["git", "worktree", "prune"])
@@ -250,8 +221,8 @@ function stays(
 
 type Judged = { base: string; removed: Planned[]; kept: Kept[] }
 
-/** Fetches origin, then sorts each linked worktree and local branch into what goes and what stays. */
-function judge(root: string): Judged {
+/** Fetches origin, then sorts each linked worktree, local branch and Worker's terminal into what goes and what stays. */
+function judge(root: string, terminals: Terminals | undefined): Judged {
   fetchOrigin(root)
   const head = originHead(root)
   const base = baseOf(root, head)
@@ -260,9 +231,21 @@ function judge(root: string): Judged {
   if (checkout === undefined) {
     throw new CannotRun("git lists no worktree", "check the repository with git worktree list")
   }
+  const holders =
+    terminals === undefined
+      ? new Map<string, Holder[]>()
+      : holdersOf(
+          terminals,
+          checkout.path,
+          linked.map(({ path }) => path)
+        )
   const verdicts = linked.map((tree) => {
     const lock = lockVerdict(tree.path, tree.lock)
-    return { tree, lock, why: whyTreeStays(root, base.ref, tree, lock) }
+    const here = holders.get(tree.path) ?? []
+    const pid = lock.state === "stays" ? lock.pid : undefined
+    const workerLock = pid !== undefined && lockHolder(pid, here) !== undefined ? { pid } : undefined
+    const why = whyTreeStays(root, base.ref, tree, workerLock === undefined ? lock : { state: "none" }, here)
+    return { tree, lock, here, why, workerLock }
   })
   const staying = verdicts.filter(({ why }) => why !== null).map(({ tree }) => tree)
   const held = new Map<string, string>()
@@ -295,18 +278,29 @@ function judge(root: string): Judged {
       kept.push({ kind: "branch", name, reason, command: forcedDelete(name), dev: true })
     }
   }
-  for (const { tree, lock, why } of verdicts) {
+  const outside =
+    terminals === undefined
+      ? { remove: [], keep: [] }
+      : outsideWorktrees(terminals, [checkout.path, ...linked.map(({ path }) => path)])
+  removed.push(...outside.remove)
+  for (const { name, reason } of outside.keep) {
+    kept.push({ kind: "terminal", name, reason, command: null, dev: true })
+  }
+  for (const { tree, lock, here, why, workerLock } of verdicts) {
     if (why !== null) {
       kept.push({ kind: "worktree", name: tree.path, ...why, dev: true })
+      kept.push(...keptIn(here, tree.path).map((item) => ({ kind: "terminal" as const, ...item, dev: true })))
       continue
     }
+    removed.push(...stopsOf(here, tree.path))
     const reason = `clean, its HEAD is Landed on ${baseName}`
     removed.push({
       kind: "worktree",
       name: tree.path,
       reason,
       ...(tree.branch === undefined ? {} : { holds: tree.branch }),
-      ...(lock.state === "stale" ? { stale: lock } : {})
+      ...(lock.state === "stale" ? { stale: lock } : {}),
+      ...(workerLock === undefined ? {} : { workerLock })
     })
     if (tree.branch !== undefined) {
       judgeBranch(tree.branch)
@@ -317,7 +311,12 @@ function judge(root: string): Judged {
 }
 
 /** Removes `item`; the item kept when git refuses it, with git's words, or undefined once it is gone. */
-function removal(root: string, item: Planned, heldBy: Map<string, string>): Kept | undefined {
+function removal(
+  root: string,
+  item: Planned,
+  heldBy: Map<string, string>,
+  unstopped: Map<string, string>
+): Kept | undefined {
   const refused = (reason: string, command: string | null): Kept => ({
     kind: item.kind,
     name: item.name,
@@ -325,12 +324,36 @@ function removal(root: string, item: Planned, heldBy: Map<string, string>): Kept
     command,
     dev: true
   })
+  if (item.kind === "terminal") {
+    const failed = removeTerminal(item)
+    if (failed === undefined) {
+      return undefined
+    }
+    if (item.tree !== undefined) {
+      unstopped.set(item.tree, `its Worker's terminal ${item.name} stays: ${failed}`)
+    }
+    return refused(failed, byHand(item))
+  }
   if (item.kind === "worktree") {
-    const refusedWith = (reason: string, command: string): Kept => {
+    const refusedWith = (reason: string, command: string | null): Kept => {
       if (item.holds !== undefined) {
         heldBy.set(item.holds, item.name)
       }
       return refused(reason, command)
+    }
+    const unstoppable = unstopped.get(item.name)
+    if (unstoppable !== undefined) {
+      return refusedWith(unstoppable, null)
+    }
+    if (item.workerLock !== undefined) {
+      const now = lockAfterStop(root, item.name)
+      if (now.state === "stays") {
+        return refusedWith(`its Worker's terminal was stopped, but ${now.reason}`, now.command)
+      }
+      if (now.state === "stale") {
+        item.stale = now
+      }
+      delete item.workerLock
     }
     if (item.stale !== undefined) {
       const lifted = git(root, ["worktree", "unlock", "--", item.name])
@@ -363,8 +386,9 @@ function apply({ base, removed, kept }: Judged, root: string): Judged {
   const gone: Planned[] = []
   const refused: Kept[] = []
   const heldBy = new Map<string, string>()
+  const unstopped = new Map<string, string>()
   for (const item of removed) {
-    const stayed = removal(root, item, heldBy)
+    const stayed = removal(root, item, heldBy, unstopped)
     if (stayed === undefined) {
       gone.push(item)
     } else {
@@ -376,8 +400,12 @@ function apply({ base, removed, kept }: Judged, root: string): Judged {
 
 /** The removed items as the Sweep tells them: a stale lock lifted comes just before its worktree. */
 function shownOf(removed: Planned[]): Shown[] {
-  return removed.flatMap(({ kind, name, reason, stale }) => {
+  return removed.flatMap(({ kind, name, reason, stale, workerLock }) => {
     const item: Shown = { kind, name, reason }
+    if (workerLock !== undefined) {
+      const why = `held by its Worker's program, pid ${workerLock.pid}: lifted once the stop leaves it stale`
+      return [{ kind: "lock", name, reason: why }, item]
+    }
     return stale === undefined ? [item] : [{ kind: "lock", name, reason: stale.why }, item]
   })
 }
@@ -389,14 +417,15 @@ function verbOf(kind: string, dryRun: boolean): string {
   return dryRun ? "would remove" : "removed"
 }
 
-function linesOf({ dryRun, removed, kept }: Sweep): string {
+function linesOf({ dryRun, terminalsRead, removed, kept }: Sweep): string {
   const out = [
     ...removed.map(({ kind, name, reason }) => `${verbOf(kind, dryRun)} ${kind} ${name} — ${reason}`),
     ...kept.map(({ kind, name, reason, command }) => {
       return `kept ${kind} ${name} — ${reason}${command === null || command === undefined ? "" : `; to remove it yourself: ${command}`}`
     })
   ]
-  return out.length === 0 ? "nothing to sweep" : out.join("\n")
+  const note = terminalsRead ? [] : ["terminals not read — outside herdr, $HC_TERMINAL_ID is not set"]
+  return [...(out.length === 0 ? ["nothing to sweep"] : out), ...note].join("\n")
 }
 
 function parseCli(argv: string[]): { help: boolean; json: boolean; dryRun: boolean } | { error: string } {
@@ -431,10 +460,13 @@ function sweep(json: boolean, dryRun: boolean): number {
       `run it from the main checkout: ${shellLine(["cd", main])} && dw-sdlc sweep`
     )
   }
-  const judged = judge(root)
+  const own = sweepingTerminal()
+  const terminals = own === undefined ? undefined : readTerminals(own)
+  const judged = judge(root, terminals)
   const { base, removed, kept } = dryRun ? judged : apply(judged, root)
   const done: Sweep = {
     dryRun,
+    terminalsRead: terminals !== undefined,
     base,
     removed: shownOf(removed),
     kept: kept.map(({ kind, name, reason, command }) => ({ kind, name, reason, command }))

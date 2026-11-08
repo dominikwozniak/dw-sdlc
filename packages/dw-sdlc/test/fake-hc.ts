@@ -38,6 +38,9 @@ if (key === undefined) {
       })
     : answer
 }
+if (reply.kill !== undefined) {
+  process.kill(reply.kill, "SIGKILL")
+}
 process.stdout.write(reply.stdout ?? "")
 process.stderr.write(reply.stderr ?? "")
 process.exitCode = reply.exit ?? 0

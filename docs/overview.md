@@ -531,6 +531,25 @@ sets its bounds: it never forces, and it never writes to a remote.
 - A worktree that fails the set stays, with its reason: the files that hold it, with the forced removal as
   the command for the dev to run; the paused operation; the lock's reason; a HEAD that is not Landed. A worktree git refuses to remove stays with git's words, its branch with it, and
   the Sweep goes on.
+- In herdr (`$HC_TERMINAL_ID` set) it also reads terminals, with `hc`: the sweeping session's Workers, the
+  terminals whose parent is its own, read as `worker ls` and `recap` read them, finished ones included, and
+  every other live terminal, each with the folder it works in. A Worker whose status is none of working,
+  blocked or unknown, the last being a Worker yet to report, is stopped (`hc kill`) and then removed (`hc
+  rm`) when its worktree goes in the same Sweep: the Worker's terminal, the stale lock, the worktree, then
+  its branch. The worktree is judged whole first, so a Worker beside a dirty worktree is never stopped. A
+  done Worker's own Claude Code session holds a live lock on its worktree, naming the pid `hc get` reports
+  as its foreground program. That lock alone does not keep the worktree: after the stop the Sweep reads the
+  lock again, giving the program a moment to end, and lifts it only when it is stale then. A lock still live
+  keeps the worktree, saying so, and a live lock that names any other process keeps it. A
+  Worker whose folder is gone, with no worktree around it, could commit nothing, so it goes under the same
+  status rule. A finished
+  Worker of the sweeping session is removed, never stopped. Another session's terminal in a worktree keeps
+  that worktree, named with the terminal's address and place and `hc kill` as the command for the dev to run,
+  and is listed as a kept terminal itself;
+  the sweeping session's own terminal is never stopped and keeps its worktree too. Outside herdr no terminal
+  is read and the output says so. In herdr an `hc` that fails, `hc get` included, since it says where a
+  terminal works, ends the Sweep with exit 2 before any removal; a
+  stop or removal that fails later keeps the Worker's worktree, with `hc`'s words, and the Sweep goes on.
 - A branch goes when it is Landed (see [`GLOSSARY.md`](../GLOSSARY.md)). `packages/dw-sdlc/src/landed.ts`
   follows the guard's rule in `lib-git.sh`: the tip is on the base, or a base commit since the fork holds the
   tip's tree or the verbatim patch-id of its whole diff. It reads the same 5000 base commits and only local
@@ -539,9 +558,9 @@ sets its bounds: it never forces, and it never writes to a remote.
 - It keeps the default branch, the base branch, a protected branch and a branch a kept worktree has checked
   out, each with its reason. A branch whose work is on no commit of the base stays, with the forced delete
   as the command for the dev to run. A delete git refuses is kept with git's words, and the Sweep goes on.
-- One line an item, or one document with `--json`: `removed` and `kept`, each item with its kind (branch,
-  worktree or lock), name (a worktree's path), reason and, for a kept one, the dev's command. `--dry-run` removes
-  nothing and answers the same items. Exit 0 when nothing is kept but the default, the base or a protected
+- One line an item, or one document with `--json`: `terminalsRead`, `removed` and `kept`, each item with its
+  kind (branch, worktree, lock or terminal), name (a worktree's path, a terminal's address), reason and, for
+  a kept one, the dev's command. `--dry-run` removes and stops nothing and answers the same items. Exit 0 when nothing is kept but the default, the base or a protected
   branch, which are never the dev's to decide and are still listed; 1 when something else is; 2 when it
   cannot run.
 

@@ -137,7 +137,8 @@ describe("the packed package", () => {
       assert.deepEqual(lines(sweep.stdout), [
         "removed branch merged — Landed on origin/main",
         "kept branch main — the default branch",
-        "kept branch never — its work is on no commit of origin/main since it forked; to remove it yourself: git branch -D never"
+        "kept branch never — its work is on no commit of origin/main since it forked; to remove it yourself: git branch -D never",
+        "terminals not read — outside herdr, $HC_TERMINAL_ID is not set"
       ])
       assert.deepEqual(lines(git(clone, "for-each-ref", "--format=%(refname:short)", "refs/heads")), ["main", "never"])
     })

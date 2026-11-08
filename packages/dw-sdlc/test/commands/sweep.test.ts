@@ -14,6 +14,9 @@ import {
 } from "../../../../plugins/sdlc/test/landed-scenarios.ts"
 import { git, lines, runBin, scratch, writeJson } from "../harness.ts"
 
+/** The line of a Sweep outside herdr, where no terminal is read. */
+const NOT_READ = "terminals not read — outside herdr, $HC_TERMINAL_ID is not set"
+
 type Item = { kind: string; name: string; reason: string; command?: string | null }
 type Document = { dryRun: boolean; base: string; removed: Item[]; kept: Item[] }
 
@@ -148,7 +151,8 @@ describe("what the dev sees", () => {
     assert.deepEqual(lines(run.stdout), [
       "removed branch merged — Landed on origin/main",
       "kept branch main — the default branch",
-      "kept branch never — its work is on no commit of origin/main since it forked; to remove it yourself: git branch -D never"
+      "kept branch never — its work is on no commit of origin/main since it forked; to remove it yourself: git branch -D never",
+      NOT_READ
     ])
     assert.equal(run.status, 1)
   })
@@ -158,7 +162,7 @@ describe("what the dev sees", () => {
     git(root, "switch", "-q", "--detach")
     git(root, "branch", "-D", "main")
     const run = runBin(["sweep"], root)
-    assert.deepEqual(lines(run.stdout), ["removed branch merged — Landed on origin/main"])
+    assert.deepEqual(lines(run.stdout), ["removed branch merged — Landed on origin/main", NOT_READ])
     assert.equal(run.status, 0)
     assert.deepEqual(branches(root), [])
   })
@@ -179,7 +183,8 @@ describe("what the dev sees", () => {
     const run = runBin(["sweep", "--dry-run"], root)
     assert.deepEqual(lines(run.stdout), [
       "would remove branch merged — Landed on origin/main",
-      "kept branch main — the default branch"
+      "kept branch main — the default branch",
+      NOT_READ
     ])
     assert.equal(run.status, 0)
   })
