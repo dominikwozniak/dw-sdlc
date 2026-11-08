@@ -10,7 +10,7 @@
   "plugins": [
     {
       "name": "sdlc",
-      "version": "0.19.0",
+      "version": "0.20.0",
       "source": "./plugins/sdlc",
       "description": "Dominik Woźniak's software delivery process in one plugin: deterministic guards that refuse destructive git, the env files the repository does not vouch for, the wrong package manager, sloppy commits and writes to App Store Connect; the Sync that brings a repository's References to their ref as a session starts; and the skills /sdlc-setup, /sdlc-doctor, /sdlc-references-add and /sdlc-pr-ship, which drives a pull request to merged. A repository's own rules come from its .ai/agentic.config.json.",
       "keywords": ["guardrails", "hooks", "skills", "git", "env", "pnpm", "worktree", "references"],
