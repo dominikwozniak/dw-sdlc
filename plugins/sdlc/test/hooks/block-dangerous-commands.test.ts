@@ -19,6 +19,7 @@ import {
   write,
   writeJson
 } from "../harness.ts"
+import { buildLandedRepo, LANDED_SCENARIOS } from "../landed-scenarios.ts"
 
 const TMP = scratch("git")
 const FEAT = initRepo(join(TMP, "feat"), { branch: "feat" })
@@ -88,71 +89,11 @@ function change(dir: string, file: string, text: string): void {
   git(dir, "add", file)
   commit(dir, "-m", `edit ${file}`)
 }
-// A three-way squash wants an identity, as a commit does; a CI runner has none.
-function squash(dir: string, branch: string): void {
-  git(dir, "-c", "user.email=t@example.com", "-c", "user.name=t", "merge", "-q", "--squash", branch)
-  commit(dir, "-m", `squash ${branch}`)
-}
-// A clone of a bare origin whose main took squash merges as GitHub makes them: `fresh` up to date with
-// main, `moved` with main editing its lines after, `behind` once main had moved on, `extra` with one
-// more commit after its squash, `ff` by a fast-forward. `never` was never merged.
+// A clone of a bare origin with a branch for each row of the shared table of Landed scenarios.
 const ORIGIN = join(TMP, "origin.git")
-git(TMP, "init", "-q", "--bare", "-b", "main", ORIGIN)
-git(ORIGIN, "config", "uploadpack.allowFilter", "true")
-const SQUASHED = initRepo(join(TMP, "squashed"), { branch: "main", remote: ORIGIN })
-change(SQUASHED, "a.txt", "a\n")
-// `netzero` adds a file and drops it while main adds and drops another, so their trees meet.
-git(SQUASHED, "switch", "-q", "-c", "netzero")
-change(SQUASHED, "v.txt", "v\n")
-git(SQUASHED, "rm", "-q", "v.txt")
-commit(SQUASHED, "-m", "drop v.txt")
-git(SQUASHED, "switch", "-q", "main")
-change(SQUASHED, "x.txt", "x\n")
-git(SQUASHED, "rm", "-q", "x.txt")
-commit(SQUASHED, "-m", "drop x.txt")
-git(SQUASHED, "switch", "-q", "-c", "fresh")
-change(SQUASHED, "fresh.txt", "1\n")
-change(SQUASHED, "fresh.txt", "1\n2\n")
-git(SQUASHED, "switch", "-q", "main")
-squash(SQUASHED, "fresh")
-git(SQUASHED, "switch", "-q", "-c", "moved")
-change(SQUASHED, "moved.txt", "1\n")
-git(SQUASHED, "switch", "-q", "main")
-squash(SQUASHED, "moved")
-change(SQUASHED, "moved.txt", "9\n")
-git(SQUASHED, "switch", "-q", "-c", "behind")
-change(SQUASHED, "behind.txt", "1\n")
-git(SQUASHED, "switch", "-q", "main")
-change(SQUASHED, "other.txt", "1\n")
-squash(SQUASHED, "behind")
-git(SQUASHED, "switch", "-q", "-c", "extra")
-change(SQUASHED, "extra.txt", "1\n")
-git(SQUASHED, "switch", "-q", "main")
-squash(SQUASHED, "extra")
-git(SQUASHED, "switch", "-q", "extra")
-change(SQUASHED, "extra.txt", "1\n2\n")
-git(SQUASHED, "switch", "-q", "-c", "never", "main")
-change(SQUASHED, "never.txt", "1\n")
+const SQUASHED = buildLandedRepo(join(TMP, "squashed"), ORIGIN)
 // `>never`, a name git allows, points where `never` does.
 git(SQUASHED, "branch", ">never", "never")
-git(SQUASHED, "switch", "-q", "-c", "ff", "main")
-change(SQUASHED, "ff.txt", "1\n")
-git(SQUASHED, "switch", "-q", "-c", "late", "main")
-change(SQUASHED, "late.txt", "1\n")
-git(SQUASHED, "switch", "-q", "main")
-git(SQUASHED, "merge", "-q", "--ff-only", "ff")
-// `spaced` holds a line main took with other whitespace.
-git(SQUASHED, "switch", "-q", "-c", "spaced")
-change(SQUASHED, "spaced.txt", "a  b\n")
-git(SQUASHED, "switch", "-q", "main")
-change(SQUASHED, "spaced.txt", "a b\n")
-git(SQUASHED, "push", "-q", "origin", "main", "late", "never")
-git(SQUASHED, "remote", "set-head", "origin", "main")
-// `late` was squashed in another clone after this one last fetched.
-const ELSEWHERE = join(TMP, "elsewhere")
-git(TMP, "clone", "-q", ORIGIN, ELSEWHERE)
-squash(ELSEWHERE, "origin/late")
-git(ELSEWHERE, "push", "-q", "origin", "main")
 // A blobless clone of the origin has `never` without its blobs.
 const BLOBLESS = join(TMP, "blobless")
 git(TMP, "clone", "-q", "--filter=blob:none", "--no-checkout", `file://${ORIGIN}`, BLOBLESS)
@@ -435,10 +376,13 @@ describe("the rest of the destructive set", () => {
 })
 
 describe("a forced branch delete passes once the branch is landed: its work is on the base branch", () => {
-  allowed("squashed-up-to-date", "git branch -D fresh", SQUASHED)
-  allowed("squashed-then-edited-on-main", "git branch -D moved", SQUASHED)
-  allowed("squashed-while-behind", "git branch -D behind", SQUASHED)
-  allowed("fast-forwarded", "git branch -D ff", SQUASHED)
+  for (const { name, branch, landed } of LANDED_SCENARIOS) {
+    if (landed) {
+      allowed(name, `git branch -D ${branch}`, SQUASHED)
+    } else {
+      refused(name, `git branch -D ${branch}`, SQUASHED, new RegExp(`'${branch}'.*git fetch`))
+    }
+  }
   allowed("several-merged", "git branch -D fresh moved behind ff", SQUASHED)
   allowed("d-f", "git branch -d -f behind", SQUASHED)
   allowed("delete-force-long", "git branch --delete --force behind", SQUASHED)
@@ -451,11 +395,6 @@ describe("a forced branch delete passes once the branch is landed: its work is o
   allowed("output-discarded", "git branch -D behind >/dev/null", SQUASHED)
   allowed("errors-discarded-apart", "git branch -D behind 2> /dev/null", SQUASHED)
   allowed("base-branch-from-the-config", "git branch -D merged", NAMED_BASE)
-  refused("one-more-commit-after-the-squash", "git branch -D extra", SQUASHED, /'extra'.*git fetch/)
-  refused("never-merged", "git branch -D never", SQUASHED, /'never'.*git fetch/)
-  refused("merged-with-other-whitespace", "git branch -D spaced", SQUASHED, /'spaced'/)
-  refused("ends-where-it-forked", "git branch -D netzero", SQUASHED, /'netzero'/)
-  refused("squashed-after-the-last-fetch", "git branch -D late", SQUASHED, /'late'.*git fetch/)
   refused("one-unmerged-among-merged", "git branch -D fresh never behind", SQUASHED, /'never'/)
   refused("a-missing-branch", "git branch -D gone", SQUASHED, /'gone'/)
   refused("a-variable", 'git branch -D "$b"', SQUASHED, /does not write out/)
