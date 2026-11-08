@@ -2,12 +2,12 @@
 // under references/<dir>, each clone shallow, blobless, detached and sparse where its entry says. An
 // entry that fails fails alone, and a repository that declares no References gets no output at all.
 
-import { spawnSync } from "node:child_process"
 import { existsSync, linkSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs"
 import { extname, join } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 import { parseArgs } from "node:util"
 
+import { exec, SLOW_LIMIT_MS } from "../exec.ts"
 import { repositoryFreeEnv } from "../git-env.ts"
 import { readPins, resolveRef, type Pins } from "../pins.ts"
 import { REFERENCES_FILE, readReferences, type Reference } from "../references-key.ts"
@@ -146,10 +146,9 @@ async function lock(root: string, seconds: number): Promise<Lock> {
 }
 
 function git(args: string[], cwd?: string): { ok: boolean; out: string; err: string } {
-  // Each call finds its repository from `cwd`. A missing credential fails the fetch instead of waiting
-  // on a prompt nobody sees.
-  const env = { ...repositoryFreeEnv(), GIT_TERMINAL_PROMPT: "0" }
-  const result = spawnSync("git", args, { cwd, encoding: "utf8", env })
+  // Each call finds its repository from `cwd`.
+  const env = repositoryFreeEnv()
+  const result = exec("git", args, { ...(cwd === undefined ? {} : { cwd }), env, limitMs: SLOW_LIMIT_MS })
   // git's error on one line, so each Reference stays one line of the report.
   const err = (result.stderr ?? "")
     .split("\n")

@@ -1,8 +1,7 @@
 // What the `worker` commands share: `hc` and `herdr-app` as child processes, the Lead a command acts for,
 // and the Workers herdr lists for it.
 
-import { spawnSync } from "node:child_process"
-
+import { exec, TimedOut } from "../exec.ts"
 import { isObject, type JsonObject, parseObject } from "../json-text.ts"
 
 /** What stops a `worker` command before it acts: exit 2, the problem and, when there is one, its remedy. */
@@ -22,9 +21,21 @@ export function said(called: Called): string {
   return line?.trim() ?? `exited ${called.status}`
 }
 
+/** `tool args` as a child process; past its limit it stops the command as any failed call does. */
+function reach(tool: string, args: string[]): ReturnType<typeof exec> {
+  try {
+    return exec(tool, args)
+  } catch (error) {
+    if (error instanceof TimedOut) {
+      throw new Refusal(error.message, "check herdr is responding, then call again")
+    }
+    throw error
+  }
+}
+
 /** `tool args` as a child process; a tool that is not on PATH stops the command. */
 export function call(tool: "hc" | "herdr-app", args: string[]): Called {
-  const result = spawnSync(tool, args, { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 })
+  const result = reach(tool, args)
   if (result.error !== undefined) {
     if ("code" in result.error && result.error.code === "ENOENT") {
       throw new Refusal(`${tool} is not on PATH`, "install herdr, or run the command in a terminal herdr started")

@@ -2,10 +2,10 @@
 // and what the repository implies; an invalid layer is dropped whole. The sdlc plugin's
 // `hooks/config.jq` is the same merge for the guards; this file is the reference, and the tests run both.
 
-import { spawnSync } from "node:child_process"
 import { existsSync, readFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 
+import { exec } from "./exec.ts"
 import { validate } from "./json-schema.ts"
 
 export const COMMITTED_FILE = ".ai/agentic.config.json"
@@ -262,7 +262,7 @@ function readLayer(checkouts: string[], file: string): Layer {
 
 /** The top level of the repository holding `dir`, or undefined outside one. */
 export function findRepository(dir: string): string | undefined {
-  const toplevel = spawnSync("git", ["-C", dir, "rev-parse", "--show-toplevel"], { encoding: "utf8" })
+  const toplevel = exec("git", ["-C", dir, "rev-parse", "--show-toplevel"])
   return toplevel.status === 0 ? toplevel.stdout.trim() : undefined
 }
 
@@ -277,7 +277,7 @@ export function repositoryRoot(dir: string): string {
  */
 export function mainCheckout(root: string): string | undefined {
   const args = ["-C", root, "rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir"]
-  const result = spawnSync("git", args, { encoding: "utf8" })
+  const result = exec("git", args)
   if (result.status !== 0) {
     return undefined
   }

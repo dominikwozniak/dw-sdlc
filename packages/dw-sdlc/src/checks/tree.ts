@@ -1,16 +1,16 @@
 // The files of a repository as git sees them, the directories above them, and the ones a Check's globs
 // pick out of them: what the Checks that judge many files read, so a file git ignores is never judged.
 
-import { spawnSync } from "node:child_process"
 import { existsSync, lstatSync, realpathSync } from "node:fs"
 import { join, matchesGlob, posix, relative } from "node:path"
 
+import { exec } from "../exec.ts"
 import { CannotRun } from "./check.ts"
 
 /** Every file under `pathspecs`, the whole tree when there are none, that git tracks or would track and that is on disk; sorted. */
 export function treeFiles(root: string, pathspecs: string[] = []): string[] {
   const args = ["-C", root, "ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", ...pathspecs]
-  const listed = spawnSync("git", args, { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 })
+  const listed = exec("git", args)
   if (listed.status !== 0) {
     const under = pathspecs.length === 0 ? "" : ` under ${pathspecs.join(", ")}`
     const message = `cannot list the files${under}: not a git repository`

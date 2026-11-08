@@ -2,7 +2,6 @@
 // each written only when its content would change, so a run is safe to repeat. Existing content is
 // merged, never replaced: other keys stay, and a file that is not a JSON object is refused.
 
-import { spawnSync } from "node:child_process"
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { dirname, join, relative } from "node:path"
@@ -26,6 +25,7 @@ import {
   schemaId,
   validateDocument
 } from "../agentic-config.ts"
+import { exec } from "../exec.ts"
 import { isObject, type JsonObject, parseObject, render } from "../json-text.ts"
 import { type Change, withGate, withPackage } from "../setup-gate.ts"
 import { GLOBAL_DENY, LEASE_RULE, RETIRED_DENY, repositoryDeny } from "../setup-rules.ts"
@@ -102,7 +102,7 @@ const RETIRED_PLUGINS = ["guardrails", "references"].map((name) => `${name}@${MA
 
 /** A read-only git command, the one thing the setup runs in the repository. */
 function git(root: string, args: string[]): string | undefined {
-  const result = spawnSync("git", ["-C", root, ...args], { encoding: "utf8" })
+  const result = exec("git", ["-C", root, ...args])
   return result.status === 0 ? result.stdout.trim() : undefined
 }
 

@@ -1,9 +1,8 @@
 // The permission rules the setup writes: the lease exception and the irreversible set for the user
 // file, and a repository's deny backstop for a machine without jq.
 
-import { spawnSync } from "node:child_process"
-
 import { DEFAULT_GUARDRAILS, type EnvFiles, matchesEnvGlob, resolveConfig } from "./agentic-config.ts"
+import { exec } from "./exec.ts"
 
 /** The auto-mode exception that lets a lease push through the classifier's default force-push block. */
 export const LEASE_RULE =
@@ -67,7 +66,7 @@ export const RETIRED_DENY = ["Bash(git branch -D *)", "Bash(rtk git branch -D *)
 const ENV_NAME = /^\.env(\..+)?$|^\.envrc$/
 
 function git(root: string, args: string[]): string | undefined {
-  const result = spawnSync("git", ["-C", root, ...args], { encoding: "utf8" })
+  const result = exec("git", ["-C", root, ...args])
   return result.status === 0 ? result.stdout.trim() : undefined
 }
 
