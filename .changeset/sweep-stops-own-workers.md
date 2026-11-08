@@ -1,0 +1,5 @@
+---
+"dw-sdlc": minor
+---
+
+In herdr `dw-sdlc sweep` stops and removes the terminals of the sweeping session's own Workers. It reads them as `worker ls` does, the terminals whose parent is its own, finished ones included, and every other live terminal with the folder it works in. A Worker whose status is none of working, blocked or unknown is stopped (`hc kill`) and then removed (`hc rm`) when its worktree goes in the same run, before the stale lock, the worktree and its branch; the worktree is judged whole first, so a Worker beside a dirty worktree is never stopped. A Worker whose folder is already gone goes under the same status rule, and a finished Worker is removed without a stop. Another session's terminal in a worktree keeps that worktree, named with the terminal's address and place and `hc kill` as the dev's command; the sweeping session's own terminal is never stopped. Terminals are items of kind `terminal`, `--json` gains `terminalsRead`, and outside herdr the output says no terminal was read. An `hc` that fails in herdr ends the Sweep with exit 2 before any removal; a stop that fails keeps the Worker's worktree with `hc`'s words and the Sweep goes on.

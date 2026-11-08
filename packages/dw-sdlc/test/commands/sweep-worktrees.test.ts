@@ -93,7 +93,8 @@ describe("a worktree whose whole set passes", () => {
     assert.deepEqual(lines(dry.stdout), [
       `would remove worktree ${tree} — clean, its HEAD is Landed on origin/main`,
       "would remove branch topic — Landed on origin/main",
-      "kept branch main — the default branch"
+      "kept branch main — the default branch",
+      "terminals not read — outside herdr, $HC_TERMINAL_ID is not set"
     ])
     assert.equal(dry.status, 0)
     assert.deepEqual(trees(root), [root, tree])

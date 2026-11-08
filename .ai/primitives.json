@@ -310,6 +310,8 @@
       "code": [
         "packages/dw-sdlc/src/commands/sweep.ts",
         "packages/dw-sdlc/src/landed.ts",
+        "packages/dw-sdlc/src/sweep-terminals.ts",
+        "packages/dw-sdlc/src/sweep-trees.ts",
         "packages/dw-sdlc/src/worktree-lock.ts"
       ],
       "docs": [

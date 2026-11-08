@@ -50,6 +50,8 @@ export type Listed = {
   state?: "live" | "finished"
   status?: string
   cwd?: string
+  /** The place herdr shows it at: its space and tab. */
+  where?: string
 }
 
 /** The reply of `hc ls --json`. */

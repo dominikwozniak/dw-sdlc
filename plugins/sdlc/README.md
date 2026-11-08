@@ -674,6 +674,14 @@ follow-up that names a Sweep. It runs from the main checkout; in a linked worktr
 and what it kept, quotes each kept item's command as the dev's to run, and stops. It never runs
 that command itself, and it adds `--dry-run` only when the dev asks to look first.
 
+In herdr the Sweep also stops and removes the terminals of the session's own Workers. A Worker whose
+status is none of working, blocked or unknown, the last being a Worker yet to report, goes when its
+worktree goes in the same Sweep or its folder is already gone; a finished Worker of the session is
+removed. A Worker beside a worktree that stays is never stopped. The Sweep never stops another
+session's terminal or the one it runs in: a worktree such a terminal is in stays, named with the
+terminal's address and place and `hc kill` as the dev's command. Outside herdr no terminal is read, and
+the Sweep says so. In herdr an `hc` that fails ends it with exit 2 before anything is removed.
+
 ## Tests
 
 `test/` mirrors `hooks/`: `test/hooks/<guard>.test.ts` spawns the guard on the real stdin payload
