@@ -1,5 +1,18 @@
 # dw-sdlc
 
+## 0.15.0
+
+### Minor Changes
+
+- e503767: `dw-sdlc pr ship` parks a pull request whose changes-requested review a push has answered as the reviewer's turn: `park awaiting-review`, actor `dev`, no command, the reason naming each reviewer. A review is answered when a non-merge commit follows the commit it read, which the one GraphQL query reads from `latestReviews` and finds in the commit history; dates are never compared, since the script's own `update-branch` merges the base after a review. A review whose commit has left the history, after a force-push or past the last 100 commits, counts as unanswered, and so does the pull request while any one of several reviewers asking for changes is. The new row sits right after `awaiting-reply`, so the pull request's own Review and CI run first, and `awaiting-review` rides in `blockers` of any earlier Action. A review still unanswered answers `act address-review`.
+
+### Patch Changes
+
+- 379c730: `dw-sdlc` exits 2 with one line on stderr when a command throws what it has no answer for, such as a config path that is a directory or a `TMPDIR` it cannot write to. Exit 1 stays what a command answers once it reaches a verdict.
+- c0e19e0: `dw-sdlc doctor` warns on its `hc` line when `hc` is absent and `sdlc-sessions` is enabled, since `/sdlc-delegate` then has nothing to start Workers with; without that plugin the line stays INFO. The `sessions` line of a machine without the plugin names all three of its skills and the command that installs it.
+- 379c730: Every short-lived child process `dw-sdlc` runs has a time limit, 2 minutes, and 10 for a clone, a fetch or a scan of a repository's history. A tool that hangs stops the command with exit 2 and names the tool, where it used to hang forever; `dw-sdlc doctor` reports it on its own line and carries on. git never waits on a credential prompt, and every call has room for 64 MiB of output.
+- efc15f4: `dw-sdlc pr ship` no longer merges a pull request with more checks or review threads than its one read holds. A failure past the first 50 checks, or an open thread past the first 100, showed in no row of the decision; the pull request now parks as `partial-read` with the merge command for the dev.
+
 ## 0.14.0
 
 ### Minor Changes
