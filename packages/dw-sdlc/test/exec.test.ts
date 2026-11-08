@@ -36,6 +36,15 @@ describe("exec", () => {
     assert.ok(performance.now() - started < 5000, "the tool was stopped at its limit")
   })
 
+  it("stops a tool that ignores SIGTERM at its limit", () => {
+    const started = performance.now()
+    assert.throws(
+      () => exec("sh", ["-c", "trap '' TERM; sleep 6"], { limitMs: 300 }),
+      (error: unknown) => error instanceof TimedOut
+    )
+    assert.ok(performance.now() - started < 3000, "the tool was killed at its limit, not when it chose to exit")
+  })
+
   it("names a long command by its start, on one line", () => {
     assert.throws(
       () => exec("sh", ["-c", `\n\nexec sleep 30\n# ${"x".repeat(200)}`], { limitMs: 100 }),

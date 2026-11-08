@@ -35,6 +35,7 @@ export function exec(tool: string, args: string[], options: ExecOptions = {}): S
     ...(input === undefined ? {} : { input }),
     encoding: "utf8",
     env: { ...env, GIT_TERMINAL_PROMPT: "0" },
+    killSignal: "SIGKILL",
     maxBuffer: MAX_BUFFER,
     timeout: limitMs
   })

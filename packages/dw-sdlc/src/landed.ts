@@ -15,14 +15,18 @@ function localEnv(): NodeJS.ProcessEnv {
 
 type Ran = { status: number; stdout: string }
 
-function git(root: string, args: string[], input?: string): Ran {
-  const result = exec("git", ["-C", root, ...args], { env: localEnv(), ...(input === undefined ? {} : { input }) })
+function git(root: string, args: string[], input?: string, limitMs?: number): Ran {
+  const result = exec("git", ["-C", root, ...args], {
+    env: localEnv(),
+    ...(input === undefined ? {} : { input }),
+    ...(limitMs === undefined ? {} : { limitMs })
+  })
   return { status: result.status ?? 1, stdout: result.stdout ?? "" }
 }
 
 /** What `git <args>` prints, or undefined when it exits non-zero. */
-function answer(root: string, args: string[], input?: string): string | undefined {
-  const ran = git(root, args, input)
+function answer(root: string, args: string[], input?: string, limitMs?: number): string | undefined {
+  const ran = git(root, args, input, limitMs)
   return ran.status === 0 ? ran.stdout.trim() : undefined
 }
 
@@ -82,7 +86,7 @@ export function isCommitLanded(root: string, baseRef: string, tip: string): bool
     return false
   }
   const range = `${fork}..${baseRef}`
-  const trees = answer(root, ["log", "--format=%T", `--max-count=${SCAN}`, range]) ?? ""
+  const trees = answer(root, ["log", "--format=%T", `--max-count=${SCAN}`, range], undefined, SLOW_LIMIT_MS) ?? ""
   if (trees.split("\n").includes(tree)) {
     return true
   }
