@@ -23,6 +23,15 @@ docs and tooling around them. The repository is private, so the clone uses your 
 > [!NOTE]
 > The guards need `jq`. Without it every guard is silent, and the doctor says so.
 
+The session helpers are a second install, and it brings `sdlc` with it:
+
+```bash
+claude plugin install sdlc-sessions@dw-sdlc --scope user
+```
+
+`/sdlc-delegate` also needs herdr, the terminal manager its Workers run in: a Lead starts only in a terminal
+herdr started. `/sdlc-recap` and `/sdlc-brief` run anywhere.
+
 ## Why guardrails
 
 - **An agent runs shell commands and edits files.** One wrong call rewrites history or leaks a secret.

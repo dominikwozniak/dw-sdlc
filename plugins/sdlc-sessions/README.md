@@ -15,7 +15,7 @@ claude plugin install sdlc-sessions@dw-sdlc --scope user
 It comes from the same marketplace as `sdlc` and lists `sdlc` under `dependencies`, so installing it
 brings the guards too. `/sdlc-doctor` reports it on its `sessions` line, along with a drift between its
 copy of the `dw-sdlc` package and the one `sdlc` runs, and on its `hc` line whether herdr's `hc` is on the
-agent's PATH, which `/sdlc-delegate` needs: INFO when it is not, since a machine may go without herdr.
+agent's PATH, which `/sdlc-delegate` needs: a WARN when it is not and this plugin is enabled.
 
 ## Layout
 
