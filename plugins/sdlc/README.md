@@ -65,10 +65,10 @@ disk is in the next session, a broken edit included.
 - `skills/sdlc-setup/`, `skills/sdlc-doctor/`, `skills/sdlc-references-add/`,
   `skills/sdlc-pr-open/`, `skills/sdlc-pr-ship/`, `skills/sdlc-sweep/` — the skills: the [Setup](#setup), the
   [Doctor](#doctor), [Adding a Reference](#adding-a-reference), [Opening a pull request](#opening-a-pull-request),
-  [Shipping a pull request](#shipping-a-pull-request) and [Sweeping](#sweeping). A user invokes each
-  one, but three: the model starts `sdlc-pr-open` itself whenever it opens a pull request or writes
-  its body, `sdlc-pr-ship` only on a Worker's Brief, and `sdlc-sweep` only on the dev's "go" on a
-  Recap follow-up.
+  [Shipping a pull request](#shipping-a-pull-request) and [Sweeping](#sweeping). The dev invokes each
+  one, with three exceptions: the model starts `sdlc-pr-open` itself whenever it opens a pull
+  request or writes its body, a Worker starts `sdlc-pr-ship` on its Brief, and `sdlc-sweep` runs
+  only on the dev's "go" on a Recap follow-up.
 - `agents/sdlc-reviewer.md` — the subagent of a `light` Review, which `sdlc-pr-ship` spawns as
   `sdlc:sdlc-reviewer`: [Shipping a pull request](#shipping-a-pull-request).
 - `test/` — the hook tests, mirroring `hooks/`, and the manifest's: [Tests](#tests).
