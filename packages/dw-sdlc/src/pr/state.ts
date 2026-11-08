@@ -11,6 +11,8 @@ export const OFF_PREFIX = "off:"
  */
 export const MARK_STATE = "failure"
 export const READ_MARK = "read, findings open"
+/** How the description of the success the dev's `--accept` posts reads: the head, taken with its Findings open. */
+export const ACCEPTED = "accepted by the dev, findings open"
 
 export const QUERY = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
@@ -84,6 +86,8 @@ export type PrState = {
    * off, or a read mark.
    */
   lastRead: LastRead | null
+  /** The read marks since the last review success of any kind, of the last 100 commits. */
+  marks: ReadMarks
   /** Whether the head carries the success of `lastRead`: the read decides it from two compares. */
   carried: boolean
   /**
@@ -109,6 +113,13 @@ export type ChangedFile = { path: string; previous: string | null; lines: number
  * every commit after it, the head included, is a merge.
  */
 export type LastRead = { commit: string; clean: boolean; mergesOnly: boolean }
+
+/**
+ * The Reviews that left a Finding open since the last review success, a success under off and the dev's
+ * acceptance included: `count` their read marks, the head's own among them, and `since` that success's
+ * commit, null when none of the last 100 holds one.
+ */
+export type ReadMarks = { count: number; since: string | null }
 
 /** A reply that is not the shape the query asks for; the message names the field. */
 export class ReplyError extends Error {}
@@ -305,10 +316,10 @@ export function awaitsReview(pr: Pick<PrState, "viewerDidAuthor" | "checks">): b
 }
 
 /**
- * What a commit's review status says a Review made of it: `clean` a success, `findings` the read mark,
- * null no read. A success posted under off says no one read the commit.
+ * What a commit's review status says: `clean` a success, `findings` the read mark, `off` a success
+ * posted under off, which says no one read the commit, null no status of the Review.
  */
-function readOf(commit: Node): "clean" | "findings" | null {
+function postedOn(commit: Node): "clean" | "findings" | "off" | null {
   const status = childOrNull(commit, "status")
   const context = status === null ? null : childOrNull(status, "context")
   if (context === null) {
@@ -317,9 +328,23 @@ function readOf(commit: Node): "clean" | "findings" | null {
   const state = string(context, "state")
   const description = stringOrNull(context, "description") ?? ""
   if (state === "SUCCESS") {
-    return description.startsWith(OFF_PREFIX) ? null : "clean"
+    return description.startsWith(OFF_PREFIX) ? "off" : "clean"
   }
   return state === MARK_STATE.toUpperCase() && description === READ_MARK ? "findings" : null
+}
+
+type Posted = { oid: string; posted: ReturnType<typeof postedOn>; merge: boolean }
+
+/** The pull request's last 100 commits, oldest first, each with the review status it carries. */
+function historyOf(pr: Node): Posted[] {
+  return nodes(pr, "history").map((node) => {
+    const commit = child(node, "commit")
+    return {
+      oid: string(commit, "oid"),
+      posted: postedOn(commit),
+      merge: integer(child(commit, "parents"), "totalCount") > 1
+    }
+  })
 }
 
 /**
@@ -327,16 +352,12 @@ function readOf(commit: Node): "clean" | "findings" | null {
  * after it is passed over: no fix answers its Findings yet, and a Review from it would read only the
  * base's changes, so the Review reads from the read before it and finds them again.
  */
-function lastReadOf(pr: Node, head: string): LastRead | null {
-  const commits = nodes(pr, "history").map((node) => {
-    const commit = child(node, "commit")
-    const oid = string(commit, "oid")
-    return {
-      oid,
-      read: oid === head ? null : readOf(commit),
-      merge: integer(child(commit, "parents"), "totalCount") > 1
-    }
-  })
+function lastReadOf(history: Posted[], head: string): LastRead | null {
+  const commits = history.map(({ oid, posted, merge }) => ({
+    oid,
+    read: oid === head || posted === "off" ? null : posted,
+    merge
+  }))
   const mergesOnlyAfter = (index: number): boolean => commits.slice(index + 1).every(({ merge }) => merge)
   const index = commits.findLastIndex(
     ({ read }, at) => read === "clean" || (read === "findings" && !mergesOnlyAfter(at))
@@ -346,6 +367,12 @@ function lastReadOf(pr: Node, head: string): LastRead | null {
     return null
   }
   return { commit: last.oid, clean: last.read === "clean", mergesOnly: mergesOnlyAfter(index) }
+}
+
+function readMarksOf(history: Posted[]): ReadMarks {
+  const success = history.findLastIndex(({ posted }) => posted === "clean" || posted === "off")
+  const count = history.slice(success + 1).filter(({ posted }) => posted === "findings").length
+  return { count, since: history[success]?.oid ?? null }
 }
 
 /** The repository and number of the pull request whose URL `gh pr view --json url` printed. */
@@ -371,6 +398,7 @@ export function parsePr(reply: string, repo: string): Omit<PrState, "carried" | 
   const mergeCommit = childOrNull(pr, "mergeCommit")
   const head = string(pr, "headRefOid")
   const baseRef = childOrNull(pr, "baseRef")
+  const history = historyOf(pr)
   return {
     url: string(pr, "url"),
     repo,
@@ -391,7 +419,8 @@ export function parsePr(reply: string, repo: string): Omit<PrState, "carried" | 
     unresolvedThreads: nodes(pr, "reviewThreads")
       .filter((thread) => !boolean(thread, "isResolved") && !boolean(thread, "isOutdated"))
       .map(threadOf),
-    commits: nodes(pr, "history").map((node) => string(child(node, "commit"), "oid")),
-    lastRead: lastReadOf(pr, head)
+    commits: history.map(({ oid }) => oid),
+    lastRead: lastReadOf(history, head),
+    marks: readMarksOf(history)
   }
 }

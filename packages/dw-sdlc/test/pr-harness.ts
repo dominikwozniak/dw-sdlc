@@ -85,6 +85,8 @@ export type Pr = {
   history: Commit[]
   /** How many parents the head has: 2 for a merge; 1 when left out. */
   headParents?: number
+  /** The review status of the head's own commit node, as `history` gives a commit's; none when left out. */
+  headReview?: Pick<Commit, "review" | "described">
 }
 
 /**
@@ -181,7 +183,7 @@ export function pullRequestOf(pr: Pr): Record<string, unknown> {
     mergeCommit: pr.mergeCommit === null ? null : { oid: pr.mergeCommit },
     reviewThreads: { nodes: pr.threads.map(threadOf) },
     commits: { nodes: [{ commit: { committedDate: pr.committedAt, statusCheckRollup: rollup } }] },
-    history: { nodes: [...pr.history, { oid: pr.head, parents: pr.headParents ?? 1 }].map(commitOf) }
+    history: { nodes: [...pr.history, { oid: pr.head, parents: pr.headParents ?? 1, ...pr.headReview }].map(commitOf) }
   }
 }
 

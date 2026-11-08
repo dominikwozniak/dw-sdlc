@@ -19,6 +19,7 @@ export type Action =
   | "fix-ci"
   | "address-review"
   | "review"
+  | "review-limit"
   | "mark-reviewed"
   | "unverified"
   | "ci-stuck"
@@ -73,6 +74,12 @@ type Row = {
 const GRACE_SECONDS = 120
 /** How long CI may stay pending before it parks as stuck, from the first start among the pending checks. */
 const BUDGET_MINUTES = 40
+/**
+ * How many Reviews that each left a Finding open, with no success between them, the script lets run: the
+ * next call parks the pull request for the dev. A constant, like the depth rules, so no repository turns
+ * the loop back on.
+ */
+const REVIEW_LIMIT = 3
 /** The prefix of the contexts the script posts itself, as `dw-sdlc/review`: never CI. */
 const OWN_PREFIX = "dw-sdlc/"
 /**
@@ -170,6 +177,19 @@ function markedDescription(pr: PrState, policy: Policy): string {
     throw new Error(`the script marks ${pr.url} reviewed at ${depth.depth}, neither off nor a carry`)
   }
   return `${OFF_PREFIX} ${depth.why}`
+}
+
+/** The park at the limit: the dev accepts the head as it stands, or names a depth for one more Review. */
+function reviewLimit(pr: PrState): Omit<Answer, "blockers"> {
+  const { count, since } = pr.marks
+  const from = since === null ? "the start of the pull request" : `the success on ${since.slice(0, 7)}`
+  return {
+    status: "park",
+    action: "review-limit",
+    actor: "dev",
+    reason: `${count} Reviews since ${from} left a Finding open: accepting the head is the dev's`,
+    command: shellLine(["dw-sdlc", "pr", "reviewed", String(pr.number), "-R", pr.repo, "--head", pr.head, "--accept"])
+  }
 }
 
 /** A script Action's gh arguments; `repo` is `-R` and the repository when the call names it, else empty. */
@@ -282,6 +302,10 @@ const ROWS: Row[] = [
         return { ...head, action: "mark-reviewed", actor: "script", details: after }
       }
       const { depth, source } = depthOf(pr, policy)
+      // The dev's own depth buys one Review past the limit; a Review under off needs none.
+      if (depth !== "off" && source !== "flag" && pr.marks.count >= REVIEW_LIMIT) {
+        return reviewLimit(pr)
+      }
       const byScript = depth === "off"
       return {
         ...head,

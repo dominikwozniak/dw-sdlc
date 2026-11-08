@@ -374,7 +374,8 @@ none answers a review that requests changes. Every later Action that holds the p
 rides in `blockers`, so one push can fix several. The dev owns the rest: a closed pull request, a
 head no check reported on within 120 s of its commit date, CI pending past its 40-minute budget, a
 thread whose last comment is the viewer's and so awaits the reviewer, another author's draft, which
-is the author's to mark ready, a required approval, and the merge when it is not the script's.
+is the author's to mark ready, a required approval, three Reviews with no success between them, and
+the merge when it is not the script's.
 
 Who merges follows `pr.merge`: the script under `auto`, the dev under `ask`, and the script for one
 call under `--merge`. A pull request another author opened needs no Review, since the dev merges it.
@@ -386,9 +387,25 @@ Recap, and lists a harm outside the change as a follow-up. A clean review is a c
 review read and refuses once a push moved it, so a new head needs a fresh review. A Review that
 leaves a Finding open is pinned too: `--findings` posts the same status in state `failure`,
 described `read, findings open`, the read mark. The mark sits on a head the fix then leaves behind,
-so the head of the pull request never shows it from an earlier round. Contexts under
+so the head of the pull request never shows it from an earlier round. Three Reviews with no
+success between them park the pull request, as the next paragraph says. Contexts under
 `dw-sdlc/` never count as CI. The script never deletes a branch: a merged pull request answers
 `done` with the deletion command for the dev.
+
+The Review limit is 3, a constant with no config key, so no repository turns the loop back on. The same
+GraphQL query counts the read marks on the commits after the last review success of any kind: a
+clean one, one the script posted under `off` and the dev's acceptance all start the count again. The
+head's own read mark counts too. When the head has no success and the count is 3 or more, the answer
+is `park review-limit`, actor `dev`, in the place of `act review`, under `--dry-run` too and at
+`full` and `light` alike. Its reason names the Reviews and the commit they count from, and its
+command is `dw-sdlc pr reviewed <n> -R <owner/name> --head <head> --accept`. `--accept` posts
+`dw-sdlc/review` in state `success`, described `accepted by the dev, findings open`, so the
+status never presents an accepted pull request as cleanly reviewed; with `--findings` it exits 2.
+Only the dev runs it. The agent prints the reason, the Findings the last fix answered and the command,
+and stops. The dev's `--review <depth>` on the call answers `act review` past the limit, for that
+call only; a fourth Review that leaves a Finding open posts a fourth read mark, so the next call
+without the flag parks again. The limit counts only Reviews of the viewer's own pull request, and a
+depth of `off` has none to count.
 
 How closely a head is read is its Review depth: the dev's `--review full|light|off` for one call,
 else `pr.review`, and `details` names it under `depth` and where it came from under `source`, `flag`,

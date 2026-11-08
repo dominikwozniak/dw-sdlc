@@ -312,6 +312,7 @@ describe("dw-sdlc pr ship", () => {
         }
       ],
       lastRead: null,
+      marks: { count: 0, since: null },
       carried: false,
       changed: null,
       behindBy: null
