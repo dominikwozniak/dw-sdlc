@@ -1,6 +1,6 @@
 // `dw-sdlc sweep`: removes from this machine what finished work leaves behind and holds nothing to lose.
-// Today that is each Landed local branch. docs/adr/0015 sets its bounds: the dev's word starts it, it runs
-// from the main checkout, it never forces and it never writes to a remote.
+// It deletes each Landed local branch. docs/adr/0015 sets its bounds: the dev's word starts it, it runs from
+// the main checkout, it never forces and it never writes to a remote.
 
 import { spawnSync } from "node:child_process"
 import { parseArgs } from "node:util"
@@ -8,6 +8,7 @@ import { parseArgs } from "node:util"
 import { findRepository, mainCheckout, resolveConfig } from "../agentic-config.ts"
 import { repositoryFreeEnv } from "../git-env.ts"
 import { isLanded } from "../landed.ts"
+import { shellLine } from "../pr/decide.ts"
 import { CannotRun } from "../pr/read.ts"
 import { asked, git } from "../working-tree.ts"
 
@@ -18,7 +19,7 @@ const USAGE = `Usage: dw-sdlc sweep [--dry-run] [--json]
 Run from the main checkout. Fetches origin, reads the base branch as the guards do (baseBranch of the
 config, else the branch origin/HEAD names) and deletes every local branch that is Landed: its work is on
 the base, as a squash merge leaves it. It keeps, and names with the reason:
-  the default branch, a protected branch and a branch any worktree has checked out;
+  the default branch, the base branch, a protected branch and a branch any worktree has checked out;
   a branch whose work is on no commit of the base, with the forced delete as the command to run yourself.
 It never forces, and it never changes anything on a remote: the fetch only writes remote-tracking refs.
 A delete git refuses is kept with git's words, and the sweep goes on.
@@ -44,9 +45,8 @@ function must(root: string, args: string[]): string {
   return result.out
 }
 
-/** A word safe in a shell command as written; anything else in single quotes. */
-function quoted(word: string): string {
-  return /^[\w./+@-]+$/.test(word) ? word : `'${word.replaceAll("'", "'\\''")}'`
+function forcedDelete(branch: string): string {
+  return shellLine(["git", "branch", "-D", branch])
 }
 
 function fetchOrigin(root: string): void {
@@ -116,58 +116,67 @@ function checkedOut(root: string): Map<string, string> {
   return held
 }
 
-/** Why `branch` stays whatever its state, or null when only its work decides. */
-function stays(
-  branch: string,
-  defaults: Set<string>,
-  protectedOnes: string[],
-  held: Map<string, string>
-): string | null {
-  if (defaults.has(branch)) {
+/** What keeps a branch whatever its work: the default branch, the base, a protected branch, a worktree's. */
+type Footing = { head: string | undefined; base: string; protectedBranches: string[]; held: Map<string, string> }
+
+/** Why `branch` stays whatever its work, or null when only its work decides. */
+function stays(branch: string, { head, base, protectedBranches, held }: Footing): string | null {
+  if (branch === head) {
     return "the default branch"
   }
-  if (protectedOnes.includes(branch)) {
+  if (branch === base) {
+    return "the base branch"
+  }
+  if (protectedBranches.includes(branch)) {
     return "a protected branch"
   }
   const path = held.get(branch)
   return path === undefined ? null : `checked out in the worktree at ${path}`
 }
 
-function judge(root: string, dryRun: boolean): Sweep {
+type Judged = Omit<Sweep, "dryRun">
+
+/** Fetches origin, then sorts each local branch into what goes and what stays; nothing is removed yet. */
+function judge(root: string): Judged {
   fetchOrigin(root)
   const head = originHead(root)
   const base = baseOf(root, head)
   const baseName = `origin/${base.name}`
-  const { protectedBranches } = resolveConfig(root).config.guardrails
-  const held = checkedOut(root)
-  // The base branch is as much the repository's footing as the default one.
-  const defaults = new Set([base.name, ...(head === undefined ? [] : [head])])
+  const footing: Footing = {
+    head,
+    base: base.name,
+    protectedBranches: resolveConfig(root).config.guardrails.protectedBranches,
+    held: checkedOut(root)
+  }
   const removed: Item[] = []
   const kept: Kept[] = []
   for (const name of branchesOf(root)) {
-    const reason = stays(name, defaults, protectedBranches, held)
+    const reason = stays(name, footing)
     if (reason !== null) {
       kept.push({ kind: "branch", name, reason, command: null })
     } else if (isLanded(root, base.ref, name)) {
       removed.push({ kind: "branch", name, reason: `Landed on ${baseName}` })
     } else {
       const text = `its work is on no commit of ${baseName} since it forked`
-      kept.push({ kind: "branch", name, reason: text, command: `git branch -D ${quoted(name)}` })
+      kept.push({ kind: "branch", name, reason: text, command: forcedDelete(name) })
     }
   }
-  if (dryRun) {
-    return { dryRun, base: baseName, removed, kept }
-  }
+  return { base: baseName, removed, kept }
+}
+
+/** Deletes each branch judged Landed; one that git refuses stays, with git's words. */
+function apply({ base, removed, kept }: Judged, root: string): Judged {
   const gone: Item[] = []
+  const refused: Kept[] = []
   for (const item of removed) {
     const result = git(root, ["branch", "-D", "--", item.name])
     if ("error" in result) {
-      kept.push({ ...item, reason: result.error, command: `git branch -D ${quoted(item.name)}` })
+      refused.push({ ...item, reason: result.error, command: forcedDelete(item.name) })
     } else {
       gone.push(item)
     }
   }
-  return { dryRun, base: baseName, removed: gone, kept }
+  return { base, removed: gone, kept: [...kept, ...refused] }
 }
 
 function linesOf({ dryRun, removed, kept }: Sweep): string {
@@ -209,10 +218,11 @@ function sweep(json: boolean, dryRun: boolean): number {
   if (main !== undefined) {
     throw new CannotRun(
       `${root} is a linked worktree`,
-      `run it from the main checkout: cd ${quoted(main)} && dw-sdlc sweep`
+      `run it from the main checkout: ${shellLine(["cd", main])} && dw-sdlc sweep`
     )
   }
-  const done = judge(root, dryRun)
+  const judged = judge(root)
+  const done = { dryRun, ...(dryRun ? judged : apply(judged, root)) }
   process.stdout.write(`${json ? JSON.stringify(done, null, 2) : linesOf(done)}\n`)
   return done.kept.length === 0 ? 0 : 1
 }

@@ -127,7 +127,13 @@ describe("what stays whatever its work", () => {
       removed.map(({ name }) => name),
       ["plain"]
     )
-    assert.deepEqual(kept.map(({ name }) => name).toSorted(), ["develop", "main"])
+    assert.deepEqual(
+      kept.map(({ name, reason }) => [name, reason]),
+      [
+        ["develop", "the base branch"],
+        ["main", "the default branch"]
+      ]
+    )
   })
 })
 

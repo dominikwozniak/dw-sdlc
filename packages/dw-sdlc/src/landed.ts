@@ -45,12 +45,16 @@ function patchIdOf(root: string, from: string, to: string): string | undefined {
 /** Whether a base commit in `range`, merges aside, has `patch` for the patch-id of its diff. */
 function baseHoldsPatch(root: string, range: string, patch: string): boolean {
   // The diffs stream from git to git, never into this process: SCAN commits can print far past a buffer.
+  // pipefail: a diff cut short by a missing object fails the scan instead of naming part of the work.
   const pipeline = [
-    'git -C "$1" rev-list --no-merges --max-count="$2" "$3"',
-    'git -C "$1" diff-tree --stdin -p --binary --no-renames 2>/dev/null',
-    "git patch-id --verbatim"
-  ].join(" | ")
-  const result = spawnSync("sh", ["-c", pipeline, "sh", root, String(SCAN), range], {
+    "set -o pipefail",
+    [
+      'git -C "$1" rev-list --no-merges --max-count="$2" "$3"',
+      'git -C "$1" diff-tree --stdin -p --binary --no-renames 2>/dev/null',
+      "git patch-id --verbatim"
+    ].join(" | ")
+  ].join("; ")
+  const result = spawnSync("bash", ["-c", pipeline, "bash", root, String(SCAN), range], {
     encoding: "utf8",
     env: localEnv(),
     maxBuffer: 64 * 1024 * 1024

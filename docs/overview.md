@@ -526,8 +526,6 @@ it never forces, and it never writes to a remote.
   reason and, for a kept one, the dev's command. `--dry-run` removes nothing and answers the same items.
   Exit 0 when nothing is kept, 1 when something is, 2 when it cannot run.
 
-Worktrees, locks and terminals are not swept yet.
-
 ## Releasing the plugin
 
 `plugins/sdlc/.claude-plugin/plugin.json` and its entry in `.claude-plugin/marketplace.json` carry
