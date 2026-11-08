@@ -296,38 +296,44 @@ function judge(root: string): Judged {
   return { base: baseName, removed, kept }
 }
 
-/** Removes each item judged to go; one that git refuses stays, with git's words, and so does the branch it holds. */
+/** Removes `item`; the item kept when git refuses it, with git's words, or undefined once it is gone. */
+function removal(root: string, item: Planned, heldBy: Map<string, string>): Kept | undefined {
+  const refused = (reason: string, command: string | null): Kept => ({
+    kind: item.kind,
+    name: item.name,
+    reason,
+    command,
+    dev: true
+  })
+  if (item.kind === "worktree") {
+    const result = git(root, ["worktree", "remove", "--", item.name])
+    if (!("error" in result)) {
+      return undefined
+    }
+    if (item.holds !== undefined) {
+      heldBy.set(item.holds, item.name)
+    }
+    return refused(result.error, forcedRemoval(item.name))
+  }
+  const path = heldBy.get(item.name)
+  if (path !== undefined) {
+    return refused(`checked out in the worktree at ${path}`, null)
+  }
+  const result = git(root, ["branch", "-D", "--", item.name])
+  return "error" in result ? refused(result.error, forcedDelete(item.name)) : undefined
+}
+
+/** Removes each item judged to go, in order; a refused worktree keeps the branch it holds as well. */
 function apply({ base, removed, kept }: Judged, root: string): Judged {
   const gone: Planned[] = []
   const refused: Kept[] = []
   const heldBy = new Map<string, string>()
   for (const item of removed) {
-    if (item.kind === "worktree") {
-      const result = git(root, ["worktree", "remove", "--", item.name])
-      if ("error" in result) {
-        refused.push({
-          kind: "worktree",
-          name: item.name,
-          reason: result.error,
-          command: forcedRemoval(item.name),
-          dev: true
-        })
-        if (item.holds !== undefined) {
-          heldBy.set(item.holds, item.name)
-        }
-      } else {
-        gone.push(item)
-      }
-      continue
-    }
-    const path = heldBy.get(item.name)
-    const result = path === undefined ? git(root, ["branch", "-D", "--", item.name]) : undefined
-    if (path !== undefined) {
-      refused.push({ ...item, reason: `checked out in the worktree at ${path}`, command: null, dev: true })
-    } else if (result !== undefined && "error" in result) {
-      refused.push({ ...item, reason: result.error, command: forcedDelete(item.name), dev: true })
-    } else {
+    const stayed = removal(root, item, heldBy)
+    if (stayed === undefined) {
       gone.push(item)
+    } else {
+      refused.push(stayed)
     }
   }
   return { base, removed: gone, kept: [...kept, ...refused] }
@@ -337,7 +343,7 @@ function linesOf({ dryRun, removed, kept }: Sweep): string {
   const out = [
     ...removed.map(({ kind, name, reason }) => `${dryRun ? "would remove" : "removed"} ${kind} ${name} — ${reason}`),
     ...kept.map(({ kind, name, reason, command }) => {
-      return `kept ${kind} ${name} — ${reason}${command == null ? "" : `; to remove it yourself: ${command}`}`
+      return `kept ${kind} ${name} — ${reason}${command === null || command === undefined ? "" : `; to remove it yourself: ${command}`}`
     })
   ]
   return out.length === 0 ? "nothing to sweep" : out.join("\n")

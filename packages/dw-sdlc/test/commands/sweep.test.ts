@@ -123,7 +123,9 @@ describe("what stays whatever its work", () => {
     git(root, "branch", "develop", "origin/develop")
     git(root, "branch", "plain")
     writeJson(join(root, ".ai/agentic.config.json"), { version: 1, baseBranch: "develop" })
-    const { removed, kept, base } = documentOf(runBin(["sweep", "--json"], root).stdout)
+    const run = runBin(["sweep", "--json"], root)
+    const { removed, kept, base } = documentOf(run.stdout)
+    assert.equal(run.status, 0)
     assert.equal(base, "origin/develop")
     assert.deepEqual(
       removed.map(({ name }) => name),
