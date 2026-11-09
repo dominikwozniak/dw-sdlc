@@ -1,10 +1,15 @@
 name: Release
 
 # A changeset on `main` opens or updates the version pull request. Once that pull request merges, the
-# package version npm does not have yet is checked, packed and published.
+# package version npm does not have yet is checked, packed and published. Only a push that can change
+# that answer starts it; a failed publish runs again by hand.
 on:
   push:
     branches: [main]
+    paths:
+      - ".changeset/**"
+      - "packages/dw-sdlc/package.json"
+  workflow_dispatch:
 
 # Never cancel a run halfway: a cancelled publish can leave npm and the git tags out of step.
 concurrency:
@@ -20,6 +25,8 @@ env:
 jobs:
   select-mode:
     name: Select mode
+    # A manual run releases only from `main`.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:

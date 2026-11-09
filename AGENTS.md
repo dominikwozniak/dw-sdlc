@@ -45,9 +45,9 @@ is its long form: how a guard works, why the design, adopting and releasing.
 - `references/` — repositories cloned on each machine for reading, never tracked; the Router is
   `references/AGENTS.md`, its table written from `.ai/references.json`; the Sync hook fetches them
 - `ideas/` — local-only notes, gitignored but for `.gitkeep`
-- `.github/` — CI: `workflows/quality-gate.yaml` runs `pnpm check` on every pull request and on `main`;
-  `workflows/release.yaml` turns the changesets under `.changeset/` into a version pull request and,
-  once it merges, publishes the package to npm. Dependabot groups updates weekly
+- `.github/` — CI: `workflows/quality-gate.yaml` runs `pnpm check` on every pull request and on direct
+  pushes to `main`; `workflows/release.yaml` turns `.changeset/` into a version pull request and, once it
+  merges, publishes the package to npm. Dependabot groups updates weekly
 
 ## Never
 

@@ -336,7 +336,8 @@ a real payload.
 ## How a change lands
 
 `main` is protected in `.ai/agentic.config.json`, so a change reaches it through a pull request, and
-`quality-gate.yaml` runs `pnpm check` on it first. For a small fix the agent commits on `main` and the
+`quality-gate.yaml` runs `pnpm check` on it first. A squash merge, with `(#NN)` in its subject, skips
+the run on `main`; any other push to `main` gets it. For a small fix the agent commits on `main` and the
 push comes from Dominik's own terminal: the guards judge only the agent's tool calls. GitHub branch
 protection is not available on this private repository, so the guard is the only check.
 
@@ -597,8 +598,8 @@ schemas, and `templates/` with the Router the setup writes; pnpm adds the packag
 the tarball into a throwaway repository and runs `dw-sdlc gate` from that repository's `node_modules`.
 
 A change to the package carries a changeset: `pnpm changeset` writes one under `.changeset/`, with
-the bump and the line the changelog gets. On every push to `main`, `.github/workflows/release.yaml`
-picks one of two modes:
+the bump and the line the changelog gets. On a push to `main` that touches `.changeset/` or the
+package's `package.json`, `.github/workflows/release.yaml` picks one of two modes:
 
 - **version**, while a changeset is pending: it opens or updates the
   `chore(release): version packages` pull request. `pnpm release:version` bumps the version, writes
@@ -607,6 +608,8 @@ picks one of two modes:
 - **publish**, when npm lacks the version on `main`, which is what merging the version pull request
   makes true: one job runs `pnpm check` and packs the tarball with no secret in reach; the next
   publishes it, pushes the `dw-sdlc@x.y.z` tag and creates the GitHub release.
+
+A publish that fails runs again by hand, `gh workflow run release.yaml`, and only from `main`.
 
 Merging the version pull request is the decision to release. The publish job signs in to npm by
 trusted publishing alone: no secret and no `.npmrc` exist, and pnpm exchanges the job's OIDC token,
