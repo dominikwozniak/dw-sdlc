@@ -66,6 +66,12 @@ describe("harness", () => {
     assert.equal(verdict.stdout, "/bin/bash")
   })
 
+  it("a script that exits before reading a stdin larger than the pipe buffer still gives its verdict", () => {
+    const verdict = runBash(["-c", "echo gone; exit 3"], "x".repeat(1024 * 1024))
+    assert.equal(verdict.status, 3)
+    assert.equal(verdict.stdout, "gone\n")
+  })
+
   it("a hook run concurrently runs on /bin/bash too", async () => {
     // runHookAsync spawns before it returns, so the PATH is still in place for the spawn.
     const pending = withEnv({ PATH: pathWithFakeBash() }, () => runHookAsync("bash-guard", ""))
