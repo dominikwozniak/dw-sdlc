@@ -256,6 +256,7 @@ describe("dw-sdlc pr ship", () => {
       viewerDidAuthor: false,
       head: HEAD,
       headCommittedAt: "2026-10-31T11:00:00Z",
+      readyAt: null,
       branch: "feat/example",
       base: "main",
       baseOid: BASE_OID,
@@ -374,6 +375,10 @@ const REVIEWED: Context = {
 /** Reviewed, and no check reported on the head, committed at 11:00. */
 const UNCHECKED: Pr = { ...GREEN, checks: [REVIEWED] }
 const STARTED = "2026-10-31T11:01:00Z"
+const READY_AT = "2026-10-31T12:00:00Z"
+const SKIPPED_RUN: Context = { kind: "run", name: "Check", state: "SKIPPED", link: RUN, startedAt: STARTED }
+/** Reviewed, its one check skipped: what a draft reports in a repository that runs CI once it is ready. */
+const SKIPPED: Pr = { ...GREEN, checks: [SKIPPED_RUN, REVIEWED] }
 /** Reviewed, its one required check running since STARTED. */
 const PENDING: Pr = {
   ...GREEN,
@@ -425,6 +430,45 @@ describe("dw-sdlc pr ship while no check has answered", () => {
       blockers: [],
       performed: []
     })
+  })
+
+  it("waits on a ready head whose every check was skipped, its grace counted from its ready", () => {
+    const run = json({ ...SKIPPED, readyAt: READY_AT }, [], clockAt(READY_AT, 60))
+    assert.equal(run.status, 20, run.stderr)
+    assert.deepEqual(run.document, {
+      pr: URL,
+      head: HEAD,
+      base: "main",
+      status: "wait",
+      action: "wait",
+      actor: "script",
+      reason: "unverified",
+      recheckAfter: 15,
+      blockers: [],
+      performed: []
+    })
+  })
+
+  it("parks that head 121 s after its ready, and never merges on the skipped check", () => {
+    const run = json({ ...SKIPPED, readyAt: READY_AT }, [], clockAt(READY_AT, 121))
+    assert.equal(run.status, 30, run.stderr)
+    assert.deepEqual(run.document, {
+      pr: URL,
+      head: HEAD,
+      base: "main",
+      status: "park",
+      action: "unverified",
+      actor: "dev",
+      reason: "every check on e36732e was skipped, 120 s after its commit or its ready",
+      command: merge,
+      blockers: [],
+      performed: []
+    })
+  })
+
+  it("takes a skipped check beside one that ran as verified", () => {
+    const run = json({ ...GREEN, checks: [SKIPPED_RUN, ...GREEN.checks] }, [], clockAt(READY_AT, 121))
+    assert.ok(!run.stdout.includes('"unverified"'), run.stdout)
   })
 
   it("waits 60 s on a check pending 10 min", () => {
@@ -1291,6 +1335,25 @@ describe("dw-sdlc pr ship updates a branch and marks a draft ready", () => {
       performed: [ran("mark-ready", true), ran("merge", true)]
     })
     assert.deepEqual(run.calls, [AUTH, READ, HEAD_COMPARE, READY, READ, MERGE, READ])
+  })
+
+  it("marks a reviewed draft ready on its skipped check, then waits for the run ready starts", () => {
+    const graphql = [served({ ...SKIPPED, draft: true }), served({ ...SKIPPED, readyAt: READY_AT })]
+    const run = ship([...TARGET, "--json"], { graphql }, clockAt(READY_AT, 5), AUTO)
+    assert.equal(run.status, 20, run.stderr)
+    assert.deepEqual(JSON.parse(run.stdout), {
+      pr: URL,
+      head: HEAD,
+      base: "main",
+      status: "wait",
+      action: "wait",
+      actor: "script",
+      reason: "unverified",
+      recheckAfter: 15,
+      blockers: [],
+      performed: [ran("mark-ready", true)]
+    })
+    assert.deepEqual(run.calls, [AUTH, READ, HEAD_COMPARE, READY, READ])
   })
 
   it("marks a draft ready under ask and parks it ready-to-merge; gh's warning that it is ready already is no refusal", () => {

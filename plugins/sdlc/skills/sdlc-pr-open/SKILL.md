@@ -79,7 +79,9 @@ empty on a detached HEAD, which has no pull request to open.
    upstream is `origin/<branch>` and commits are unpushed, `git push`.
 2. Look for a pull request of the branch: `gh pr list --head <branch> --state open --json number,url`.
    `gh pr view` without a number resolves through the upstream, which may be the base's.
-3. None: `gh pr create --base <base> --head <branch> --title "<title>" --body-file <file>`.
+3. None: `gh pr create --base <base> --head <branch> --title "<title>" --body-file <file>`, with
+   `--draft` when `/sdlc-pr-ship` will carry it, as a Brief's Ship line or the dev says: the Ship script
+   marks it ready after its Review, so a repository that skips CI on drafts runs it once, on that head.
 4. One exists: `gh pr edit <n> --body-file <file>`, and `--title` only when it breaks the convention.
    Open no second pull request.
 5. Say the pull request's URL in one line, and stop. Do not merge, request a review or start

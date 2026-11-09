@@ -356,7 +356,9 @@ that lacks one commit of the base or more is behind, and so is one GitHub report
 reports `BEHIND` only where a rule asks a branch to be up to date before it merges, so without the
 compare a branch behind its base would merge with no CI run on the tree the merge makes. It marks
 the head of the viewer's own pull request reviewed when the Review depth is `off`. It marks the
-viewer's own draft ready once CI is green, no thread is open and the head is reviewed. It squash
+viewer's own draft ready once no check fails or runs, no thread is open and the head is reviewed. A
+ready head whose every check was skipped counts as having no CI: the script waits for the run its
+`ready` starts and never merges on the skip. It squash
 merges with `--match-head-commit`, so a push during the decision never merges blind. Each runs at
 most once per call; one that comes round again, and every one under `--dry-run`, parks with its
 command for the dev.

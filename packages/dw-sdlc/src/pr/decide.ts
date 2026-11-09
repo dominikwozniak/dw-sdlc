@@ -342,15 +342,20 @@ const ROWS: Row[] = [
     }
   },
   {
-    when: (pr) => ciOf(pr).length === 0,
+    // A head whose every check was skipped has run nothing: a draft's are, until `ready` starts the run.
+    when: (pr) => ciOf(pr).length === 0 || (!pr.draft && ciOf(pr).every((check) => check.bucket === "skipping")),
     answer: (pr, now, policy) =>
-      now - Date.parse(pr.headCommittedAt) <= GRACE_SECONDS * 1000
+      now - Math.max(Date.parse(pr.headCommittedAt), Date.parse(pr.readyAt ?? pr.headCommittedAt)) <=
+      GRACE_SECONDS * 1000
         ? { status: "wait", action: "wait", actor: "script", reason: "unverified", recheckAfter: 15 }
         : {
             status: "park",
             action: "unverified",
             actor: "dev",
-            reason: `no check reported on ${pr.head.slice(0, 7)} within ${GRACE_SECONDS} s of its commit`,
+            reason:
+              ciOf(pr).length === 0
+                ? `no check reported on ${pr.head.slice(0, 7)} within ${GRACE_SECONDS} s of its commit`
+                : `every check on ${pr.head.slice(0, 7)} was skipped, ${GRACE_SECONDS} s after its commit or its ready`,
             command: devCommand(pr, "merge", policy)
           }
   },
