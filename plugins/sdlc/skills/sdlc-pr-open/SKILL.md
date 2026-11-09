@@ -35,13 +35,18 @@ Write it to a file outside the repository, in the session's scratchpad directory
 system prompt names one, else under `mktemp -d`. `gh` reads it with `--body-file`; a heredoc inside
 the command is never the way.
 
+**The `Closes` line.** `Closes #<n>` goes first when the work has an issue, and `<n>` is the issue the
+kickoff line of a Brief names: `/implement #<n>`. Never take it from a `Source:` line, which may point
+at a parent issue, a spec or another issue the work only reads. With no Brief, `<n>` is the issue the
+dev names. A kickoff line that names no issue, and no issue named, leave the body without the line. A
+rewrite keeps the `Closes` line of the body it replaces.
+
 **With a template**, fill every section of it, in its order, and drop a section only when the
-template itself says it is optional. Put `Closes #<n>` first when the source is an issue, above the
-template's first heading.
+template itself says it is optional. The `Closes` line sits above the template's first heading.
 
 **Without a template**, the body has this shape:
 
-1. `Closes #<n>` first, when the source is an issue.
+1. The `Closes` line, when there is one.
 2. Why the change exists, in one to three sentences.
 3. `## Summary`: the smallest view that makes the point: a diff sketch, a call tree, a file tree,
    pseudocode. `references/summary-views.md` shows each, and when to pick it.
