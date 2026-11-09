@@ -109,6 +109,8 @@ export type Pr = {
   viewerDidAuthor: boolean
   head: string
   committedAt: string
+  /** When it last left draft; never when left out. */
+  readyAt?: string
   branch: string
   base: string
   /** The commit the base branch points at. */
@@ -229,6 +231,7 @@ export function pullRequestOf(pr: Pr): Record<string, unknown> {
     baseRef: pr.baseDeleted === true ? null : { target: { oid: pr.baseOid } },
     viewerDidAuthor: pr.viewerDidAuthor,
     mergeCommit: pr.mergeCommit === null ? null : { oid: pr.mergeCommit },
+    ready: { nodes: pr.readyAt === undefined ? [] : [{ createdAt: pr.readyAt }] },
     reviewThreads: { pageInfo: { hasNextPage: pr.moreThreads === true }, nodes: pr.threads.map(threadOf) },
     latestReviews: {
       nodes: (pr.reviews ?? []).map(({ author, state, commit }) => ({

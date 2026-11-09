@@ -23,6 +23,7 @@ export const QUERY = `query($owner: String!, $name: String!, $number: Int!) {
     pullRequest(number: $number) {
       url number state isDraft mergeable mergeStateStatus reviewDecision headRefOid headRefName baseRefName baseRefOid
       baseRef { target { oid } } viewerDidAuthor mergeCommit { oid }
+      ready: timelineItems(last: 1, itemTypes: [READY_FOR_REVIEW_EVENT]) { nodes { ... on ReadyForReviewEvent { createdAt } } }
       latestReviews(first: 100) { nodes { state author { login } commit { oid } } }
       reviewThreads(first: ${THREADS_READ}) { pageInfo { hasNextPage } nodes { id isResolved isOutdated path line
         comments(first: 1) { nodes { author { login } body } }
@@ -76,6 +77,8 @@ export type PrState = {
   viewerDidAuthor: boolean
   head: string
   headCommittedAt: string
+  /** When the pull request last left draft; null when it never was one. */
+  readyAt: string | null
   branch: string
   base: string
   /**
@@ -439,6 +442,7 @@ export function parsePr(reply: string, repo: string): Omit<PrState, "carried" | 
   const head = string(pr, "headRefOid")
   const baseRef = childOrNull(pr, "baseRef")
   const history = historyOf(pr)
+  const [ready] = nodes(pr, "ready")
   return {
     url: string(pr, "url"),
     repo,
@@ -451,6 +455,7 @@ export function parsePr(reply: string, repo: string): Omit<PrState, "carried" | 
     viewerDidAuthor: boolean(pr, "viewerDidAuthor"),
     head,
     headCommittedAt: time(commit, "committedDate"),
+    readyAt: ready === undefined ? null : time(ready, "createdAt"),
     branch: string(pr, "headRefName"),
     base: string(pr, "baseRefName"),
     baseOid: baseRef === null ? string(pr, "baseRefOid") : string(child(baseRef, "target"), "oid"),
