@@ -63,7 +63,8 @@ Whatever the shape:
   rewritten whole from the diff as it stands; never append a section, a changelog or a
   "review feedback" note. History belongs to git and the page timeline.
 - It says nothing the diff already says: no list of files, no restated code.
-- A mermaid diagram appears only when the change moves a flow or a sequence.
+- A change that moves a flow or a sequence gets one small mermaid diagram, as the view of the Summary
+  or in the template section that explains the change. Any other change gets none.
 - It carries no "Generated with" footer.
 - Plain words, short sentences, the terms of `GLOSSARY.md`.
 
