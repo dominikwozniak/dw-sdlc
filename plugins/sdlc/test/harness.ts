@@ -22,6 +22,10 @@ if (spawnSync("jq", ["--version"]).status !== 0) {
 export type Verdict = { status: number; stdout: string; stderr: string }
 export type RunOptions = { cwd?: string | undefined; env?: NodeJS.ProcessEnv | undefined; args?: string[] | undefined }
 
+function isEpipe(error: Error): boolean {
+  return (error as NodeJS.ErrnoException).code === "EPIPE"
+}
+
 export function hookPath(name: string): string {
   return join(HOOKS_DIR, `${name}.sh`)
 }
@@ -39,7 +43,9 @@ export function runBash(args: string[], input: unknown, options: RunOptions = {}
     env: { ...env, ...options.env },
     encoding: "utf8"
   })
-  if (result.error !== undefined) {
+  // A hook may exit before it reads its stdin (session-start.sh without jq): the write then fails with
+  // EPIPE, but the child's verdict is complete. Any other error is a failed spawn.
+  if (result.error !== undefined && !(isEpipe(result.error) && result.status !== null)) {
     throw result.error
   }
   return { status: result.status ?? -1, stdout: result.stdout, stderr: result.stderr }
@@ -65,6 +71,12 @@ export function runHookAsync(name: string, input: unknown): Promise<Verdict> {
       stderr += chunk.toString("utf8")
     })
     child.on("error", reject)
+    // The hook may exit without reading its stdin; its verdict still comes through "close".
+    child.stdin.on("error", (error) => {
+      if (!isEpipe(error)) {
+        reject(error)
+      }
+    })
     child.on("close", (status) => {
       resolve({ status: status ?? -1, stdout, stderr })
     })
