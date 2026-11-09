@@ -4,9 +4,7 @@
 import { chmodSync, existsSync, readFileSync } from "node:fs"
 import { delimiter, join } from "node:path"
 
-import { lines, scratch, write, writeJson } from "./harness.ts"
-
-const FAKE = join(import.meta.dirname, "fake-gh.ts")
+import { scratch, write } from "./harness.ts"
 
 /** What one gh call prints and exits with; an empty one prints nothing and exits 0. */
 export type Response = { stdout?: string; stderr?: string; exit?: number }
@@ -20,20 +18,59 @@ export type FakeGh = {
   calls: () => string[][]
 }
 
+const quoted = (text: string): string => `'${text.replaceAll("'", `'\\''`)}'`
+
+function answer({ stdout = "", stderr = "", exit = 0 }: Response): string {
+  return `printf '%s' ${quoted(stdout)}; printf '%s' ${quoted(stderr)} >&2; exit ${exit}`
+}
+
+/** The scenario as a plain sh script, since a test makes many gh calls and each would boot Node. */
+function script(dir: string, { graphql = [], commands = {} }: Scenario): string {
+  const replies = graphql.map((response, n) => `    ${n}) ${answer(response)} ;;`).join("\n")
+  const arms = Object.entries(commands)
+    .map(([key, response]) => `  ${quoted(key)}) ${answer(response)} ;;`)
+    .join("\n")
+  return `#!/bin/sh
+dir=${quoted(dir)}
+{ for a in "$@"; do printf '%s\\036' "$a"; done; printf '\\035'; } >>"$dir/calls"
+if [ "$1 $2" = "api graphql" ]; then
+  n=0
+  while [ -e "$dir/served.$n" ]; do n=$((n + 1)); done
+  : >"$dir/served.$n"
+  case $n in
+${replies}
+    *) printf 'fake gh: no GraphQL reply left for call %s\\n' $((n + 1)) >&2; exit 99 ;;
+  esac
+fi
+case "$*" in
+${arms}
+esac
+case "$1 $2" in
+${arms}
+esac
+exit 0
+`
+}
+
 export function fakeGh(scenario: Scenario): FakeGh {
   const dir = scratch("gh")
-  writeJson(join(dir, "scenario.json"), scenario)
   const bin = join(dir, "gh")
-  write(bin, `#!/bin/sh\nexec "${process.execPath}" "${FAKE}" "${dir}" "$@"\n`)
+  write(bin, script(dir, scenario))
   chmodSync(bin, 0o755)
-  const log = join(dir, "calls.jsonl")
+  const log = join(dir, "calls")
   return {
     env: { PATH: `${dir}${delimiter}${process.env.PATH ?? ""}`, GH_HOST: "", DW_SDLC_NOW: "" },
     calls: () =>
       existsSync(log)
-        ? lines(readFileSync(log, "utf8")).map((line) =>
-            (JSON.parse(line) as string[]).map((arg) => (arg.startsWith("query=") ? "query=…" : arg))
-          )
+        ? readFileSync(log, "utf8")
+            .split("\x1d")
+            .filter(Boolean)
+            .map((call) =>
+              call
+                .split("\x1e")
+                .slice(0, -1)
+                .map((arg) => (arg.startsWith("query=") ? "query=…" : arg))
+            )
         : []
   }
 }
