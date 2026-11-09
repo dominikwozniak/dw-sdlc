@@ -1,11 +1,14 @@
-// `dw-sdlc pr ship` spawned with a fake gh first on PATH: for each pull request on the wire, the
-// document or the line it answers, its exit code and the gh calls it made.
+// `dw-sdlc pr ship`, run in this process with a fake gh first on PATH: for each pull request on the
+// wire, the document or the line it answers, its exit code and the gh calls it made. The pr-ship-*
+// files beside it spawn the bin.
 
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 
 import { COMMITTED_FILE, LOCAL_FILE } from "../../src/agentic-config.ts"
-import { lines, repo, runBin, scratch } from "../harness.ts"
+import { run as runShip } from "../../src/commands/pr-ship.ts"
+import { forgetCompares } from "../../src/pr/read.ts"
+import { lines, repo, runBin, runInProcess, scratch } from "../harness.ts"
 import {
   BASE_OID,
   type Context,
@@ -136,7 +139,8 @@ const MIXED: Pr = {
  */
 function ship(args: string[], scenario: Scenario, env: NodeJS.ProcessEnv = {}, files: Files = FULL) {
   const gh = fakeGh({ ...scenario, commands: { ...comparedBehind(0), ...scenario.commands } })
-  const run = runBin(["pr", "ship", ...args], repo({ files }), { ...gh.env, ...env })
+  forgetCompares()
+  const run = runInProcess(runShip, args, repo({ files }), { ...gh.env, ...env })
   return { ...run, calls: gh.calls() }
 }
 

@@ -189,6 +189,11 @@ export function readAgain(pr: PrState, sized: boolean): PrState {
  */
 const COMPARES = new Map<string, string>()
 
+/** For a test that runs the command in its own process: each case starts with no compare read. */
+export function forgetCompares(): void {
+  COMPARES.clear()
+}
+
 /** The reply of the compare from `from` to `commit`, read once per process; `what` names it when gh refuses it. */
 function compared(pr: Pick<PrState, "repo" | "number">, from: string, commit: string, what: string): string {
   const key = `${pr.repo} ${from}...${commit}`
