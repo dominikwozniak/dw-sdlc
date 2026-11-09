@@ -1,6 +1,6 @@
 ---
 name: sdlc-pr-open
-description: Open a pull request, or write or rewrite the body of one, with a title from the repository's commit convention and a body that fills its pull request template, or a fixed shape when it has none. Use it whenever you open a pull request or write, rewrite or rework a pull request body, whoever asked for the pull request, and after a review changes what the body says. It never decides to open a pull request, never merges and never starts /sdlc-pr-ship. A request to merge, to review or to check CI is never this skill.
+description: Open a pull request, or write or rewrite the body of one, with a title from the repository's commit convention and a body that fills its pull request template, or a fixed shape when it has none. Always use it, before any gh pr create or gh pr edit, whenever you open a pull request or write, rewrite or rework a pull request body, whoever asked for the pull request, in any language, and after a review changes what the body says. It never decides to open a pull request, never merges and never starts /sdlc-pr-ship. A request to merge, to review, to push or to check CI is never this skill.
 ---
 
 # sdlc-pr-open
