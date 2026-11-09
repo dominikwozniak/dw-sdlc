@@ -18,6 +18,9 @@ env:
 jobs:
   check:
     name: Check
+    # A squash merge lands on `main` with `(#NN)` in its subject; its pull request already ran this
+    # gate against the merge with `main` as it stood at that run. Any other push to `main` runs.
+    if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message, '(#') }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
