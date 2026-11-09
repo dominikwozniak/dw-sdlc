@@ -3,7 +3,7 @@
 // the push policy reads the config, so the cases run against throwaway repositories with known files.
 
 import assert from "node:assert/strict"
-import { readdirSync } from "node:fs"
+import { readdirSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 import { describe, it } from "node:test"
 
@@ -12,6 +12,7 @@ import {
   commit,
   expectExit,
   git,
+  hookPath,
   initRepo,
   runHook,
   scratch,
@@ -816,4 +817,19 @@ describe("allowed", () => {
   allowed("rtk-run-tests", "rtk run pnpm test")
   allowed("rtk-summary-status", "rtk summary git status")
   allowed("empty-input", "")
+})
+
+describe("the prefilter before the rm, find and shred patterns", () => {
+  it("names the word each pattern starts with, so it skips no command a pattern would match", () => {
+    const source = readFileSync(hookPath("block-dangerous-commands"), "utf8")
+    const arm = source.match(/case "\$SCAN" in\n\s+(.+)\)\n/)?.[1] ?? ""
+    const words = arm.split(" | ").map((word) => word.replaceAll("*", ""))
+    const rm = source.match(/^RM="([a-z]+)\(/m)?.[1]
+    const patterns = (source.match(/^PATTERNS=\(\n([\s\S]*?)^\)/m)?.[1] ?? "").trim().split("\n")
+    assert.ok(patterns.length > 1)
+    for (const line of patterns.map((text) => text.trim())) {
+      const first = line.startsWith('"${RM}') ? rm : line.match(/^"([a-z]+)/)?.[1]
+      assert.ok(first !== undefined && words.includes(first), line)
+    }
+  })
 })
