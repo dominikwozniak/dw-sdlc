@@ -1,6 +1,6 @@
-// Every rule, at every command position: each probe goes through the dispatcher bare and behind each
-// launcher family, and the verdict must not change, so a new rule or a launcher added to lib-words.sh is
-// held to every pair without a case of its own. lib.test.ts has the option spellings; here, one per family.
+// Every rule goes through the dispatcher bare, and every reader of a command behind each launcher family,
+// and the verdict must not change, so a new rule or a launcher added to lib-words.sh is held to every
+// pair without a case of its own. lib.test.ts has the option spellings; here, one per family.
 
 import assert from "node:assert/strict"
 import { availableParallelism } from "node:os"
@@ -177,6 +177,27 @@ const EXEMPT: Array<{ probe: string; launcher: string; want: Want; reason: strin
     "the commit guard reads a message as typed, and a commit a substitution or another shell runs is out of its reach; the subject is a convention, not lost work, and git's commit-msg hook checks it there"
 }))
 
+// Rules that judge the words guard_read_words and guard_unwrap_words leave, as a probe kept does: a
+// launcher reaches them only through those two, so they run bare. `git push` keeps a probe, as it reads
+// its segment again; a probe not listed here meets every launcher.
+const SAME_READER = new Set([
+  "clean-fd",
+  "checkout-dot",
+  "switch-force",
+  "restore-dot",
+  "stash-drop",
+  "worktree-remove-force",
+  "reflog-expire",
+  "gc-prune-now",
+  "update-ref-delete",
+  "push-delete",
+  "push-to-main",
+  "lease-push-asks",
+  "merge-on-protected",
+  "gh-api-delete-ref",
+  "gh-pr-merge-delete-branch"
+])
+
 function verdictFor(p: Probe, l: Launcher): Want {
   return EXEMPT.find((e) => e.probe === p.name && e.launcher === l.name)?.want ?? p.want
 }
@@ -191,7 +212,7 @@ describe("every rule at every command position", { concurrency: availableParalle
       assert.equal(await verdict(p.command, p.cwd), p.want, p.command)
     })
   }
-  for (const p of DESTRUCTIVE) {
+  for (const p of DESTRUCTIVE.filter((x) => !SAME_READER.has(x.name))) {
     for (const l of LAUNCHERS) {
       if (l.applies !== undefined && !l.applies(p)) {
         continue

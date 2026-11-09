@@ -3,11 +3,11 @@
 // one off the machine. The allowed half bears the load: the guard bets that ordinary work never trips it.
 
 import assert from "node:assert/strict"
-import { mkdirSync } from "node:fs"
+import { mkdirSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 import { describe, it } from "node:test"
 
-import { bashPayload, expectExit, runHook, scratch } from "../harness.ts"
+import { bashPayload, expectExit, hookPath, runHook, scratch } from "../harness.ts"
 
 function blocked(name: string, command: string): void {
   it(name, () => {
@@ -177,4 +177,35 @@ describe("a glob in the command does not pick up a credential dir from the cwd",
       expectExit({ status: inGlobDir(command), stdout: "", stderr: "" }, 2)
     })
   }
+})
+
+describe("the prefilters skip no command a regex would match", () => {
+  const source = readFileSync(hookPath("credential-leak-guard"), "utf8")
+  const arms = (index: number): string[] => {
+    const arm = [...source.matchAll(/case "\$MASKED" in\n\s+(.+)\)\n/g)][index]?.[1] ?? ""
+    return arm.split(" | ").map((word) => word.replace(/\[(\w)\w\]/g, "$1").replace(/[*']/g, ""))
+  }
+
+  it("names a word of every dump ENV_DUMP reads", () => {
+    const dump = source.match(/^ENV_DUMP='.*?\[\[:space:\]\]\*\)(\(.*)'$/m)?.[1] ?? ""
+    const dumps = [...dump.matchAll(/(?<=[(|])[a-z]+(?: -[a-z])?(?=[|)[])/g)].map(([word]) => word)
+    assert.deepEqual(dumps, ["env", "printenv", "export -p", "declare -x", "set"])
+    for (const word of dumps) {
+      assert.ok(
+        arms(0).some((arm) => word.includes(arm)),
+        word
+      )
+    }
+  })
+
+  it("names a word of every filter a hunt reads", () => {
+    const filters = source.match(/grep -iE "\(([a-z|]+)\)\[\^;&\|\]\*\$CRED_WORDS"\)/)?.[1]?.split("|") ?? []
+    assert.ok(filters.length > 0)
+    for (const word of filters) {
+      assert.ok(
+        arms(1).some((arm) => word.includes(arm)),
+        word
+      )
+    }
+  })
 })

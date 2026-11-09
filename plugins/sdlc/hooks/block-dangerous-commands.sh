@@ -52,11 +52,16 @@ HERE_REASONS=(
 
 # Matched against the masked scan, reported as the command: the user has to see what they typed.
 SCAN=$(guard_mask_quoted_separators "$GUARD_COMMAND")
-for i in "${!PATTERNS[@]}"; do
-  if printf '%s\n' "$SCAN" | grep -qE "${GUARD_BOUNDARY}${PATTERNS[i]}"; then
-    guard_block "'$GUARD_COMMAND' ${REASONS[i]}."
-  fi
-done
+# Every pattern holds one of these words, so a text without one costs no grep.
+case "$SCAN" in
+  *rm* | *find* | *shred*)
+    for i in "${!PATTERNS[@]}"; do
+      if printf '%s\n' "$SCAN" | grep -qE "${GUARD_BOUNDARY}${PATTERNS[i]}"; then
+        guard_block "'$GUARD_COMMAND' ${REASONS[i]}."
+      fi
+    done
+    ;;
+esac
 
 # check_rm_here <segment> — an rm segment against HERE_PATTERNS, unless the shell stands below the
 # payload's cwd by then.
@@ -146,8 +151,9 @@ REDIRECT_ALONE='^[0-9]*(<|>|>>)$'
 # The whole command is one command: no separator, pipe, background `&`, subshell, substitution or
 # backtick, a redirect's `&` aside. Only then are the repository and the branches a forced delete is
 # checked against the ones git gets.
-ALONE=0
-[[ "$(guard_pipelines "$SCAN")" != *$'\n'* && "$SCAN" != *[\|\(\)\`]* ]] && ALONE=1
+guard_alone() {
+  [[ "$(guard_pipelines "$SCAN")" != *$'\n'* && "$SCAN" != *[\|\(\)\`]* ]]
+}
 
 # check_branch_delete <segment> — a forced `git branch` delete, guard_opts having read it. It passes
 # when each branch it names is landed (guard_landed), and only as a command of its own with each
@@ -159,7 +165,7 @@ check_branch_delete() {
   [[ "${WORDS[0]:-}" == rtk ]] && i=1
   [[ "${WORDS[i]:-}" == git ]] && i=$((i + 1))
   [[ "${WORDS[i]:-}" == -C && "${WORDS[i + 1]:-}" =~ $PLAIN ]] && i=$((i + 2))
-  if ((!ALONE)) || [[ "${WORDS[i]:-}" != branch ]]; then
+  if ! guard_alone || [[ "${WORDS[i]:-}" != branch ]]; then
     guard_block "'$GUARD_COMMAND' force-deletes a branch as part of a longer command. A forced delete passes as a command of its own: git [-C <path>] branch -D <branch>..., each branch written out."
   fi
   # A redirect and its target are skipped, unless a branch has that name: quoted, it is one.

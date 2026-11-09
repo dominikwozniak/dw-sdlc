@@ -252,15 +252,18 @@ guard_config_load() {
   committed="$GUARD_LAYER_JSON"
   guard_config_layer "$root" "$main" "$GUARD_LOCAL_FILE"
   local_layer="$GUARD_LAYER_JSON"
-  resolved=$(jq -cn -L "$GUARD_LIB_DIR" --argjson inferred "$inferred" --argjson committed "$committed" \
-    --argjson local "$local_layer" 'include "config"; resolve($inferred; $committed; $local)')
-  loosened=$(jq -r '.problems[] | "\(.file): \(.path): \(.message)"' <<<"$resolved")
+  # One jq: the config on the first line, each problem of a loosening local layer on the lines after.
+  resolved=$(jq -rn -L "$GUARD_LIB_DIR" --argjson inferred "$inferred" --argjson committed "$committed" \
+    --argjson local "$local_layer" --arg earlier "$GUARD_CONFIG_PROBLEMS" '
+    include "config";
+    resolve($inferred; $committed; $local) as $r
+    | ($r.problems | map("\(.file): \(.path): \(.message)")) as $loosened
+    | (if ($earlier != "" or ($loosened | length) > 0) then ($r.config | on_strictest) else $r.config end | tojson),
+      $loosened[]')
+  GUARD_CONFIG=${resolved%%$'\n'*}
+  loosened=""
+  [[ "$resolved" == *$'\n'* ]] && loosened=${resolved#*$'\n'}
   [[ -n "$loosened" ]] && GUARD_CONFIG_PROBLEMS+="${GUARD_CONFIG_PROBLEMS:+$'\n'}$loosened"
-  if [[ -n "$GUARD_CONFIG_PROBLEMS" ]]; then
-    GUARD_CONFIG=$(jq -c -L "$GUARD_LIB_DIR" 'include "config"; .config | on_strictest' <<<"$resolved")
-  else
-    GUARD_CONFIG=$(jq -c '.config' <<<"$resolved")
-  fi
   return 0
 }
 

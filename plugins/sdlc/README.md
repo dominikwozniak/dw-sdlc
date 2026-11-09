@@ -719,8 +719,8 @@ reads is built beside it in a scratch directory. `pnpm test` runs them all on `n
 per process, as part of `pnpm check`. The jq and TypeScript copies of the config contract are
 tested against the same cases: `test/hooks/config.test.ts` runs `lib.sh` against the package's
 resolver. `test/hooks/command-position.test.ts` runs every rule through the dispatcher bare and
-behind each launcher family, and `lib.test.ts` holds the word reader and the boundary to every
-launcher spelling. jq is a hard requirement: without it the harness fails loudly instead of passing
+each reader of a command behind each launcher family, and `lib.test.ts` holds the word reader and the
+boundary to every launcher spelling. jq is a hard requirement: without it the harness fails loudly instead of passing
 empty.
 
 `test/hooks/references-sync.test.ts` feeds the Sync hook a `SessionStart` payload;

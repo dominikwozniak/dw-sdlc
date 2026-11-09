@@ -166,8 +166,8 @@ refuses.
 - A new case is confirmed by mutating the code back to the broken behaviour and watching exactly that
   case fail.
 - Command position is tested twice: `test/hooks/command-position.test.ts` runs every rule, a probe of
-  each other guard and the safe controls through the dispatcher, bare and behind each launcher
-  family, and a combination that reads differently on purpose is listed there with its reason;
+  each other guard and the safe controls through the dispatcher bare, and each reader of a command
+  behind each launcher family, and a combination that reads differently on purpose is listed there with its reason;
   `lib.test.ts` holds the word reader and the boundary to every launcher spelling.
 
 ## Tasks

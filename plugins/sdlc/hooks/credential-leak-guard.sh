@@ -73,18 +73,31 @@ MASKED=$(guard_mask_quoted_separators "$COMMAND")
 # One pipeline per line: the first grep keeps the dumps, the second those filtered for a credential.
 # Read to the end, not with -q, so no grep exits while the one before it still writes.
 env_hunt=0
-HUNTS=$(guard_pipelines "$MASKED" | grep -E "$ENV_DUMP" | grep -iE "(grep|rg|ag|awk|sed|fgrep|egrep)[^;&|]*$CRED_WORDS")
-[[ -n "$HUNTS" ]] && env_hunt=1
+# A hunt holds a dump's word and a filter's, the filter in any case; a text without them costs no grep.
+case "$MASKED" in
+  *env* | *'export -p'* | *'declare -x'* | *set*)
+    case "$MASKED" in
+      *[gG][rR][eE][pP]* | *[rR][gG]* | *[aA][gG]* | *[aA][wW][kK]* | *[sS][eE][dD]*)
+        HUNTS=$(guard_pipelines "$MASKED" | grep -E "$ENV_DUMP" | grep -iE "(grep|rg|ag|awk|sed|fgrep|egrep)[^;&|]*$CRED_WORDS")
+        [[ -n "$HUNTS" ]] && env_hunt=1
+        ;;
+    esac
+    ;;
+esac
 # Printing a credential-ish variable straight out. Referencing one is fine — gh wants $GITHUB_TOKEN
 # and that is its job; putting the VALUE on stdout, where it lands in a transcript, is not.
 echo_secret=0
-if printf '%s' "$MASKED" | grep -qiE "${GUARD_BOUNDARY}(echo|printf|print)[^;&|]*\\\$\{?[A-Za-z_]*$CRED_WORDS"; then
-  echo_secret=1
-fi
+case "$MASKED" in
+  *\$*)
+    if printf '%s' "$MASKED" | grep -qiE "${GUARD_BOUNDARY}(echo|printf|print)[^;&|]*\\\$\{?[A-Za-z_]*$CRED_WORDS"; then
+      echo_secret=1
+    fi
+    ;;
+esac
 
 # --- 3. exfil ---------------------------------------------------------------------------------------
 exfil=0
-if printf '%s' "$MASKED" | grep -qE "${GUARD_BOUNDARY}(curl|wget)([[:space:]]|\$)"; then
+if [[ "$MASKED" == *curl* || "$MASKED" == *wget* ]] && printf '%s' "$MASKED" | grep -qE "${GUARD_BOUNDARY}(curl|wget)([[:space:]]|\$)"; then
   if [[ -n "$CRED_PATH_HIT" ]] ||
     printf '%s' "$COMMAND" | grep -qiE "\\\$\{?[A-Za-z_]*$CRED_WORDS" ||
     printf '%s' "$STRIPPED" | grep -qE '(^|[[:space:]=])[^[:space:]]*\.env([.[:space:]]|$)'; then
