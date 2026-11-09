@@ -62,6 +62,48 @@ export function runBin(args: string[], cwd: string, env: NodeJS.ProcessEnv = {})
   return runCommand(process.execPath, [BIN, ...args], cwd, env)
 }
 
+const capture = (append: (text: string) => void) =>
+  ((chunk: string | Uint8Array) => {
+    append(chunk.toString())
+    return true
+  }) as typeof process.stdout.write
+
+/**
+ * A command's `run` in this process, under the environment and cwd `runBin` gives it. It swaps
+ * process.env, the cwd and the two write methods, so it holds only while a file's tests run serially.
+ */
+export function runInProcess(
+  run: (argv: string[]) => number,
+  argv: string[],
+  cwd: string,
+  env: NodeJS.ProcessEnv = {}
+): Run {
+  const before = {
+    cwd: process.cwd(),
+    env: process.env,
+    out: process.stdout.write.bind(process.stdout),
+    err: process.stderr.write.bind(process.stderr)
+  }
+  let stdout = ""
+  let stderr = ""
+  process.env = scratchEnv(env)
+  process.chdir(cwd)
+  process.stdout.write = capture((text) => {
+    stdout += text
+  })
+  process.stderr.write = capture((text) => {
+    stderr += text
+  })
+  try {
+    return { status: run(argv), stdout, stderr }
+  } finally {
+    process.stdout.write = before.out
+    process.stderr.write = before.err
+    process.chdir(before.cwd)
+    process.env = before.env
+  }
+}
+
 /** A run of the bin started by `startBin`, and the signal that ended it, if one did. */
 export type Started = { group: number; done: Promise<Run & { signal: NodeJS.Signals | null }> }
 
