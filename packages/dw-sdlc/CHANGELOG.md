@@ -1,5 +1,11 @@
 # dw-sdlc
 
+## 0.15.1
+
+### Patch Changes
+
+- c1bb505: `dw-sdlc pr ship` waits for the run a draft's `ready` starts: a ready head whose every check was skipped is unverified, and parks for the dev when no run comes within the grace.
+
 ## 0.15.0
 
 ### Minor Changes
