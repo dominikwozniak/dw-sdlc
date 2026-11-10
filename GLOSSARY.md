@@ -136,6 +136,11 @@ _Avoid_: quality gate, CI (which runs it), lint (one part of a Step)
 **Drift**:
 A file a Step creates, changes or deletes while the Gate runs, such as a stale generated file; never an edit made before the run.
 
+**Shared workflow**:
+The one CI job that runs a repository's Gate, kept in a public repository so a private one of any owner
+can call it, and pinned by a release tag's commit SHA.
+_Avoid_: reusable workflow (GitHub's mechanism for it), template, Action (the Ship script's next step)
+
 **Ratchet**:
 A Check whose recorded baseline may only tighten: a number that never grows or a list of exceptions that only shrinks.
 _Avoid_: threshold, budget (a fixed limit with no baseline)
