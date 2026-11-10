@@ -22,7 +22,7 @@ jobs:
     # push to `main` runs.
     if: ${{ !github.event.pull_request.draft && (github.event_name != 'push' || !contains(github.event.head_commit.message, '(#')) }}
     # The Shared workflow: checkout, pnpm from `packageManager`, Node, `pnpm install`, then `run`.
-    uses: byarcadia-app/gh-actions-public/.github/workflows/quality-gate.yaml@f71d1a10628600f4325b681afb1dd98141746227 # v1.0.0
+    uses: byarcadia-app/gh-actions-public/.github/workflows/quality-gate.yaml@cdacded1a6c2b78200fa095482febfc74916191c # ci/drop-pnpm-cache, ahead of v1.1.0
     with:
       node-version: "24.19.0"
       # About twice a green run: tests growing back past it fail the job before they eat the minutes.
