@@ -336,8 +336,8 @@ a real payload.
 ## How a change lands
 
 `main` is protected in `.ai/agentic.config.json`, so a change reaches it through a pull request, and
-`quality-gate.yaml` runs `pnpm check` on it first. A squash merge, with `(#NN)` in its subject, skips
-the run on `main`; any other push to `main` gets it. For a small fix the agent commits on `main` and the
+`quality-gate.yaml` runs `pnpm check` on it first, once it is ready: a draft skips the run. A squash
+merge, with `(#NN)` in its subject, skips the run on `main`; any other push to `main` gets it. For a small fix the agent commits on `main` and the
 push comes from Dominik's own terminal: the guards judge only the agent's tool calls. GitHub branch
 protection is not available on this private repository, so the guard is the only check.
 
