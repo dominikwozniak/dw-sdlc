@@ -2,6 +2,7 @@ name: Quality Gate
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches: [main]
 
@@ -18,11 +19,14 @@ env:
 jobs:
   check:
     name: Check
-    # A squash merge lands on `main` with `(#NN)` in its subject; its pull request already ran this
-    # gate against the merge with `main` as it stood at that run. Any other push to `main` runs.
-    if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message, '(#') }}
+    # A draft runs nothing: the Ship script marks it ready after its Review, and `ready_for_review`
+    # runs the gate on that head. A squash merge lands on `main` with `(#NN)` in its subject; its pull
+    # request already ran this gate against the merge with `main` as it stood at that run. Any other
+    # push to `main` runs.
+    if: ${{ !github.event.pull_request.draft && (github.event_name != 'push' || !contains(github.event.head_commit.message, '(#')) }}
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # About twice a green run: tests growing back past it fail the job before they eat the minutes.
+    timeout-minutes: 7
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
