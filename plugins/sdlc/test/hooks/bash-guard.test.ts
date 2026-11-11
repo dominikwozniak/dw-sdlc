@@ -22,6 +22,8 @@ import {
   type Verdict
 } from "../harness.ts"
 
+const SOH = "\u0001"
+
 function run(command: string, cwd = REPO_ROOT, options: RunOptions = {}): Verdict {
   return runHook("bash-guard", bashPayload(command, cwd), options)
 }
@@ -132,14 +134,12 @@ describe("a long command is judged in seconds", () => {
 })
 
 describe("a payload the dispatcher cannot read is refused, naming why", () => {
-  // F34-soh-fails-open (#318): U+0001 closes the reader's fields, so a seventh made it give up and
-  // pass the call before any guard ran. Bash ignores the byte in a comment.
-  const SOH = "\u0001"
+  // F34-soh-fails-open (#318): U+0001 closes the reader's fields, and bash ignores it in a comment.
   const feat = initRepo(join(scratch("dispatch"), "unreadable"), { branch: "feat" })
   for (const [name, command] of [
-    ["disp-soh-reset", `git reset --hard # ${SOH}`],
-    ["disp-soh-rm", `rm -rf ~ # ${SOH}`],
-    ["disp-soh-env", `cat .env.local # ${SOH}`],
+    ["a reset --hard behind the byte", `git reset --hard # ${SOH}`],
+    ["an rm -rf ~ behind the byte", `rm -rf ~ # ${SOH}`],
+    ["an env file read behind the byte", `cat .env.local # ${SOH}`],
     ["a harmless command with the byte", `git status # ${SOH}`]
   ] as const) {
     it(name, () => {
@@ -161,13 +161,13 @@ describe("a payload the dispatcher cannot read is refused, naming why", () => {
   })
 })
 
-describe("without jq every call passes, as before", () => {
-  const NOJQ = scratch("nojq")
+describe("without jq every call passes", () => {
+  const NOJQ = { env: { PATH: scratch("nojq") } }
   it("a call a guard would refuse", () => {
-    expectExit(run("git reset --hard", REPO_ROOT, { env: { PATH: NOJQ } }), 0)
+    expectExit(run("git reset --hard", REPO_ROOT, NOJQ), 0)
   })
   it("a payload with the byte", () => {
-    expectExit(run("git reset --hard # \u0001", REPO_ROOT, { env: { PATH: NOJQ } }), 0)
+    expectExit(run(`git reset --hard # ${SOH}`, REPO_ROOT, NOJQ), 0)
   })
 })
 

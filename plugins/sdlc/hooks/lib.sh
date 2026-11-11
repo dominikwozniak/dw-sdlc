@@ -32,7 +32,7 @@ GUARD_LAYER_JSON="null"
 
 # guard_read_payload [--bash-command <cwd>] — the GUARD_* fields, GUARD_GLOB a Grep's file filter,
 # from the payload on stdin; with the flag, stdin is the bare command, the dispatcher's fast path.
-# Returns 1 on no jq or empty stdin, GUARD_UNREADABLE (3) on a payload jq cannot read, \001 included.
+# Returns 1 on no jq or empty stdin, GUARD_UNREADABLE on a payload jq cannot read, \001 included.
 guard_read_payload() {
   GUARD_FILE_PATH=""
   GUARD_GLOB=""
