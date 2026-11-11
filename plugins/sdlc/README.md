@@ -200,15 +200,16 @@ in place.
 
 ### Commands and scopes
 
-`guard_scopes`, in `hooks/lib.sh`, cuts the masked command into the commands the shell runs, one a
+`guard_scopes`, in `hooks/lib.sh`, cuts the masked scan into the commands the shell runs, one a
 line: at `;`, `&`, `|`, a newline and a subshell's parentheses, each of which also stands as a scope
 line, so a `cd` inside a subshell ends with it. A `$(…)` or backtick substitution is one word of the
 command around it, not a cut: `guard_lift_substitutions` makes it the word `$_`, a value computed at
 runtime, and moves its body to a scope of its own just before that command, since the shell runs the
 body first. So `git push origin "$(git branch --show-current)" --force` is one push with its
-`--force`, and its body one command before it. A substitution left open hands back the command as
-typed, cut at each parenthesis and backtick. `guard_segments` is the same lines without the scope
-lines.
+`--force`, and its body one command before it. A `$_` in the command's place is read as empty, as
+bash drops an empty expansion, so `$(true) git reset --hard` is a `git reset`; a `case` pattern's `)`
+inside a substitution ends no substitution. One left open hands back the scan as typed, cut at each
+parenthesis and backtick. `guard_segments` is the same lines without the scope lines.
 
 ### The quote walker
 

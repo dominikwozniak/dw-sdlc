@@ -321,7 +321,8 @@ guard_unwrap_words() {
       WORDS[0]=${WORDS[0]##*/}
     fi
     case "${WORDS[0]}" in
-      then | do | else | elif | if | while | until | '!' | '{' | nohup) guard_shift_words ;;
+      # `$_` is a lifted substitution, guard_lift_substitutions: empty, it leaves the next word the command.
+      then | do | else | elif | if | while | until | '!' | '{' | nohup | '$_') guard_shift_words ;;
       eval)
         guard_shift_words
         guard_split_first_word || true

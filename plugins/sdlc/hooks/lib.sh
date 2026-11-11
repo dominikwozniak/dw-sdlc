@@ -145,9 +145,7 @@ guard_lift_substitutions() {
             ;;
           '(')
             len=2
-            bufs[depth]=$buf segs[depth]=$seg kinds[depth]=$kind parens[depth]=$paren
-            depth=$((depth + 1))
-            buf="" seg=0 kind=U paren=0
+            guard_lift_open U
             ;;
           *) buf+='$' ;;
         esac
@@ -157,10 +155,12 @@ guard_lift_substitutions() {
           paren=$((paren - 1))
           buf+=')'
           seg=${#buf}
+        elif [[ "$ch" == ")" ]] && guard_in_case "$buf"; then
+          # A case pattern's `)`: the arm's command starts after it.
+          buf+=';'
+          seg=${#buf}
         elif [[ "$ch" == "$bt" && "$kind" != B ]]; then
-          bufs[depth]=$buf segs[depth]=$seg kinds[depth]=$kind parens[depth]=$paren
-          depth=$((depth + 1))
-          buf="" seg=0 kind=B paren=0
+          guard_lift_open B
         else
           body=$buf
           depth=$((depth - 1))
@@ -189,6 +189,31 @@ guard_lift_substitutions() {
   else
     GUARD_LIFTED=$out$buf
   fi
+}
+
+# guard_lift_open <kind> — guard_lift_substitutions opens a substitution of <kind>, U or B: the
+# enclosing one's state is saved on its stacks, in the caller's locals.
+guard_lift_open() {
+  bufs[depth]=$buf segs[depth]=$seg kinds[depth]=$kind parens[depth]=$paren
+  depth=$((depth + 1))
+  buf="" seg=0 kind=$1 paren=0
+}
+
+# guard_in_case <text> — 0 when the text holds a `case` with no `esac` after it, so a `)` there ends
+# a pattern, not the substitution the text is the body of.
+GUARD_CASE_WORD='[[:space:];&|(](case|esac)([[:space:];]|$)'
+guard_in_case() {
+  local text=" $1" open=0
+  [[ "$text" == *case* ]] || return 1
+  while [[ "$text" =~ $GUARD_CASE_WORD ]]; do
+    if [[ "${BASH_REMATCH[1]}" == case ]]; then
+      open=$((open + 1))
+    else
+      open=$((open - 1))
+    fi
+    text=${text#*"${BASH_REMATCH[0]}"}
+  done
+  ((open > 0))
 }
 
 # guard_absolute <path> [<base>] — the path made absolute against <base>, GUARD_CWD by default: a

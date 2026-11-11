@@ -95,6 +95,19 @@ describe("F01: a substitution is one word, and the words after it belong to the 
   passed("block-dangerous-commands", "a status of the top level", 'git -C "$(git rev-parse --show-toplevel)" status')
   passed("block-dangerous-commands", "a cd inside a substitution ends with it", 'echo "$(cd sub && pwd)"; git status')
   passed("block-store-writes", "a store read with a substitution", 'asc metadata pull --dir "$(pwd)/x"')
+
+  // Bash drops an empty expansion and runs the next word, so a substitution leading a command hides none.
+  refused("block-dangerous-commands", "a substitution before the command", "$(echo) git reset --hard")
+  refused("block-dangerous-commands", "a backtick before the command", "`true` git reset --hard")
+  refused("block-dangerous-commands", "a substitution before the command after a cd", "cd sub; $(true) git clean -fd")
+  refused("block-store-writes", "a substitution before asc", "$(echo) asc metadata apply --dir x")
+  // A `case` pattern's `)` ends no substitution.
+  refused("block-dangerous-commands", "a case inside a substitution", "echo $(case x in x) git reset --hard;; esac)")
+  passed(
+    "block-dangerous-commands",
+    "a harmless case inside a substitution",
+    'echo "$(case x in x) echo y;; esac)" && git status'
+  )
 })
 
 describe("F13: a shell named by a path or behind a backslash runs its -c quote", () => {
