@@ -978,24 +978,24 @@ describe("dw-sdlc recap", () => {
   })
 })
 
-describe("dw-sdlc recap, the next session", () => {
-  /** A branch whose merged pull request #40 holds its head; `closes` the issues GitHub says it closes. */
-  function mergedOn(backlog: Response): { root: string; scenario: Scenario } {
-    const root = clone()
-    branch(root, 1)
-    git(root, "push", "-q", "-u", "origin", "feat")
-    const merged: Pr = {
-      ...GREEN,
-      head: head(root),
-      branch: "feat",
-      state: "MERGED",
-      mergeable: "UNKNOWN",
-      mergeStateStatus: "UNKNOWN",
-      mergeCommit: "b04365ad73c61edcf175d9c5632740eb13fd2e4d"
-    }
-    return { root, scenario: { ...withPr(merged), backlog } }
+/** A branch whose merged pull request #40 holds its head, the backlog answering `backlog`. */
+function mergedOn(backlog: Response): { root: string; scenario: Scenario } {
+  const root = clone()
+  branch(root, 1)
+  git(root, "push", "-q", "-u", "origin", "feat")
+  const merged: Pr = {
+    ...GREEN,
+    head: head(root),
+    branch: "feat",
+    state: "MERGED",
+    mergeable: "UNKNOWN",
+    mergeStateStatus: "UNKNOWN",
+    mergeCommit: "b04365ad73c61edcf175d9c5632740eb13fd2e4d"
   }
+  return { root, scenario: { ...withPr(merged), backlog } }
+}
 
+describe("dw-sdlc recap, the next session", () => {
   it("lists the startable issues, the sub-issues of the one the pull request closes first, the rest in issue order", () => {
     const backlog = backlogOf(
       [
