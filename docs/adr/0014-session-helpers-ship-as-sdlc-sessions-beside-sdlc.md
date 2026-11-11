@@ -12,7 +12,8 @@ through its CLI `hc`. What needs no judgement lives in the `dw-sdlc` package, wh
 as `sdlc` does (ADR 0008), the way the Ship script decides a pull request's Action. `dw-sdlc recap`
 reads the facts a Recap rests on and whether the session can be closed. `dw-sdlc worker start`, `ls`
 and `report` start a Worker, list a Lead's Workers and deliver a Worker's Recap, retrying while the
-Lead is blocked. The config's `worker` key names the command a Worker starts with, its model and its
+Lead is blocked. `dw-sdlc lead start` starts the session after this one as a Lead in the main checkout,
+on the same command, and `worker/launch.ts` holds the start it and `worker start` share. The config's `worker` key names the command a Worker starts with, its model and its
 effort. The command belongs to one machine, so `sdlc-setup` writes it into the local layer. Like
 `pr.reviewCommand`, the key has no strictness order (ADR 0003): the guards keep a Worker safe, not its
 command. The helpers are not part of `sdlc`. That plugin keeps every tool call safe on every machine;
