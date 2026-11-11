@@ -21,8 +21,8 @@ const THREADS_READ = 100
 export const QUERY = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
     pullRequest(number: $number) {
-      url number state isDraft mergeable mergeStateStatus reviewDecision headRefOid headRefName baseRefName baseRefOid
-      baseRef { target { oid } } viewerDidAuthor mergeCommit { oid }
+      url number state isDraft mergeable mergeStateStatus reviewDecision headRefOid headRefName headRef { name } baseRefName
+      baseRefOid baseRef { target { oid } } viewerDidAuthor mergeCommit { oid }
       ready: timelineItems(last: 1, itemTypes: [READY_FOR_REVIEW_EVENT]) { nodes { ... on ReadyForReviewEvent { createdAt } } }
       latestReviews(first: 100) { nodes { state author { login } commit { oid } } }
       reviewThreads(first: ${THREADS_READ}) { pageInfo { hasNextPage } nodes { id isResolved isOutdated path line
@@ -80,6 +80,8 @@ export type PrState = {
   /** When the pull request last left draft; null when it never was one. */
   readyAt: string | null
   branch: string
+  /** Whether the head branch still stands on the remote: GitHub reports no `headRef` once it is gone. */
+  branchStands: boolean
   base: string
   /**
    * The commit the base branch points at, read from the branch itself: GitHub's `baseRefOid` lags a
@@ -457,6 +459,7 @@ export function parsePr(reply: string, repo: string): Omit<PrState, "carried" | 
     headCommittedAt: time(commit, "committedDate"),
     readyAt: ready === undefined ? null : time(ready, "createdAt"),
     branch: string(pr, "headRefName"),
+    branchStands: childOrNull(pr, "headRef") !== null,
     base: string(pr, "baseRefName"),
     baseOid: baseRef === null ? string(pr, "baseRefOid") : string(child(baseRef, "target"), "oid"),
     mergeCommit: mergeCommit === null ? null : string(mergeCommit, "oid"),

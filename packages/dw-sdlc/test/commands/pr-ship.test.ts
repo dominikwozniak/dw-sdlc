@@ -151,7 +151,7 @@ function json(pr: Pr, flags: string[] = [], env: NodeJS.ProcessEnv = {}, files: 
 }
 
 describe("dw-sdlc pr ship", () => {
-  it("answers done for a merged pull request, with the merge commit and the branch deletion for the dev", () => {
+  it("answers done for a merged pull request, with the merge commit and, while its head branch stands, its deletion for the dev", () => {
     const run = json(MERGED)
     assert.equal(run.status, 0, run.stderr)
     assert.deepEqual(run.document, {
@@ -163,6 +163,24 @@ describe("dw-sdlc pr ship", () => {
       actor: "dev",
       reason: "merged as b04365a",
       command: "git push origin --delete feat/example",
+      details: { mergeCommit: MERGE_COMMIT },
+      blockers: [],
+      performed: []
+    })
+    assert.deepEqual(run.calls, [AUTH, READ])
+  })
+
+  it("answers done with no command once the merged pull request's head branch is gone from the remote", () => {
+    const run = json({ ...MERGED, headDeleted: true })
+    assert.equal(run.status, 0, run.stderr)
+    assert.deepEqual(run.document, {
+      pr: URL,
+      head: HEAD,
+      base: "main",
+      status: "done",
+      action: "done",
+      actor: "dev",
+      reason: "merged as b04365a",
       details: { mergeCommit: MERGE_COMMIT },
       blockers: [],
       performed: []
@@ -258,6 +276,7 @@ describe("dw-sdlc pr ship", () => {
       headCommittedAt: "2026-10-31T11:00:00Z",
       readyAt: null,
       branch: "feat/example",
+      branchStands: true,
       base: "main",
       baseOid: BASE_OID,
       mergeCommit: null,
@@ -354,6 +373,7 @@ describe("dw-sdlc pr ship", () => {
   it("prints one line without --json: the status, the action unless it repeats it, the reason and the command", () => {
     const cases: [Pr, number, string][] = [
       [MERGED, 0, "done: merged as b04365a — git push origin --delete feat/example"],
+      [{ ...MERGED, headDeleted: true }, 0, "done: merged as b04365a"],
       [{ ...GREEN, state: "CLOSED" }, 30, "park stop: closed without merging"],
       [{ ...GREEN, mergeable: "UNKNOWN" }, 20, "wait: mergeability-unknown, recheck in 15 s"],
       [GREEN, 30, `park ready-to-merge: pr.merge is ask: the merge is the dev's — ${DEV_MERGE}`]
@@ -871,6 +891,7 @@ describe("dw-sdlc pr ship when it cannot run", () => {
       [[broken((pr) => (pr.state = "DRAFT"))], `${at}.state is "DRAFT", not one of OPEN, CLOSED, MERGED`],
       [[broken((pr) => (pr.headRefOid = 7))], `${at}.headRefOid is 7, not a string`],
       [[broken((pr) => delete pr.number)], `${at}.number is missing, not an integer`],
+      [[broken((pr) => (pr.headRef = "feat/example"))], `${at}.headRef is "feat/example", not an object`],
       [
         [
           broken(
