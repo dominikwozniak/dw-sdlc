@@ -81,11 +81,10 @@ source "$GUARD_LIB_DIR/lib-git.sh"
 
 # --- segments and scopes ------------------------------------------------------------------------
 
-# guard_segments <scan> — the masked scan split at real separators, parentheses and backticks (the
-# masked ones inside quotes stay), one non-empty segment per line; `&&` and `||` leave empty segments,
-# dropped here.
+# guard_segments <scan> — guard_scopes without its scope lines: one command per line, a substitution
+# one word of the command around it and its body commands of their own.
 guard_segments() {
-  printf '%s\n' "$1" | tr ';&|()`' '\n\n\n\n\n\n' | sed -E '/^[[:space:]]*$/d'
+  guard_scopes "$1" | sed -e $'/^\001/d'
 }
 
 # guard_pipelines <scan> — the masked scan split into pipelines, one per line, at `;`, `&&`, `||`, a
@@ -98,13 +97,98 @@ guard_pipelines() {
     sed -E '/^[[:space:]]*$/d'
 }
 
-# guard_scopes <scan> — guard_segments that keeps the subshells: a line of \001 and `(`, `)` or a
-# backtick stands where one opens or closes, so a `cd` inside one ends with it. Split by sed, as
-# guard_pipelines is.
+# guard_scopes <scan> — the masked scan one command a line, a line of \001 and `(` or `)` where a
+# scope opens or closes, each substitution lifted first: README.md#commands-and-scopes. Split by sed,
+# as guard_pipelines is.
 guard_scopes() {
-  printf '%s\n' "$1" |
-    sed -e $'s/[(]/\\\n\001(\\\n/g' -e $'s/[)]/\\\n\001)\\\n/g' -e $'s/`/\\\n\001`\\\n/g' |
+  local scan="$1" bt='`'
+  if [[ "$scan" == *'$('* || "$scan" == *"$bt"* ]]; then
+    guard_lift_substitutions "$scan"
+    scan=$GUARD_LIFTED
+  fi
+  printf '%s\n' "$scan" |
+    sed -e $'s/[(\004]/\\\n\001(\\\n/g' -e $'s/[)\005]/\\\n\001)\\\n/g' -e $'s/`/\\\n\001`\\\n/g' |
     tr ';&|' '\n\n\n' | sed -E '/^[[:space:]]*$/d'
+}
+
+# guard_lift_substitutions <scan> — GUARD_LIFTED, each `$(…)` and backtick span made the word `$_` and
+# its body put between \004 and \005 before its command; unbalanced, the scan as typed. Read through a
+# window, as guard_qw_walk reads, so a long scan costs no copy of itself per step.
+GUARD_LIFTED=""
+guard_lift_substitutions() {
+  local src="$1" total=${#1} pos=0 win run ch len out="" buf="" seg=0 kind="" paren=0 depth=0 body
+  local bt='`'
+  local -a bufs=() segs=() kinds=() parens=()
+  win=${src:0:GUARD_QW_WINDOW}
+  while :; do
+    ((${#win} < 2 && pos + ${#win} < total)) && win=${src:pos:GUARD_QW_WINDOW}
+    [[ -n "$win" ]] || break
+    run=${win%%[\$\`\(\)\\\;\&\|$'\n']*}
+    if [[ -n "$run" ]]; then
+      buf+=$run
+      win=${win:${#run}}
+      pos=$((pos + ${#run}))
+      continue
+    fi
+    ch=${win:0:1}
+    len=1
+    case "$ch" in
+      '\')
+        len=2
+        buf+=${win:0:2}
+        ;;
+      '$')
+        case "${win:1:1}" in
+          '$')
+            len=2
+            buf+='$$'
+            ;;
+          '(')
+            len=2
+            bufs[depth]=$buf segs[depth]=$seg kinds[depth]=$kind parens[depth]=$paren
+            depth=$((depth + 1))
+            buf="" seg=0 kind=U paren=0
+            ;;
+          *) buf+='$' ;;
+        esac
+        ;;
+      '`' | ')')
+        if [[ "$ch" == ")" && ("$kind" != U || $paren -gt 0) ]]; then
+          paren=$((paren - 1))
+          buf+=')'
+          seg=${#buf}
+        elif [[ "$ch" == "$bt" && "$kind" != B ]]; then
+          bufs[depth]=$buf segs[depth]=$seg kinds[depth]=$kind parens[depth]=$paren
+          depth=$((depth + 1))
+          buf="" seg=0 kind=B paren=0
+        else
+          body=$buf
+          depth=$((depth - 1))
+          buf=${bufs[depth]} seg=${segs[depth]} kind=${kinds[depth]} paren=${parens[depth]}
+          buf="${buf:0:seg}"$'\004'"$body"$'\005'"${buf:seg}"'$_'
+          seg=$((seg + ${#body} + 2))
+        fi
+        ;;
+      *)
+        # `(`, a separator or a newline: a command starts after it.
+        [[ "$ch" == "(" ]] && paren=$((paren + 1))
+        buf+=$ch
+        seg=${#buf}
+        ;;
+    esac
+    win=${win:len}
+    pos=$((pos + len))
+    # At the top level nothing is lifted to before a command that is done.
+    if ((depth == 0 && seg == ${#buf})); then
+      out+=$buf
+      buf="" seg=0
+    fi
+  done
+  if ((depth > 0)); then
+    GUARD_LIFTED=$1
+  else
+    GUARD_LIFTED=$out$buf
+  fi
 }
 
 # guard_absolute <path> [<base>] — the path made absolute against <base>, GUARD_CWD by default: a

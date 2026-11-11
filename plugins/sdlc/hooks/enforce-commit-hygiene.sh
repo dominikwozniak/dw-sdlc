@@ -149,14 +149,14 @@ lex() {
 HD_BODIES=()
 HD_LITERAL=()
 STRIPPED=""
-# split_heredocs — STRIPPED, the command with every body dropped and each opener's `<<` made `<`, its
-# delimiter tagged with the body's index, `EOF__HD0`, so a `-m "$(cat <<'EOF' …)"` or `-F - <<'EOF'`
+# split_heredocs — STRIPPED, every body dropped and each opener's `<<` made `<`, its delimiter the
+# name `HD` tagged with the body's index, `HD__HD0`, quoted when it was, so a `-m "$(cat <<'EOF' …)"`
 # names its own body even when an earlier `cat > file <<'EOF'` shares the delimiter.
 split_heredocs() {
   local line delim="" dash="" literal=0 body="" lines=0 inbody=0 state=""
   while IFS= read -r line; do
     if ((inbody)); then
-      if [[ "$line" =~ ^[[:space:]]*$delim[[:space:]]*$ ]]; then
+      if guard_heredoc_closes "$line" "$delim"; then
         # `$( )` and git's own cleanup both drop the trailing blank lines.
         while [[ "$body" == *$'\n' ]]; do body="${body%$'\n'}"; done
         HD_BODIES+=("$body")
@@ -178,7 +178,7 @@ split_heredocs() {
       literal=0
       [[ -n "$GUARD_HD_QUOTE" ]] && literal=1
       delim="$GUARD_HD_DELIM"
-      line="${GUARD_HD_HEAD}<${GUARD_HD_QUOTE}${delim}__HD${#HD_BODIES[@]}${GUARD_HD_TAIL}"
+      line="${GUARD_HD_HEAD}<${GUARD_HD_QUOTE}HD__HD${#HD_BODIES[@]}${GUARD_HD_QUOTE}${GUARD_HD_TAIL}"
       body=""
       lines=0
       inbody=1
