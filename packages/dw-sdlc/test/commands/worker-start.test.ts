@@ -300,3 +300,67 @@ describe("dw-sdlc worker start", () => {
     assert.deepEqual(herdr.hcCalls(), [])
   })
 })
+
+/** A clone of a bare origin on main with origin/HEAD set, and the herdr tools that serve a start from it. */
+function cloned() {
+  const dir = scratch("origin")
+  const origin = join(dir, "origin.git")
+  git(dir, "init", "-q", "--bare", "-b", "main", origin)
+  const root = join(dir, "clone")
+  git(dir, "clone", "-q", origin, root)
+  git(root, "switch", "-q", "-c", "main")
+  write(join(root, "README.md"), "one\n")
+  git(root, "add", "README.md")
+  commit(root, "-m", "one")
+  git(root, "push", "-q", "-u", "origin", "main")
+  git(root, "remote", "set-head", "origin", "main")
+  write(join(root, "brief.md"), BRIEF)
+  const herdr = fakeHerdr(scenario(), LEAD)
+  /** A commit on origin's main that this clone has not fetched; its id. */
+  const moveOrigin = (): string => {
+    const other = join(dir, "other")
+    git(dir, "clone", "-q", origin, other)
+    write(join(other, "README.md"), "two\n")
+    git(other, "add", "README.md")
+    commit(other, "-m", "two")
+    git(other, "push", "-q", "origin", "main")
+    return git(other, "rev-parse", "HEAD").trim()
+  }
+  const startIt = () => runBin(["worker", "start", "--brief", "brief.md", "--name", NAME], root, herdr.env)
+  return { root, herdr, moveOrigin, startIt }
+}
+
+describe("dw-sdlc worker start, the base of the Worker", () => {
+  it("fetches origin's default branch before it starts the Worker, so the tip origin moved to is the base", () => {
+    const { root, herdr, moveOrigin, startIt } = cloned()
+    const before = git(root, "rev-parse", "origin/main").trim()
+    const tip = moveOrigin()
+    assert.notEqual(tip, before)
+    assert.equal(git(root, "rev-parse", "origin/main").trim(), before, "the clone has not fetched yet")
+
+    const run = startIt()
+    assert.equal(run.status, 0, run.stderr)
+    assert.equal(git(root, "rev-parse", "origin/main").trim(), tip)
+    assert.equal(herdr.hcCalls()[2]?.[0], "run")
+  })
+
+  it("fetches every branch of origin when no default branch is known", () => {
+    const { root, moveOrigin, startIt } = cloned()
+    git(root, "remote", "set-head", "origin", "-d")
+    const tip = moveOrigin()
+    const run = startIt()
+    assert.equal(run.status, 0, run.stderr)
+    assert.equal(git(root, "rev-parse", "origin/main").trim(), tip)
+  })
+
+  it("starts no Worker, and says why, when the fetch fails", () => {
+    const { root, herdr, startIt } = cloned()
+    git(root, "remote", "set-url", "origin", join(root, "no-such-origin.git"))
+    const run = startIt()
+    assert.equal(run.status, 2)
+    assert.match(run.stderr, /git fetch origin main failed, so the Worker would begin from a stale base/)
+    assert.match(run.stderr, /check the network and the access to origin, then start the Worker again/)
+    assert.equal(run.stdout, "")
+    assert.deepEqual(herdr.hcCalls(), [LISTED])
+  })
+})

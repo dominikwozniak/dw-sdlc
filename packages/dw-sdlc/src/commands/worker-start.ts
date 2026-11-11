@@ -9,6 +9,7 @@ import { parseArgs } from "node:util"
 import { mainCheckout, repositoryRoot, resolveConfig, WORKER_EFFORTS } from "../agentic-config.ts"
 import { isObject, type JsonObject } from "../json-text.ts"
 import { describe, hcObject, isLive, lead, refuse, Refusal, wholeNumber, workersOf } from "../worker/herdr.ts"
+import { freshenOrigin } from "../worker/origin.ts"
 import { type Named, nameTab } from "../worker/tabs.ts"
 
 export const summary = "start a Worker on a Brief in a herdr terminal"
@@ -32,12 +33,17 @@ turns working, blocked or done. It fails when herdr reports the first message as
 ended, the Worker reports an error, or the Worker is still idle or silent when the time is up. It never sends
 the Brief again: read the terminal with hc read first.
 
+Before it starts the Worker it fetches origin's default branch into the clone (the branch origin/HEAD names,
+else baseBranch of the config, else every branch of origin), so the Worker's worktree, which Claude Code
+branches from origin/<default>, begins from origin's tip. A clone with no origin skips the fetch. When the
+fetch fails the command starts no Worker and exits 2.
+
 It refuses outside herdr ($HC_TERMINAL_ID unset) and when the Lead already has --max-workers live
 Workers (default 3). The name is 1-32 of a-z, 0-9, - and _; it names the worktree too.
 
 One line, or one JSON document with --json.
 
-Exit 0 started and delivered, 1 started but not delivered, 2 when it cannot run.`
+Exit 0 started and delivered, 1 started but not delivered, 2 when it cannot run, a failed fetch included.`
 
 const DEFAULT_MAX_WORKERS = 3
 const DEFAULT_WAIT = 30
@@ -176,7 +182,7 @@ async function start(cli: Cli): Promise<number> {
   const checkout = repositoryRoot(process.cwd())
   // The Worker's --worktree makes a worktree of the repository itself, never of a linked one.
   const root = mainCheckout(checkout) ?? checkout
-  const worker = resolveConfig(checkout).config.worker
+  const { baseBranch, worker } = resolveConfig(checkout).config
   const command = worker.command.split(/\s+/).filter(Boolean)
   if (command.length === 0) {
     throw new Refusal("worker.command holds no command", "set it in .ai/agentic.config.local.json, or remove the key")
@@ -191,6 +197,9 @@ async function start(cli: Cli): Promise<number> {
       `carry one through first, or raise the limit with --max-workers ${live.length + 1}`
     )
   }
+
+  // Before hc run, so a failed fetch starts no terminal.
+  freshenOrigin(root, baseBranch)
 
   const space = spaceOf(leadId)
   const { address } = hcObject([
