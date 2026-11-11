@@ -331,3 +331,42 @@ describe("the fast path takes the command and the cwd from argv", () => {
     expectExit(runHook("block-env-access", payload, { env: { GUARD_COMMAND: "echo hi" } }), 2)
   })
 })
+
+describe("a payload the guard cannot read is refused, naming why", () => {
+  // The byte closes the reader's fields: a path holding it made seven fields and the guard passed (#318).
+  for (const tool of ["Read", "Edit", "Write", "MultiEdit", "NotebookEdit"]) {
+    it(`${tool} with U+0001 in file_path`, () => {
+      const verdict = runHook("block-env-access", filePayload(tool, ".env.local\u0001", REPO))
+      expectExit(verdict, 2)
+      assert.match(verdict.stderr, /payload cannot be read.*U\+0001/)
+    })
+  }
+  it("Grep with U+0001 in path", () => {
+    const payload = { hook_event_name: "PreToolUse", tool_name: "Grep", cwd: REPO, tool_input: { path: ".\u0001" } }
+    expectExit(runHook("block-env-access", payload), 2)
+  })
+  it("a byte in the cwd", () => {
+    expectExit(runHook("block-env-access", filePayload("Read", "src/env.ts", `${REPO}\u0001`)), 2)
+  })
+  it("malformed payload", () => {
+    const verdict = runHook("block-env-access", "not json")
+    expectExit(verdict, 2)
+    assert.match(verdict.stderr, /payload cannot be read/)
+  })
+  it("an empty payload carries nothing to judge and passes", () => {
+    expectExit(runHook("block-env-access", ""), 0)
+  })
+  it("the fast path never reads JSON, so a byte in the command is the Bash dispatcher's to judge", () => {
+    expectExit(runHook("block-env-access", "echo \u0001", { args: ["--bash-command", REPO] }), 0)
+  })
+})
+
+describe("without jq every call passes", () => {
+  const NOJQ = { env: { PATH: scratch("env-nojq") } }
+  it("a call the guard would refuse", () => {
+    expectExit(runHook("block-env-access", filePayload("Read", ".env.local", REPO), NOJQ), 0)
+  })
+  it("a payload with the byte", () => {
+    expectExit(runHook("block-env-access", filePayload("Read", ".env.local\u0001", REPO), NOJQ), 0)
+  })
+})
