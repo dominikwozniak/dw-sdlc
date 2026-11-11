@@ -366,7 +366,7 @@
       "id": "skills.delegate",
       "name": "sdlc-delegate",
       "group": "skills",
-      "summary": "The user-invoked skill that makes a session a Lead: it starts Workers on Briefs in herdr and relays their Recaps.",
+      "summary": "The skill that makes a session a Lead on the dev's word: it starts Workers in parallel in herdr and relays their Recaps.",
       "code": ["plugins/sdlc-sessions/skills/sdlc-delegate/"],
       "docs": ["plugins/sdlc-sessions/README.md#the-lead", "GLOSSARY.md"]
     },

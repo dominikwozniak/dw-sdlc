@@ -15,7 +15,7 @@ const BRIEF_TEMPLATE = "templates/brief.md"
 /** The skills that write a Brief, each reading the one template rather than a copy of its rules. */
 const BRIEF_WRITERS = ["sdlc-brief", "sdlc-delegate", "sdlc-recap"]
 /** The skills only the dev starts, by typing them. */
-const DEV_ONLY = ["sdlc-brief", "sdlc-delegate"]
+const DEV_ONLY = ["sdlc-brief"]
 
 type Manifest = { name: string; version: string; dependencies?: unknown; hooks?: unknown }
 type Listed = { name: string; source: string; version: string }
@@ -70,7 +70,18 @@ describe("the sdlc-sessions plugin", () => {
     assert.doesNotMatch(description, /: /, "a colon and a space end a plain YAML value")
   })
 
-  it("leaves sdlc-brief and sdlc-delegate for the dev to invoke, never the model", () => {
+  it("lets the model reach sdlc-delegate on the dev's words, and never in a Worker", () => {
+    const frontmatter = frontmatterOf(skillText("sdlc-delegate"))
+    assert.doesNotMatch(frontmatter, /^disable-model-invocation:/m)
+    const description = /^description: (.+)$/m.exec(frontmatter)?.[1] ?? ""
+    assert.match(description, /Invoke it when the dev types \/sdlc-delegate, or asks in their own words/)
+    assert.match(description, /offer it in one line and wait for the dev's go/)
+    assert.match(description, /A Worker never invokes it/)
+    assert.doesNotMatch(description, /: /, "a colon and a space end a plain YAML value")
+    assert.doesNotMatch(description, / #/, "a space and a hash start a YAML comment")
+  })
+
+  it("leaves sdlc-brief for the dev to invoke, never the model", () => {
     for (const name of DEV_ONLY) {
       const frontmatter = frontmatterOf(skillText(name))
       assert.match(frontmatter, /^disable-model-invocation: true$/m, name)
@@ -80,11 +91,13 @@ describe("the sdlc-sessions plugin", () => {
     }
   })
 
-  it("has sdlc-delegate list its Workers, start each by the command and wait only a bounded time", () => {
+  it("has sdlc-delegate refuse in a Worker, list its Workers, start each by the command within its limit and wait only a bounded time", () => {
     const text = skillText("sdlc-delegate")
     assert.ok(text.includes('dw-sdlc/src/cli.ts" worker ls --json'), "it lists the Workers")
     assert.ok(text.includes('dw-sdlc/src/cli.ts" worker start --brief'), "it starts each Worker by the command")
     assert.match(text, /--timeout 180/, "its one wait is bounded")
+    assert.ok(text.includes('hc get "$HC_TERMINAL_ID" --json'), "it reads its own labels to refuse in a Worker")
+    assert.match(text, /--max-workers <n>/, "it counts in flight, not live terminals")
   })
 
   it("has sdlc-recap offer a Sweep from its dry run in the main checkout, and in a linked worktree none", () => {
