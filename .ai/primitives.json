@@ -298,8 +298,8 @@
       "id": "tools.recap",
       "name": "dw-sdlc recap",
       "group": "tools",
-      "summary": "Reads the facts a Recap rests on and answers whether the session can be closed, with every reason, by exit code.",
-      "code": ["packages/dw-sdlc/src/commands/recap.ts"],
+      "summary": "Reads the facts a Recap rests on, answers whether the session can close by exit code, and lists the next candidates.",
+      "code": ["packages/dw-sdlc/src/commands/recap.ts", "packages/dw-sdlc/src/recap-next.ts"],
       "docs": ["plugins/sdlc-sessions/README.md#dw-sdlc-recap", "GLOSSARY.md", "AGENTS.md#commands"]
     },
     {
@@ -333,6 +333,18 @@
         "packages/dw-sdlc/src/worker/"
       ],
       "docs": ["docs/overview.md#how-a-lead-runs-workers", "GLOSSARY.md", "AGENTS.md#commands"]
+    },
+    {
+      "id": "tools.lead",
+      "name": "dw-sdlc lead start",
+      "group": "tools",
+      "summary": "Starts the next session as a Lead in a herdr terminal of its own, outliving the session that started it.",
+      "code": ["packages/dw-sdlc/src/commands/lead-start.ts"],
+      "docs": [
+        "docs/overview.md#how-a-lead-runs-workers",
+        "plugins/sdlc-sessions/README.md#the-next-session",
+        "GLOSSARY.md"
+      ]
     },
     {
       "id": "skills.recap",

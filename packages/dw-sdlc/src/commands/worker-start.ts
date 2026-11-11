@@ -3,19 +3,14 @@
 
 import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
-import { setTimeout as sleep } from "node:timers/promises"
 import { parseArgs } from "node:util"
 
 import { mainCheckout, repositoryRoot, resolveConfig, WORKER_EFFORTS } from "../agentic-config.ts"
-import { isObject, type JsonObject } from "../json-text.ts"
-import { describe, hcObject, isLive, lead, refuse, Refusal, wholeNumber, workersOf } from "../worker/herdr.ts"
+import { describe, isLive, lead, refuse, Refusal, wholeNumber, workersOf } from "../worker/herdr.ts"
+import { launch, NAME, spaceOf, TAB_WAIT, undelivered } from "../worker/launch.ts"
 import { freshenOrigin } from "../worker/origin.ts"
-import { type Named, nameTab } from "../worker/tabs.ts"
 
 export const summary = "start a Worker on a Brief in a herdr terminal"
-
-/** The most seconds the command looks for the Worker's tab in the window, beside the read-back. */
-const TAB_WAIT = 10
 
 const USAGE = `Usage: dw-sdlc worker start --brief <file> --name <name> [--model <model>] [--effort <effort>]
                             [--max-workers <n>] [--wait <seconds>] [--json]
@@ -47,12 +42,6 @@ Exit 0 started and delivered, 1 started but not delivered, 2 when it cannot run,
 
 const DEFAULT_MAX_WORKERS = 3
 const DEFAULT_WAIT = 30
-/** hc names a terminal with 1-32 of a-z, 0-9, - and _. */
-const NAME = /^[a-z0-9][a-z0-9_-]{0,31}$/
-/** What a Worker reports once it has taken its first message. */
-const WORKING = new Set(["working", "blocked", "done"])
-/** How long the read-back waits between two reads of the terminal. */
-const POLL_MS = 1000
 
 type Cli = {
   brief: string
@@ -123,59 +112,6 @@ function readBrief(file: string): string {
   return text
 }
 
-/** The status a Worker reports, if it has reported one. */
-function reportedStatus(terminal: JsonObject): string | undefined {
-  const { status } = terminal
-  return isObject(status) && typeof status.state === "string" ? status.state : undefined
-}
-
-/** Why the Worker can no longer take the Brief, or undefined while it still may. */
-function failure(terminal: JsonObject): string | undefined {
-  const { first_message: first, state } = terminal
-  if (isObject(first) && first.sent === false) {
-    return typeof first.reason === "string" ? first.reason : "herdr gave no reason"
-  }
-  if (state !== "live") {
-    return "the terminal has finished"
-  }
-  return reportedStatus(terminal) === "error" ? "the Worker reports its status as error" : undefined
-}
-
-/** Reads the terminal until the Worker shows work, for up to `wait` seconds; why it did not, or undefined once it did. */
-async function delivery(address: string, wait: number): Promise<string | undefined> {
-  const deadline = Date.now() + wait * 1000
-  for (;;) {
-    let terminal: JsonObject
-    try {
-      terminal = hcObject(["get", address, "--json"])
-    } catch (error) {
-      if (!(error instanceof Refusal)) {
-        throw error
-      }
-      // The Worker is running by now, so a failed read is a Brief not confirmed, never a start that did not happen.
-      return `the terminal could not be read back: ${describe(error)}`
-    }
-    const failed = failure(terminal)
-    if (failed !== undefined) {
-      return failed
-    }
-    if (WORKING.has(reportedStatus(terminal) ?? "")) {
-      return undefined
-    }
-    if (Date.now() >= deadline) {
-      return `the Worker showed no sign of work within ${wait} s`
-    }
-    await sleep(POLL_MS)
-  }
-}
-
-/** The id of the herdr space the Lead sits in, if it sits in one. */
-function spaceOf(leadId: string): string | undefined {
-  const { labels } = hcObject(["get", leadId, "--json"])
-  const space = isObject(labels) ? labels["herdr.space"] : undefined
-  return typeof space === "string" ? space : undefined
-}
-
 async function start(cli: Cli): Promise<number> {
   const brief = readBrief(cli.brief)
   const leadId = lead()
@@ -201,52 +137,22 @@ async function start(cli: Cli): Promise<number> {
   // Before hc run, so a failed fetch starts no terminal.
   freshenOrigin(root, baseBranch)
 
-  const space = spaceOf(leadId)
-  const { address } = hcObject([
-    "run",
-    "--bg",
-    "--json",
-    "--name",
-    cli.name,
-    "--label",
-    "role=worker",
-    ...(space === undefined ? [] : ["--label", `herdr.space=${space}`]),
-    "--outlive-parent",
-    "--cwd",
-    root,
-    "--",
-    ...command,
-    "--worktree",
-    cli.name,
-    "--model",
-    model,
-    "--effort",
-    effort,
-    brief
-  ])
-  if (typeof address !== "string") {
-    throw new Refusal("hc run answered no address for the terminal it started", "check hc ls before starting it again")
-  }
-
-  // Side by side, so the wait for the tab overlaps the wait for the Worker to start.
-  const naming: Promise<"none" | Named> =
-    space === undefined ? Promise.resolve("none") : nameTab(address, cli.name, Math.min(TAB_WAIT, cli.wait))
-  const [named, reason] = await Promise.all([naming, delivery(address, cli.wait)])
-  if (typeof named === "object") {
-    process.stderr.write(`dw-sdlc worker start: warning: ${named.kept}\n`)
-  }
+  const { address, tab, reason } = await launch("worker start", {
+    name: cli.name,
+    role: "worker",
+    space: spaceOf(leadId),
+    cwd: root,
+    argv: [...command, "--worktree", cli.name, "--model", model, "--effort", effort, brief],
+    wait: cli.wait
+  })
 
   if (cli.json) {
-    const tab = typeof named === "object" ? "kept" : named
     const started = { name: cli.name, address, command: worker.command, model, effort, cwd: root }
     const document = { ...started, delivered: reason === undefined, ...(reason === undefined ? {} : { reason }), tab }
     process.stdout.write(`${JSON.stringify(document, null, 2)}\n`)
   }
   if (reason !== undefined) {
-    process.stderr.write(
-      `dw-sdlc worker start: ${cli.name} (${address}) started but its first message was not delivered: ${reason} — ` +
-        `run hc read ${address} to see why; do not send the Brief again before you have read it\n`
-    )
+    process.stderr.write(undelivered("worker start", cli.name, address, reason, "Brief"))
     return 1
   }
   if (!cli.json) {

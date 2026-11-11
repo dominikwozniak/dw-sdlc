@@ -108,6 +108,22 @@ describe("the sdlc-sessions plugin", () => {
     assert.match(text, /`\/sdlc-sweep`/, "the follow-up names the skill the dev's go runs")
   })
 
+  it("has sdlc-recap name the next session, and start it as a Lead only on the dev's go", () => {
+    const text = skillText("sdlc-recap")
+    assert.match(
+      text,
+      /\*\*Next session\.\*\* Write it only when `close\.verdict` is `yes`, or your verdict is `done` or `park`/
+    )
+    assert.match(text, /`\/sdlc-delegate #<n>` in a new Lead session named `lead-<n>-<slug>`/)
+    assert.match(text, /"go, but #<m>" starts another/)
+    assert.match(text, /Never start it\s+without the dev's go/)
+    assert.ok(
+      text.includes('dw-sdlc/src/cli.ts" lead start --name lead-<n>-<slug> --prompt "/sdlc-delegate #<n>" --json'),
+      "go runs lead start"
+    )
+    assert.doesNotMatch(text, /lead start[^\n]*--dangerously-skip-permissions/)
+  })
+
   it("has the combined Recap of sdlc-delegate carry the Sweep follow-up, which the dev's go runs", () => {
     const text = skillText("sdlc-delegate")
     assert.match(text, /carries the Sweep follow-up/)

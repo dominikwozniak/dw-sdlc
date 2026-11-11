@@ -8,8 +8,12 @@ import { scratch, write } from "./harness.ts"
 
 /** What one gh call prints and exits with; an empty one prints nothing and exits 0. */
 export type Response = { stdout?: string; stderr?: string; exit?: number }
-/** The GraphQL replies in the order gh serves them, and every other call's answer by its whole arguments, else its first two words. */
-export type Scenario = { graphql?: Response[]; commands?: Record<string, Response> }
+/**
+ * The GraphQL replies in the order gh serves them, and every other call's answer by its whole arguments, else
+ * its first two words. `backlog` answers the query recap reads its next candidates with, apart from that
+ * order: an empty backlog when left out.
+ */
+export type Scenario = { graphql?: Response[]; commands?: Record<string, Response>; backlog?: Response }
 
 export type FakeGh = {
   /** The environment that puts this gh first on PATH, with no GH_HOST or DW_SDLC_NOW from the machine. */
@@ -25,7 +29,7 @@ function answer({ stdout = "", stderr = "", exit = 0 }: Response): string {
 }
 
 /** The scenario as a plain sh script, since a test makes many gh calls and each would boot Node. */
-function script(dir: string, { graphql = [], commands = {} }: Scenario): string {
+function script(dir: string, { graphql = [], commands = {}, backlog = backlogOf([]) }: Scenario): string {
   const replies = graphql.map((response, n) => `    ${n}) ${answer(response)} ;;`).join("\n")
   const arms = Object.entries(commands)
     .map(([key, response]) => `  ${quoted(key)}) ${answer(response)} ;;`)
@@ -34,6 +38,7 @@ function script(dir: string, { graphql = [], commands = {} }: Scenario): string 
 dir=${quoted(dir)}
 { for a in "$@"; do printf '%s\\036' "$a"; done; printf '\\035'; } >>"$dir/calls"
 if [ "$1 $2" = "api graphql" ]; then
+  case "$4" in "query=query Backlog"*) ${answer(backlog)} ;; esac
   n=0
   while [ -e "$dir/served.$n" ]; do n=$((n + 1)); done
   : >"$dir/served.$n"
@@ -256,4 +261,24 @@ export function reply(pullRequest: Record<string, unknown>): Response {
 /** The response of `gh api graphql` for `pr`, as GitHub reports it. */
 export function served(pr: Pr): Response {
   return reply(pullRequestOf(pr))
+}
+
+/** An open issue labelled for an agent, as a test states it: no assignee, no open blocker and no parent when left out. */
+export type Issue = { number: number; title?: string; assignees?: number; blockedBy?: number; parent?: number }
+
+/**
+ * The response of the backlog query: the issues in order, and the issues the pull request closes, which the
+ * reply carries only when the query asks for the pull request and the command reads only then.
+ */
+export function backlogOf(issues: Issue[], closes: number[] = []): Response {
+  const nodes = issues.map(({ number, title = `issue ${number}`, assignees = 0, blockedBy = 0, parent }) => ({
+    number,
+    title,
+    url: `https://github.com/byarcadia-app/foundation/issues/${number}`,
+    assignees: { totalCount: assignees },
+    issueDependenciesSummary: { blockedBy },
+    parent: parent === undefined ? null : { number: parent }
+  }))
+  const pullRequest = { closingIssuesReferences: { nodes: closes.map((number) => ({ number })) } }
+  return { stdout: JSON.stringify({ data: { repository: { pullRequest, issues: { nodes } } } }) }
 }

@@ -6,6 +6,7 @@ import * as check from "./commands/check.ts"
 import * as config from "./commands/config.ts"
 import * as doctor from "./commands/doctor.ts"
 import * as gate from "./commands/gate.ts"
+import * as leadStart from "./commands/lead-start.ts"
 import * as prReviewed from "./commands/pr-reviewed.ts"
 import * as prShip from "./commands/pr-ship.ts"
 import * as primitives from "./commands/primitives.ts"
@@ -36,7 +37,8 @@ const COMMANDS = new Map<string, Command>([
   ["sweep", sweep],
   ["worker start", workerStart],
   ["worker ls", workerLs],
-  ["worker report", workerReport]
+  ["worker report", workerReport],
+  ["lead start", leadStart]
 ])
 
 function usage(): string {

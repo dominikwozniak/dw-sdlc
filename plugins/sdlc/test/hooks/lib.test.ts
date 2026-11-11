@@ -104,8 +104,14 @@ describe("guard_read_payload", () => {
   it("empty stdin returns 1", () => {
     assert.equal(lib(`if printf '' | guard_read_payload; then echo 0; else echo 1; fi`), "1")
   })
-  it("malformed json returns 1", () => {
-    assert.equal(lib(`if printf 'not json' | guard_read_payload; then echo 0; else echo 1; fi`), "1")
+  it("malformed json returns GUARD_UNREADABLE", () => {
+    assert.equal(lib(`printf 'not json' | guard_read_payload; echo "$? $GUARD_UNREADABLE"`), "3 3")
+  })
+  it("a field holding U+0001 returns GUARD_UNREADABLE", () => {
+    assert.equal(
+      lib(`printf '{"tool_input":{"command":"ls # \\\\u0001"}}' | guard_read_payload; echo "$? $GUARD_UNREADABLE"`),
+      "3 3"
+    )
   })
 })
 
