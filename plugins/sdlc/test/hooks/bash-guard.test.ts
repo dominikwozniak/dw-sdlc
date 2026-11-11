@@ -131,13 +131,47 @@ describe("a long command is judged in seconds", () => {
   })
 })
 
-describe("fails open on garbage", () => {
-  it("empty payload", () => {
-    expectExit(runHook("bash-guard", ""), 0)
+describe("a payload the dispatcher cannot read is refused, naming why", () => {
+  // F34-soh-fails-open (#318): U+0001 closes the reader's fields, so a seventh made it give up and
+  // pass the call before any guard ran. Bash ignores the byte in a comment.
+  const SOH = "\u0001"
+  const feat = initRepo(join(scratch("dispatch"), "unreadable"), { branch: "feat" })
+  for (const [name, command] of [
+    ["disp-soh-reset", `git reset --hard # ${SOH}`],
+    ["disp-soh-rm", `rm -rf ~ # ${SOH}`],
+    ["disp-soh-env", `cat .env.local # ${SOH}`],
+    ["a harmless command with the byte", `git status # ${SOH}`]
+  ] as const) {
+    it(name, () => {
+      const verdict = run(command, feat)
+      expectExit(verdict, 2)
+      assert.match(verdict.stderr, /payload cannot be read.*U\+0001/)
+    })
+  }
+  it("a byte in the cwd", () => {
+    expectExit(run("git status", `${feat}${SOH}`), 2)
   })
   it("malformed payload", () => {
-    expectExit(runHook("bash-guard", "not json"), 0)
+    const verdict = runHook("bash-guard", "not json")
+    expectExit(verdict, 2)
+    assert.match(verdict.stderr, /payload cannot be read/)
   })
+  it("an empty payload carries nothing to judge and passes", () => {
+    expectExit(runHook("bash-guard", ""), 0)
+  })
+})
+
+describe("without jq every call passes, as before", () => {
+  const NOJQ = scratch("nojq")
+  it("a call a guard would refuse", () => {
+    expectExit(run("git reset --hard", REPO_ROOT, { env: { PATH: NOJQ } }), 0)
+  })
+  it("a payload with the byte", () => {
+    expectExit(run("git reset --hard # \u0001", REPO_ROOT, { env: { PATH: NOJQ } }), 0)
+  })
+})
+
+describe("a payload with no command passes", () => {
   it("no command", () => {
     expectExit(runHook("bash-guard", { tool_name: "Bash", tool_input: {} }), 0)
   })
