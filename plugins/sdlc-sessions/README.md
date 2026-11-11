@@ -146,15 +146,25 @@ A Worker carries its pull request through `/sdlc-pr-ship`, which it may start be
 
 ## The Lead
 
-`/sdlc-delegate` makes the session a Lead. Only the dev invokes it. It refuses outside herdr, and in a
-linked worktree, where Claude Code's isolation keeps it from starting a Worker in the main checkout: there
-the Lead starts as a plain session in the main checkout.
+`/sdlc-delegate` makes the session a Lead, and is how a session starts a Worker. The dev types it, or asks
+in their own words to hand work to Workers; when a conversation has just published tickets, such as a spec
+`/to-tickets` cut, the model offers it in one line and waits for the dev's go. It refuses outside herdr, in
+a Worker, whose terminal carries the label `role=worker`, and in a linked worktree, where Claude Code's
+isolation keeps it from starting a Worker in the main checkout: there the Lead starts as a plain session in
+the main checkout.
 
-A hand-off gives one Worker a whole issue or spec. A split cuts the current work into Briefs, only when each
-piece is its own pull request or read-only work; pieces that must land in one diff stay with one Worker.
+The Lead turns its source into tickets, one Worker each: an issue, or each open sub-issue of one; a list of
+issues; a spec in a file, whole; or a split of the current work, only when each piece is its own pull
+request or read-only work, since pieces that must land in one diff stay with one Worker. It skips closed
+tickets and those a triage label keeps for a human. `blockedBy` orders the rest: a ticket blocked by an
+open one of the set waits in the queue, and tickets with no edge between them run in parallel. The dev sees
+the plan as a table, and the Workers start without a second ask.
+
 Each Brief comes from the template in its Lead form, naming the Lead's terminal, and `dw-sdlc worker start`
-starts its Worker in a worktree of its own. The first Worker a Lead starts is carried through before any
-other starts, from a split or a later hand-off, and at most three are live.
+starts its Worker in a worktree of its own. The first Worker starts alone; once its Brief is delivered, the
+rest start at once. At most three are in flight, from their start until their Recap reports their end. A
+Worker's terminal stays live until the Sweep, so the Lead passes `--max-workers` as the Workers that ended
+plus three. Each end frees the queue: the Lead starts each queued ticket whose blockers have all closed.
 
 After starting Workers the Lead ends its turn, so the dev can talk to it while they work. A Worker's report
 wakes it, and on every wake it runs `dw-sdlc worker ls` and takes a `blocked` Worker to the dev. It waits
@@ -171,7 +181,7 @@ While it has live Workers, the Lead:
 - takes the dev's answer given in a Worker's own terminal from that Worker's next Recap;
 - removes no Worker's terminal or worktree itself: the Sweep does, on the dev's "go".
 
-When the Workers have reported their end, or the dev asks, it gives one combined Recap in the shape of
+When the Workers have reported their end and the queue is empty, or the dev asks, it gives one combined Recap in the shape of
 `/sdlc-recap`, whose close line counts the live Workers. Once every Worker has reported, the combined
 Recap carries the Sweep follow-up, so the dev's "go" runs `/sdlc-sweep`, which removes the Workers'
 terminals and worktrees and lets the Lead close. On the dev's ask it renames its herdr tab to
@@ -183,7 +193,10 @@ Each skill's evals run through `/skill-creator`, outside `pnpm test` and the Gat
 The evals of `sdlc-recap` hold the Recap's shape and a follow-up going out as a Brief, and `evals/trigger.json`
 its trigger: it fires on `/sdlc-recap` and on a Brief's instruction, not on "co dalej?". Run the trigger set
 with the plugin loaded through `--plugin-dir`, since a typed `/sdlc-recap` resolves only to the real skill.
-The evals of `sdlc-brief` hold the Brief's shape and its routing of model and effort, and those of
-`sdlc-delegate` the Lead's rules: it ends its turn after starting Workers, asks in plain text, refuses a
-split whose pieces must merge into one diff, never merges, and refuses outside herdr and in a linked
-worktree. Only the dev invokes either, so neither has a trigger set.
+The evals of `sdlc-brief` hold the Brief's shape and its routing of model and effort; only the dev invokes
+it, so it has no trigger set. Those of `sdlc-delegate` hold the Lead's rules: it starts the first Worker
+alone and the rest after it, queues a blocked ticket and starts it once a Worker's end frees it, ends its
+turn after starting Workers, asks in plain text, refuses a split whose pieces must merge into one diff,
+never merges, and refuses outside herdr, in a Worker and in a linked worktree. Its `evals/trigger.json`
+fires on `/sdlc-delegate` and on the dev's words handing work to Workers, not on "implement #N" or a Worker's
+own work.

@@ -1,0 +1,30 @@
+[
+  { "query": "/sdlc-delegate #296 #297 #298", "should_trigger": true },
+  { "query": "/sdlc-sessions:sdlc-delegate #290", "should_trigger": true },
+  { "query": "oddeleguj #296 #297 #298 #312 #313 workerom, ja w tym czasie ogarnę review", "should_trigger": true },
+  {
+    "query": "ok tickety są w GH pod #290, puść je równolegle na workerach, te co mogą iść naraz",
+    "should_trigger": true
+  },
+  { "query": "odpal workerów na sub-issues #290, sonnet high wystarczy", "should_trigger": true },
+  {
+    "query": "hand #41 and #42 to workers in herdr, I don't want to babysit them here",
+    "should_trigger": true
+  },
+  {
+    "query": "These three issues touch different files: #40, #41, #42. Run them in parallel sessions and tell me when they land.",
+    "should_trigger": true
+  },
+  { "query": "go", "should_trigger": false },
+  { "query": "zaimplementuj #296", "should_trigger": false },
+  { "query": "implement #297 here, it's a two-line change", "should_trigger": false },
+  { "query": "rozbij ten spec #290 na tickety", "should_trigger": false },
+  { "query": "napisz briefa dla #298, sam go odpalę w nowym terminalu", "should_trigger": false },
+  { "query": "co z workerem 296? skończył?", "should_trigger": false },
+  { "query": "otwórz PR i przepchnij do merge", "should_trigger": false },
+  {
+    "query": "You are a Worker. Do #296 yourself and start no other session. Report: end with a Recap through /sdlc-recap. #297 also looks easy, maybe split it across workers too?",
+    "should_trigger": false
+  },
+  { "query": "jak działa hc run w herdr? chcę zrozumieć flagi", "should_trigger": false }
+]

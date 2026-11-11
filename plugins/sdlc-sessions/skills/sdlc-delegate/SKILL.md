@@ -1,8 +1,7 @@
 ---
 name: sdlc-delegate
-description: Make this session a Lead that hands Briefs to Workers in herdr terminals, wakes on their Recaps, relays what needs the dev and gives one combined Recap. It hands one Worker a whole issue or spec, or splits the current work into pieces that are each their own pull request or read-only.
-argument-hint: "[#issue | spec path | split] [model or effort]"
-disable-model-invocation: true
+description: Make this session a Lead that starts Workers in herdr terminals, in parallel where the tickets allow, and gathers their Recaps. Invoke it when the dev types /sdlc-delegate, or asks in their own words to hand work to Workers or parallel sessions, such as "oddeleguj", "puść te tickety równolegle" or "odpal workerów na te tickety". When the conversation has just published tickets, or a spec with sub-issues, offer it in one line and wait for the dev's go. It is how a session starts a Worker, never a bare hc run. A Worker never invokes it, and "implement this issue" is work for this session, never this skill.
+argument-hint: "[#issue ... | spec path | split] [model or effort]"
 ---
 
 # sdlc-delegate
@@ -18,28 +17,52 @@ From the repository, run each:
 node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" worker ls --json
 git rev-parse --path-format=absolute --git-dir --git-common-dir
 printenv HC_TERMINAL_ID
+hc get "$HC_TERMINAL_ID" --json
 ```
 
 - `worker ls` exits 2 outside herdr. Refuse: a Lead runs only in a terminal herdr started. Stop.
+- `hc get` shows `role` `worker` under `labels`: this session is a Worker, and a Worker starts no other
+  session. Refuse, and say the work goes to its Lead through the Brief's Questions line. Stop.
 - The two git paths differ in a linked worktree. Refuse: Claude Code isolates a worktree session, so it
   cannot start a Worker in the main checkout. Say to start the Lead as a plain session in the main
   checkout, in herdr. Stop.
 - `HC_TERMINAL_ID` is this Lead's terminal, which every Brief names. The list is its Workers so far.
 
-## Hand-off or split
+## The tickets
 
-- **Hand-off.** `$ARGUMENTS` names an issue or a spec: one Worker takes the whole source.
-- **Split.** `split`, or the dev asks to cut the current work: one Brief a piece, only when each piece is
+Turn the source into tickets, one Worker each:
+
+- **An issue.** Read it with `gh issue view <n> --json number,title,state,labels,subIssues,blockedBy`.
+  When it has open sub-issues, as a spec `/to-tickets` cut does, each open sub-issue is a ticket, read the
+  same way. Otherwise the issue is one ticket.
+- **A list of issues.** Each one is read as an issue.
+- **A spec in a file.** One ticket: one Worker takes it whole.
+- **Split.** `split`, or the dev asks to cut the current work: one ticket a piece, only when each piece is
   its own pull request that merges without the others, or read-only work that writes nothing. When the
   pieces must land in one diff, or edit the same files, refuse the split in one line, say why, and offer
   the whole to one Worker.
 
+Skip a closed ticket, and one whose triage label says it needs a human or more information, such as
+`ready-for-human` or `needs-info`.
+
+`blockedBy` orders the rest. A ticket whose blockers are all closed is ready now. One blocked by an open
+ticket of this set waits in the queue until every blocker is closed. One blocked by an open issue outside
+the set is skipped, since nothing here closes it. Tickets with no edge between them run in parallel even
+when they touch the same files: the later Worker rebases through `/sdlc-pr-ship`.
+
 When it is unclear what to hand over, ask in plain text and end your turn.
+
+## The plan
+
+Before any Worker starts, show the dev a table, a row a ticket: the ticket, its Worker's name, and `now`,
+`queued behind #<n>` or `skipped`, with the reason. One ticket takes a line, not a table. Then go on to
+start them: invoking this skill is the dev's go, so the plan asks nothing.
 
 ## The Briefs
 
 Read `${CLAUDE_PLUGIN_ROOT}/templates/brief.md` and follow it. The config comes from
-`node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" config`. Every Brief this skill writes:
+`node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" config`. Write a Brief for every ticket in the plan, the
+queued ones included. Every Brief this skill writes:
 
 - takes the template's Lead form, naming `HC_TERMINAL_ID` in its Questions and Report lines, and runs
   `dw-sdlc` there as `node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts"`;
@@ -52,7 +75,7 @@ the repository, such as `$TMPDIR/<name>.md`.
 ## Start the Workers
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" worker start --brief <file> --name <name> --model <model> --effort <effort> --json
+node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" worker start --brief <file> --name <name> --model <model> --effort <effort> --max-workers <n> --json
 ```
 
 - Exit 0: started, and the Worker took its Brief.
@@ -60,13 +83,18 @@ node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" worker start --brief <file> --na
   send the Brief again or start the Worker twice.
 - Exit 2: nothing started. Say why.
 
-The first Worker this Lead starts is carried through before any other starts, from a split or from a later
-hand-off: its Recap says merged, parked for the dev, or done for read-only work. A bad Brief then fails
-once, not three times. After it, at most three are live: `worker start` refuses a fourth, and only the
-dev's word raises `--max-workers`.
+Start one ticket marked `now` first, alone. Exit 0 proves the command, the account, the model and the
+effort, so start every other `now` ticket right after it. On exit 1 or 2 start nothing more: the same
+fault would reach every Worker.
 
-Tell the dev in a few lines who started, on which model and effort, and which Briefs wait. Then end your
-turn. Each Worker's report wakes you; do not wait for it.
+At most three Workers are in flight. A Worker is in flight from its start until its Recap reports its
+end: merged, parked for the dev, or done for read-only work. Its terminal stays live after that, until
+the Sweep, and `worker start` counts live terminals, so pass `--max-workers` as the Workers that reported
+their end plus three. Only the dev's word raises the three. A ticket ready now beyond the three waits in
+the queue.
+
+Tell the dev in a few lines who started, on which model and effort, and which tickets wait in the queue
+and on what. Then end your turn. Each Worker's report wakes you; do not wait for it.
 
 ## On every wake
 
@@ -96,6 +124,10 @@ Read each Recap whole. Its verdict decides:
   `park` the Worker reports. When the dev wants the answer sooner, run `hc kill wake-<address>` and
   `hc rm wake-<address>`, and wake the Worker now. When the exit note of a timer you killed arrives, wake no Worker.
 
+When a Recap reports a Worker's end, start what it frees from the queue: each queued ticket whose blockers
+have all closed, read once with `gh issue view <n> --json blockedBy`, while fewer than three are in
+flight, on the model and effort its Brief names. Tell the dev in one line who started.
+
 The dev's own words come with these: answer them in plain text, then end your turn.
 
 ## The rules while Workers are live
@@ -117,10 +149,11 @@ The dev's own words come with these: answer them in plain text, then end your tu
 
 ## The combined Recap
 
-When every Worker has reported its end, or the dev asks, give one Recap for all of them. Use the shape of
-`${CLAUDE_PLUGIN_ROOT}/skills/sdlc-recap/SKILL.md`, its facts from `recap --json`, which counts the live
-Workers. What happened has a row a Worker with its pull request; check every "merged" or "green" live
-with `gh`. Waiting on names each Worker still live and what it waits on.
+When every Worker has reported its end and the queue is empty, or the dev asks, give one Recap for all of
+them. Use the shape of `${CLAUDE_PLUGIN_ROOT}/skills/sdlc-recap/SKILL.md`, its facts from `recap --json`,
+which counts the live Workers. What happened has a row a Worker with its pull request; check every
+"merged" or "green" live with `gh`. Waiting on names each Worker still live and what it waits on, and each
+ticket still queued and what it waits behind.
 
 Once every Worker has reported its end, the Recap carries the Sweep follow-up that `sdlc-recap` describes.
 The dev's "go" runs `/sdlc-sweep`, which stops and removes the terminals of this Lead's Workers whose turn
