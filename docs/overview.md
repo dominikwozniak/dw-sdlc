@@ -522,6 +522,15 @@ terminal herdr started: `$HC_TERMINAL_ID` is the Lead's address, and without it 
   `--interval` seconds (60) and sends again, up to `--attempts` times (30), and exits 1 when the Lead is
   still blocked. It never passes `--force`, since typing into a blocked terminal may answer its dialog.
 
+A Lead can start from a Recap too. `dw-sdlc recap --json` lists under `next` the open issues labelled
+`ready-for-agent` with no assignee and no open blocker. Those under an issue the session's pull request
+closes come first. The Recap of a session that can close picks one and names `/sdlc-delegate #<n>`.
+On the dev's "go", `dw-sdlc lead start --name lead-<n>-<slug> --prompt "/sdlc-delegate #<n>"` runs
+`hc run` as `worker start` does, with the label `role=lead`, in the caller's space and the main checkout.
+Its command is `worker.command` without `--dangerously-skip-permissions` and without `--worktree`, its tab
+takes the name, and the terminal outlives the session that started it. It refuses outside herdr and in a
+linked worktree, and it reads the first message back without ever sending it twice.
+
 ## How a Sweep removes what finished work leaves
 
 `dw-sdlc sweep [--dry-run] [--json]` removes the worktrees and the local branches finished work leaves

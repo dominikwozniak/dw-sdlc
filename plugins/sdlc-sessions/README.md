@@ -43,6 +43,10 @@ In the main checkout the Recap also reads `dw-sdlc sweep --dry-run --json`. When
 anything, it lists a Sweep as a follow-up `now`, counting the branches, worktrees and terminals, so the dev's
 "go" runs `/sdlc-sweep`. A Recap in a linked worktree lists none, since the Sweep refuses there.
 
+When the session can close, or its verdict is `done` or `park`, the Recap ends with the next session: one
+issue of `next` the skill picks, why in one line, and the start line `/sdlc-delegate #<n>`. The dev's "go"
+starts it as a Lead, as [The next session](#the-next-session) says.
+
 The Recap is written in the conversation's language. It links pull requests and issues instead of
 listing files, and it checks every "merged" or "green" live with `gh`.
 
@@ -60,7 +64,12 @@ The facts a Recap rests on, tested like the Ship script. Read-only: `dw-sdlc rec
 - the operation git has paused: a rebase, `git am`, merge, cherry-pick, revert or bisect;
 - the branch's pull request and the Action the Ship script's decision gives it, read and never performed;
 - whether the session sits in a linked worktree;
-- in herdr, the live Workers the session started as a Lead, each with its status and the folder it works in.
+- in herdr, the live Workers the session started as a Lead, each with its status and the folder it works in;
+- under `next`, the candidates for the next session: the open issues labelled `ready-for-agent` with no
+  assignee and no open blocker, of the 100 opened first. The open sub-issues of an issue the branch's pull
+  request closes come first, then the rest, each in issue order, and no issue it closes is a candidate. One GraphQL
+  request reads them and what the pull request closes. `next` is null where `gh` is not asked, and when
+  the read fails: a warning names why, and the close verdict stands, since no candidate keeps a session open.
 
 Exit 0 means the session can be closed, 1 that it cannot, and 2 that the command cannot run. Under
 `close`, the document gives the `verdict`, the `line` a Recap quotes and every reason, each with
@@ -117,6 +126,25 @@ line reads `gh not asked`, and the `clean` reason says so rather
 than claim nothing is open. Elsewhere the command needs an authenticated `gh` and a remote it can read: a
 remote on another host exits 2. It counts from the pull request's base, or from the default branch when
 there is no pull request.
+
+## The next session
+
+The script reads the candidates and the skill picks one, since only the session knows the topic it worked
+on. A Recap a Brief asks for leaves the section out: a Worker's Lead names what comes next. Nothing starts
+before the dev's "go", and "go, but #<m>" starts another candidate. "go" runs the follow-ups first, then:
+
+```bash
+dw-sdlc lead start --name lead-<n>-<slug> --prompt "/sdlc-delegate #<n>" [--wait <seconds>] [--json]
+```
+
+It runs `hc run` in the background with the name, the label `role=lead`, the caller's `herdr.space`,
+`--outlive-parent` and the main checkout as the folder. The command is `worker.command` of the config
+without `--dangerously-skip-permissions`, which Claude Code's auto mode refuses for a session one session
+starts, and without `--worktree` or `-w` and its name, since a Lead works in the main checkout. The first
+message follows it. Then it names the new tab and reads the terminal back as `worker start` does, exit 1
+when the Lead shows no work, and it never sends the first message twice. It refuses outside herdr and in a
+linked worktree, as `/sdlc-delegate` does. A Lead's terminal is no Worker's, so the closing session's
+`recap` and Sweep leave it alone.
 
 ## The Brief
 
@@ -180,7 +208,8 @@ terminals and worktrees and lets the Lead close. On the dev's ask it renames its
 ## Evals
 
 Each skill's evals run through `/skill-creator`, outside `pnpm test` and the Gate, when the skill changes.
-The evals of `sdlc-recap` hold the Recap's shape and a follow-up going out as a Brief, and `evals/trigger.json`
+The evals of `sdlc-recap` hold the Recap's shape, a follow-up going out as a Brief and the next session
+named but not started, and `evals/trigger.json`
 its trigger: it fires on `/sdlc-recap` and on a Brief's instruction, not on "co dalej?". Run the trigger set
 with the plugin loaded through `--plugin-dir`, since a typed `/sdlc-recap` resolves only to the real skill.
 The evals of `sdlc-brief` hold the Brief's shape and its routing of model and effort, and those of
