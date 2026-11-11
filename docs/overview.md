@@ -405,8 +405,9 @@ success between them park the pull request, as the next paragraph says. Contexts
 `dw-sdlc/` never count as CI. The script never deletes a branch: a merged pull request answers
 `done` with the deletion command for the dev while its head branch still stands on the remote. The
 same GraphQL query reads `headRef`, which GitHub leaves null once the branch is gone, as
-`delete_branch_on_merge` leaves it at the merge. A merged pull request with no `headRef` answers
-`done` with no command.
+`delete_branch_on_merge` leaves it at the merge, and `isCrossRepository`. A merged pull request with no
+`headRef`, or one from a fork, whose branch lives on the fork and not on `origin`, answers `done` with
+no command.
 
 The Review limit is 3, a constant with no config key, so no repository turns the loop back on. The same
 GraphQL query counts the read marks on the commits after the last review success of any kind: a

@@ -119,6 +119,8 @@ export type Pr = {
   branch: string
   /** Whether the head branch is gone from the remote, so the reply carries no `headRef`. */
   headDeleted?: boolean
+  /** Whether the pull request comes from a fork, so its head branch stands on the fork and not on `origin`. */
+  fromFork?: boolean
   base: string
   /** The commit the base branch points at. */
   baseOid: string
@@ -234,6 +236,7 @@ export function pullRequestOf(pr: Pr): Record<string, unknown> {
     headRefOid: pr.head,
     headRefName: pr.branch,
     headRef: pr.headDeleted === true ? null : { name: pr.branch },
+    isCrossRepository: pr.fromFork === true,
     baseRefName: pr.base,
     baseRefOid: pr.reportedBaseOid ?? pr.baseOid,
     baseRef: pr.baseDeleted === true ? null : { target: { oid: pr.baseOid } },
