@@ -502,11 +502,15 @@ terminal herdr started: `$HC_TERMINAL_ID` is the Lead's address, and without it 
   message. The flags default to `worker.model` and `worker.effort`. It refuses a fourth live Worker of the
   same Lead; `--max-workers` raises the limit. When the Lead sits in a herdr space, the Worker joins it, and
   the command renames its tab, which herdr numbers, to the Worker's name. The folder is the main checkout,
-  also when the Lead sits in a linked worktree. The Brief travels as an argument of the Worker's command, so
-  herdr keeps no `first_message` for it; the command reads the terminal for up to `--wait` seconds (30) until
-  the Worker's status turns `working`, `blocked` or `done`. It exits 1 when herdr reports the first message
-  unsent, the terminal has ended, the Worker reports an error or it shows no work in time. It never sends the
-  Brief again: the Lead reads the terminal first.
+  also when the Lead sits in a linked worktree. Before `hc run` it fetches origin's default branch (the
+  branch `origin/HEAD` names, else `baseBranch` of the config, else every branch of origin) into that
+  checkout: Claude Code branches the Worker's worktree from the cached `origin/<default>` and refetches it
+  only after a day, so without the fetch a Worker could begin from an older ref. A checkout with no origin
+  skips the fetch; a failed or timed-out fetch starts no Worker and exits 2. The Brief travels as an
+  argument of the Worker's command, so herdr keeps no `first_message` for it; the command reads the terminal
+  for up to `--wait` seconds (30) until the Worker's status turns `working`, `blocked` or `done`. It exits 1
+  when herdr reports the first message unsent, the terminal has ended, the Worker reports an error or it
+  shows no work in time. It never sends the Brief again: the Lead reads the terminal first.
 - `dw-sdlc worker ls` lists the Lead's Workers: name, address, herdr's state, status and folder. The status
   is what the Worker reports, or `finished` once its terminal has ended. herdr's `done` means a turn ended,
   not the task: the Worker's Recap says whether the task is done.
