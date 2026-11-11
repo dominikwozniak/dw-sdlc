@@ -117,8 +117,9 @@ what it must not do, the proof it is done, where it reports, and the model and e
 _Avoid_: prompt, task
 
 **Recap**:
-What a session tells the dev who did not follow it: where its work stands in the Action words, what happened
-and what it decided alone, whether it can close, its questions and its follow-ups. A Worker reports to its Lead with one.
+What a session tells a dev who did not follow it: where its work stands in Action words, what happened, what
+it decided alone, whether it can close, its questions, follow-ups and next session. A Worker reports to its
+Lead with one.
 _Avoid_: status report, summary
 
 ### Gate

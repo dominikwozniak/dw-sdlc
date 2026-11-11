@@ -90,6 +90,21 @@ End this section with one line telling the dev that "go" carries out every recom
 "go, but 2 issue" changes one. When a follow-up is `worker`, add that "go" hands it to them as a Brief
 with its start line, for them to start.
 
+**Next session.** Write it only when `close.verdict` is `yes`, or your verdict is `done` or `park`, and
+`next` in the document lists a candidate. Leave it out of a Recap a Brief asked for: a Worker's Lead names
+what comes next. `next` holds the startable issues, the sub-issues of the issue this session's pull
+request closes first. Pick one, since only you know the topic this session worked on, and write three
+lines:
+
+- the issue, linked, with its title;
+- why it comes next, in one line;
+- the start line: `/sdlc-delegate #<n>` in a new Lead session named `lead-<n>-<slug>`, the slug a word or
+  two of its title, the whole name 1-32 of `a-z`, `0-9`, `-` and `_`.
+
+End it with one line telling the dev that "go" starts that Lead in a herdr terminal of its own, and that
+"go, but #<m>" starts another of `next` instead. Outside herdr, where `workers` is null, or in a linked
+worktree, say instead that "go" hands them the start line, since the command refuses there.
+
 ## Then stop
 
 The Recap changes nothing. Do not commit, push, file an issue or start anything in the same turn: the
@@ -98,10 +113,27 @@ they named; a question they did not answer stays open. A command the document na
 branch, stays theirs to run. The Sweep follow-up is the exception: "go" on it runs `/sdlc-sweep`, which
 runs the Sweep and reports it.
 
+The Next session is the other: "go" starts it last, after every follow-up, as a Lead. Never start it
+without the dev's go, and "go, but #<m>" starts #<m> in its place, named the same way. Run, from the
+repository:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" lead start --name lead-<n>-<slug> --prompt "/sdlc-delegate #<n>" --json
+```
+
+- Exit 0: started, and the Lead took its first message. Tell the dev its name and address in one line.
+- Exit 1: started, but the first message is not confirmed. Run `hc read <address> --lines 60` and tell the
+  dev. Never run the command again or send the message twice.
+- Exit 2: nothing started. Say why, and hand the dev the start line.
+
+The command takes `worker.command` of the config without `--dangerously-skip-permissions` and without
+`--worktree`: never add either, or start the Lead any other way.
+
 An `issue` or a `worker` follow-up goes out as a Brief, written by the rules of
 `${CLAUDE_PLUGIN_ROOT}/templates/brief.md`, so that a session started from either has one shape. An `issue`
-is filed with the Brief as its body, the way the template says for an issue. This skill starts no session,
-so a `worker` goes back to the dev as the template's start line, for them to start. The config the template
+is filed with the Brief as its body, the way the template says for an issue. This skill starts no session
+but the Next session's Lead, so a `worker` goes back to the dev as the template's start line, for them to
+start. The config the template
 asks for comes from `node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" config`.
 
 When a Brief tells you to deliver the Recap to a Lead, follow the Brief after writing it.

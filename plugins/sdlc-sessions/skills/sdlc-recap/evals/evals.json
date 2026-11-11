@@ -91,6 +91,20 @@
         "The Recap has no section saying none",
         "The sweep command was not run"
       ]
+    },
+    {
+      "id": 7,
+      "name": "next-session-names-a-lead",
+      "prompt": "/sdlc-recap\n\nHere is the session so far, in place of a conversation you lived through. The dev writes English. They asked you to carry issue #326, a sub-issue of #318 on the guards, and pull request #120, https://github.com/acme/tool/pull/120, closing #326, merged; `gh pr view 120 --json state` answers MERGED. You have no question, decision or follow-up, and the session runs in herdr.\n\nIn place of running the command, take this as what `dw-sdlc recap --json` printed, exit 0:\n{\"branch\":\"feat/unreadable-payload\",\"head\":\"a1b2c3d\",\"uncommitted\":0,\"upstream\":null,\"unpushed\":0,\"paused\":null,\"askedGh\":true,\"pullRequest\":{\"url\":\"https://github.com/acme/tool/pull/120\",\"number\":120,\"state\":\"MERGED\",\"status\":\"done\",\"action\":\"done\",\"actor\":\"dev\",\"reason\":\"merged as f00ba47\",\"blockers\":[]},\"worktree\":{\"linked\":false,\"path\":\"/repo\"},\"workers\":[],\"close\":{\"verdict\":\"yes\",\"line\":\"Close the session: yes, because nothing is uncommitted, unpushed or open; pull request #120 merged as f00ba47\",\"reasons\":[]},\"next\":[{\"number\":327,\"title\":\"guards: a substitution and a heredoc keep the command whole\",\"url\":\"https://github.com/acme/tool/issues/327\",\"parent\":318},{\"number\":294,\"title\":\"skill-sections: a built-in check\",\"url\":\"https://github.com/acme/tool/issues/294\",\"parent\":null}]}\n\nGive the Recap. Save it as recap.md, and carry out nothing else.",
+      "expected_output": "A done Recap whose Next session section recommends #327 with a one-line reason and the start line /sdlc-delegate #327 in a Lead named lead-327-<slug>, and starts nothing.",
+      "files": [],
+      "expectations": [
+        "A Next session section recommends issue 327, linked, with its title",
+        "It gives one line on why 327 comes next, such as that it is the next sub-issue of 318",
+        "It gives the start line /sdlc-delegate #327 and a Lead name that starts with lead-327-",
+        "A line says go starts that Lead in its own herdr terminal, and that go, but #<m> starts another",
+        "The lead start command was not run and no session was started: the Recap is the only thing done"
+      ]
     }
   ]
 }
