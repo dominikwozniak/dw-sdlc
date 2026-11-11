@@ -283,7 +283,7 @@ The Ratchet joins once the Gate is green: `file-size-ratchet` set to `true`, the
 `dw-sdlc gate --update-baseline` records the baseline to commit.
 
 For the machine, the setup writes the local config layer from what it infers, plus the commit
-convention when asked for one, and none where the layer would hold only `$schema`; it excludes it from git, and adds a permission backstop to
+convention when asked for one. A layer that would hold only `$schema` is not written. The setup excludes the file from git, and adds a permission backstop to
 `.claude/settings.local.json` plus the lease-push exception to `~/.claude/settings.json`. Where those
 settings still enable `guardrails@dw-sdlc` or `references@dw-sdlc`, it prints the `enabledPlugins`
 edit and leaves it to the user. It ends with the doctor, one PASS / WARN / FAIL line per machine
