@@ -163,8 +163,8 @@ the plan as a table, and the Workers start without a second ask.
 Each Brief comes from the template in its Lead form, naming the Lead's terminal, and `dw-sdlc worker start`
 starts its Worker in a worktree of its own. The first Worker starts alone; once its Brief is delivered, the
 rest start at once. At most three are in flight, from their start until their Recap reports their end. A
-Worker's terminal stays live until the Sweep, so the Lead passes `--max-workers` as the Workers that ended
-plus three. Each end frees the queue: the Lead starts each queued ticket whose blockers have all closed.
+Worker's terminal often stays live until the Sweep, so the Lead passes `--max-workers` as three plus the
+ended Workers still live. Each end frees the queue: the Lead starts each queued ticket whose blockers have all closed.
 
 After starting Workers the Lead ends its turn, so the dev can talk to it while they work. A Worker's report
 wakes it, and on every wake it runs `dw-sdlc worker ls` and takes a `blocked` Worker to the dev. It waits

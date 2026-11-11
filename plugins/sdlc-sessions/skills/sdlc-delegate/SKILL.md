@@ -61,8 +61,8 @@ start them: invoking this skill is the dev's go, so the plan asks nothing.
 ## The Briefs
 
 Read `${CLAUDE_PLUGIN_ROOT}/templates/brief.md` and follow it. The config comes from
-`node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" config`. Write a Brief for every ticket in the plan, the
-queued ones included. Every Brief this skill writes:
+`node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" config`. Write a Brief for every ticket marked `now` or
+queued, and none for a skipped one. Every Brief this skill writes:
 
 - takes the template's Lead form, naming `HC_TERMINAL_ID` in its Questions and Report lines, and runs
   `dw-sdlc` there as `node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts"`;
@@ -88,9 +88,9 @@ effort, so start every other `now` ticket right after it. On exit 1 or 2 start n
 fault would reach every Worker.
 
 At most three Workers are in flight. A Worker is in flight from its start until its Recap reports its
-end: merged, parked for the dev, or done for read-only work. Its terminal stays live after that, until
-the Sweep, and `worker start` counts live terminals, so pass `--max-workers` as the Workers that reported
-their end plus three. Only the dev's word raises the three. A ticket ready now beyond the three waits in
+end: merged, parked for the dev, or done for read-only work. Its terminal often stays live after that, until
+the Sweep, and `worker start` counts live terminals, so pass `--max-workers` as three plus the Workers that
+reported their end and are still `live` in `worker ls`. Only the dev's word raises the three. A ticket ready now beyond the three waits in
 the queue.
 
 Tell the dev in a few lines who started, on which model and effort, and which tickets wait in the queue
