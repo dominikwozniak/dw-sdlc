@@ -31,8 +31,8 @@ import { type Change, withGate, withPackage } from "../setup-gate.ts"
 import { GLOBAL_DENY, LEASE_RULE, RETIRED_DENY, repositoryDeny } from "../setup-rules.ts"
 import { keptWorker, pinnedWorker } from "../setup-worker.ts"
 
-/** `by hand` is an edit the setup names and leaves to the user. */
-export type Outcome = "wrote" | "unchanged" | "refused" | "by hand"
+/** `by hand` is an edit the setup names and leaves to the user; `skipped` is a file it has no reason to write. */
+export type Outcome = "wrote" | "unchanged" | "skipped" | "refused" | "by hand"
 export type Step = { file: string; outcome: Outcome; detail?: string }
 export type SetupOptions = {
   root: string
@@ -71,7 +71,8 @@ is kept, and --force-push and --commit-on-protected pin those two keys in it, re
 loosen what the committed config sets; --force overwrites a local config that differs in anything
 else; --dry-run reports without writing. Where cswap is on PATH, the local config also gets
 worker.command, the command a Worker starts with: cswap run -- --dangerously-skip-permissions. A
-worker block the file holds is kept as it is, and without cswap nothing is written.
+worker block the file holds is kept as it is, and without cswap nothing is written. A local config
+holding only $schema is not written, and an existing one stays: the run prints "skipped".
 
 Where the repository has a package.json, the setup adopts the Gate. --add-package pins dw-sdlc
 there as a devDependency, at the version running the setup; a new dependency needs the owner's yes,
@@ -334,8 +335,8 @@ export function setup(options: SetupOptions): Step[] {
   const { checkout, gitDir } = mainCheckout(root)
   const claudeDir = options.claudeDir ?? join(options.home, ".claude")
 
-  // 1. The local config, from inference, the convention (the flag's, else the one the file pins) and
-  // the guardrails block the file holds, with the keys the flags pin.
+  // 1. The local config: inference, the convention (the flag's, else the file's pin), the guardrails block
+  // the file holds with the flags' pins. A layer of `$schema` alone tells the guards nothing: not written.
   const localPath = join(checkout, LOCAL_FILE)
   const localCurrent = existsSync(localPath) ? readFileSync(localPath, "utf8") : undefined
   const existing = localCurrent === undefined ? undefined : parseObject(localCurrent)
@@ -346,7 +347,9 @@ export function setup(options: SetupOptions): Step[] {
   } else {
     const { worker, detail } = pinnedWorker(keptWorker(existing), options.path ?? process.env.PATH)
     const local = localConfig(checkout, claudeDir, convention, pinned.guardrails, worker)
-    if (localCurrent !== undefined && !sameContent(existing, local) && !options.force) {
+    if (Object.keys(local).length === 1 && (localCurrent === undefined || sameContent(existing, local))) {
+      writer.steps.push({ file: LOCAL_FILE, outcome: "skipped", detail: "the layer would hold only $schema" })
+    } else if (localCurrent !== undefined && !sameContent(existing, local) && !options.force) {
       writer.refuse(LOCAL_FILE, "exists with other content; pass --force to overwrite it")
     } else {
       writer.put(LOCAL_FILE, localPath, render(local), detail)
