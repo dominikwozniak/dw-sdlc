@@ -10,7 +10,7 @@ import { describe, it } from "node:test"
 import { COMMITTED_FILE } from "../../src/agentic-config.ts"
 import { commit, git, initRepo, runBin, scratch, write, writeJson } from "../harness.ts"
 import { fakeHerdr, listing, type Listed, type Reply, terminal } from "../hc-harness.ts"
-import { fakeGh, GREEN, type Pr, type Response, type Scenario, served } from "../pr-harness.ts"
+import { backlogOf, fakeGh, GREEN, type Pr, type Response, type Scenario, served } from "../pr-harness.ts"
 
 const AUTH = ["auth", "status", "--active", "--hostname", "github.com"]
 const VIEW = ["pr", "view", "--json", "url"]
@@ -28,6 +28,35 @@ const READ = [
   "number=40"
 ]
 const URL = "https://github.com/byarcadia-app/foundation/pull/40"
+/** The backlog read: of the repository gh resolves without a pull request, beside pull request #40 with it. */
+const BACKLOG = [
+  "api",
+  "graphql",
+  "-f",
+  "query=…",
+  "-F",
+  "owner={owner}",
+  "-F",
+  "name={repo}",
+  "-F",
+  "number=0",
+  "-F",
+  "closing=false"
+]
+const BACKLOG_40 = [
+  "api",
+  "graphql",
+  "-f",
+  "query=…",
+  "-F",
+  "owner=byarcadia-app",
+  "-F",
+  "name=foundation",
+  "-F",
+  "number=40",
+  "-F",
+  "closing=true"
+]
 
 const NO_PR: Response = { exit: 1, stderr: 'no pull requests found for branch "feat"\n' }
 const FOUND: Response = { stdout: JSON.stringify({ url: URL }) }
@@ -46,6 +75,7 @@ type Document = {
   worktree: { linked: boolean; path: string }
   workers: { name: string; address: string; state: string; status: string; folder: string }[] | null
   close: { verdict: "yes" | "no"; line: string; reasons: Reason[] }
+  next: { number: number; title: string; url: string; parent: number | null }[] | null
 }
 
 /** A clone of a bare repository, on main at one pushed commit. */
@@ -176,13 +206,14 @@ describe("dw-sdlc recap", () => {
       pullRequest: null,
       worktree: { linked: false, path: root },
       workers: null,
+      next: [],
       close: {
         verdict: "yes",
         line: "Close the session: yes, because nothing is uncommitted, unpushed or open",
         reasons: [{ id: "clean", blocks: false, text: "nothing is uncommitted, unpushed or open" }]
       }
     })
-    assert.deepEqual(calls, [AUTH, VIEW])
+    assert.deepEqual(calls, [AUTH, VIEW, BACKLOG])
   })
 
   it("uncommitted changes, tracked and untracked, block it and each counts", () => {
@@ -247,7 +278,7 @@ describe("dw-sdlc recap", () => {
     assert.deepEqual(doc.close.reasons, [
       { id: "no-pull-request", blocks: true, text: "1 commit on top of main in no pull request" }
     ])
-    assert.deepEqual(calls, [AUTH, VIEW, DEFAULT])
+    assert.deepEqual(calls, [AUTH, VIEW, DEFAULT, BACKLOG])
   })
 
   it("counts from the base's own ref: a pushed branch named feat/main is not the base", () => {
@@ -272,7 +303,7 @@ describe("dw-sdlc recap", () => {
     const { status, doc, calls } = document(root, noPr)
     assert.equal(status, 0, JSON.stringify(doc.close))
     assert.deepEqual(ids(doc), ["clean"])
-    assert.deepEqual(calls, [AUTH, VIEW])
+    assert.deepEqual(calls, [AUTH, VIEW, BACKLOG])
   })
 
   it("an open pull request blocks it, whatever its Action, and carries that Action's words", () => {
@@ -294,7 +325,7 @@ describe("dw-sdlc recap", () => {
         text: "pull request #40 is open: park ready-to-merge: pr.merge is ask: the merge is the dev's"
       }
     ])
-    assert.deepEqual(calls, [AUTH, VIEW, READ], "it reads the pull request and writes nothing")
+    assert.deepEqual(calls, [AUTH, VIEW, READ, BACKLOG_40], "it reads the pull request and writes nothing")
   })
 
   it("reads a script's Action without performing it: a merge under pr.merge auto, a branch behind, a draft", () => {
@@ -317,7 +348,7 @@ describe("dw-sdlc recap", () => {
       assert.equal(doc.pullRequest?.status, "act")
       assert.equal(doc.pullRequest?.action, action)
       assert.equal(doc.pullRequest?.actor, "script")
-      assert.deepEqual(calls, [AUTH, VIEW, READ], `${action} is read, never performed`)
+      assert.deepEqual(calls, [AUTH, VIEW, READ, BACKLOG_40], `${action} is read, never performed`)
     }
   })
 
@@ -405,7 +436,7 @@ describe("dw-sdlc recap", () => {
     assert.equal(status, 0, JSON.stringify(doc.close))
     assert.equal(doc.pullRequest?.state, "MERGED")
     assert.deepEqual(ids(doc), ["clean", "merged"])
-    assert.deepEqual(calls, [AUTH, VIEW, VIEW_RENAMED, READ])
+    assert.deepEqual(calls, [AUTH, VIEW, VIEW_RENAMED, READ, BACKLOG_40])
   })
 
   it("a branch pushed under another name finds the open pull request of its upstream, and its Action", () => {
@@ -425,7 +456,7 @@ describe("dw-sdlc recap", () => {
         text: "pull request #40 is open: park ready-to-merge: pr.merge is ask: the merge is the dev's"
       }
     ])
-    assert.deepEqual(calls, [AUTH, VIEW, VIEW_RENAMED, READ])
+    assert.deepEqual(calls, [AUTH, VIEW, VIEW_RENAMED, READ, BACKLOG_40])
   })
 
   it("a branch whose upstream is a local branch of another name asks gh for its own name", () => {
@@ -434,7 +465,7 @@ describe("dw-sdlc recap", () => {
     branch(root, 1)
     git(root, "branch", "--set-upstream-to=backup", "feat")
     const { calls } = document(root, noPr)
-    assert.deepEqual(calls, [AUTH, VIEW, DEFAULT])
+    assert.deepEqual(calls, [AUTH, VIEW, DEFAULT, BACKLOG])
   })
 
   it("a branch with no commit asks gh nothing by its upstream's name: no pull request can hold it", () => {
@@ -445,7 +476,7 @@ describe("dw-sdlc recap", () => {
     const { doc, calls } = document(root, renamed({ ...GREEN, branch: "fix/feat" }))
     assert.equal(doc.head, null)
     assert.equal(doc.pullRequest, null)
-    assert.deepEqual(calls, [AUTH, VIEW])
+    assert.deepEqual(calls, [AUTH, VIEW, BACKLOG])
   })
 
   it("a branch tracking the default branch, pushed under its own name, keeps the pull request gh resolves", () => {
@@ -460,7 +491,7 @@ describe("dw-sdlc recap", () => {
     }
     const { doc, calls } = document(root, scenario)
     assert.equal(doc.pullRequest?.url, URL)
-    assert.deepEqual(calls, [AUTH, VIEW, READ])
+    assert.deepEqual(calls, [AUTH, VIEW, READ, BACKLOG_40])
   })
 
   it("a branch started from another's, not pushed yet, takes no pull request of the branch it tracks", () => {
@@ -479,7 +510,7 @@ describe("dw-sdlc recap", () => {
     assert.equal(status, 1)
     assert.equal(doc.pullRequest, null)
     assert.deepEqual(blocking(doc), ["unpushed", "no-pull-request"])
-    assert.deepEqual(calls, [AUTH, VIEW, ["pr", "view", "other", "--json", "url"], READ, DEFAULT])
+    assert.deepEqual(calls, [AUTH, VIEW, ["pr", "view", "other", "--json", "url"], READ, DEFAULT, BACKLOG])
   })
 
   it("a pull request closed without merging, its branch still on the remote, is the dev's call: it can close", () => {
@@ -827,6 +858,7 @@ describe("dw-sdlc recap", () => {
         "pull request: none",
         "worktree: main checkout",
         "workers: not in herdr",
+        "next: none",
         "Close the session: no, because 1 commit on a branch with no upstream; 1 commit on top of main in no pull request",
         ""
       ].join("\n")
@@ -883,7 +915,7 @@ describe("dw-sdlc recap", () => {
       assert.equal(status, 1)
       const rows = stdout.split("\n")
       assert.equal(rows[5], "workers: 1 live: worker-9-demo (working)")
-      assert.equal(rows[6], "Close the session: no, because 1 live Worker: worker-9-demo (working)")
+      assert.equal(rows[7], "Close the session: no, because 1 live Worker: worker-9-demo (working)")
       assert.equal(inHerdr(root, noPr, listing()).stdout.split("\n")[5], "workers: none live")
     })
 
@@ -943,5 +975,118 @@ describe("dw-sdlc recap", () => {
     assert.equal(status, 0)
     assert.match(stdout, /Exit 0 the session can be closed, 1 it cannot, 2 when it cannot run\./)
     assert.deepEqual(calls, [])
+  })
+})
+
+describe("dw-sdlc recap, the next session", () => {
+  /** A branch whose merged pull request #40 holds its head; `closes` the issues GitHub says it closes. */
+  function mergedOn(backlog: Response): { root: string; scenario: Scenario } {
+    const root = clone()
+    branch(root, 1)
+    git(root, "push", "-q", "-u", "origin", "feat")
+    const merged: Pr = {
+      ...GREEN,
+      head: head(root),
+      branch: "feat",
+      state: "MERGED",
+      mergeable: "UNKNOWN",
+      mergeStateStatus: "UNKNOWN",
+      mergeCommit: "b04365ad73c61edcf175d9c5632740eb13fd2e4d"
+    }
+    return { root, scenario: { ...withPr(merged), backlog } }
+  }
+
+  it("lists the startable issues, the sub-issues of the one the pull request closes first, the rest in issue order", () => {
+    const backlog = backlogOf(
+      [
+        { number: 294 },
+        { number: 307, assignees: 1 },
+        { number: 318 },
+        { number: 326, title: "guards: a payload the dispatcher cannot read is refused", parent: 318 },
+        { number: 327, parent: 318, blockedBy: 1 },
+        { number: 331, parent: 300 },
+        { number: 333 }
+      ],
+      [318]
+    )
+    const { root, scenario } = mergedOn(backlog)
+    const { status, doc, calls } = document(root, scenario)
+    assert.equal(status, 0, JSON.stringify(doc.close))
+    assert.deepEqual(
+      doc.next?.map(({ number, parent }) => [number, parent]),
+      [
+        [326, 318],
+        [294, null],
+        [331, 300],
+        [333, null]
+      ],
+      "an assigned, a blocked and the closed issue itself are no candidates"
+    )
+    assert.deepEqual(doc.next?.[0], {
+      number: 326,
+      title: "guards: a payload the dispatcher cannot read is refused",
+      url: "https://github.com/byarcadia-app/foundation/issues/326",
+      parent: 318
+    })
+    const asked = calls.at(-1) ?? []
+    assert.deepEqual(asked.slice(0, 4), ["api", "graphql", "-f", "query=…"])
+    assert.deepEqual(asked.slice(4), [
+      "-F",
+      "owner=byarcadia-app",
+      "-F",
+      "name=foundation",
+      "-F",
+      "number=40",
+      "-F",
+      "closing=true"
+    ])
+    assert.equal(calls.filter((call) => call[0] !== "api" && call[0] !== "auth" && call[1] !== "view").length, 0)
+  })
+
+  it("lists none when the backlog has none, and says so on its line", () => {
+    const { root, scenario } = mergedOn(backlogOf([{ number: 307, assignees: 2 }], []))
+    assert.deepEqual(document(root, scenario).doc.next, [])
+    const { stdout } = recap(root, scenario)
+    assert.ok(stdout.split("\n").includes("next: none"), stdout)
+  })
+
+  it("names each candidate on its line, a sub-issue with the issue it belongs to", () => {
+    const { root, scenario } = mergedOn(backlogOf([{ number: 294 }, { number: 326, parent: 318 }], [318]))
+    const { stdout } = recap(root, scenario)
+    assert.ok(stdout.split("\n").includes("next: #326 (sub-issue of #318), #294"), stdout)
+  })
+
+  it("without a pull request reads the backlog of the repository gh resolves, in issue order", () => {
+    const root = clone()
+    const backlog = backlogOf([{ number: 12 }, { number: 9, parent: 3 }])
+    const { doc, calls } = document(root, { ...noPr, backlog })
+    assert.deepEqual(
+      doc.next?.map(({ number }) => number),
+      [9, 12]
+    )
+    assert.deepEqual(calls.at(-1)?.slice(4), [
+      "-F",
+      "owner={owner}",
+      "-F",
+      "name={repo}",
+      "-F",
+      "number=0",
+      "-F",
+      "closing=false"
+    ])
+  })
+
+  it("asks no backlog where gh is not asked", () => {
+    const root = clone()
+    branch(root, 1)
+    pauseRebase(root)
+    const { doc, calls } = document(root, noPr)
+    assert.equal(doc.next, null)
+    assert.deepEqual(calls, [])
+  })
+
+  it("cannot run when the backlog cannot be read", () => {
+    const { root, scenario } = mergedOn({ exit: 1, stderr: "gh: Could not resolve to a Repository\n" })
+    refuses(root, scenario, [], /the backlog: Could not resolve to a Repository/)
   })
 })
