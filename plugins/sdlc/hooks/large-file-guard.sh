@@ -7,7 +7,7 @@ source "${BASH_SOURCE[0]%/*}/lib.sh"
 
 # The payload is read in full before any early exit: returning early once left the writer on the
 # other end of the pipe with SIGPIPE, an exit 141 the self-test caught only under load.
-guard_read_file_payload large-file-guard.sh "$@" || exit 0
+guard_read_file_payload large-file-guard.sh "The size of the file just written was not checked." "$@" || exit 0
 
 DEFAULT_MAX_BYTES=262144 # 256 KiB
 MAX_BYTES="${CLAUDE_MAX_WRITE_BYTES:-$DEFAULT_MAX_BYTES}"

@@ -97,7 +97,7 @@ describe("a payload the guard cannot read is refused, naming why", () => {
   it("a file_path holding U+0001", () => {
     const verdict = run("Write", `${OVER}\u0001`)
     expectExit(verdict, 2)
-    assert.match(verdict.stderr, /payload cannot be read.*U\+0001/)
+    assert.match(verdict.stderr, /payload cannot be read.*U\+0001.*not checked/)
   })
   it("malformed payload", () => {
     const verdict = runHook("large-file-guard", "not json")

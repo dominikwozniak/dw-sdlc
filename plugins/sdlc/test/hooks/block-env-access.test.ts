@@ -333,17 +333,30 @@ describe("the fast path takes the command and the cwd from argv", () => {
 })
 
 describe("a payload the guard cannot read is refused, naming why", () => {
-  // The byte closes the reader's fields: a path holding it made seven fields and the guard passed (#318).
-  for (const tool of ["Read", "Edit", "Write", "MultiEdit", "NotebookEdit"]) {
+  // U+0001 is the byte the reader closes each field with, so a field holding it cannot be split.
+  for (const tool of ["Read", "Edit", "Write", "MultiEdit"]) {
     it(`${tool} with U+0001 in file_path`, () => {
       const verdict = runHook("block-env-access", filePayload(tool, ".env.local\u0001", REPO))
       expectExit(verdict, 2)
       assert.match(verdict.stderr, /payload cannot be read.*U\+0001/)
     })
   }
+  it("NotebookEdit with U+0001 in notebook_path", () => {
+    const payload = {
+      hook_event_name: "PreToolUse",
+      tool_name: "NotebookEdit",
+      cwd: REPO,
+      tool_input: { notebook_path: ".env.local\u0001" }
+    }
+    const verdict = runHook("block-env-access", payload)
+    expectExit(verdict, 2)
+    assert.match(verdict.stderr, /payload cannot be read.*U\+0001/)
+  })
   it("Grep with U+0001 in path", () => {
     const payload = { hook_event_name: "PreToolUse", tool_name: "Grep", cwd: REPO, tool_input: { path: ".\u0001" } }
-    expectExit(runHook("block-env-access", payload), 2)
+    const verdict = runHook("block-env-access", payload)
+    expectExit(verdict, 2)
+    assert.match(verdict.stderr, /payload cannot be read.*U\+0001/)
   })
   it("a byte in the cwd", () => {
     expectExit(runHook("block-env-access", filePayload("Read", "src/env.ts", `${REPO}\u0001`)), 2)

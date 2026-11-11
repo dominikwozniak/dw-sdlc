@@ -5,7 +5,7 @@
 set -uo pipefail
 source "${BASH_SOURCE[0]%/*}/lib.sh"
 
-guard_read_file_payload block-env-access.sh "$@" || exit 0
+guard_read_file_payload block-env-access.sh "Refused: no guard could judge this call; send it without the byte." "$@" || exit 0
 
 # is_env_name <path-or-token> — 0 for a candidate: basename .env, .env.*, .envrc.
 is_env_name() {
