@@ -4,7 +4,7 @@
     {
       "id": 1,
       "name": "hand-off-starts-one-and-ends-turn",
-      "prompt": "/sdlc-delegate #77\n\nThe dev writes Polish. They wrote: \"oddaj #77 workerowi, ja w tym czasie popatrzę na coś innego\". You run from /repo/tool, the main checkout. In place of running them, take these as what the commands printed.\n\n`worker ls --json`, exit 0:\n[]\n\n`git rev-parse --path-format=absolute --git-dir --git-common-dir`:\n/repo/tool/.git\n/repo/tool/.git\n\n`printenv HC_TERMINAL_ID`:\nt5\n\n`gh issue view 77 --comments`:\ntitle: Add --json to the export command\nbody: ## Acceptance criteria\n- [ ] `export --json` prints a JSON array with the fields id, name, total.\n- [ ] A test covers an empty result.\ncomments: none\n\n`dw-sdlc config`, exit 0:\ncommitted  .ai/agentic.config.json  valid\nlocal      .ai/agentic.config.local.json  valid\n{\"gate\":{\"command\":\"pnpm check\"},\"pr\":{\"merge\":\"auto\"},\"worker\":{\"command\":\"cswap run -- --dangerously-skip-permissions\",\"model\":\"sonnet\",\"effort\":\"high\"}}\n\n`worker start ... --json`, exit 0:\n{\"name\":\"worker-77-export-json\",\"address\":\"t8\",\"command\":\"cswap run -- --dangerously-skip-permissions\",\"model\":\"sonnet\",\"effort\":\"high\",\"cwd\":\"/repo/tool\",\"delivered\":true,\"tab\":\"renamed\"}\n\nRun nothing. Write into transcript.md, in order, every command you would run, the Brief file you would write with its path, and every message you would give the dev, then a line END OF TURN where your turn ends.",
+      "prompt": "/sdlc-delegate #77\n\nThe dev writes Polish. They wrote: \"oddaj #77 workerowi, ja w tym czasie popatrzę na coś innego\". You run from /repo/tool, the main checkout. In place of running them, take these as what the commands printed.\n\n`worker ls --json`, exit 0:\n[]\n\n`git rev-parse --path-format=absolute --git-dir --git-common-dir`:\n/repo/tool/.git\n/repo/tool/.git\n\n`printenv HC_TERMINAL_ID`:\nt5\n\n`hc get t5 --json`:\n{\"id\":\"t5\",\"labels\":{\"herdr.space\":\"s1\"},\"status\":\"working\"}\n\n`gh issue view 77 --comments`:\ntitle: Add --json to the export command\nbody: ## Acceptance criteria\n- [ ] `export --json` prints a JSON array with the fields id, name, total.\n- [ ] A test covers an empty result.\ncomments: none\n\n`dw-sdlc config`, exit 0:\ncommitted  .ai/agentic.config.json  valid\nlocal      .ai/agentic.config.local.json  valid\n{\"gate\":{\"command\":\"pnpm check\"},\"pr\":{\"merge\":\"auto\"},\"worker\":{\"command\":\"cswap run -- --dangerously-skip-permissions\",\"model\":\"sonnet\",\"effort\":\"high\"}}\n\n`worker start ... --json`, exit 0:\n{\"name\":\"worker-77-export-json\",\"address\":\"t8\",\"command\":\"cswap run -- --dangerously-skip-permissions\",\"model\":\"sonnet\",\"effort\":\"high\",\"cwd\":\"/repo/tool\",\"delivered\":true,\"tab\":\"renamed\"}\n\nRun nothing. Write into transcript.md, in order, every command you would run, the Brief file you would write with its path, and every message you would give the dev, then a line END OF TURN where your turn ends.",
       "expected_output": "One Brief in the Lead form naming t5, one worker start, a short Polish message to the dev, then the turn ends with no wait.",
       "files": [],
       "expectations": [
@@ -21,7 +21,7 @@
     {
       "id": 2,
       "name": "split-that-must-merge-into-one-diff",
-      "prompt": "/sdlc-delegate split\n\nThe dev writes English. The current work in this conversation: rename the config key `review.cmd` to `pr.reviewCommand`. The rename has to change the JSON Schema in config/schema.json, the resolver in src/config.ts that reads the key, and the tests in test/config.test.ts in the same commit, since the schema rejects the old key the moment it changes and the tests fail between the pieces. The dev wrote: \"split this across three workers, schema, resolver, tests\". You run from /repo/tool, the main checkout. In place of running them, take these as what the commands printed.\n\n`worker ls --json`, exit 0:\n[]\n\n`git rev-parse --path-format=absolute --git-dir --git-common-dir`:\n/repo/tool/.git\n/repo/tool/.git\n\n`printenv HC_TERMINAL_ID`:\nt5\n\nRun nothing. Write into transcript.md, in order, every command you would run, every file you would write and every message you would give the dev, then a line END OF TURN where your turn ends.",
+      "prompt": "/sdlc-delegate split\n\nThe dev writes English. The current work in this conversation: rename the config key `review.cmd` to `pr.reviewCommand`. The rename has to change the JSON Schema in config/schema.json, the resolver in src/config.ts that reads the key, and the tests in test/config.test.ts in the same commit, since the schema rejects the old key the moment it changes and the tests fail between the pieces. The dev wrote: \"split this across three workers, schema, resolver, tests\". You run from /repo/tool, the main checkout. In place of running them, take these as what the commands printed.\n\n`worker ls --json`, exit 0:\n[]\n\n`git rev-parse --path-format=absolute --git-dir --git-common-dir`:\n/repo/tool/.git\n/repo/tool/.git\n\n`printenv HC_TERMINAL_ID`:\nt5\n\n`hc get t5 --json`:\n{\"id\":\"t5\",\"labels\":{\"herdr.space\":\"s1\"},\"status\":\"working\"}\n\nRun nothing. Write into transcript.md, in order, every command you would run, every file you would write and every message you would give the dev, then a line END OF TURN where your turn ends.",
       "expected_output": "The split is refused with the reason that the pieces must land in one diff, the whole is offered to one Worker, and nothing is started.",
       "files": [],
       "expectations": [
@@ -35,15 +35,17 @@
     },
     {
       "id": 3,
-      "name": "split-starts-one-first",
-      "prompt": "/sdlc-delegate split\n\nThe dev writes English. The current work in this conversation: three separate issues, each its own pull request touching different files: #40 adds a --quiet flag to src/cli/export.ts, #41 fixes a typo in docs/install.md, #42 adds a retry to src/net/fetch.ts. Each issue is a clear spec with acceptance criteria. The dev wrote: \"split these three across workers\". You run from /repo/tool, the main checkout. In place of running them, take these as what the commands printed.\n\n`worker ls --json`, exit 0:\n[]\n\n`git rev-parse --path-format=absolute --git-dir --git-common-dir`:\n/repo/tool/.git\n/repo/tool/.git\n\n`printenv HC_TERMINAL_ID`:\nt5\n\n`dw-sdlc config`, exit 0:\ncommitted  .ai/agentic.config.json  valid\nlocal      .ai/agentic.config.local.json  absent\n{\"gate\":{\"command\":\"pnpm check\"},\"pr\":{\"merge\":\"ask\"},\"worker\":{\"command\":\"claude\",\"model\":\"sonnet\",\"effort\":\"high\"}}\n\nEach `gh issue view` prints the issue as described. Each `worker start ... --json` exits 0 with delivered true.\n\nRun nothing. Write into transcript.md, in order, every command you would run, every file you would write and every message you would give the dev, then a line END OF TURN where your turn ends.",
-      "expected_output": "Three Briefs, but only one worker start before the turn ends; the other two wait until the first is carried through.",
+      "name": "split-starts-the-first-then-the-rest",
+      "prompt": "/sdlc-delegate split\n\nThe dev writes English. The current work in this conversation: three separate issues, each its own pull request touching different files: #40 adds a --quiet flag to src/cli/export.ts, #41 fixes a typo in docs/install.md, #42 adds a retry to src/net/fetch.ts. Each issue is a clear spec with acceptance criteria. The dev wrote: \"split these three across workers\". You run from /repo/tool, the main checkout. In place of running them, take these as what the commands printed.\n\n`worker ls --json`, exit 0:\n[]\n\n`git rev-parse --path-format=absolute --git-dir --git-common-dir`:\n/repo/tool/.git\n/repo/tool/.git\n\n`printenv HC_TERMINAL_ID`:\nt5\n\n`hc get t5 --json`:\n{\"id\":\"t5\",\"labels\":{\"herdr.space\":\"s1\"},\"status\":\"working\"}\n\n`dw-sdlc config`, exit 0:\ncommitted  .ai/agentic.config.json  valid\nlocal      .ai/agentic.config.local.json  absent\n{\"gate\":{\"command\":\"pnpm check\"},\"pr\":{\"merge\":\"ask\"},\"worker\":{\"command\":\"claude\",\"model\":\"sonnet\",\"effort\":\"high\"}}\n\nEach `gh issue view` prints the issue as described. Each `worker start ... --json` exits 0 with delivered true; the first one prints {\"name\":\"worker-40-quiet\",\"address\":\"t8\",\"delivered\":true}.\n\nRun nothing. Write into transcript.md, in order, every command you would run, every file you would write and every message you would give the dev, then a line END OF TURN where your turn ends.",
+      "expected_output": "A plan table, three Briefs, then worker start for one ticket alone and, after its exit 0, for the other two; the turn ends with all three in flight.",
       "files": [],
       "expectations": [
         "A Brief is written for each of #40, #41 and #42, each in the Lead form naming t5",
-        "Exactly one worker start runs before END OF TURN",
-        "The message to the dev says the other two Briefs wait until the first Worker is carried through",
+        "The dev sees a plan table with a row for each of #40, #41 and #42, each marked now",
+        "Three worker start commands run before END OF TURN, one alone first and the other two after its exit 0",
+        "Each worker start passes --max-workers 3",
         "Each Brief's Worker name has the form worker-<issue>-<slug>",
+        "No question is asked between the plan and the starts",
         "The turn ends with no hc wait and no polling"
       ]
     },
@@ -92,7 +94,7 @@
     {
       "id": 7,
       "name": "refuses-in-a-linked-worktree",
-      "prompt": "/sdlc-delegate #77\n\nThe dev writes English. In place of running them, take these as what the commands printed.\n\n`worker ls --json`, exit 0:\n[]\n\n`git rev-parse --path-format=absolute --git-dir --git-common-dir`:\n/repo/tool/.git/worktrees/feature-x\n/repo/tool/.git\n\n`printenv HC_TERMINAL_ID`:\nt5\n\nRun nothing. Write into transcript.md, in order, every command you would run and every message you would give the dev, then a line END OF TURN where your turn ends.",
+      "prompt": "/sdlc-delegate #77\n\nThe dev writes English. In place of running them, take these as what the commands printed.\n\n`worker ls --json`, exit 0:\n[]\n\n`git rev-parse --path-format=absolute --git-dir --git-common-dir`:\n/repo/tool/.git/worktrees/feature-x\n/repo/tool/.git\n\n`printenv HC_TERMINAL_ID`:\nt5\n\n`hc get t5 --json`:\n{\"id\":\"t5\",\"labels\":{\"herdr.space\":\"s1\"},\"status\":\"working\"}\n\nRun nothing. Write into transcript.md, in order, every command you would run and every message you would give the dev, then a line END OF TURN where your turn ends.",
       "expected_output": "A refusal in the linked worktree with the remedy: start the Lead as a plain session in the main checkout, in herdr.",
       "files": [],
       "expectations": [
@@ -132,15 +134,76 @@
     },
     {
       "id": 10,
-      "name": "later-hand-off-waits-for-the-first-worker",
-      "prompt": "/sdlc-delegate #50\n\nThe dev writes English. Earlier in this session, as its Lead, you started worker-40-quiet (t8) on issue #40; no Recap from it has arrived yet. You run from /repo/tool, the main checkout. In place of running them, take these as what the commands printed.\n\n`worker ls --json`, exit 0:\n[{\"name\":\"worker-40-quiet\",\"address\":\"t8\",\"state\":\"live\",\"status\":\"working\",\"folder\":\"/repo/tool/.claude/worktrees/worker-40-quiet\"}]\n\n`git rev-parse --path-format=absolute --git-dir --git-common-dir`:\n/repo/tool/.git\n/repo/tool/.git\n\n`printenv HC_TERMINAL_ID`:\nt5\n\n`gh issue view 50 --comments`:\ntitle: Add a --since flag to the log command\nbody: ## Acceptance criteria\n- [ ] `log --since 2d` shows entries of the last two days.\ncomments: none\n\n`dw-sdlc config`, exit 0:\ncommitted  .ai/agentic.config.json  valid\nlocal      .ai/agentic.config.local.json  absent\n{\"gate\":{\"command\":\"pnpm check\"},\"pr\":{\"merge\":\"auto\"},\"worker\":{\"command\":\"claude\",\"model\":\"sonnet\",\"effort\":\"high\"}}\n\nRun nothing. Write into transcript.md, in order, every command you would run, every file you would write and every message you would give the dev, then a line END OF TURN where your turn ends.",
-      "expected_output": "The Brief for #50 is written, but no Worker starts while the first one has not been carried through; the dev hears that it waits.",
+      "name": "later-hand-off-starts-while-fewer-than-three-fly",
+      "prompt": "/sdlc-delegate #50\n\nThe dev writes English. Earlier in this session, as its Lead, you started worker-40-quiet (t8) on issue #40; no Recap from it has arrived yet. You run from /repo/tool, the main checkout. In place of running them, take these as what the commands printed.\n\n`worker ls --json`, exit 0:\n[{\"name\":\"worker-40-quiet\",\"address\":\"t8\",\"state\":\"live\",\"status\":\"working\",\"folder\":\"/repo/tool/.claude/worktrees/worker-40-quiet\"}]\n\n`git rev-parse --path-format=absolute --git-dir --git-common-dir`:\n/repo/tool/.git\n/repo/tool/.git\n\n`printenv HC_TERMINAL_ID`:\nt5\n\n`hc get t5 --json`:\n{\"id\":\"t5\",\"labels\":{\"herdr.space\":\"s1\"},\"status\":\"working\"}\n\n`gh issue view 50 --comments`:\ntitle: Add a --since flag to the log command\nbody: ## Acceptance criteria\n- [ ] `log --since 2d` shows entries of the last two days.\ncomments: none\n\n`dw-sdlc config`, exit 0:\ncommitted  .ai/agentic.config.json  valid\nlocal      .ai/agentic.config.local.json  absent\n{\"gate\":{\"command\":\"pnpm check\"},\"pr\":{\"merge\":\"auto\"},\"worker\":{\"command\":\"claude\",\"model\":\"sonnet\",\"effort\":\"high\"}}\n\n`worker start ... --json`, exit 0:\n{\"name\":\"worker-50-since\",\"address\":\"t9\",\"delivered\":true}\n\nRun nothing. Write into transcript.md, in order, every command you would run, every file you would write and every message you would give the dev, then a line END OF TURN where your turn ends.",
+      "expected_output": "The Brief for #50 is written and its Worker starts at once, since only one Worker is in flight; the dev hears both are running.",
       "files": [],
       "expectations": [
         "A Brief for #50 is written in the Lead form naming t5",
-        "No worker start runs",
-        "The message to the dev says the #50 Worker starts once worker-40-quiet is carried through",
+        "Exactly one worker start runs, for #50, with --max-workers 3",
+        "The message to the dev says worker-50 started beside worker-40-quiet",
         "The turn ends with no hc wait and no polling"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "spec-sub-issues-start-in-parallel-in-blocked-by-order",
+      "prompt": "/sdlc-delegate #290\n\nThe dev writes Polish. They ran /to-spec and /to-tickets earlier; #290 is the spec, its tickets its sub-issues. You run from /repo/tool, the main checkout. In place of running them, take these as what the commands printed.\n\n`worker ls --json`, exit 0:\n[]\n\n`git rev-parse --path-format=absolute --git-dir --git-common-dir`:\n/repo/tool/.git\n/repo/tool/.git\n\n`printenv HC_TERMINAL_ID`:\nt5\n\n`hc get t5 --json`:\n{\"id\":\"t5\",\"labels\":{\"herdr.space\":\"s1\"},\"status\":\"working\"}\n\n`dw-sdlc config`, exit 0:\ncommitted  .ai/agentic.config.json  valid\nlocal      .ai/agentic.config.local.json  absent\n{\"gate\":{\"command\":\"pnpm check\"},\"pr\":{\"merge\":\"auto\"},\"worker\":{\"command\":\"claude\",\"model\":\"sonnet\",\"effort\":\"high\"}}\n\n`gh issue view 290 --json number,title,state,labels,subIssues,blockedBy`:\n{\"number\":290,\"title\":\"Spec: export formats\",\"state\":\"OPEN\",\"labels\":[{\"name\":\"ready-for-agent\"}],\"subIssues\":{\"nodes\":[{\"number\":296,\"state\":\"OPEN\"},{\"number\":297,\"state\":\"OPEN\"},{\"number\":298,\"state\":\"OPEN\"},{\"number\":312,\"state\":\"OPEN\"},{\"number\":313,\"state\":\"OPEN\"},{\"number\":295,\"state\":\"CLOSED\"}],\"totalCount\":6},\"blockedBy\":{\"nodes\":[],\"totalCount\":0}}\n\nEach sub-issue, read the same way:\n- #296 \"Add the CSV writer\", labels ready-for-agent, blockedBy none\n- #297 \"Add --json to export\", labels ready-for-agent, blockedBy none\n- #298 \"Document the export formats\", labels ready-for-agent, blockedBy none\n- #312 \"Stream the CSV writer\", labels ready-for-agent, blockedBy #296 (OPEN)\n- #313 \"Pick the default format\", labels ready-for-human, blockedBy none\n- #295 CLOSED\n\nEach `worker start ... --json` exits 0 with delivered true; the first prints {\"name\":\"worker-296-csv-writer\",\"address\":\"t8\",\"delivered\":true}.\n\nRun nothing. Write into transcript.md, in order, every command you would run, every file you would write and every message you would give the dev, then a line END OF TURN where your turn ends.",
+      "expected_output": "A plan table: #296, #297, #298 now, #312 queued behind #296, #313 and #295 skipped with the reason. Briefs for the four delegated tickets, worker start for #296 alone, then #297 and #298; the turn ends with #312 waiting.",
+      "files": [],
+      "expectations": [
+        "The transcript reads #290 with gh issue view including subIssues and blockedBy",
+        "The dev sees a plan table, in Polish, with #296, #297 and #298 marked now and #312 queued behind #296",
+        "#313 is skipped because its label ready-for-human says it needs a human, and #295 because it is closed",
+        "A Brief is written for each of #296, #297, #298 and #312, in the Lead form naming t5, with /implement #<n> as its first line",
+        "worker start runs for #296 alone first, then for #297 and #298, each with --max-workers 3",
+        "No worker start runs for #312 or #313",
+        "No question is asked between the plan and the starts",
+        "The message to the dev names the three Workers started and says #312 waits on #296",
+        "The turn ends with no hc wait and no polling"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "refuses-in-a-worker",
+      "prompt": "The dev writes English. This session runs as a Worker on #296. The dev wrote: \"#296 is done, delegate #297 and #298 to workers too\". You run from /repo/tool/.claude/worktrees/worker-296-csv-writer. In place of running them, take these as what the commands printed.\n\n`worker ls --json`, exit 0:\n[]\n\n`git rev-parse --path-format=absolute --git-dir --git-common-dir`:\n/repo/tool/.git/worktrees/worker-296-csv-writer\n/repo/tool/.git\n\n`printenv HC_TERMINAL_ID`:\nt8\n\n`hc get t8 --json`:\n{\"id\":\"t8\",\"labels\":{\"role\":\"worker\",\"herdr.space\":\"s1\"},\"status\":\"working\"}\n\nUse the sdlc-delegate skill. Run nothing. Write into transcript.md, in order, every command you would run and every message you would give the dev, then a line END OF TURN where your turn ends.",
+      "expected_output": "A refusal: this session is a Worker, which starts no other session; the work goes to its Lead.",
+      "files": [],
+      "expectations": [
+        "The skill refuses because this session is a Worker, read from the role worker label",
+        "The message says the work goes to its Lead",
+        "No Brief is written and no worker start or hc run runs"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "ended-worker-frees-the-queue",
+      "prompt": "You are the Lead this session became through /sdlc-delegate #290, in terminal t5. Three Workers are in flight: worker-296-csv-writer (t8), worker-297-export-json (t9), worker-298-export-docs (t10). The Brief for #312, blocked by #296, waits in the queue at $TMPDIR/worker-312-stream-csv.md. This message arrives:\n\n<hc from=\"t8 worker-296-csv-writer\">done: PR #320 https://github.com/acme/tool/pull/320 merged, #296 closed.</hc>\n\nIn place of running them, take these as what the commands printed.\n\n`worker ls --json`, exit 0:\n[{\"name\":\"worker-296-csv-writer\",\"address\":\"t8\",\"state\":\"live\",\"status\":\"done\",\"folder\":\"/repo/tool/.claude/worktrees/worker-296-csv-writer\"},{\"name\":\"worker-297-export-json\",\"address\":\"t9\",\"state\":\"live\",\"status\":\"working\",\"folder\":\"/repo/tool/.claude/worktrees/worker-297-export-json\"},{\"name\":\"worker-298-export-docs\",\"address\":\"t10\",\"state\":\"live\",\"status\":\"working\",\"folder\":\"/repo/tool/.claude/worktrees/worker-298-export-docs\"}]\n\n`gh issue view 312 --json blockedBy`:\n{\"blockedBy\":{\"nodes\":[{\"number\":296,\"state\":\"CLOSED\"}],\"totalCount\":1}}\n\n`worker start ... --json`, exit 0:\n{\"name\":\"worker-312-stream-csv\",\"address\":\"t11\",\"delivered\":true}\n\nThe dev writes English. Run nothing. Write into transcript.md, in order, every command you would run and every message you would give the dev, then a line END OF TURN where your turn ends.",
+      "expected_output": "The Lead tells the dev #296 merged, sees #312's blocker closed, starts worker-312 with --max-workers 4 since one Worker reported its end, tells the dev and ends its turn.",
+      "files": [],
+      "expectations": [
+        "The transcript runs worker ls --json first",
+        "The dev hears that #296 merged, with the link",
+        "The transcript checks #312's blockers with gh issue view 312 --json blockedBy",
+        "Exactly one worker start runs, for #312, with --max-workers 4",
+        "The Lead removes no terminal: no hc kill or hc rm of t8",
+        "The message to the dev says worker-312 started",
+        "The turn ends with no hc wait and no polling"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "first-start-unconfirmed-stops-the-rest",
+      "prompt": "/sdlc-delegate #296 #297 #298\n\nThe dev writes English. You run from /repo/tool, the main checkout. In place of running them, take these as what the commands printed.\n\n`worker ls --json`, exit 0:\n[]\n\n`git rev-parse --path-format=absolute --git-dir --git-common-dir`:\n/repo/tool/.git\n/repo/tool/.git\n\n`printenv HC_TERMINAL_ID`:\nt5\n\n`hc get t5 --json`:\n{\"id\":\"t5\",\"labels\":{\"herdr.space\":\"s1\"},\"status\":\"working\"}\n\n`dw-sdlc config`, exit 0:\ncommitted  .ai/agentic.config.json  valid\nlocal      .ai/agentic.config.local.json  absent\n{\"gate\":{\"command\":\"pnpm check\"},\"pr\":{\"merge\":\"auto\"},\"worker\":{\"command\":\"claude\",\"model\":\"sonnet\",\"effort\":\"high\"}}\n\nEach `gh issue view` prints an open issue labelled ready-for-agent with no sub-issues and no blockers: #296 \"Add the CSV writer\", #297 \"Add --json to export\", #298 \"Document the export formats\".\n\nThe first `worker start ... --json`, exit 1:\n{\"name\":\"worker-296-csv-writer\",\"address\":\"t8\",\"delivered\":false}\n\n`hc read t8 --lines 60`:\nPlease log in. Select a login method: 1. Claude account 2. API key\n\nRun nothing. Write into transcript.md, in order, every command you would run, every file you would write and every message you would give the dev, then a line END OF TURN where your turn ends.",
+      "expected_output": "The plan, three Briefs, one worker start that exits 1; the Lead reads t8, tells the dev the Worker waits on a login and starts neither of the others.",
+      "files": [],
+      "expectations": [
+        "A Brief is written for each of #296, #297 and #298",
+        "Exactly one worker start runs",
+        "The transcript reads t8 with hc read",
+        "The message tells the dev the Worker shows a login prompt and the other two did not start",
+        "The Brief is not sent again and no key reaches t8",
+        "The turn ends after the message"
       ]
     }
   ]
