@@ -510,8 +510,8 @@ terminal herdr started: `$HC_TERMINAL_ID` is the Lead's address, and without it 
   checkout: Claude Code branches the Worker's worktree from the cached `origin/<default>` and refetches it
   only after a day, so without the fetch a Worker could begin from an older ref. A checkout with no origin
   skips the fetch; a failed or timed-out fetch starts no Worker and exits 2, and its remedy names
-  `git remote set-head origin --auto` for an `origin/HEAD` that names a branch gone from the remote. The Brief travels as an
-  argument of the Worker's command, so herdr keeps no `first_message` for it; the command reads the terminal
+  `git remote set-head origin --auto` for an `origin/HEAD` that names a branch gone from the remote. The
+  Brief travels as an argument of the Worker's command, so herdr keeps no `first_message` for it; the command reads the terminal
   for up to `--wait` seconds (30) until the Worker's status turns `working`, `blocked` or `done`. It exits 1
   when herdr reports the first message unsent, the terminal has ended, the Worker reports an error or it
   shows no work in time. It never sends the Brief again: the Lead reads the terminal first.
