@@ -74,7 +74,10 @@ records directory, `markdown-budget` the docs its glob matches, `file-size-ratch
   the Node package manager from the lockfile, only where the committed file leaves it unset, because
   the local layer outranks it. `commit.convention` is pinned by `--convention` and kept by a run
   without it, so the flag is passed once; a local pin outranks a convention the repository commits
-  later, and a repository that commits its convention needs none. `$schema` is a `file://` URL to
+  later, and a repository that commits its convention needs none. The file is written only when it
+  holds something besides `$schema`: a pin flag, the package manager, `worker.command` or a block
+  it already has. Otherwise the run reports `skipped` and writes nothing, and a file that exists
+  stays as it is. `$schema` is a `file://` URL to
   the schema in the marketplace's clone, since the `$id` sits in a private repository an editor
   cannot fetch. A `guardrails` block the file holds is kept on every run, and `--force-push` and
   `--commit-on-protected` pin those two keys in it. An existing file with other content than
