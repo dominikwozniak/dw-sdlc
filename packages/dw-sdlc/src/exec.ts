@@ -1,6 +1,6 @@
-// Every short-lived child process the package runs: git's prompts off, and in a session of its own, so a
-// time limit stops it with every child it started and a hang cannot hang the command; Ctrl-C stops the
-// package, not the tool. A Step of the Gate runs through `run-command.ts`, as long as it takes.
+// Every short-lived child process the package runs: in a session of its own, so a time limit stops it with
+// every child it started; no terminal, so no prompt, ssh's included; Ctrl-C stops the package, not the
+// tool. A Step of the Gate runs through `run-command.ts`, as long as it takes.
 
 import { spawnSync, type SpawnSyncOptionsWithStringEncoding, type SpawnSyncReturns } from "node:child_process"
 
