@@ -5,7 +5,13 @@
 set -uo pipefail
 source "${BASH_SOURCE[0]%/*}/lib.sh"
 
-guard_read_payload "$@" || exit 0
+guard_read_payload "$@"
+rc=$?
+if [[ $rc -eq $GUARD_UNREADABLE ]]; then
+  echo "bash-guard.sh: refused, the payload cannot be read: it is not JSON, or a field holds U+0001, the byte the reader splits on. No guard could judge this call; send it without the byte." >&2
+  exit 2
+fi
+[[ $rc -eq 0 ]] || exit 0
 [[ -n "$GUARD_COMMAND" ]] || exit 0
 
 SCAN=$(printf '%s\n' "$GUARD_COMMAND" | guard_strip_heredocs | guard_join_continuations)

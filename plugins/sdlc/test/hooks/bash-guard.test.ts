@@ -22,6 +22,8 @@ import {
   type Verdict
 } from "../harness.ts"
 
+const SOH = "\u0001"
+
 function run(command: string, cwd = REPO_ROOT, options: RunOptions = {}): Verdict {
   return runHook("bash-guard", bashPayload(command, cwd), options)
 }
@@ -131,13 +133,45 @@ describe("a long command is judged in seconds", () => {
   })
 })
 
-describe("fails open on garbage", () => {
-  it("empty payload", () => {
-    expectExit(runHook("bash-guard", ""), 0)
+describe("a payload the dispatcher cannot read is refused, naming why", () => {
+  // F34-soh-fails-open (#318): U+0001 closes the reader's fields, and bash ignores it in a comment.
+  const feat = initRepo(join(scratch("dispatch"), "unreadable"), { branch: "feat" })
+  for (const [name, command] of [
+    ["a reset --hard behind the byte", `git reset --hard # ${SOH}`],
+    ["an rm -rf ~ behind the byte", `rm -rf ~ # ${SOH}`],
+    ["an env file read behind the byte", `cat .env.local # ${SOH}`],
+    ["a harmless command with the byte", `git status # ${SOH}`]
+  ] as const) {
+    it(name, () => {
+      const verdict = run(command, feat)
+      expectExit(verdict, 2)
+      assert.match(verdict.stderr, /payload cannot be read.*U\+0001/)
+    })
+  }
+  it("a byte in the cwd", () => {
+    expectExit(run("git status", `${feat}${SOH}`), 2)
   })
   it("malformed payload", () => {
-    expectExit(runHook("bash-guard", "not json"), 0)
+    const verdict = runHook("bash-guard", "not json")
+    expectExit(verdict, 2)
+    assert.match(verdict.stderr, /payload cannot be read/)
   })
+  it("an empty payload carries nothing to judge and passes", () => {
+    expectExit(runHook("bash-guard", ""), 0)
+  })
+})
+
+describe("without jq every call passes", () => {
+  const NOJQ = { env: { PATH: scratch("nojq") } }
+  it("a call a guard would refuse", () => {
+    expectExit(run("git reset --hard", REPO_ROOT, NOJQ), 0)
+  })
+  it("a payload with the byte", () => {
+    expectExit(run(`git reset --hard # ${SOH}`, REPO_ROOT, NOJQ), 0)
+  })
+})
+
+describe("a payload with no command passes", () => {
   it("no command", () => {
     expectExit(runHook("bash-guard", { tool_name: "Bash", tool_input: {} }), 0)
   })
