@@ -2,7 +2,7 @@
 // `--worktree` branches from the cached `origin/<default>` and fetches it only when the clone has gone a
 // day without a fetch, so a Worker could otherwise begin from a ref that is hours or days behind.
 
-import { exec, SLOW_LIMIT_MS } from "../exec.ts"
+import { exec, SLOW_LIMIT_MS, TimedOut } from "../exec.ts"
 import { repositoryFreeEnv } from "../git-env.ts"
 import { asked } from "../working-tree.ts"
 import { Refusal } from "./herdr.ts"
@@ -30,13 +30,20 @@ export function freshenOrigin(root: string, baseBranch: string): void {
   }
   const branch = defaultBranch(root, baseBranch)
   const args = ["-C", root, "fetch", "--quiet", "origin", ...(branch === undefined ? [] : [branch])]
-  const result = exec("git", args, { env: repositoryFreeEnv(), limitMs: SLOW_LIMIT_MS })
-  if (result.status !== 0) {
-    const said = result.stderr.split("\n").find((line) => line.trim() !== "")
-    throw new Refusal(
-      `git fetch origin${branch === undefined ? "" : ` ${branch}`} failed, so the Worker would begin from a stale base: ` +
-        (said?.trim() ?? `exited ${result.status ?? "on a signal"}`),
+  const fetched = `git fetch origin${branch === undefined ? "" : ` ${branch}`}`
+  const stale = (why: string): Refusal =>
+    new Refusal(
+      `${fetched} failed, so the Worker would begin from a stale base: ${why}`,
       "check the network and the access to origin, then start the Worker again"
     )
+  let result: ReturnType<typeof exec>
+  try {
+    result = exec("git", args, { env: repositoryFreeEnv(), limitMs: SLOW_LIMIT_MS })
+  } catch (error) {
+    throw error instanceof TimedOut ? stale(error.message) : error
+  }
+  if (result.status !== 0) {
+    const said = result.stderr.split("\n").find((line) => line.trim() !== "")
+    throw stale(said?.trim() ?? `exited ${result.status ?? "on a signal"}`)
   }
 }
