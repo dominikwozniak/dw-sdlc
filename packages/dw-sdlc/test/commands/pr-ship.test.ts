@@ -915,6 +915,19 @@ describe("dw-sdlc pr ship when it cannot run", () => {
         `${at}.reviewThreads.nodes[0].latest is missing, not an object`
       ],
       [[broken((pr) => (pr.reviewThreads = { nodes: [] }))], `${at}.reviewThreads.pageInfo is missing, not an object`],
+      [
+        [
+          broken(
+            (pr) =>
+              (pr.commits = {
+                nodes: [
+                  { commit: { committedDate: "2026-10-31T11:00:00Z", statusCheckRollup: { contexts: { nodes: [] } } } }
+                ]
+              })
+          )
+        ],
+        `${at}.commits.nodes[0].commit.statusCheckRollup.contexts.pageInfo is missing, not an object`
+      ],
       [[{ stdout: "<html>" }], "the reply is not JSON"]
     ]
     for (const [graphql, problem] of cases) {
