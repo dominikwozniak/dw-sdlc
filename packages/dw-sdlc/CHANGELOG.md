@@ -1,5 +1,14 @@
 # dw-sdlc
 
+## 0.15.2
+
+### Patch Changes
+
+- af184cc: A tool the package stops at its time limit takes every child it started with it: each tool runs in a session of its own, and the limit stops that whole process group. The tool has no controlling terminal, so a prompt on `/dev/tty`, as ssh's for a host key or a passphrase, fails at once. Ctrl-C on the terminal stops the package, not the tool, which runs on to its own end.
+- 68e8ca2: `dw-sdlc pr ship` names `git push origin --delete <branch>` in `done` only while the head branch still stands on the remote; once GitHub has deleted it, `done` carries no command.
+- fc29902: `dw-sdlc setup` writes no local config layer that would hold only `$schema`, and prints `skipped` for it. A pin flag, a package manager the committed config leaves unset and the lockfile names, or `cswap` on PATH still gets the layer written.
+- 358ce87: `dw-sdlc worker start` fetches origin's default branch before it starts the Worker, so the Worker's worktree begins from origin's tip, not from the ref the clone last fetched. A failed fetch starts no Worker and exits 2.
+
 ## 0.15.1
 
 ### Patch Changes
