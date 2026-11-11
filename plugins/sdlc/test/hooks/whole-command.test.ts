@@ -101,6 +101,8 @@ describe("F01: a substitution is one word, and the words after it belong to the 
   refused("block-dangerous-commands", "a backtick before the command", "`true` git reset --hard")
   refused("block-dangerous-commands", "a substitution before the command after a cd", "cd sub; $(true) git clean -fd")
   refused("block-store-writes", "a substitution before asc", "$(echo) asc metadata apply --dir x")
+  refused("block-dangerous-commands", "a substitution glued to the command", "$(echo)git reset --hard")
+  refused("block-dangerous-commands", "a quoted substitution glued to the command", '"$(echo)"git reset --hard')
   // A `case` pattern's `)` ends no substitution.
   refused("block-dangerous-commands", "a case inside a substitution", "echo $(case x in x) git reset --hard;; esac)")
   passed(

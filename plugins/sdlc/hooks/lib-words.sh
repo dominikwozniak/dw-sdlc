@@ -317,11 +317,12 @@ guard_find_exec() {
 guard_unwrap_words() {
   local j c
   while [[ ${#WORDS[@]} -gt 0 ]]; do
+    # `$_` is a lifted substitution, guard_lift_substitutions: read as empty, as bash drops one.
+    while [[ "${WORDS[0]}" == '$_'?* ]]; do WORDS[0]=${WORDS[0]#'$_'}; done
     if [[ "${WORDS[0]}" == */* && "${WORDS[0]}" != *[[:space:]=]* ]]; then
       WORDS[0]=${WORDS[0]##*/}
     fi
     case "${WORDS[0]}" in
-      # `$_` is a lifted substitution, guard_lift_substitutions: empty, it leaves the next word the command.
       then | do | else | elif | if | while | until | '!' | '{' | nohup | '$_') guard_shift_words ;;
       eval)
         guard_shift_words
