@@ -309,6 +309,40 @@ Two costs follow. A quoted path holding a space reads as prose, so `cat "my dir/
 Outside the search tools, a quoted word that is exactly a guarded name reads as that file. An
 unterminated quote hands back the text as typed: the guard fails closed and judges what was typed.
 
+### Known limits
+
+The guards catch the commands an agent writes in ordinary work, not a deliberate evasion
+([ADR 0017](../../docs/adr/0017-guards-catch-ordinary-commands-not-deliberate-evasion.md)). These
+spellings get past a rule; each comes from the adversarial pass of issue #318 and is listed, not caught.
+
+- Expansion the guard does not perform: braces and globs (`cat .env{,.local}`, `cat ~/.ss?/id_rsa`,
+  `rm -rf .g[i]t`, `rm -rf **`, `{git,reset,--hard}`), the tildes `~+` and `~user`, and a name the
+  file system folds, `.ENV.LOCAL` on APFS.
+- A quoted command name or option: `"rm"`, `r''m`, `r\m`, `g""it`, `find . "-delete"`.
+- A shell two levels deep, `sh -c 'sh -c "…"'`, and a quote `rtk` runs through a verb other than
+  `run` or behind a flag: `rtk err`, `rtk proxy`, `rtk -v run`.
+- Launchers the walker does not read: `command --`, `nohup --`, `eval --`, `rtk proxy --`, `env -S`,
+  `env -`, a `function` body, `coproc`, `bash --rcfile`, a second `find -exec`.
+- A redirection before the command or the git verb: `>/dev/null git reset --hard`,
+  `git 2>/dev/null push --force`.
+- git's own option parsing: a unique prefix of a long option (`--har`, `--forc`), the last of
+  `--dry-run` and `--no-dry-run`, `-on` as `-o n`, and the value of `--config-env` or
+  `--attr-source` read as the verb.
+- A heredoc a shell reads another way: `bash /dev/stdin`, `. /dev/stdin`, `{ cat <<EOF … } | bash`,
+  a pipe to a shell on a later line, `eval "$(cat <<EOF …)"`.
+- A `<<` inside `$(( ))` or `(( ))`, which the guard opens as a heredoc, dropping every later line.
+- `yarn` against a separator (`yarn;`, `(yarn)`, `yarn&&`) and `pnpm exec npm`.
+- A push to a protected branch named `@` or `heads/main`, or aimed at another repository by
+  `GIT_DIR=`.
+- A `cd` in the background, in a pipeline or behind a false `||`, read as a move, so an `rm -rf *`
+  after it passes.
+- gh: `-R` before the `pr` verb, a request body sent with `--input`.
+- commit: a message from a here-string, a `$(…)` before `-m`, a trailer key with no colon read as
+  the trailer.
+
+A fix that closes one of these in passing removes its line. One that turns up in ordinary work leaves
+the list for a ticket and a regression test.
+
 ## Commit hook
 
 The guards judge the agent's tool calls, so a commit typed in a terminal never meets them.
