@@ -143,8 +143,7 @@ async function start(cli: Cli): Promise<number> {
     space: spaceOf(leadId),
     cwd: root,
     argv: [...command, "--worktree", cli.name, "--model", model, "--effort", effort, brief],
-    wait: cli.wait,
-    who: "Worker"
+    wait: cli.wait
   })
 
   if (cli.json) {

@@ -81,8 +81,6 @@ export type Launch = {
   argv: string[]
   /** The most seconds the read-back waits. */
   wait: number
-  /** What the session is called in a reason, as `Worker`. */
-  who: string
 }
 
 export type Launched = { address: string; tab: "none" | "renamed" | "kept"; reason: string | undefined }
@@ -91,7 +89,7 @@ export type Launched = { address: string; tab: "none" | "renamed" | "kept"; reas
  * Runs `hc run` once for `launch`, outliving its caller, then names the tab and reads the terminal back side
  * by side. It never sends the first message again; `reason` says why the session did not take it.
  */
-export async function launch(command: string, { name, role, space, cwd, argv, wait, who }: Launch): Promise<Launched> {
+export async function launch(command: string, { name, role, space, cwd, argv, wait }: Launch): Promise<Launched> {
   const { address } = hcObject([
     "run",
     "--bg",
@@ -113,7 +111,7 @@ export async function launch(command: string, { name, role, space, cwd, argv, wa
   // Side by side, so the wait for the tab overlaps the wait for the session to start.
   const naming: Promise<"none" | Named> =
     space === undefined ? Promise.resolve("none") : nameTab(address, name, Math.min(TAB_WAIT, wait))
-  const [named, reason] = await Promise.all([naming, delivery(address, wait, who)])
+  const [named, reason] = await Promise.all([naming, delivery(address, wait, role === "lead" ? "Lead" : "Worker")])
   if (typeof named === "object") {
     process.stderr.write(`dw-sdlc ${command}: warning: ${named.kept}\n`)
   }

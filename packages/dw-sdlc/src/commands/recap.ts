@@ -10,7 +10,7 @@ import { type Answer, decide, declaredPolicy, labelOf, lineOf } from "../pr/deci
 import { CannotRun, defaultBranch, now, readBranch } from "../pr/read.ts"
 import type { PrState } from "../pr/state.ts"
 import { holds, upstreamName } from "../pr/upstream.ts"
-import { type Candidate, nextCandidates, READY_LABEL } from "../recap-next.ts"
+import { type Candidate, type Next, READY_LABEL, readNext } from "../recap-next.ts"
 import { isLive, Refusal, type Worker, workersOf, workingFolders } from "../worker/herdr.ts"
 import { asked, git } from "../working-tree.ts"
 
@@ -43,7 +43,8 @@ directory it runs in.
 Beside the verdict it lists the candidates for the next session: the open issues labelled
 ${READY_LABEL} with no assignee and no open blocker, of the 100 opened first. The open sub-issues of an
 issue the branch's pull request closes come first, then the rest, each in issue order; an issue it closes
-is no candidate. Choosing one is the Recap's, never the command's.
+is no candidate. Choosing one is the Recap's, never the command's. A backlog it cannot read lists none,
+with a warning, and leaves the verdict as it is.
 
 One line a fact, or one document with --json. Needs an authenticated gh and a remote it can read, and in
 herdr hc on PATH. A detached HEAD or a repository with no remote asks gh nothing, and the pull request
@@ -298,8 +299,8 @@ type Facts = {
   orphaned: number
   askedGh: boolean
   workers: Worker[] | null
-  /** The candidates for the next session; null where gh was not asked. */
-  next: Candidate[] | null
+  /** The candidates for the next session, or why they are unread; null where gh was not asked. */
+  next: Next | null
 }
 
 function reasonsOf(local: Local, { shipped, ahead, orphaned, askedGh, workers }: Facts): Reason[] {
@@ -353,11 +354,16 @@ function workersLine(workers: Worker[] | null): string {
   return workers.length === 0 ? "none live" : `${workers.length} live: ${workersText(workers)}`
 }
 
-function nextLine(next: Candidate[] | null): string {
+function nextLine(next: Next | null): string {
   if (next === null) {
     return "gh not asked"
   }
-  const named = next.map(({ number, parent }) => `#${number}${parent === null ? "" : ` (sub-issue of #${parent})`}`)
+  if ("unread" in next) {
+    return `not read, ${next.unread}`
+  }
+  const named = next.candidates.map(
+    ({ number, parent }) => `#${number}${parent === null ? "" : ` (sub-issue of #${parent})`}`
+  )
   return named.length === 0 ? "none" : named.join(", ")
 }
 
@@ -412,19 +418,19 @@ function report(json: boolean): number {
     orphaned: orphanedOf(root, read, shipped, held),
     askedGh: asksGh,
     workers: liveWorkers(),
-    next: asksGh ? nextCandidates(shipped === null ? null : shipped.pr) : null
+    next: asksGh ? readNext(shipped === null ? null : shipped.pr) : null
   }
+  if (facts.next !== null && "unread" in facts.next) {
+    process.stderr.write(`dw-sdlc recap: warning: the backlog was not read: ${facts.next.unread}\n`)
+  }
+  const next: Candidate[] | null = facts.next !== null && "candidates" in facts.next ? facts.next.candidates : null
   const close = closeOf(reasonsOf(local, facts))
   const pullRequest =
     shipped === null
       ? null
       : { url: shipped.pr.url, number: shipped.pr.number, state: shipped.pr.state, ...shipped.answer }
   const output = json
-    ? JSON.stringify(
-        { ...local, askedGh: asksGh, pullRequest, workers: facts.workers, close, next: facts.next },
-        null,
-        2
-      )
+    ? JSON.stringify({ ...local, askedGh: asksGh, pullRequest, workers: facts.workers, close, next }, null, 2)
     : linesOf(local, facts, close.line)
   process.stdout.write(`${output}\n`)
   return close.verdict === "yes" ? 0 : 1

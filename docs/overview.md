@@ -523,8 +523,8 @@ terminal herdr started: `$HC_TERMINAL_ID` is the Lead's address, and without it 
   still blocked. It never passes `--force`, since typing into a blocked terminal may answer its dialog.
 
 A Lead can start from a Recap too. `dw-sdlc recap --json` lists under `next` the open issues labelled
-`ready-for-agent` with no assignee and no open blocker, the sub-issues of the issue the session's pull
-request closes first. The Recap of a session that can close picks one and names `/sdlc-delegate #<n>`.
+`ready-for-agent` with no assignee and no open blocker. Those under an issue the session's pull request
+closes come first. The Recap of a session that can close picks one and names `/sdlc-delegate #<n>`.
 On the dev's "go", `dw-sdlc lead start --name lead-<n>-<slug> --prompt "/sdlc-delegate #<n>"` runs
 `hc run` as `worker start` does, with the label `role=lead`, in the caller's space and the main checkout.
 Its command is `worker.command` without `--dangerously-skip-permissions` and without `--worktree`, its tab

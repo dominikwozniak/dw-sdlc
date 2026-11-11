@@ -113,7 +113,7 @@ they named; a question they did not answer stays open. A command the document na
 branch, stays theirs to run. The Sweep follow-up is the exception: "go" on it runs `/sdlc-sweep`, which
 runs the Sweep and reports it.
 
-The Next session is the other: "go" starts it last, after every follow-up, as a Lead. Never start it
+The next session is the other: "go" starts it last, after every follow-up, as a Lead. Never start it
 without the dev's go, and "go, but #<m>" starts #<m> in its place, named the same way. Run, from the
 repository:
 
@@ -132,7 +132,7 @@ The command takes `worker.command` of the config without `--dangerously-skip-per
 An `issue` or a `worker` follow-up goes out as a Brief, written by the rules of
 `${CLAUDE_PLUGIN_ROOT}/templates/brief.md`, so that a session started from either has one shape. An `issue`
 is filed with the Brief as its body, the way the template says for an issue. This skill starts no session
-but the Next session's Lead, so a `worker` goes back to the dev as the template's start line, for them to
+but the next session's Lead, so a `worker` goes back to the dev as the template's start line, for them to
 start. The config the template
 asks for comes from `node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" config`.
 

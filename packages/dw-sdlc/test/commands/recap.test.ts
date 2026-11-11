@@ -1085,8 +1085,23 @@ describe("dw-sdlc recap, the next session", () => {
     assert.deepEqual(calls, [])
   })
 
-  it("cannot run when the backlog cannot be read", () => {
-    const { root, scenario } = mergedOn({ exit: 1, stderr: "gh: Could not resolve to a Repository\n" })
-    refuses(root, scenario, [], /the backlog: Could not resolve to a Repository/)
+  it("keeps the close verdict when the backlog cannot be read, and says why it lists nothing", () => {
+    const failures: Response[] = [
+      { exit: 1, stderr: "gh: Field 'issueDependenciesSummary' doesn't exist on type 'Issue'\n" },
+      { stdout: '{"data":{"repository":null}}' }
+    ]
+    for (const failure of failures) {
+      const { root, scenario } = mergedOn(failure)
+      const json = document(root, scenario)
+      assert.equal(json.status, 0, json.stderr)
+      assert.equal(json.doc.next, null)
+      assert.equal(json.doc.close.verdict, "yes")
+      assert.match(json.stderr, /dw-sdlc recap: warning: the backlog was not read: /)
+      const { stdout } = recap(root, scenario)
+      assert.ok(
+        stdout.split("\n").some((row) => row.startsWith("next: not read, ")),
+        stdout
+      )
+    }
   })
 })

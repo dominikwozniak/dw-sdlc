@@ -6,12 +6,13 @@ import { CannotRun, gh, said } from "./pr/read.ts"
 
 /** The label that marks an issue as ready for an agent to start. */
 export const READY_LABEL = "ready-for-agent"
-/** How many open issues the one read holds, oldest first. */
+/** How many open issues the one read holds, oldest first, and how many issues the pull request closes. */
 const ISSUES_READ = 100
+const CLOSING_READ = 25
 
 const QUERY = `query Backlog($owner: String!, $name: String!, $number: Int!, $closing: Boolean!) {
   repository(owner: $owner, name: $name) {
-    pullRequest(number: $number) @include(if: $closing) { closingIssuesReferences(first: 25) { nodes { number } } }
+    pullRequest(number: $number) @include(if: $closing) { closingIssuesReferences(first: ${CLOSING_READ}) { nodes { number } } }
     issues(first: ${ISSUES_READ}, states: OPEN, labels: ["${READY_LABEL}"], orderBy: { field: CREATED_AT, direction: ASC }) {
       nodes { number title url assignees { totalCount } issueDependenciesSummary { blockedBy } parent { number } }
     }
@@ -77,7 +78,7 @@ function repositoryOf(stdout: string): JsonObject {
  * repository gh resolves when it is null. The open sub-issues of an issue pull request `pr` closes come
  * first, then the rest, each part in issue order; the issues it closes are never candidates.
  */
-export function nextCandidates(pr: { repo: string; number: number } | null): Candidate[] {
+function nextCandidates(pr: { repo: string; number: number } | null): Candidate[] {
   const [owner, name] = pr === null ? ["{owner}", "{repo}"] : pr.repo.split("/")
   const reply = gh([
     "api",
@@ -109,6 +110,20 @@ export function nextCandidates(pr: { repo: string; number: number } | null): Can
     .map(candidateOf)
     .filter((candidate): candidate is Candidate => candidate !== null && !closes.has(candidate.number))
     .toSorted((one, other) => one.number - other.number)
-  const topic = (candidate: Candidate): boolean => candidate.parent !== null && closes.has(candidate.parent)
-  return [...candidates.filter(topic), ...candidates.filter((candidate) => !topic(candidate))]
+  const underClosed = (candidate: Candidate): boolean => candidate.parent !== null && closes.has(candidate.parent)
+  return [...candidates.filter(underClosed), ...candidates.filter((candidate) => !underClosed(candidate))]
+}
+
+/** The candidates, or why the backlog could not be read: a Recap closes without them, so no failure stops it. */
+export type Next = { candidates: Candidate[] } | { unread: string }
+
+export function readNext(pr: { repo: string; number: number } | null): Next {
+  try {
+    return { candidates: nextCandidates(pr) }
+  } catch (error) {
+    if (error instanceof CannotRun) {
+      return { unread: error.message }
+    }
+    throw error
+  }
 }

@@ -67,9 +67,9 @@ The facts a Recap rests on, tested like the Ship script. Read-only: `dw-sdlc rec
 - in herdr, the live Workers the session started as a Lead, each with its status and the folder it works in;
 - under `next`, the candidates for the next session: the open issues labelled `ready-for-agent` with no
   assignee and no open blocker, of the 100 opened first. The open sub-issues of an issue the branch's pull
-  request closes come first, then the rest, each in issue order, and an issue it closes is none. One GraphQL
-  request reads them and what the pull request closes. `next` is null where `gh` is not asked, and a read
-  that fails exits 2, as every other `gh` read does.
+  request closes come first, then the rest, each in issue order, and no issue it closes is a candidate. One GraphQL
+  request reads them and what the pull request closes. `next` is null where `gh` is not asked, and when
+  the read fails: a warning names why, and the close verdict stands, since no candidate keeps a session open.
 
 Exit 0 means the session can be closed, 1 that it cannot, and 2 that the command cannot run. Under
 `close`, the document gives the `verdict`, the `line` a Recap quotes and every reason, each with

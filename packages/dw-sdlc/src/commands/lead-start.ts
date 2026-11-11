@@ -113,8 +113,7 @@ async function start(cli: Cli): Promise<number> {
     space: spaceOf(caller),
     cwd: checkout,
     argv: [...command, cli.prompt],
-    wait: cli.wait,
-    who: "Lead"
+    wait: cli.wait
   })
 
   if (cli.json) {
