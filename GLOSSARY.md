@@ -17,6 +17,9 @@ The guard that reads a shell command once and runs the others in order; the firs
 A guard's answer to a tool call: deny, ask or pass.
 _Avoid_: result, decision
 
+**Known limit**:
+A way past a guard only a deliberate evasion writes: listed, not caught.
+
 **Scan**:
 The command text the guards judge: heredoc bodies dropped but for the substitutions an unquoted one
 runs and the body a shell reads as its script, continuation lines joined.
