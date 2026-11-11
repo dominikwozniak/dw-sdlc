@@ -14,6 +14,7 @@ GUARD_SCHEMA="$GUARD_PLUGIN_ROOT/dw-sdlc/config/agentic.config.schema.json"
 GUARD_COMMITTED_FILE=".ai/agentic.config.json"
 GUARD_LOCAL_FILE=".ai/agentic.config.local.json"
 
+GUARD_UNREADABLE=3
 GUARD_PAYLOAD=""
 GUARD_EVENT=""
 GUARD_TOOL=""
@@ -30,8 +31,8 @@ GUARD_LAYER_JSON="null"
 # --- the payload --------------------------------------------------------------------------------
 
 # guard_read_payload [--bash-command <cwd>] — the GUARD_* fields, GUARD_GLOB a Grep's file filter,
-# from the payload on stdin; with the flag, the dispatcher's fast path, stdin is the bare command. The
-# flag is argv so a stray variable cannot skip a check. Returns 1 on no jq, empty or malformed stdin.
+# from the payload on stdin; with the flag, stdin is the bare command, the dispatcher's fast path.
+# Returns 1 on no jq or empty stdin, GUARD_UNREADABLE on a payload jq cannot read, \001 included.
 guard_read_payload() {
   GUARD_FILE_PATH=""
   GUARD_GLOB=""
@@ -52,7 +53,7 @@ guard_read_payload() {
   fields=$(jq -j '[.hook_event_name // "", .tool_name // "", .cwd // "",
     (.tool_input.file_path // .tool_input.notebook_path // .tool_input.path // ""),
     (.tool_input.glob // ""),
-    (.tool_input.command // "")] | map(tostring + "\u0001") | add' <<<"$GUARD_PAYLOAD" 2>/dev/null) || return 1
+    (.tool_input.command // "")] | map(tostring + "\u0001") | add' <<<"$GUARD_PAYLOAD" 2>/dev/null) || return $GUARD_UNREADABLE
   while IFS= read -r -d $'\001' field; do
     case $count in
       0) GUARD_EVENT="$field" ;;
@@ -64,7 +65,7 @@ guard_read_payload() {
     esac
     count=$((count + 1))
   done <<<"$fields"
-  [[ $count -eq 6 ]] || return 1
+  [[ $count -eq 6 ]] || return $GUARD_UNREADABLE
   [[ -n "$GUARD_CWD" ]] || GUARD_CWD="$PWD"
   GUARD_SHELL_DIR="$GUARD_CWD"
   return 0

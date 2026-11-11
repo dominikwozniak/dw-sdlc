@@ -44,7 +44,10 @@ disk is in the next session, a broken edit included.
 - `hooks/schema.jq`, `hooks/config.jq` — the config contract in jq: schema validation and the
   local-over-committed-over-inferred merge, the same behaviour as `dw-sdlc/src/agentic-config.ts`.
 - `hooks/bash-guard.sh` — the dispatcher: one stdin read, heredoc bodies dropped once but for the
-  substitutions an unquoted one runs, each guard spawned only when the command could trip it.
+  substitutions an unquoted one runs, each guard spawned only when the command could trip it. A
+  payload it cannot read, not JSON or holding U+0001 (the byte its reader splits fields on), is
+  refused with exit 2 and a message saying why, since no guard could judge it; without `jq` it passes
+  every call.
 - `hooks/session-start.sh` and `hooks/references-sync.sh` — the two session hooks:
   [Session start](#session-start) and [the Sync at session start](#the-sync-at-session-start).
 - `hooks/commit-msg.sh` — a git hook, not a Claude Code one: the Commit hook below.
