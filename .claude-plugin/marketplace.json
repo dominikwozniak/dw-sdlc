@@ -10,7 +10,7 @@
   "plugins": [
     {
       "name": "sdlc",
-      "version": "0.23.0",
+      "version": "0.23.1",
       "source": "./plugins/sdlc",
       "description": "Dominik Woźniak's software delivery process in one plugin: deterministic guards that refuse destructive git, the env files the repository does not vouch for, the wrong package manager, sloppy commits and writes to App Store Connect; the Sync that brings a repository's References to their ref as a session starts; and the skills /sdlc-setup, /sdlc-doctor, /sdlc-references-add, /sdlc-pr-open, which opens a pull request and writes its body, /sdlc-pr-ship, which drives a pull request to merged, and /sdlc-sweep, which removes what has landed. A repository's own rules come from its .ai/agentic.config.json.",
       "keywords": ["guardrails", "hooks", "skills", "git", "env", "pnpm", "worktree", "references"],
@@ -19,7 +19,7 @@
     },
     {
       "name": "sdlc-sessions",
-      "version": "0.4.2",
+      "version": "0.4.3",
       "source": "./plugins/sdlc-sessions",
       "description": "The skills that run a Claude Code session: /sdlc-recap answers where a session stands, in one fixed shape, with whether it can be closed; /sdlc-brief turns an issue, a spec or an idea into a Brief, the start of a Worker session; /sdlc-delegate makes the session a Lead that hands Briefs to Workers in herdr and relays their Recaps. It depends on sdlc, so a session keeps its guards.",
       "keywords": ["sessions", "recap", "skills"],
