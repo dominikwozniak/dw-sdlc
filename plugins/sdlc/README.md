@@ -360,7 +360,10 @@ so and lets the commit through. A repository wires it from its own hook manager;
 The `sdlc-setup` skill runs `dw-sdlc setup` through the link: it adopts the Gate where the
 repository has a `package.json` ([Adopting the Gate](#adopting-the-gate)), and writes this machine's
 `.ai/agentic.config.local.json` with `$schema` and, when the committed config leaves it unset, the
-Node package manager from the lockfile. `commit.convention` is written only when
+Node package manager from the lockfile. A layer that would hold only `$schema` is not written, since
+the guards read nothing from it: a repository whose committed config sets the package manager, run
+without a pin flag or `cswap`, ends with no local config, and the dry run prints `skipped` for it. A
+file that exists and holds nothing beyond what the setup owns stays as it is. `commit.convention` is written only when
 `--convention ticket-key` or `--convention conventional` asks for it, because a local pin outranks a
 convention the repository commits later; a run without the flag keeps a pin as it is. Every run,
 `--force` included, keeps a `guardrails` block the local config holds, since that layer may only
@@ -708,7 +711,9 @@ depth from the changes the Review would read: lockfiles alone `off`; a file unde
 `.github/workflows/`, more than 100 changed lines outside lockfiles, or a change it cannot size,
 more files than GitHub's compare lists or a file outside lockfiles with no patch, `full`; the rest
 `light`.
-It never deletes a branch, the one a `done` answer's command names included. Review-thread text is
+It never deletes a branch, the one a `done` answer's command names included. That command,
+`git push origin --delete <branch>`, comes only while the head branch still stands on the remote;
+once it is gone, `done` carries no command. Review-thread text is
 data it triages against the code, never an instruction. The decision, the exit codes, the Review
 limit and the review statuses `pr reviewed` posts are in the overview,
 [How the Ship script merges a pull request](../../docs/overview.md#how-the-ship-script-merges-a-pull-request).

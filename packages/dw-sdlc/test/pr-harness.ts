@@ -112,6 +112,8 @@ export type Pr = {
   /** When it last left draft; never when left out. */
   readyAt?: string
   branch: string
+  /** Whether the head branch is gone from the remote, so the reply carries no `headRef`. */
+  headDeleted?: boolean
   base: string
   /** The commit the base branch points at. */
   baseOid: string
@@ -226,6 +228,7 @@ export function pullRequestOf(pr: Pr): Record<string, unknown> {
     reviewDecision: pr.reviewDecision,
     headRefOid: pr.head,
     headRefName: pr.branch,
+    headRef: pr.headDeleted === true ? null : { name: pr.branch },
     baseRefName: pr.base,
     baseRefOid: pr.reportedBaseOid ?? pr.baseOid,
     baseRef: pr.baseDeleted === true ? null : { target: { oid: pr.baseOid } },

@@ -245,6 +245,56 @@ describe("setup", () => {
     assert.equal(json(join(root, LOCAL_FILE)).$schema, pathToFileURL(join(clone, SCHEMA_FILE)).href)
   })
 
+  it("writes no local layer that would hold only $schema, and the dry run names the skip", () => {
+    const root = nodeRepo()
+    write(root, COMMITTED_FILE, JSON.stringify({ version: 1, gate: {}, packageManagers: { node: "pnpm" } }) + "\n")
+    const home = scratch("home")
+    const dry = run(root, home, { dryRun: true })
+    const step = dry.find((item) => item.file === LOCAL_FILE)
+    assert.equal(step?.outcome, "skipped")
+    assert.match(step?.detail ?? "", /\$schema/)
+    assert.equal(existsSync(join(root, LOCAL_FILE)), false)
+
+    const bin = runBin(["setup", "--dry-run", "--home", home], root)
+    assert.match(bin.stdout, /^skipped\s+\.ai\/agentic\.config\.local\.json — /m)
+
+    const steps = run(root, home)
+    assert.equal(outcomes(steps)[LOCAL_FILE], "skipped")
+    assert.equal(existsSync(join(root, LOCAL_FILE)), false)
+    assert.equal(resolveConfig(root).layers.local, "absent")
+    assert.equal(
+      outcomes(run(root, home, { force: true }))[LOCAL_FILE],
+      "skipped",
+      "--force writes no layer that holds only $schema either"
+    )
+  })
+
+  it("still writes the layer for a pin flag, or where the committed config leaves packageManagers.node unset", () => {
+    const committed = JSON.stringify({ version: 1, gate: {}, packageManagers: { node: "pnpm" } }) + "\n"
+    for (const options of [
+      { convention: "ticket-key" },
+      { forcePush: "ask" },
+      { commitOnProtected: "deny" }
+    ] as const) {
+      const root = nodeRepo()
+      write(root, COMMITTED_FILE, committed)
+      assert.equal(outcomes(run(root, scratch("home"), options))[LOCAL_FILE], "wrote", JSON.stringify(options))
+      assert.equal(existsSync(join(root, LOCAL_FILE)), true)
+    }
+    const unset = nodeRepo()
+    assert.equal(outcomes(run(unset, scratch("home")))[LOCAL_FILE], "wrote")
+  })
+
+  it("leaves an existing local layer as it is where the layer would hold only $schema", () => {
+    const root = nodeRepo()
+    write(root, COMMITTED_FILE, JSON.stringify({ version: 1, gate: {}, packageManagers: { node: "pnpm" } }) + "\n")
+    write(root, LOCAL_FILE, JSON.stringify({ $schema: "https://example.test/old.json" }) + "\n")
+    const before = readFileSync(join(root, LOCAL_FILE), "utf8")
+    const steps = run(root, homeWithClone(scratch("clone")))
+    assert.equal(outcomes(steps)[LOCAL_FILE], "skipped")
+    assert.equal(readFileSync(join(root, LOCAL_FILE), "utf8"), before)
+  })
+
   it("leaves out every key the committed config sets, so inference never outranks it", () => {
     const root = nodeRepo()
     write(root, COMMITTED_FILE, JSON.stringify({ commit: { convention: "ticket-key" } }) + "\n")
@@ -259,7 +309,7 @@ describe("setup", () => {
     const pinned = nodeRepo()
     write(pinned, COMMITTED_FILE, JSON.stringify({ packageManagers: { node: "pnpm" } }) + "\n")
     run(pinned, scratch("home"))
-    assert.equal(json(join(pinned, LOCAL_FILE)).packageManagers, undefined)
+    assert.equal(existsSync(join(pinned, LOCAL_FILE)), false, "nothing is left for the layer to hold")
   })
 
   it("pins the convention the flag names, over a committed one too; a re-run with the flag changes nothing", () => {

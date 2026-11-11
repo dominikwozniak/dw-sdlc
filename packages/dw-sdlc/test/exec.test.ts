@@ -2,7 +2,7 @@
 // answer, and a tool's own exit left to its caller.
 
 import assert from "node:assert/strict"
-import { chmodSync } from "node:fs"
+import { chmodSync, readFileSync } from "node:fs"
 import { delimiter, join } from "node:path"
 import { describe, it } from "node:test"
 
@@ -12,6 +12,22 @@ import { lines, repo, runBin, scratch, write } from "./harness.ts"
 
 /** Long enough for the git calls ahead of the tool on a busy runner, short enough to wait out. */
 const LIMIT = "2000"
+
+/** Whether process `pid` is gone within `withinMs`: a killed child stays a zombie until it is reaped. */
+function gone(pid: number, withinMs = 2000): boolean {
+  const deadline = performance.now() + withinMs
+  for (;;) {
+    try {
+      process.kill(pid, 0)
+    } catch {
+      return true
+    }
+    if (performance.now() >= deadline) {
+      return false
+    }
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50)
+  }
+}
 
 /** An environment with `tool` first on PATH, one that never answers, and a limit reached quickly. */
 function hanging(tool: string, over: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
@@ -44,6 +60,31 @@ describe("exec", () => {
     )
     assert.ok(performance.now() - started < 3000, "the tool was killed at its limit, not when it chose to exit")
   })
+
+  for (const [shape, around] of [
+    ["in the foreground", (child: string) => `${child}; true`],
+    ["in the background", (child: string) => `${child} & wait`],
+    ["left behind by a shell that exits", (child: string) => `${child} &`]
+  ] as const) {
+    it(`stops a child of the tool ${shape} with it`, () => {
+      const pidFile = join(scratch("child"), "pid")
+      const child = `sh -c 'echo $$ > "$0"; exec sleep 7' "${pidFile}"`
+      let pid: number | undefined
+      try {
+        assert.throws(
+          () => exec("sh", ["-c", around(child)], { limitMs: 500 }),
+          (error: unknown) => error instanceof TimedOut
+        )
+        pid = Number(readFileSync(pidFile, "utf8"))
+        assert.ok(Number.isInteger(pid) && pid > 0, "the child wrote its pid")
+        assert.ok(gone(pid), `the child ${pid} is still running`)
+      } finally {
+        if (pid !== undefined && !gone(pid, 0)) {
+          process.kill(pid, "SIGKILL")
+        }
+      }
+    })
+  }
 
   it("names a long command by its start, on one line", () => {
     assert.throws(

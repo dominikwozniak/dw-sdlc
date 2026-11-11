@@ -250,7 +250,7 @@ const ROWS: Row[] = [
       action: "done",
       actor: "dev",
       reason: pr.mergeCommit === null ? "merged" : `merged as ${pr.mergeCommit.slice(0, 7)}`,
-      command: shellLine(["git", "push", "origin", "--delete", pr.branch]),
+      ...(pr.branchStands ? { command: shellLine(["git", "push", "origin", "--delete", pr.branch]) } : {}),
       ...(pr.mergeCommit === null ? {} : { details: { mergeCommit: pr.mergeCommit } })
     }),
     alone: true
