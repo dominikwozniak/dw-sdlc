@@ -403,7 +403,7 @@ described `read, findings open`, the read mark. The mark sits on a head the fix 
 so the head of the pull request never shows it from an earlier round. Three Reviews with no
 success between them park the pull request, as the next paragraph says. Contexts under
 `dw-sdlc/` never count as CI. The script never deletes a branch: a merged pull request answers
-`done` with the deletion command for the dev while its head branch still stands on the remote. The
+`done` with the deletion command for the dev while its head branch still stands on `origin`. The
 same GraphQL query reads `headRef`, which GitHub leaves null once the branch is gone, as
 `delete_branch_on_merge` leaves it at the merge, and `isCrossRepository`. A merged pull request with no
 `headRef`, or one from a fork, whose branch lives on the fork and not on `origin`, answers `done` with
