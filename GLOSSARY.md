@@ -137,11 +137,6 @@ _Avoid_: Check (which judges the tree and runs on after another fails), stage, j
 The Steps and then the Checks a change must pass, run by one command, locally and in CI.
 _Avoid_: quality gate, CI (which runs it), lint (one part of a Step)
 
-**Stop Gate**:
-The lighter Steps a repository names for it, then the Checks the package ships, run when an agent's
-turn that changed the tree ends; the full Gate stays with the pull request and CI.
-_Avoid_: light check, pre-stop hook
-
 **Hint**:
 One line a Step carries that names what to try when it fails.
 _Avoid_: remedy (the line a Check prints)
