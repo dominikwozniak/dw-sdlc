@@ -3,17 +3,57 @@
 # newline. Not a hook: lib.sh sources every lib-*.sh, the quote walker's too, before a scanner runs.
 # --- the lines ----------------------------------------------------------------------------------
 
-# An opener is a `<<` the shell reads as one, outside quotes and before a comment, so `echo "a << EOF"`
-# hides no command after it. What follows the `<<`: 1 the `-` that strips a body's leading tabs, 2 the
-# quote that keeps it literal, 3 the delimiter.
-GUARD_HEREDOC_DELIM='^(-?)[[:space:]]*(["'"'"'\]?)([A-Za-z_][A-Za-z0-9_]*)'
+# An opener is a `<<` the shell reads as one, outside quotes and before a comment. What follows it: 1
+# the `-` that strips a body's leading tabs, 2 the blanks, 3 the delimiter as typed, one shell word as
+# README.md#the-quote-walker reads it, `E"O"F` and `'END-OF-TEXT'` whole.
+GUARD_HD_QUOTED="'[^'"$'\n'"]*'|\"[^\""$'\n'"]*\"|\\\\."
+GUARD_HEREDOC_DELIM="^(-?)([[:space:]]*)(([A-Za-z_]|$GUARD_HD_QUOTED)([^[:space:];&|()<>\`'\"\\\\]|$GUARD_HD_QUOTED)*)"
 
-# guard_heredoc_opener <line> [<state>] — the line's first opener, or 1: GUARD_HD_HEAD before `<<`,
-# GUARD_HD_DASH, GUARD_HD_QUOTE, GUARD_HD_DELIM, and GUARD_HD_TAIL after the delimiter. GUARD_HD_STATE,
-# the walk's stack at the line's end, is the next line's <state>, so `-m "$(cat <<'EOF'` opens one.
+# guard_heredoc_unquote <word> — GUARD_HD_UNQUOTED, the word with its quotes and backslashes removed,
+# as the shell reads a delimiter: `E"O"F` is `EOF`.
+GUARD_HD_UNQUOTED=""
+guard_heredoc_unquote() {
+  local rest="$1" run
+  GUARD_HD_UNQUOTED=""
+  while [[ -n "$rest" ]]; do
+    case "$rest" in
+      "'"*)
+        rest=${rest:1}
+        GUARD_HD_UNQUOTED+=${rest%%\'*}
+        [[ "$rest" == *\'* ]] && rest=${rest#*\'} || rest=""
+        ;;
+      '"'*)
+        rest=${rest:1}
+        GUARD_HD_UNQUOTED+=${rest%%\"*}
+        [[ "$rest" == *\"* ]] && rest=${rest#*\"} || rest=""
+        ;;
+      '\'*)
+        GUARD_HD_UNQUOTED+=${rest:1:1}
+        rest=${rest:2}
+        ;;
+      *)
+        run=${rest%%[\'\"\\]*}
+        GUARD_HD_UNQUOTED+=$run
+        rest=${rest:${#run}}
+        ;;
+    esac
+  done
+}
+
+# guard_heredoc_closes <line> <delimiter> — 0 when the line ends the body: the delimiter alone on it,
+# compared as text, blanks around it allowed.
+guard_heredoc_closes() {
+  local line="${1#"${1%%[![:space:]]*}"}"
+  line="${line%"${line##*[![:space:]]}"}"
+  [[ "$line" == "$2" ]]
+}
+
+# guard_heredoc_opener <line> [<state>] — the line's first opener, or 1: GUARD_HD_HEAD, GUARD_HD_DASH,
+# GUARD_HD_WORD as typed, GUARD_HD_DELIM its text, GUARD_HD_QUOTE `'` for a literal body, GUARD_HD_TAIL;
+# GUARD_HD_STATE, the walk's stack at the line's end, is the next line's <state>.
 guard_heredoc_opener() {
   local i n found=0
-  GUARD_HD_HEAD="" GUARD_HD_DASH="" GUARD_HD_QUOTE="" GUARD_HD_DELIM="" GUARD_HD_TAIL=""
+  GUARD_HD_HEAD="" GUARD_HD_DASH="" GUARD_HD_QUOTE="" GUARD_HD_WORD="" GUARD_HD_DELIM="" GUARD_HD_TAIL=""
   guard_quote_walk "$1" 0 "${2:-P}"
   GUARD_HD_STATE="$GUARD_QW_STATE"
   n=${#GUARD_QW_KIND[@]}
@@ -24,8 +64,10 @@ guard_heredoc_opener() {
       found=1
       [[ "${GUARD_QW_TEXT[i]:2}" =~ $GUARD_HEREDOC_DELIM ]]
       GUARD_HD_DASH=${BASH_REMATCH[1]}
-      GUARD_HD_QUOTE=${BASH_REMATCH[2]}
-      GUARD_HD_DELIM=${BASH_REMATCH[3]}
+      GUARD_HD_WORD=${BASH_REMATCH[3]}
+      guard_heredoc_unquote "$GUARD_HD_WORD"
+      GUARD_HD_DELIM=$GUARD_HD_UNQUOTED
+      [[ "$GUARD_HD_WORD" == *[\'\"\\]* ]] && GUARD_HD_QUOTE="'"
     else
       GUARD_HD_HEAD+=${GUARD_QW_TEXT[i]}
     fi
@@ -65,7 +107,6 @@ guard_heredoc_feeds_shell() {
   local head tail piece consumer=1
   [[ "$GUARD_HD_HEAD$GUARD_HD_TAIL" == *sh* ]] || return 1
   tail=$GUARD_HD_TAIL
-  [[ "$GUARD_HD_QUOTE" == [\'\"] ]] && tail=${tail#?}
   head=$(guard_pipelines "$(guard_mask_quoted_separators "$GUARD_HD_HEAD")" | tail -n 1)
   tail=$(guard_pipelines "$(guard_mask_quoted_separators "$tail")" | head -n 1)
   head=${head##*|}
@@ -115,7 +156,7 @@ guard_strip_heredocs() {
   local line delim="" body=0 state="" expanded=0 inner="" script=0
   while IFS= read -r line; do
     if [[ $body -eq 1 ]]; then
-      if [[ "$line" =~ ^[[:space:]]*$delim[[:space:]]*$ ]]; then
+      if guard_heredoc_closes "$line" "$delim"; then
         body=0
         delim=""
       elif ((script)); then
@@ -135,7 +176,7 @@ guard_strip_heredocs() {
       script=0
       guard_heredoc_feeds_shell && script=1
       inner=H
-      line="${GUARD_HD_HEAD}<${GUARD_HD_QUOTE}${GUARD_HD_DELIM}${GUARD_HD_TAIL}"
+      line="${GUARD_HD_HEAD}<${GUARD_HD_WORD}${GUARD_HD_TAIL}"
     fi
     state="$GUARD_HD_STATE"
     printf '%s\n' "$line"
@@ -177,7 +218,7 @@ guard_mask_heredoc_bodies() {
   local line delim="" body=0 state="" mode="" inner=""
   while IFS= read -r line; do
     if [[ $body -eq 1 ]]; then
-      if [[ "$line" =~ ^[[:space:]]*$delim[[:space:]]*$ ]]; then
+      if guard_heredoc_closes "$line" "$delim"; then
         body=0
         delim=""
       else

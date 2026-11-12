@@ -13,7 +13,7 @@ guard_tokens() {
 # Runs in the caller's shell, so a segment costs no fork, and overwrites the walk's pieces.
 GUARD_WORDS=()
 guard_split_words() {
-  local i n kind piece word="" have=0 depth=0 cut=0 quote="" status=0 noglob=0 run k
+  local i n kind piece word="" have=0 depth=0 cut=0 delim="" status=0 noglob=0 run k
   local -a parts
   GUARD_WORDS=()
   guard_quote_walk "$1" || status=1
@@ -25,19 +25,17 @@ guard_split_words() {
   for ((i = 0; i < n; i++)); do
     kind=${GUARD_QW_KIND[i]}
     piece=${GUARD_QW_TEXT[i]}
-    if [[ -n "$quote" ]]; then
-      [[ "${piece:0:1}" == "$quote" ]] && piece=${piece:1}
-      quote=""
-    fi
+    delim=""
     case "$kind" in
       tP | tC | h)
-        # The quote that closes a heredoc's quoted delimiter is the first character of the next piece.
-        if [[ "$kind" == h ]]; then
-          quote=${piece//[!\'\"]/}
-          piece=${piece//[\'\"\\]/}
+        # A heredoc's delimiter is one word, unquoted, whatever blanks its quotes hold.
+        if [[ "$kind" == h && "${piece:2}" =~ $GUARD_HEREDOC_DELIM ]]; then
+          guard_heredoc_unquote "${BASH_REMATCH[3]}"
+          delim=$GUARD_HD_UNQUOTED
+          piece=${piece:0:${#piece}-${#BASH_REMATCH[3]}}
         fi
         if ((depth > 0)); then
-          word+=$piece
+          word+=$piece$delim
           continue
         fi
         ;;
@@ -107,7 +105,7 @@ guard_split_words() {
     esac
     [[ -n "$piece" ]] || continue
     if [[ "$piece" != *[[:blank:]]* ]]; then
-      word+=$piece
+      word+=$piece$delim
       have=1
       continue
     fi
@@ -129,6 +127,10 @@ guard_split_words() {
       ((have)) && GUARD_WORDS+=("$word")
       word=""
       have=0
+    fi
+    if [[ -n "$delim" ]]; then
+      word+=$delim
+      have=1
     fi
   done
   ((noglob)) || set +f
@@ -315,11 +317,13 @@ guard_find_exec() {
 guard_unwrap_words() {
   local j c
   while [[ ${#WORDS[@]} -gt 0 ]]; do
+    # `$_` is a lifted substitution, guard_lift_substitutions: read as empty, as bash drops one.
+    while [[ "${WORDS[0]}" == '$_'?* ]]; do WORDS[0]=${WORDS[0]#'$_'}; done
     if [[ "${WORDS[0]}" == */* && "${WORDS[0]}" != *[[:space:]=]* ]]; then
       WORDS[0]=${WORDS[0]##*/}
     fi
     case "${WORDS[0]}" in
-      then | do | else | elif | if | while | until | '!' | '{' | nohup) guard_shift_words ;;
+      then | do | else | elif | if | while | until | '!' | '{' | nohup | '$_') guard_shift_words ;;
       eval)
         guard_shift_words
         guard_split_first_word || true
@@ -455,10 +459,11 @@ GUARD_LAUNCHER+="|${GUARD_SHELL_C}|${GUARD_SHELL_HERE}"
 GUARD_LAUNCHER+="|rtk(${GUARD_OPT_FLAG})*[[:space:]]+([a-z-]+[[:space:]]+)?"
 GUARD_LAUNCHER+="|[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+"
 
-# What precedes a quote that holds a command, not text: a shell's `-c` or `<<<`, `eval` or `rtk run`.
-# Past its first character a match holds only letters, `_`, `+`, `-`, `<` and whitespace, which
-# guard_qw_live's window relies on.
-GUARD_LIVE_PREFIX="(^|[[:space:];&|(\`])(${GUARD_SHELL_C}|${GUARD_SHELL_HERE}|eval[[:space:]]+|rtk[[:space:]]+run[[:space:]]+)"
+# What precedes a quote that holds a command: a shell's `-c` or `<<<`, `/bin/bash -c` and `\bash -c`
+# too, `eval` or `rtk run`. Past its first character a match holds only letters, digits, `_+-./\<` and
+# whitespace, which guard_qw_live's window relies on.
+GUARD_SHELL_PATH='(\\|[A-Za-z0-9_.+-]*/)*'
+GUARD_LIVE_PREFIX="(^|[[:space:];&|(\`])(${GUARD_SHELL_PATH}(${GUARD_SHELL_C}|${GUARD_SHELL_HERE})|eval[[:space:]]+|rtk[[:space:]]+run[[:space:]]+)"
 GUARD_LIVE_QUOTE="${GUARD_LIVE_PREFIX}\$"
 
 # A text that holds such a quote somewhere: the prefix, then `'`, `"`, `$'` or `$"`.

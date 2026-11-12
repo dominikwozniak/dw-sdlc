@@ -24,6 +24,11 @@ function boundaryMatches(command: string): string {
   return lib(`if printf '%s\\n' '${command}' | grep -qE "\${GUARD_BOUNDARY}git push"; then echo yes; else echo no; fi`)
 }
 
+/** guard_scopes' lines of the masked command joined by `,`, a scope line's \001 shown as `^`. */
+function scopes(command: string): string {
+  return lib(`guard_scopes "$(guard_mask_quoted_separators "$2")" | tr '\\001' '^' | paste -sd, -`, [command])
+}
+
 /** guard_split_substitutions' lines joined by `|`. */
 function split(text: string): string {
   return lib(`guard_split_substitutions "$2" | paste -sd'|' -`, [text])
@@ -414,11 +419,18 @@ describe("text helpers", () => {
   it("unwrap drops command, env and env's options", () => {
     assert.equal(unwrap("env -i -u HOME FOO=1 command git push --force"), "git push --force")
   })
-  it("a subshell's parentheses split segments, a quoted one does not", () => {
+  it("a substitution is one word, its body a command before it; a quoted parenthesis splits nothing", () => {
     assert.equal(
       lib(`guard_segments "$(guard_mask_quoted_separators 'echo $(git push -f) "(x)"')" | paste -sd, -`),
-      'echo $,git push -f, "\u0002x\u0002"'
+      'git push -f,echo $_ "\u0002x\u0002"'
     )
+  })
+  it("a substitution's body is a scope of its own, lifted to just before its command", () => {
+    assert.equal(scopes("cd a && git -C `pwd` x --y"), "cd a ,^(,pwd,^), git -C $_ x --y")
+    assert.equal(scopes('a "$(b $(c) d)" e'), '^(,^(,c,^),b $_ d,^),a "$_" e')
+    assert.equal(scopes("(cd a; b) c"), "^(,cd a, b,^), c")
+    // Unbalanced, it is cut at each parenthesis and backtick, as typed.
+    assert.equal(scopes("a $(b c"), "a $,^(,b c")
   })
   it("unwrap keeps git after rtk", () => {
     assert.equal(unwrap("rtk git -C sub push -f"), "git -C sub push -f")

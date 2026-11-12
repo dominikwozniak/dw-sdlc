@@ -122,6 +122,8 @@ disk is in the next session, a broken edit included.
   and `.env.template` names allowed anywhere, nothing denied. A path outside the repository root,
   or outside any repository, is judged by its basename against the `**/` entries alone. A `Grep`
   of a directory is judged by the env files its `glob` reaches.
+  A file-tool payload it cannot read, not JSON or holding U+0001 in a field, is refused with exit 2
+  and a message saying why; without `jq` it passes every call.
 - `credential-leak-guard.sh` (always on) — refuses reading the credential stores that are not dotenv
   (`~/.ssh`, `~/.aws`, `~/.gnupg`, `~/.kube`, `~/.netrc`, `~/.git-credentials`, `~/.pypirc`,
   `~/.pgpass`, the user's `~/.npmrc`), filtering an environment dump for a credential-ish name,
@@ -155,6 +157,8 @@ disk is in the next session, a broken edit included.
 - `large-file-guard.sh` (after a Write) — flags a file over 256 KiB once it is on disk: a pasted
   bundle, a blob, a dumped log. Advisory, so it is the one guard with a kill switch:
   `CLAUDE_MAX_WRITE_BYTES` raises or lowers the threshold, `0` disables it.
+  A payload it cannot read, not JSON or holding U+0001 in a field, exits 2 with a message saying
+  why; without `jq` it passes every call.
 - `rtk-rewrite.sh` (Bash, not a guard) — the plugin's wiring of `rtk hook claude`, so a machine wires
   nothing by hand and `rtk init --show` reporting "Hook: not found" is expected. Without rtk it is
   silent. In a linked worktree every command goes through unrewritten: the session's isolation check
@@ -198,6 +202,20 @@ a command word by word and for a `cd`, and `GUARD_BOUNDARY` on text, for the arm
 in place.
 `test/hooks/lib.test.ts` holds the two to the same spellings.
 
+### Commands and scopes
+
+`guard_scopes`, in `hooks/lib.sh`, cuts the masked scan into the commands the shell runs, one a
+line: at `;`, `&`, `|`, a newline and a subshell's parentheses, each of which also stands as a scope
+line, so a `cd` inside a subshell ends with it. A `$(…)` or backtick substitution is one word of the
+command around it, not a cut: `guard_lift_substitutions` makes it the word `$_`, a value computed at
+runtime, and moves its body to a scope of its own just before that command, since the shell runs the
+body first. So `git push origin "$(git branch --show-current)" --force` is one push with its
+`--force`, and its body one command before it. A `$_` in the command's place, alone or glued to
+it, is read as empty, as bash drops an empty expansion, so `$(true) git reset --hard` and
+`$(true)git reset --hard` are a `git reset`; a `case` pattern's `)`
+inside a substitution ends no substitution. One left open hands back the scan as typed, cut at each
+parenthesis and backtick. `guard_segments` is the same lines without the scope lines.
+
 ### The quote walker
 
 `guard_quote_walk <text> [<live>] [<state>] [<from>] [<stop>]`, in `hooks/lib-text.sh`, is the one
@@ -229,8 +247,14 @@ A `$'` opens `A` wherever a `'` would open `S`. A `$"…"` is a double-quoted sp
 and a `$` before anything else is text. A comment and a heredoc operator count only where the shell
 reads a command: in `P`, `U`, `V` and `B`.
 
+A heredoc's delimiter is a whole shell word, up to a blank or a metacharacter, and the body ends at a
+line that holds its text alone, quotes and backslashes removed: `E"O"F` ends at `EOF`, and `E.O`,
+`'END-OF-TEXT'` and `"END OF"` at themselves. Any quote or backslash in it keeps the body literal. It
+opens with a letter, `_`, a quote or a backslash, so the `1<<2` of `$((1<<2))` opens none.
+
 With `<live>` set, a quote after a shell's `-c`, `eval` or `rtk run` holds a command and opens `s`,
-`d` or `a` instead. In `a` a backslash still escapes, so a `\'` there is text the walk does not
+`d` or `a` instead; a shell named by a path or behind a backslash, `/bin/bash -c` or `\bash -c`, is
+that shell. In `a` a backslash still escapes, so a `\'` there is text the walk does not
 follow. A `${…}` in `d` opens `e`: the outer shell expands it and hands the shell what it expands to,
 so its text holds the command too, and a `"…"`, `'…'` or `$'…'` in it opens `d`, `s` or `a`. The
 outer shell drops those quotes, all but a `'…'` that bash 3.2 and a `:-` keep; reading that one as a
@@ -288,7 +312,7 @@ shell does, so `-C 'my repo'` stays one word. It reads the walk's pieces:
 - a `$(…)`, a backtick substitution or a `${…}` stays in its word, delimiters and whitespace
   included, with the quotes and backslashes inside it read the same way;
 - a comment's text splits as the command's does, and a heredoc operator reads as `<<EOF`, the
-  delimiter's quotes dropped.
+  delimiter one word with its quotes dropped, `<<'END OF'` as `<<END OF`.
 
 ### Paths in a command
 
