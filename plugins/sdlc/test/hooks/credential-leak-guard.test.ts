@@ -137,6 +137,8 @@ describe("printing a credential variable without echo — allowed", () => {
   allowed("node printing a plain variable", "node -p process.env.NODE_ENV")
   allowed("python printing no variable", "python3 -c 'print(1)'")
   allowed("echo of a variable with a digit and no credential", "echo $S3_BUCKET")
+  allowed("node printing a module named env", "node -p \"require('./env').token\"")
+  blocked("ruby printing ENV[…]", "ruby -e 'puts ENV[\"GITHUB_TOKEN\"]'")
 })
 
 describe("dumping the environment, every spelling — refused", () => {
@@ -159,6 +161,7 @@ describe("dumping the environment, every spelling — allowed", () => {
   allowed("export of a name, then a search of the source", "export FOO=1 && grep -rn token src")
   allowed("declare of a name piped on", "declare -a list | grep -i token")
   allowed("set with an option piped on", "set -o | grep -i token")
+  allowed("declare listing functions", "declare -f | grep -i token")
 })
 
 describe("the user's .npmrc, every spelling — refused", () => {

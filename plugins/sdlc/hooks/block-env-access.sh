@@ -62,8 +62,8 @@ physical() {
   printf '%s/%s' "${real%/}" "$base"
 }
 
-# here — where the shell stands, GUARD_SHELL_DIR, resolved through symlinks as CWD is.
-here() {
+# shell_dir_physical — where the shell stands, GUARD_SHELL_DIR, resolved through symlinks as CWD is.
+shell_dir_physical() {
   if [[ "$GUARD_SHELL_DIR" == "$GUARD_CWD" ]]; then
     printf '%s' "$CWD"
   else
@@ -131,7 +131,7 @@ refused() {
   local path="$1" abs base
   is_env_name "$path" || return 1
   prepare
-  base=$(here)
+  base=$(shell_dir_physical)
   relative_to_root "$path" "$base"
   if listed "$DENY_LIST" "$REL"; then
     REASON="'$MATCHED' in guardrails.envFiles.deny names it"
@@ -146,7 +146,7 @@ refused() {
     REASON="outside a repository only guardrails.envFiles.allow lets an env file through"
     return 0
   fi
-  # A path is a name, never a pathspec: as one, `.env.*` matched the tracked .env.example.
+  # A path is a name, never a pathspec: as one, `.env.*` matches the tracked .env.example.
   abs=$(guard_absolute "$path" "$base")
   git -C "$FILE_ROOT" --literal-pathspecs ls-files --error-unmatch -- "$abs" >/dev/null 2>&1 && return 1
   if git -C "$FILE_ROOT" --literal-pathspecs check-ignore -q -- "$abs" 2>/dev/null; then
@@ -322,6 +322,11 @@ if [[ "$STRIPPED" == *.env* || "$STRIPPED" =~ $DOT_GLOB ]]; then
       guard_scope_step "$segment" || continue
       note_pushd
       while IFS= read -r token; do
+        # Only a glob or a `<rev>:<path>` names a path other than itself, so only it costs a fork.
+        if [[ "$token" != *[*?:]* && "$token" != *"["* ]]; then
+          refused "$token" && refuse "$WHO" "$token" "$NOTE"
+          continue
+        fi
         while IFS= read -r path; do
           refused "$path" && refuse "$WHO" "$path" "$NOTE"
         done < <(env_paths "$token")

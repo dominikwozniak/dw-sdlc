@@ -135,8 +135,8 @@ disk is in the next session, a broken edit included.
   `wget` carrying one of those or a dotenv file. A dump is `env` running no command, `printenv`
   naming no variable, a bare `set`, or `export`, `declare` or `typeset` with options alone, behind
   a launcher or by path too. A print is `echo`, `printf` or `print` of the variable, `printenv`
-  naming it, `cat`, `head`, `tail` or `tee` of a here-string holding it, or `node`, `python`,
-  `ruby` or `perl` code that reads it from the environment and prints.
+  naming it, `cat`, `head`, `tail` or `tee` of a here-string holding it, or `node`, `nodejs`,
+  `deno`, `bun`, `python`, `ruby` or `perl` code that reads it from the environment and prints.
 - `block-non-pnpm.sh` (when the command names npm, npx, yarn or bun) — refuses them where the
   resolved `packageManagers.node` is `pnpm`, inferred from the lockfile when nothing declares it;
   silent in every other repository.
@@ -378,7 +378,8 @@ spellings get past a rule; each comes from the adversarial pass of issue #318 an
 - A push to a protected branch named `@` or `heads/main`, or aimed at another repository by
   `GIT_DIR=`.
 - A `cd` in the background, in a pipeline or behind a false `||`, read as a move, so an `rm -rf *`
-  after it passes.
+  after it passes and `cd sub & cat .env` reads `sub/.env`.
+- A glob the command also quotes elsewhere, `cat .env* # '.env*'`, read as quoted.
 - gh: `-R` before the `pr` verb, a request body sent with `--input`.
 - commit: a message from a here-string, a `$(…)` before `-m`, a trailer key with no colon read as
   the trailer.

@@ -362,7 +362,7 @@ git(DENIED, "add", ".env", ".env.production", "apps/api/.env", ".ai/agentic.conf
 commit(DENIED, "-qm", "init")
 
 describe("a glob is judged by the env files the shell expands it to", () => {
-  // F02-env-pathspec-glob: the tracked .env.example no longer vouches for the files beside it.
+  // F02-env-pathspec-glob: the tracked .env.example vouches for no file beside it.
   blockedBash("env-glob-dot-star", "cat .env.*", FEAT)
   blockedBash("env-glob-source", "source .env.*", FEAT)
   blockedBash("env-glob-dotslash", "cat ./.env.*", FEAT)

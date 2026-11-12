@@ -112,7 +112,8 @@ dumps_env() {
     export | declare | typeset)
       for word in "${WORDS[@]:1}"; do
         [[ "$word" == "$DUMP_END" ]] && return 0
-        [[ "$word" == -* ]] || return 1
+        # `-f` and `-F` list functions, not variables.
+        [[ "$word" == -* && "$word" != -*[fF]* ]] || return 1
       done
       return 1
       ;;
@@ -151,8 +152,9 @@ esac
 # transcript, is not.
 PRINTS="${GUARD_BOUNDARY}((echo|printf|print)[^;&|]*$CRED_VAR|printenv[[:space:]][^;&|]*$CRED_WORDS|(cat|head|tail|tee)[^;&|]*<<<[[:space:]\"']*$CRED_VAR)"
 INTERPRETER="${GUARD_BOUNDARY}(node|nodejs|deno|bun|python[0-9.]*|ruby|perl)[[:space:]][^;&|]*"
-# `(` inside the quoted code is masked to \002.
-ENV_READ="(process\\.env|os\\.environ|getenv|ENV)[^A-Za-z0-9_]{0,3}[A-Za-z0-9_]*$CRED_WORDS"
+# `(` inside the quoted code is masked to \002. Ruby's ENV[…] and Perl's $ENV{…} keep their bracket:
+# read case-blind, a bare ENV is any `env`, `require('./env').token` too.
+ENV_READ="(process\\.env|os\\.environ|getenv|ENV\\[|ENV\\{)[^A-Za-z0-9_]{0,3}[A-Za-z0-9_]*$CRED_WORDS"
 PRINT_CALL="([[:space:]]-p[[:space:]e]|[[:space:]]--print|console\\.(log|info|warn|error|dir)|process\\.std(out|err)\\.write|(^|[^A-Za-z0-9_.])(print|puts|say)[[:space:](${MASKED_SEP}])"
 echo_secret=0
 case "$MASKED" in
