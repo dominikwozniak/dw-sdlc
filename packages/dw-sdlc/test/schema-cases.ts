@@ -164,6 +164,18 @@ export const CASES: Case[] = [
     problems: []
   },
   {
+    name: "the agentic schema takes guardrails.filteredOutput deny or allow",
+    schema: AGENTIC_SCHEMA,
+    value: { guardrails: { filteredOutput: "allow" } },
+    problems: []
+  },
+  {
+    name: "the agentic schema refuses any other guardrails.filteredOutput",
+    schema: AGENTIC_SCHEMA,
+    value: { guardrails: { filteredOutput: "ask" } },
+    problems: [{ path: "guardrails.filteredOutput", message: '"ask" is not one of "deny", "allow"' }]
+  },
+  {
     name: "the agentic schema tolerates a validation key as an unknown top-level key",
     schema: AGENTIC_SCHEMA,
     value: { version: 1, validation: { commands: ["pnpm check"] } },

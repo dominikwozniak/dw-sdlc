@@ -124,6 +124,14 @@ describe("block-store-writes fires on asc and on a store script", () => {
   refused("--confirm on a continuation line", "node scripts/store-pricing.ts \\\n  --confirm")
 })
 
+describe("block-filtered-output fires on a pipe (this repository: gate.command is pnpm check)", () => {
+  refused("a built-in runner piped into tail", "vitest run | tail -20")
+  refused("the gate command piped into head", "pnpm check | head")
+  refused("dw-sdlc gate piped into grep", "pnpm exec dw-sdlc gate | grep fail")
+  allowed("a check command piped into tee", "vitest run 2>&1 | tee out.log")
+  allowed("a command that is no check command", "ls -la | head")
+})
+
 describe("an ask waits for every guard, so a later refusal still wins", () => {
   const ask = initRepo(join(scratch("dispatch"), "ask"), { branch: "feat" })
   writeJson(join(ask, ".ai", "agentic.config.json"), { guardrails: { forcePush: "ask" } })
