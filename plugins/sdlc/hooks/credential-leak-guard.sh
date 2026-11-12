@@ -152,9 +152,10 @@ esac
 # transcript, is not.
 PRINTS="${GUARD_BOUNDARY}((echo|printf|print)[^;&|]*$CRED_VAR|printenv[[:space:]][^;&|]*$CRED_WORDS|(cat|head|tail|tee)[^;&|]*<<<[[:space:]\"']*$CRED_VAR)"
 INTERPRETER="${GUARD_BOUNDARY}(node|nodejs|deno|bun|python[0-9.]*|ruby|perl)[[:space:]][^;&|]*"
-# `(` inside the quoted code is masked to \002. Ruby's ENV[…] and Perl's $ENV{…} keep their bracket:
-# read case-blind, a bare ENV is any `env`, `require('./env').token` too.
-ENV_READ="(process\\.env|os\\.environ|getenv|ENV\\[|ENV\\{)[^A-Za-z0-9_]{0,3}[A-Za-z0-9_]*$CRED_WORDS"
+# `(` inside the quoted code is masked to \002. A segment holds the source case-sensitive, by a grep
+# of its own: case-blind, Ruby's ENV[…] is any `env[`, as `config.env['token']`.
+ENV_SOURCE='(process\.env|os\.environ|getenv|ENV\[|ENV\{)'
+ENV_READ="$ENV_SOURCE[^A-Za-z0-9_]{0,3}[A-Za-z0-9_]*$CRED_WORDS"
 PRINT_CALL="([[:space:]]-p[[:space:]e]|[[:space:]]--print|console\\.(log|info|warn|error|dir)|process\\.std(out|err)\\.write|(^|[^A-Za-z0-9_.])(print|puts|say)[[:space:](${MASKED_SEP}])"
 echo_secret=0
 case "$MASKED" in
@@ -165,7 +166,7 @@ esac
 case "$MASKED" in
   *node* | *deno* | *bun* | *python* | *ruby* | *perl*)
     # Read to the end, not with -q, so no grep exits while the one before it still writes.
-    if ((!echo_secret)) && [[ -n "$(printf '%s' "$MASKED" | grep -oiE "$INTERPRETER" | grep -iE "$ENV_READ" | grep -iE "$PRINT_CALL")" ]]; then
+    if ((!echo_secret)) && [[ -n "$(printf '%s' "$MASKED" | grep -oiE "$INTERPRETER" | grep -E "$ENV_SOURCE" | grep -iE "$ENV_READ" | grep -iE "$PRINT_CALL")" ]]; then
       echo_secret=1
     fi
     ;;

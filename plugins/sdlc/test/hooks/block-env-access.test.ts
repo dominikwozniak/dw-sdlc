@@ -355,10 +355,11 @@ initRepo(DENIED, { branch: "main" })
 write(join(DENIED, ".env"), "SAFE=1\n")
 write(join(DENIED, ".env.production"), "SECRET=1\n")
 write(join(DENIED, "apps", "api", ".env"), "SECRET=2\n")
+write(join(DENIED, "apps", "web", ".env"), "SAFE=1\n")
 writeJson(join(DENIED, ".ai", "agentic.config.json"), {
   guardrails: { envFiles: { deny: ["apps/api/.env", ".env.production"] } }
 })
-git(DENIED, "add", ".env", ".env.production", "apps/api/.env", ".ai/agentic.config.json")
+git(DENIED, "add", ".env", ".env.production", "apps/api/.env", "apps/web/.env", ".ai/agentic.config.json")
 commit(DENIED, "-qm", "init")
 
 describe("a glob is judged by the env files the shell expands it to", () => {
@@ -399,9 +400,16 @@ describe("a <rev>:<path> names the env file at the path", () => {
   // F05-env-rev-path
   blockedBash("env-git-show", "git show HEAD:.env.production", DENIED)
   blockedBash("env-git-cat-file", "git cat-file -p HEAD:.env.production", DENIED)
-  blockedBash("a path below the root", "git show main:apps/api/.env", DENIED)
+  it("a path below the root is judged by the entry that names it", () => {
+    const verdict = runHook("block-env-access", bashPayload("git show main:apps/api/.env", DENIED))
+    expectExit(verdict, 2)
+    assert.match(verdict.stderr, /'apps\/api\/\.env' in guardrails\.envFiles\.deny/)
+  })
   blockedBash("a path from the index", "git show :.env.production", DENIED)
+  blockedBash("a volume's ignored source", "docker run -v ./.env.local:/app/.env img", FEAT)
   allowedBash("a tracked file", "git show HEAD:.env", DENIED)
+  allowedBash("a tracked file below the root", "git show HEAD:apps/web/.env", DENIED)
+  allowedBash("a path from where the shell stands", "cd sub && git show HEAD:../.env", TRACKED_ROOT)
   allowedBash("the example", "git show HEAD:.env.example", FEAT)
   allowedBash("a source file", "git show HEAD:src/env.ts", FEAT)
 })

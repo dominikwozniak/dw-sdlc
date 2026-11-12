@@ -133,8 +133,8 @@ disk is in the next session, a broken edit included.
   `~/.pgpass`, the user's `~/.npmrc`, by `$HOME`, `${HOME}` or a `cd` home), filtering an
   environment dump for a credential-ish name, printing such a variable's value, and any `curl` or
   `wget` carrying one of those or a dotenv file. A dump is `env` running no command, `printenv`
-  naming no variable, a bare `set`, or `export`, `declare` or `typeset` with options alone, behind
-  a launcher or by path too. A print is `echo`, `printf` or `print` of the variable, `printenv`
+  naming no variable, a bare `set`, or `export`, `declare` or `typeset` with options alone and none
+  of them `-f` or `-F`, behind a launcher or by path too. A print is `echo`, `printf` or `print` of the variable, `printenv`
   naming it, `cat`, `head`, `tail` or `tee` of a here-string holding it, or `node`, `nodejs`,
   `deno`, `bun`, `python`, `ruby` or `perl` code that reads it from the environment and prints.
 - `block-non-pnpm.sh` (when the command names npm, npx, yarn or bun) — refuses them where the
@@ -381,7 +381,8 @@ spellings get past a rule; each comes from the adversarial pass of issue #318 an
 - A push to a protected branch named `@` or `heads/main`, or aimed at another repository by
   `GIT_DIR=`.
 - A `cd` in the background, in a pipeline or behind a false `||`, read as a move, so an `rm -rf *`
-  after it passes and `cd sub & cat .env` reads `sub/.env`.
+  after it passes and `cd sub & cat .env` is judged as `sub/.env`: an ignored `.env` beside a
+  tracked `sub/.env` passes.
 - A glob the command also quotes elsewhere, `cat .env* # '.env*'`, read as quoted.
 - gh: `-R` before the `pr` verb, a request body sent with `--input`.
 - commit: a message from a here-string, a `$(…)` before `-m`, a trailer key with no colon read as

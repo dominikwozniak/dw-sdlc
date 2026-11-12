@@ -119,6 +119,7 @@ describe("printing a credential variable without echo — refused", () => {
   blocked("cred-python", "python3 -c 'import os;print(os.environ[\"GITHUB_TOKEN\"])'")
   blocked("node -e logging the variable", "node -e 'console.log(process.env.NPM_TOKEN)'")
   blocked("python printing os.getenv", "python3 -c 'import os; print(os.getenv(\"API_KEY\"))'")
+  blocked("ruby printing ENV[…]", "ruby -e 'puts ENV[\"GITHUB_TOKEN\"]'")
   // A credential variable's name holds a digit: F09-digit-in-variable.
   blocked("cred-digit-s3", 'echo "$S3_SECRET_KEY"')
   blocked("cred-digit-k8s", "echo $K8S_TOKEN")
@@ -138,7 +139,8 @@ describe("printing a credential variable without echo — allowed", () => {
   allowed("python printing no variable", "python3 -c 'print(1)'")
   allowed("echo of a variable with a digit and no credential", "echo $S3_BUCKET")
   allowed("node printing a module named env", "node -p \"require('./env').token\"")
-  blocked("ruby printing ENV[…]", "ruby -e 'puts ENV[\"GITHUB_TOKEN\"]'")
+  allowed("node printing a config's env entry", "node -p \"config.env['token']\"")
+  allowed("python printing a settings env entry", "python3 -c 'print(settings.env[\"api_key\"])'")
 })
 
 describe("dumping the environment, every spelling — refused", () => {

@@ -247,10 +247,10 @@ fi
 # --- a Bash command ------------------------------------------------------------------------------
 
 # env_paths <token> — the paths a word names, one a line, from where the shell stands: a glob the
-# files it expands to, a `<rev>:<path>` its path, from the root unless `./` or `../` opens it;
-# README.md#paths-in-a-command.
+# files it expands to; a word with a `:` both sides, `./.env:/app/.env` a volume's source and target,
+# `HEAD:apps/.env` a path from the root unless `./`, `../` or `/` opens it.
 env_paths() {
-  local tok="$1" path top
+  local tok="$1" head path top
   case "$tok" in
     *[*?[]*)
       # The words lost their quotes: a quoted glob stays a word. `*`, `?` and `[…]` never match a
@@ -265,17 +265,19 @@ env_paths() {
       return 0
       ;;
   esac
-  if [[ "$tok" == *:* ]] && ! is_env_name "$tok"; then
+  if [[ "$tok" == *:* ]]; then
+    head=${tok%%:*}
     path=${tok#*:}
     [[ "$tok" == :[0-3]:* ]] && path=${tok#:?:}
+    is_env_name "$head" && printf '%s\n' "$head"
     if is_env_name "$path"; then
       case "$path" in
-        ./* | ../*) ;;
+        ./* | ../* | /*) ;;
         *) top=$(git -C "$GUARD_SHELL_DIR" rev-parse --show-toplevel 2>/dev/null) && path="$top/$path" ;;
       esac
       printf '%s\n' "$path"
-      return 0
     fi
+    return 0
   fi
   printf '%s\n' "$tok"
 }
