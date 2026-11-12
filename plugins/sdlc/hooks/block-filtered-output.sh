@@ -44,8 +44,8 @@ stage_text() {
       skip=0
       continue
     fi
-    if [[ "$word" == *$'\003'* || "$word" =~ ^[0-9]*[\<\>] ]]; then
-      [[ "$word" =~ ^[0-9]*(\>\>?|\<)$ ]] && skip=1
+    if [[ "$word" =~ $GUARD_REDIRECT ]]; then
+      [[ "$word" =~ $GUARD_REDIRECT_ALONE ]] && skip=1
       continue
     fi
     text+="${text:+ }${word//$'\002'/|}"

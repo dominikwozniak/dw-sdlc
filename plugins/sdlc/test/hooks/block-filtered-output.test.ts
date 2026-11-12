@@ -135,6 +135,8 @@ describe("the command as typed holds no redirect, a continuation line or a runne
   it("drops `>out` and `> out`", () => {
     assert.match(run("vitest run >out 2>&1 | tail", BARE).stderr, /'vitest run' is piped into 'tail'/)
     assert.match(run("vitest run > out 2>&1 | tail", BARE).stderr, /'vitest run' is piped into 'tail'/)
+    assert.match(run("vitest run &> out | tail", BARE).stderr, /'vitest run' is piped into 'tail'/)
+    assert.match(run("vitest run &>out | tail", BARE).stderr, /'vitest run' is piped into 'tail'/)
   })
   blocked("a pipe on a continuation line", "vitest run \\\n  | tail", BARE)
   blocked("npx with an option", "npx --no-install vitest | tail", BARE)
