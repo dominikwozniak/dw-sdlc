@@ -208,7 +208,7 @@ describe("the sdlc plugin", () => {
     assert.match(text, /`added: <file>:<line> — <what the spec did not ask for>`/)
     assert.match(text, /When\s+a\s+spec\s+is\s+stated/)
     assert.match(text, /does\s+not\s+count\s+toward\s+`findings: <n>`\s+and\s+never\s+holds\s+the\s+merge/)
-    assert.match(text, /Planned\s+but\s+not\s+done\s+is\s+still\s+a\s+Finding/)
+    assert.match(text, /leaves\s+undone\s+stays\s+a\s+Finding,\s+never\s+an\s+`added:`\s+line/)
   })
 
   it("has sdlc-pr-ship carry added: lines and scope creep into Decisions without you at every Review depth", () => {

@@ -52,7 +52,9 @@ Finding either: list it as `follow-up: <file>:<line> — <what>`. Neither change
 spec is stated, the change may add what the spec did not ask for: list each addition as
 `added: <file>:<line> — <what the spec did not ask for>`. Like `smell:`, an `added:` line does not
 count toward `findings: <n>` and never holds the merge. With "None stated", write no `added:` line.
-Planned but not done is still a Finding, never an `added:` line. A Finding the prompt named that the fix answers is a `fixed: <the Finding>` line; one it does not
+What the spec asked for and the change leaves undone stays a Finding, never an `added:` line.
+
+A Finding the prompt named that the fix answers is a `fixed: <the Finding>` line; one it does not
 answer is still a Finding. Then, one Finding each:
 
 ```
