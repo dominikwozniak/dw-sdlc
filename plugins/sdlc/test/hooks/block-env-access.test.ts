@@ -7,7 +7,18 @@ import { symlinkSync } from "node:fs"
 import { join } from "node:path"
 import { describe, it } from "node:test"
 
-import { bashPayload, expectExit, filePayload, git, initRepo, runHook, scratch, write, writeJson } from "../harness.ts"
+import {
+  bashPayload,
+  commit,
+  expectExit,
+  filePayload,
+  git,
+  initRepo,
+  runHook,
+  scratch,
+  write,
+  writeJson
+} from "../harness.ts"
 
 const TMP = scratch("env")
 
@@ -317,6 +328,101 @@ describe("outside a repository the name decides", () => {
   blockedBash("plain-dq-substitution-cat-env", 'echo "$(cat .env)"', PLAIN)
   allowedFile("plain-read-example", "Read", ".env.example", PLAIN)
   allowedBash("plain-cat-example", "cat .env.example", PLAIN)
+})
+
+// The repositories of the #318 pass. FEAT tracks .env.example and ignores .env.local and
+// .env.production; TRACKED_ROOT tracks its root .env and ignores sub/.env; DENIED tracks .env,
+// apps/api/.env and .env.production and denies the last two by name.
+const FEAT = join(TMP, "feat")
+initRepo(FEAT, { branch: "feat" })
+write(join(FEAT, ".gitignore"), ".env.local\n.env.production\n")
+write(join(FEAT, ".env.example"), "")
+write(join(FEAT, ".env.local"), "SECRET=1\n")
+write(join(FEAT, ".env.production"), "SECRET=2\n")
+write(join(FEAT, ".eslintrc"), "{}\n")
+write(join(FEAT, "src", "env.ts"), "")
+git(FEAT, "add", ".gitignore", ".env.example", ".eslintrc", "src/env.ts")
+commit(FEAT, "-qm", "init")
+const TRACKED_ROOT = join(TMP, "tracked-root")
+initRepo(TRACKED_ROOT, { branch: "main" })
+write(join(TRACKED_ROOT, ".gitignore"), "sub/.env\n")
+write(join(TRACKED_ROOT, ".env"), "SAFE=1\n")
+write(join(TRACKED_ROOT, "sub", ".env"), "SECRET=1\n")
+write(join(TRACKED_ROOT, "sub", "notes.md"), "")
+git(TRACKED_ROOT, "add", ".gitignore", ".env", "sub/notes.md")
+const DENIED = join(TMP, "denied")
+initRepo(DENIED, { branch: "main" })
+write(join(DENIED, ".env"), "SAFE=1\n")
+write(join(DENIED, ".env.production"), "SECRET=1\n")
+write(join(DENIED, "apps", "api", ".env"), "SECRET=2\n")
+write(join(DENIED, "apps", "web", ".env"), "SAFE=1\n")
+writeJson(join(DENIED, ".ai", "agentic.config.json"), {
+  guardrails: { envFiles: { deny: ["apps/api/.env", ".env.production"] } }
+})
+git(DENIED, "add", ".env", ".env.production", "apps/api/.env", "apps/web/.env", ".ai/agentic.config.json")
+commit(DENIED, "-qm", "init")
+
+describe("a glob is judged by the env files the shell expands it to", () => {
+  // F02-env-pathspec-glob: the tracked .env.example vouches for no file beside it.
+  blockedBash("env-glob-dot-star", "cat .env.*", FEAT)
+  blockedBash("env-glob-source", "source .env.*", FEAT)
+  blockedBash("env-glob-dotslash", "cat ./.env.*", FEAT)
+  // F03-env-glob-name: a glob that is no env name expands to them.
+  blockedBash("env-glob-star", "cat .env*", FEAT)
+  blockedBash("env-glob-head", "head -n 5 .env*", FEAT)
+  blockedBash("env-glob-qmark", "cat .en?.local", FEAT)
+  blockedBash("env-glob-bracket", "cat .en[v].local", FEAT)
+  blockedBash("env-glob-e-star", "cat .e*", FEAT)
+  blockedBash("a glob in a directory part", "cat */.env", TRACKED_ROOT)
+  allowedBash("a glob reaching only the tracked file", "cat .env*", TRACKED_ROOT)
+  allowedBash("a glob reaching only the example", "cat .env.ex*", FEAT)
+  allowedBash("a glob reaching no env file", "cat .esl*", FEAT)
+  allowedBash("a glob matching nothing", "cat .env.nothing*", FEAT)
+  allowedBash("a glob on sources", "cat src/*.ts", FEAT)
+  allowedBash("a quoted glob the shell does not expand", "find . -name '.env*'", FEAT)
+  allowedBash("a double-quoted glob the shell does not expand", 'find . -name ".env*" -type f', FEAT)
+  blockedFile("a file tool's path is a name, not a pathspec", "Read", ".env.*", FEAT)
+})
+
+describe("a cd or pushd earlier in the command moves where a path is read from", () => {
+  // F04-env-ignores-cd
+  blockedBash("env-cd-tracked-root", "cd sub && cat .env", TRACKED_ROOT)
+  blockedBash("env-cd-subshell", "(cd sub; cat .env)", TRACKED_ROOT)
+  blockedBash("env-pushd", "pushd sub && cat .env", TRACKED_ROOT)
+  blockedBash("env-cd-denied", "cd apps/api && cat .env", DENIED)
+  allowedBash("a cd back up to the tracked file", "cd sub && cat ../.env", TRACKED_ROOT)
+  allowedBash("a subshell's cd ends with it", "(cd sub; ls); cat .env", TRACKED_ROOT)
+  allowedBash("a popd goes back", "pushd sub && popd && cat .env", TRACKED_ROOT)
+  allowedBash("a cd into a directory that is not there stays", "cd nowhere && cat .env", TRACKED_ROOT)
+})
+
+describe("a <rev>:<path> names the env file at the path", () => {
+  // F05-env-rev-path
+  blockedBash("env-git-show", "git show HEAD:.env.production", DENIED)
+  blockedBash("env-git-cat-file", "git cat-file -p HEAD:.env.production", DENIED)
+  it("a path below the root is judged by the entry that names it", () => {
+    const verdict = runHook("block-env-access", bashPayload("git show main:apps/api/.env", DENIED))
+    expectExit(verdict, 2)
+    assert.match(verdict.stderr, /'apps\/api\/\.env' in guardrails\.envFiles\.deny/)
+  })
+  blockedBash("a path from the index", "git show :.env.production", DENIED)
+  blockedBash("a volume's ignored source", "docker run -v ./.env.local:/app/.env img", FEAT)
+  allowedBash("a tracked file", "git show HEAD:.env", DENIED)
+  allowedBash("a tracked file below the root", "git show HEAD:apps/web/.env", DENIED)
+  allowedBash("a path from where the shell stands", "cd sub && git show HEAD:../.env", TRACKED_ROOT)
+  allowedBash("the example", "git show HEAD:.env.example", FEAT)
+  allowedBash("a source file", "git show HEAD:src/env.ts", FEAT)
+})
+
+describe("a Grep glob reaching any env file is judged", () => {
+  // F06-grep-glob-probes
+  blockedGrep("grep-production", "*.production", ".", FEAT)
+  blockedGrep("grep-deep-production", "**/*.production", ".", FEAT)
+  blockedGrep("grep-brace-env-local", "*.{env,local}", ".", FEAT)
+  blockedGrep("grep-brace-local-prod", "*.{local,production}", ".", FEAT)
+  for (const glob of ["*.example", "*.ts", "*.{ts,md}", "*rc"]) {
+    allowedGrep(`a glob reaching no refused env file [${glob}]`, glob, ".", FEAT)
+  }
 })
 
 describe("the fast path takes the command and the cwd from argv", () => {
