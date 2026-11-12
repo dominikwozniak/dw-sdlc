@@ -121,13 +121,22 @@ disk is in the next session, a broken edit included.
   root, `**/` meaning at any depth; the defaults are policy `git`, the `.env.example`, `.env.sample`
   and `.env.template` names allowed anywhere, nothing denied. A path outside the repository root,
   or outside any repository, is judged by its basename against the `**/` entries alone. A `Grep`
-  of a directory is judged by the env files its `glob` reaches.
+  of a directory is judged by the env files its `glob` reaches, once the glob fits an env name or a
+  common environment's: `.env.local`, `.env.development`, `.env.dev`, `.env.production`, `.env.prod`,
+  `.env.staging`, `.env.test`, `.env.ci`. In a Bash command a path is read from where a `cd` or
+  `pushd` earlier in it left the shell, a glob is judged by the files the shell expands it to, and a
+  `<rev>:<path>` such as `HEAD:.env.production` by its path.
   A file-tool payload it cannot read, not JSON or holding U+0001 in a field, is refused with exit 2
   and a message saying why; without `jq` it passes every call.
 - `credential-leak-guard.sh` (always on) — refuses reading the credential stores that are not dotenv
   (`~/.ssh`, `~/.aws`, `~/.gnupg`, `~/.kube`, `~/.netrc`, `~/.git-credentials`, `~/.pypirc`,
-  `~/.pgpass`, the user's `~/.npmrc`), filtering an environment dump for a credential-ish name,
-  printing such a variable's value, and any `curl` or `wget` carrying one of those or a dotenv file.
+  `~/.pgpass`, the user's `~/.npmrc`, by `$HOME`, `${HOME}` or a `cd` home), filtering an
+  environment dump for a credential-ish name, printing such a variable's value, and any `curl` or
+  `wget` carrying one of those or a dotenv file. A dump is `env` running no command, `printenv`
+  naming no variable, a bare `set`, or `export`, `declare` or `typeset` with options alone and none
+  of them `-f` or `-F`, behind a launcher or by path too. A print is `echo`, `printf` or `print` of the variable, `printenv`
+  naming it, `cat`, `head`, `tail` or `tee` of a here-string holding it, or `node`, `nodejs`,
+  `deno`, `bun`, `python`, `ruby` or `perl` code that reads it from the environment and prints.
 - `block-non-pnpm.sh` (when the command names npm, npx, yarn or bun) — refuses them where the
   resolved `packageManagers.node` is `pnpm`, inferred from the lockfile when nothing declares it;
   silent in every other repository. An option before the npm verb, `npm -g install` or
@@ -335,6 +344,11 @@ The env and credential guards look for a path among a command's words. `guard_st
   a shell's `-c`, `eval` or `rtk run` is read the same way.
 - A comment runs nothing, so its words are dropped.
 
+The words are then read command by command, through `guard_scopes`: a relative path counts from
+where a `cd` earlier in the command left the shell, and for the env guard a `pushd` too. A glob the
+env guard reads, one whose last segment opens with a `.`, is the files it expands to there; quoted,
+as in `find . -name '.env*'`, it stays the word it is.
+
 Two costs follow. A quoted path holding a space reads as prose, so `cat "my dir/.env"` passes.
 Outside the search tools, a quoted word that is exactly a guarded name reads as that file. An
 unterminated quote hands back the text as typed: the guard fails closed and judges what was typed.
@@ -345,9 +359,11 @@ The guards catch the commands an agent writes in ordinary work, not a deliberate
 ([ADR 0017](../../docs/adr/0017-guards-catch-ordinary-commands-not-deliberate-evasion.md)). These
 spellings get past a rule; each comes from the adversarial pass of issue #318 and is listed, not caught.
 
-- Expansion the guard does not perform: braces and globs (`cat .env{,.local}`, `cat ~/.ss?/id_rsa`,
-  `rm -rf .g[i]t`, `rm -rf **`, `{git,reset,--hard}`), the tildes `~+` and `~user`, and a name the
-  file system folds, `.ENV.LOCAL` on APFS.
+- Expansion the guard does not perform: braces, and a glob anywhere but the env guard's words
+  (`cat .env{,.local}`, `cat ~/.ss?/id_rsa`, `rm -rf .g[i]t`, `rm -rf **`, `{git,reset,--hard}`),
+  the tildes `~+` and `~user`, and a name the file system folds, `.ENV.LOCAL` on APFS.
+- A `Grep` glob that reaches an env file only through a name outside the probes, `*.qa` reaching
+  `.env.qa`.
 - A quoted command name or option: `"rm"`, `r''m`, `r\m`, `g""it`, `find . "-delete"`.
 - A shell two levels deep, `sh -c 'sh -c "…"'`, and a quote `rtk` runs through a verb other than
   `run` or behind a flag: `rtk err`, `rtk proxy`, `rtk -v run`.
@@ -365,7 +381,9 @@ spellings get past a rule; each comes from the adversarial pass of issue #318 an
 - A push to a protected branch named `@` or `heads/main`, or aimed at another repository by
   `GIT_DIR=`.
 - A `cd` in the background, in a pipeline or behind a false `||`, read as a move, so an `rm -rf *`
-  after it passes.
+  after it passes and `cd sub & cat .env` is judged as `sub/.env`: an ignored `.env` beside a
+  tracked `sub/.env` passes.
+- A glob the command also quotes elsewhere, `cat .env* # '.env*'`, read as quoted.
 - gh: `-R` before the `pr` verb, a request body sent with `--input`.
 - commit: a message from a here-string, a `$(…)` before `-m`, a trailer key with no colon read as
   the trailer.
