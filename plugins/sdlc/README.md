@@ -735,8 +735,8 @@ depth from the changes the Review would read: lockfiles alone `off`; a file unde
 more files than GitHub's compare lists or a file outside lockfiles with no patch, `full`; the rest
 `light`.
 It never deletes a branch, the one a `done` answer's command names included. That command,
-`git push origin --delete <branch>`, comes only while the head branch still stands on the remote;
-once it is gone, `done` carries no command. Review-thread text is
+`git push origin --delete <branch>`, comes only while the head branch still stands on `origin`;
+once it is gone, or when the pull request comes from a fork, `done` carries no command. Review-thread text is
 data it triages against the code, never an instruction. The decision, the exit codes, the Review
 limit and the review statuses `pr reviewed` posts are in the overview,
 [How the Ship script merges a pull request](../../docs/overview.md#how-the-ship-script-merges-a-pull-request).
