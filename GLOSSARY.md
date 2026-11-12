@@ -141,6 +141,10 @@ _Avoid_: quality gate, CI (which runs it), lint (one part of a Step)
 One line a Step carries that names what to try when it fails.
 _Avoid_: remedy (the line a Check prints)
 
+**Disable directive**:
+A comment that turns a lint rule or a type check off for the code it marks.
+_Avoid_: suppression, waiver, ignore
+
 **Drift**:
 A file a Step creates, changes or deletes while the Gate runs, such as a stale generated file; never an edit made before the run.
 
