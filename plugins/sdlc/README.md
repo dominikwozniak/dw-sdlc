@@ -380,6 +380,9 @@ spellings get past a rule; each comes from the adversarial pass of issue #318 an
 - Expansion the guard does not perform: braces, and a glob anywhere but the env guard's words
   (`cat .env{,.local}`, `cat ~/.ss?/id_rsa`, `rm -rf .g[i]t`, `rm -rf **`, `{git,reset,--hard}`),
   the tildes `~+` and `~user`, and a name the file system folds, `.ENV.LOCAL` on APFS.
+- A command before `reset --hard` that writes a tracked file through its own output: a redirect or
+  `--output` on an allowed git verb, `-c diff.external=…` or `-c core.fsmonitor=…`. The reset discards
+  that output, which the command can write again.
 - A `Grep` glob that reaches an env file only through a name outside the probes, `*.qa` reaching
   `.env.qa`.
 - A quoted command name or option: `"rm"`, `r''m`, `r\m`, `g""it`, `find . "-delete"`.

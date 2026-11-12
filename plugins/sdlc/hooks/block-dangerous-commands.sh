@@ -373,7 +373,7 @@ check_gh_api() {
 
 # An ask is held until every segment is judged: a refusal further on still wins.
 ASK=""
-# 1 once a command other than a cd has run: the tree a reset meets is then no longer the one read.
+# 1 once a command that may change the tree has run: a reset then meets another tree than the one read.
 AFTER_COMMAND=0
 while IFS= read -r segment; do
   guard_scope_step "$segment" || continue

@@ -285,9 +285,10 @@ describe("reset --hard — passes when no tracked file has a change, since nothi
   blocked("dash-C-computed-at-runtime", 'git -C "$WT" reset --hard', CLEAN)
   blocked("cd-computed-at-runtime", 'cd "$WT" && git reset --hard', CLEAN)
   blocked("cd-back", "cd - && git reset --hard", CLEAN)
-  // Another command may change the tree before the reset runs, so only a reset that follows nothing but a cd is judged.
+  // A command that may change the tree before the reset runs makes the reset refused; a cd, a fetch or a switch does not.
   blocked("after-a-write", "echo x >> a.txt && git reset --hard", CLEAN)
   allowed("after-a-fetch", "git fetch origin && git reset --hard origin/main", CLEAN)
+  allowed("after-a-fetch-with-a-global-option", "git -c color.ui=false -C . fetch && git reset --hard", CLEAN)
   allowed("after-a-switch", "git switch -c topic && git reset --hard HEAD~0", CLEAN)
   allowed("after-a-cd-and-a-status", `cd ${CLEAN} && git status && git reset --hard`, FEAT)
   blocked("after-a-checkout-of-a-path", "git checkout HEAD~0 -- a.txt && git reset --hard", CLEAN)
