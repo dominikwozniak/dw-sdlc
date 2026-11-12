@@ -1,5 +1,13 @@
 # dw-sdlc
 
+## 0.17.0
+
+### Minor Changes
+
+- dae963e: The `disable-directives` Check fails every Disable directive in a comment that gives no reason: `oxlint-disable*` and `eslint-disable*` in every form, `@ts-expect-error` and `@ts-ignore`, `rubocop:disable` and `noqa`. A reason is text after `--` on the directive's line, text after an `@ts-` directive, or a comment on the line above. A directive inside a string is none. Its options are `true` or `{ files, exempt }`, and `exempt` defaults to `references/**`, `**/vendor/**` and `**/node_modules/**`. A failure in `--json` carries `directive` beside `file` and `line`.
+- 93d899f: A Step of `gate.steps` is a command string or `{ "command": "…", "hint": "…" }`, and a `gate.checks.run` entry takes a `hint` beside `name` and `command`. When the Step or script fails, the Gate prints `hint: <text>` under its failure line. The Gate's `--json` carries `hint` on every Step and Check report, `null` where there is none.
+- dae963e: The config schema takes `guardrails.filteredOutput`, `"deny"` (the default) or `"allow"`. `deny` refuses a check command whose output a pipe feeds to `head`, `tail`, `grep`, `sed`, `awk`, `less` or `more`; `allow` turns that guard off.
+
 ## 0.16.1
 
 ### Patch Changes
