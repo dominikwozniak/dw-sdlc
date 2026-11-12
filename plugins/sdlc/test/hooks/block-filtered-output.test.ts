@@ -88,6 +88,13 @@ describe("the built-in runners are check commands, with no config at all", () =>
   blocked("behind rtk", "rtk vitest run | tail", BARE)
   blocked("after an &&", "cd app && vitest run | tail", BARE)
   blocked("in a subshell", "(vitest run | tail)", BARE)
+  blocked("in a substitution", 'out=$(vitest run | tail -5); echo "$out"', BARE)
+  blocked("in backticks", "out=`vitest run | tail -5`", BARE)
+  blocked("behind sudo with an option", "sudo -u me vitest run | tail", BARE)
+  blocked("behind timeout", "timeout 60 vitest run | tail", BARE)
+  blocked("behind env with an option", "env -u X vitest run | tail", BARE)
+  blocked("behind python -m", "python -m pytest | tail", BARE)
+  blocked("behind uv run", "uv run pytest | tail", BARE)
   blocked("stderr piped too", "vitest run |& tail", BARE)
   blocked("the filter is not the next stage", "vitest run | cat | tail", BARE)
   blocked("with a redirect among the words", "vitest run 2>&1 | tail", BARE)
@@ -110,6 +117,22 @@ describe("the refusal names the command and the filter and says how to keep the 
   it("never mentions the persisted output", () => {
     assert.doesNotMatch(verdict.stderr, /persisted/i)
   })
+})
+
+describe("the refusal names the command as typed", () => {
+  it("keeps a path", () => {
+    assert.match(
+      run("./node_modules/.bin/eslint . | grep e", BARE).stderr,
+      /'\.\/node_modules\/\.bin\/eslint \.' is piped into 'grep'/
+    )
+  })
+  it("keeps a launcher and drops a redirect", () => {
+    assert.match(run("pnpm exec vitest run 2>&1 | tail", BARE).stderr, /'pnpm exec vitest run' is piped into 'tail'/)
+  })
+})
+
+describe("a filter behind a tee still hides the exit code", () => {
+  blocked("tee, then tail", "vitest run | tee out.log | tail", BARE)
 })
 
 describe("what keeps the whole output passes", () => {

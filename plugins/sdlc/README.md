@@ -156,7 +156,8 @@ disk is in the next session, a broken edit included.
   `cargo test` and `go test`, behind `pnpm exec`, `bundle exec`, a path or a `VAR=x`. With no config
   the list alone applies. The refusal names the command and the filter and says to run it unpiped,
   or to redirect it with `> <file> 2>&1` and read the file. `| tee` and a redirect pass, and so does
-  a pipe on any other command, `git log | head`. `guardrails.filteredOutput: "allow"` turns the
+  a pipe on any other command, `git log | head`; a filter behind the `tee`, `| tee f | tail`, is
+  refused, as it still hides the exit code. `guardrails.filteredOutput: "allow"` turns the
   guard off; it is `"deny"` by default.
 - `block-store-writes.sh` (when the command names `asc` or a store script) — refuses an agent every
   write to App Store Connect, in every repository and with no config: `asc`, its CLI, reaches the

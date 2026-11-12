@@ -13,34 +13,32 @@ guard_config_load "$GUARD_CWD" || exit 0
 [[ "$(guard_config_get '.guardrails.filteredOutput')" == "allow" ]] && exit 0
 
 FILTER_RE='^(head|tail|grep|egrep|fgrep|rg|sed|awk|less|more)$'
-# Words that run another command, then the runners a package manager or an interpreter puts in front.
-WRAPPERS=" rtk sudo env time command nice nohup "
-LAUNCHERS=" pnpm yarn npm npx bunx exec dlx bundle uv poetry run python python3 -m -- "
+# The runners a package manager or an interpreter puts in front of a tool; the launcher table of
+# lib-words.sh, which guard_unwrap_words reads, holds the shell's own.
+RUNNERS=" pnpm yarn npm npx bunx exec dlx bundle uv poetry run -- "
 DW_SDLC_RE='(^|[[:space:]/])dw-sdlc([[:space:]]+|/src/cli\.ts[[:space:]]+)(gate|check)([[:space:]]|$)'
-LEAD=$' \t\003({'
+LEAD=$' \t\003'
 
-# stage_words <stage> — CORE_WORDS, the stage's words after its redirect's \003, a subshell's opener,
-# `VAR=value` and the words that run another command.
+# stage_words <stage> — CORE_WORDS, the stage's words once its redirect's \003 and every launcher of
+# the table are dropped.
 CORE_WORDS=()
 stage_words() {
   local stage="$1" word
+  stage=${stage#"${stage%%[!$LEAD]*}"}
+  WORDS=()
+  while IFS= read -r word; do WORDS+=("$word"); done < <(guard_words "$stage")
+  guard_unwrap_words
+  CORE_WORDS=("${WORDS[@]+"${WORDS[@]}"}")
+}
+
+# stage_text <stage> — the stage as typed, launchers and path included, without its redirects; a quoted
+# separator's \002 shown as `|`.
+stage_text() {
+  local word text="" stage="$1"
   local -a words
   stage=${stage#"${stage%%[!$LEAD]*}"}
   read -ra words <<<"$stage"
-  CORE_WORDS=()
-  for word in "${words[@]+"${words[@]}"}"; do
-    if [[ ${#CORE_WORDS[@]} -eq 0 ]]; then
-      [[ "$word" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] && continue
-      [[ "$WRAPPERS" == *" $word "* ]] && continue
-    fi
-    CORE_WORDS+=("$word")
-  done
-}
-
-# stage_text — CORE_WORDS as one line without the stage's redirects, a quoted separator's \002 shown as `|`.
-stage_text() {
-  local word text=""
-  for word in "${CORE_WORDS[@]}"; do
+  for word in "${words[@]}"; do
     [[ "$word" == *$'\003'* ]] && continue
     text+="${text:+ }${word//$'\002'/|}"
   done
@@ -50,9 +48,13 @@ stage_text() {
 # builtin_check — 0 when CORE_WORDS run a test runner, a type checker or a linter of the built-in list.
 builtin_check() {
   local i=0 word next
-  while ((i < ${#CORE_WORDS[@]})) && [[ "$LAUNCHERS" == *" ${CORE_WORDS[i]} "* ]]; do
+  while ((i < ${#CORE_WORDS[@]})) && [[ "$RUNNERS" == *" ${CORE_WORDS[i]} "* ]]; do
     i=$((i + 1))
   done
+  # `python -m pytest`: the module is the tool.
+  if [[ "${CORE_WORDS[i]-}" == python || "${CORE_WORDS[i]-}" == python3 ]] && [[ "${CORE_WORDS[i + 1]-}" == -m ]]; then
+    i=$((i + 2))
+  fi
   ((i < ${#CORE_WORDS[@]})) || return 1
   word=${CORE_WORDS[i]##*/}
   next=${CORE_WORDS[i + 1]-}
@@ -94,11 +96,17 @@ filter_of() {
   stage_words "$1"
   word=${CORE_WORDS[0]-}
   word=${word##*/}
-  word=${word%%)*}
   [[ "$word" =~ $FILTER_RE ]] && printf '%s' "$word"
 }
 
+# A substitution's body is a command of its own, and a subshell's parenthesis ends nothing a pipe reads.
 SCAN=$(guard_mask_quoted_separators "$GUARD_COMMAND")
+if [[ "$SCAN" == *'$('* || "$SCAN" == *'`'* ]]; then
+  guard_lift_substitutions "$SCAN"
+  SCAN=$GUARD_LIFTED
+fi
+SCAN=$(printf '%s' "$SCAN" | tr $'()\004\005' '\n\n\n\n')
+
 while IFS= read -r pipeline; do
   [[ "$pipeline" == *'|'* ]] || continue
   IFS='|' read -ra stages <<<"$pipeline"
@@ -110,7 +118,7 @@ while IFS= read -r pipeline; do
         guard_block "'$check' is piped into '$filter'. The pipe hides the failure and the exit code: the pipeline reports the filter's status, so a red check reads green, and the lines that explain the failure are dropped. Run '$check' unpiped, or redirect it with '$check > <file> 2>&1' and read the file."
       fi
     elif is_check "$stage"; then
-      check=$(stage_text)
+      check=$(stage_text "$stage")
     fi
   done
 done < <(guard_pipelines "$SCAN")
