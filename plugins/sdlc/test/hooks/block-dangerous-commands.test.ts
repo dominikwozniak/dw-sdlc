@@ -101,6 +101,15 @@ const NEW_STAGED = withFile("reset-new-staged", (dir) => {
   git(dir, "add", "b.txt")
 })
 const DELETED = withFile("reset-deleted", (dir) => rmSync(join(dir, "a.txt")))
+// A change git is told not to see: diff reports nothing, yet a reset --hard loses it.
+const ASSUME_UNCHANGED = withFile("reset-assume-unchanged", (dir) => {
+  git(dir, "update-index", "--assume-unchanged", "a.txt")
+  write(join(dir, "a.txt"), "b\n")
+})
+const SKIP_WORKTREE = withFile("reset-skip-worktree", (dir) => {
+  git(dir, "update-index", "--skip-worktree", "a.txt")
+  write(join(dir, "a.txt"), "b\n")
+})
 const UNTRACKED = withFile("reset-untracked", (dir) => write(join(dir, "scratch.txt"), "x\n"))
 const DIRTY = withFile("reset-dirty", (dir) => {
   write(join(dir, "a.txt"), "b\n")
@@ -262,6 +271,8 @@ describe("reset --hard — passes when no tracked file has a change, since nothi
   blocked("unstaged-change-ref", "git reset --hard origin/main", UNSTAGED)
   blocked("staged-new-file", "git reset --hard", NEW_STAGED)
   blocked("deleted-tracked-file", "git reset --hard", DELETED)
+  blocked("assume-unchanged-edit", "git reset --hard", ASSUME_UNCHANGED)
+  blocked("skip-worktree-edit", "git reset --hard", SKIP_WORKTREE)
   blocked("dash-C-to-a-dirty-tree", `git -C ${UNSTAGED} reset --hard`, CLEAN)
   blocked("cd-to-a-dirty-tree", `cd ${UNSTAGED} && git reset --hard`, CLEAN)
   blocked("dirty-sub-below-a-clean-cwd", "git -C sub reset --hard", DIRTY)

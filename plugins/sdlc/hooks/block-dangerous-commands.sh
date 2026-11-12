@@ -201,13 +201,16 @@ check_branch_delete() {
 
 # tree_unchanged — 0 when no tracked file at GUARD_PUSH_LOC has a staged or unstaged change, so a
 # `reset --hard` loses nothing. What git cannot answer, and a tree a command or a variable may change
-# or move before the reset runs, count as changed: README.md#guards.
+# or move before the reset runs, count as changed: plugins/sdlc/README.md#guards.
 tree_unchanged() {
   local bt='`'
   ((AFTER_COMMAND)) && return 1
   # A -C or --git-dir computed at runtime names a repository the guard cannot read.
   [[ "${WORDS[*]:0:WORD_INDEX}" == *'$'* || "${WORDS[*]:0:WORD_INDEX}" == *"$bt"* ]] && return 1
   [[ "$GUARD_COMMAND" == *GIT_DIR* || "$GUARD_COMMAND" == *GIT_WORK_TREE* ]] && return 1
+  export GIT_OPTIONAL_LOCKS=0
+  # `assume-unchanged` and `skip-worktree` files (tags a-z and S) hide their edits from diff.
+  git -C "$GUARD_PUSH_LOC" ls-files -v 2>/dev/null | grep -q '^[a-zS]' && return 1
   git -C "$GUARD_PUSH_LOC" diff --quiet HEAD -- 2>/dev/null
 }
 
