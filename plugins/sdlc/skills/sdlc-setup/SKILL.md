@@ -59,9 +59,11 @@ is. A repository without a `package.json` gets neither line, and its run is the 
 
 The key names every Check the package ships. `markdown-refs`, `temporal-language` and
 `comment-budget` are on: each judges the tree as it is. `agents-map` is on too: it reads `AGENTS.md`,
-which the user writes, and the first Gate names what the map lacks. Every other Check is `false`, as
-each reads an input the repository adds first: `primitives` a catalogue, `decision-records` a
-records directory, `markdown-budget` the docs its glob matches, `file-size-ratchet` its baseline.
+which the user writes, and the first Gate names what the map lacks. Every other Check is `false`.
+Four read an input the repository adds first: `primitives` a catalogue, `decision-records` a records
+directory, `markdown-budget` the docs its glob matches, `file-size-ratchet` its baseline.
+`disable-directives` fails every Disable directive without a reason, so a repository turns it on once
+its directives give one.
 
 ## What each file is
 
