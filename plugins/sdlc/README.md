@@ -89,7 +89,10 @@ disk is in the next session, a broken edit included.
     whole tree unless `--staged` alone; `stash drop` and `clear`; `worktree remove --force`;
     `reflog expire` and `delete`; `gc --prune=now|all`; `prune`; `update-ref -d`. A plain
     `branch -d` and `worktree remove` pass, because git keeps unmerged and dirty work from them
-    itself.
+    itself. The whole tree is a pathspec of `.`, `*` or `**` behind any `./`, `./` alone, or the
+    `:/` or `:(top)` magic alone or before one of those. Under `:(glob)`, a `*` stops at the top
+    level and `**/*` reaches every file. Magic beyond `top`, `glob` and `icase`, such as
+    `:(exclude)` or `:(attr:…)`, narrows a pathspec, so it never names the whole tree.
   - forced branch delete: `branch -D`, `-d -f` or `--delete --force` passes when each branch it
     names is landed: its work is on origin's base branch, `baseBranch` or under `auto` the branch of
     origin that `origin/HEAD` names. Its tip is there, or a base commit since it forked holds the
@@ -111,9 +114,10 @@ disk is in the next session, a broken edit included.
   - gh: `repo delete`, `pr merge` or `close` with `--delete-branch`, and `api` deleting a ref or a
     repository or force-updating a ref, REST or GraphQL.
   - rm, read in place: aimed at `/`, `~`, `$HOME`, `..` and upward, the working directory by name
-    (`$PWD`, `$(pwd)`, `$(git rev-parse --show-toplevel)`), or a `.git` at any path, as any operand;
-    `.`, `./*` or a bare `*` too, unless a `cd` earlier in the command moved below the session's
-    directory; `find -delete`; `shred`.
+    (`$PWD`, `$(pwd)`, `$(git rev-parse --show-toplevel)`), `${HOME:?}` and `${PWD:?}` as well, or
+    a `.git` at any path, quoted parts such as `"$dir"/.git` included, with `objects`, `refs`,
+    `logs` or their contents; as any operand; `.`, `./*` or a bare `*` too, unless a `cd` or
+    `pushd` earlier in the command moved below the session's directory; `find -delete`; `shred`.
 - `block-env-access.sh` (file tools and Bash) — an env file (`.env`, `.env.*`, `.envrc`) is judged by
   `guardrails.envFiles` in the resolved config: a path in `deny` is refused, one in `allow` passes,
   the rest go to `policy` — `git` lets a tracked file through and refuses one git ignores or does
@@ -218,8 +222,12 @@ in place.
 
 `guard_scopes`, in `hooks/lib.sh`, cuts the masked scan into the commands the shell runs, one a
 line: at `;`, `&`, `|`, a newline and a subshell's parentheses, each of which also stands as a scope
-line, so a `cd` inside a subshell ends with it. A `$(…)` or backtick substitution is one word of the
-command around it, not a cut: `guard_lift_substitutions` makes it the word `$_`, a value computed at
+line, so a `cd` inside a subshell ends with it. A redirect's `&`, as in `2>&1`, `<&0` and `&>`, is
+no cut: `git push 2>&1 origin main` is one push to `main`. A `cd` or `pushd` with a literal
+directory, behind its options and a `--`, moves where the shell stands; `-n` keeps it there. The
+guard keeps the directories `pushd` saves, so a `popd` or a bare `pushd` goes back as the shell
+does, and a subshell gives the stack back at its end too. A `$(…)` or backtick substitution is one
+word of the command around it, not a cut: `guard_lift_substitutions` makes it the word `$_`, a value computed at
 runtime, and moves its body to a scope of its own just before that command, since the shell runs the
 body first. So `git push origin "$(git branch --show-current)" --force` is one push with its
 `--force`, and its body one command before it. A `$_` in the command's place, alone or glued to
@@ -345,7 +353,7 @@ The env and credential guards look for a path among a command's words. `guard_st
 - A comment runs nothing, so its words are dropped.
 
 The words are then read command by command, through `guard_scopes`: a relative path counts from
-where a `cd` earlier in the command left the shell, and for the env guard a `pushd` too. A glob the
+where a `cd`, `pushd` or `popd` earlier in the command left the shell. A glob the
 env guard reads, one whose last segment opens with a `.`, is the files it expands to there; quoted,
 as in `find . -name '.env*'`, it stays the word it is.
 
@@ -380,9 +388,10 @@ spellings get past a rule; each comes from the adversarial pass of issue #318 an
 - `yarn` against a separator (`yarn;`, `(yarn)`, `yarn&&`) and `pnpm exec npm`.
 - A push to a protected branch named `@` or `heads/main`, or aimed at another repository by
   `GIT_DIR=`.
-- A `cd` in the background, in a pipeline or behind a false `||`, read as a move, so an `rm -rf *`
-  after it passes and `cd sub & cat .env` is judged as `sub/.env`: an ignored `.env` beside a
-  tracked `sub/.env` passes.
+- A `cd` or `pushd` in the background, in a pipeline or behind a false `||`, read as a move, so an
+  `rm -rf *` after it passes and `cd sub & cat .env` is judged as `sub/.env`: an ignored `.env`
+  beside a tracked `sub/.env` passes. A turn of the `pushd` stack, `pushd +1`, reads as the
+  session's directory.
 - A glob the command also quotes elsewhere, `cat .env* # '.env*'`, read as quoted.
 - gh: `-R` before the `pr` verb, a request body sent with `--input`.
 - commit: a message from a here-string, a `$(…)` before `-m`, a trailer key with no colon read as

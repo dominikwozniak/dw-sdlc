@@ -282,30 +282,6 @@ env_paths() {
   printf '%s\n' "$tok"
 }
 
-# note_pushd — a `pushd <dir>` (words in WORDS) moves where the shell stands as guard_scope_step moves
-# it for a `cd`, and saves where it stood; a `popd` goes back there.
-DIRS=""
-note_pushd() {
-  local word=""
-  case "${WORDS[0]:-}" in
-    pushd)
-      for word in "${WORDS[@]:1}"; do
-        [[ "$word" == -n ]] || break
-        word=""
-      done
-      [[ -n "$word" ]] || return 0
-      DIRS+=$'\n'"$GUARD_SHELL_DIR"
-      GUARD_SHELL_DIR=$(guard_cd_dir "$word")
-      ;;
-    popd)
-      if [[ -n "$DIRS" ]]; then
-        GUARD_SHELL_DIR="${DIRS##*$'\n'}"
-        DIRS="${DIRS%$'\n'*}"
-      fi
-      ;;
-  esac
-}
-
 # The first line holds the command's own words, each line after it a substitution's or those of a
 # quote handed to a shell, and the refusal says which. Each line starts at the payload's cwd. Every
 # env name holds `.env` and a glob reaching one a `.` before its glob character.
@@ -319,10 +295,9 @@ if [[ "$STRIPPED" == *.env* || "$STRIPPED" =~ $DOT_GLOB ]]; then
     GUARD_SHELL_DIR="$GUARD_CWD"
     GUARD_SCOPE_STACK=""
     GUARD_SCOPE_BACKTICK=0
-    DIRS=""
+    GUARD_DIR_STACK=""
     while IFS= read -r segment; do
       guard_scope_step "$segment" || continue
-      note_pushd
       while IFS= read -r token; do
         # Only a glob or a `<rev>:<path>` names a path other than itself, so only it costs a fork.
         if [[ "$token" != *[*?:]* && "$token" != *"["* ]]; then

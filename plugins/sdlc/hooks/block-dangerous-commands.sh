@@ -17,16 +17,18 @@ END='([^A-Za-z0-9_-]|$)'
 Q=$GUARD_OPEN_QUOTE
 RM="rm([[:space:]]+[^;&|]*)?[[:space:]]+"
 TEND="${Q}([[:space:]]|\$|[;&|)\`])"
-WORKDIR='(\$PWD|\$\{PWD\}|\$\(pwd\)|`pwd`|\$\(git[[:space:]]+rev-parse[[:space:]]+--show-toplevel\))'
+# `${HOME:?}` and `${PWD:?msg}` fail when unset, the spelling shellcheck SC2115 asks for: still the path.
+UNSET_FAILS='(:?\?[^}]*)?'
+WORKDIR="(\\\$PWD|\\\$\\{PWD${UNSET_FAILS}\\}|\\\$\\(pwd\\)|\`pwd\`|\\\$\\(git[[:space:]]+rev-parse[[:space:]]+--show-toplevel\\))"
 
 # Wherever the command runs: the root, the home, a directory above, the working directory by name,
 # a repository's `.git` at any path.
 PATTERNS=(
   "${RM}${Q}/+\\*?${TEND}"
-  "${RM}(~/*\\*?|\"?(\\\$HOME|\\\$\\{HOME\\})\"?/*\\*?\"?)${TEND}"
+  "${RM}(~/*\\*?|\"?(\\\$HOME|\\\$\\{HOME${UNSET_FAILS}\\})\"?/*\\*?\"?)${TEND}"
   "${RM}${Q}\\.\\.(/\\.\\.?)*/*\\*?${TEND}"
   "${RM}\"?${WORKDIR}\"?(/+(\\.\\.?|\\.git))*/*\\*?\"?${TEND}"
-  "${RM}${Q}([^[:space:];&|'\"]*/)?\\.git(/(\\*|objects|refs|logs))?/?${TEND}"
+  "${RM}${Q}([^[:space:];&|]*/)?\\.git(/(\\*|objects|refs|logs)(/\\*)?)?/?${TEND}"
   "find([[:space:]][^;&|]*)?[[:space:]]-delete${TEND}"
   "shred${END}"
 )
@@ -145,8 +147,6 @@ check_commit() {
 }
 
 PLAIN='^[A-Za-z0-9._/+@-]+$'
-REDIRECT='^[0-9]*[<>]'
-REDIRECT_ALONE='^[0-9]*(<|>|>>)$'
 
 # The whole command is one command: no separator, pipe, background `&`, subshell, substitution or
 # backtick, a redirect's `&` aside. Only then are the repository and the branches a forced delete is
@@ -170,13 +170,13 @@ check_branch_delete() {
   fi
   # A redirect and its target are skipped, unless a branch has that name: quoted, it is one.
   for word in ${OPT_OPERANDS[@]+"${OPT_OPERANDS[@]}"}; do
-    if ((skip)) || [[ "$word" =~ $REDIRECT ]]; then
+    if ((skip)) || [[ "$word" =~ $GUARD_REDIRECT ]]; then
       git -C "$GUARD_PUSH_LOC" show-ref --verify -q "refs/heads/$word" 2>/dev/null &&
         guard_block "'$GUARD_COMMAND' force-deletes '$word', which reads as a redirect and names a branch too; a branch of that name is the user's to delete."
       if ((skip)); then
         skip=0
       else
-        [[ "$word" =~ $REDIRECT_ALONE ]] && skip=1
+        [[ "$word" =~ $GUARD_REDIRECT_ALONE ]] && skip=1
       fi
     elif [[ "$word" =~ $PLAIN ]]; then
       branches+=("$word")

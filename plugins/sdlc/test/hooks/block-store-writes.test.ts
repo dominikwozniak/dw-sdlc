@@ -112,7 +112,9 @@ describe("App Store Connect writes, with or without --confirm", () => {
       `asc localizations placements swap --localization-id ${LOCALIZATION_ID} --placement-id p1 --image-id ${IMAGE_ID} --placement-type APP_SCREENSHOT --confirm`,
       "refused"
     ],
-    ["asc localizations placements delete --placement-ids p1,p2 --confirm", "refused"]
+    ["asc localizations placements delete --placement-ids p1,p2 --confirm", "refused"],
+    // A redirect's `&` cuts no command, so the words after it are still its own.
+    ["asc metadata pull --dir x &>/dev/null --confirm", "refused"]
   ])
 })
 
