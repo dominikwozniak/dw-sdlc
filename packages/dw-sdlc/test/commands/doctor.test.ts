@@ -603,6 +603,15 @@ describe("the doctor command", () => {
     assert.equal(verdict.status, 1)
   })
 
+  it("reads a config whose Steps are objects as a valid one", () => {
+    const root = initRepo(scratch("doctor"))
+    const steps = [{ command: "pnpm lint", hint: "run pnpm fix" }, "pnpm test"]
+    writeJson(join(root, ".ai", "agentic.config.json"), { commit: { convention: "conventional" }, gate: { steps } })
+    const verdict = runBin(["doctor", "--root", root, "--home", scratch("home")], REPO_ROOT, BARE_MACHINE)
+    assert.match(verdict.stdout, /^PASS {2}config {12}commit conventional/m)
+    assert.doesNotMatch(verdict.stdout, /^FAIL {2}config/m)
+  })
+
   it("--root outside any repository judges no config", () => {
     const dir = scratch("doctor-bare")
     const verdict = runBin(["doctor", "--root", dir, "--home", scratch("home")], REPO_ROOT, BARE_MACHINE)

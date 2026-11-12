@@ -55,8 +55,20 @@ export type Guardrails = {
 /** `guardrails` as one layer writes it: every key optional, `envFiles` key by key. */
 export type GuardrailsLayer = Partial<Omit<Guardrails, "envFiles">> & { envFiles?: Partial<EnvFiles> }
 
-/** A repository's own script under `gate.checks.run`, reported as a Check under `name`. */
-export type RunCheck = { name: string; command: string }
+/** A repository's own script under `gate.checks.run`, reported as a Check under `name`; `hint` is what to try when it fails. */
+export type RunCheck = { name: string; command: string; hint?: string }
+/** A Step of `gate.steps`: its command, or the command with a `hint` on what to try when it fails. */
+export type Step = string | { command: string; hint?: string }
+
+/** The command a Step runs. */
+export function stepCommand(step: Step): string {
+  return typeof step === "string" ? step : step.command
+}
+
+/** The Hint a Step carries, null where it has none. */
+export function stepHint(step: Step): string | null {
+  return typeof step === "string" ? null : (step.hint ?? null)
+}
 /**
  * `run`, and under each other key a Check the package ships, as the schema takes it: `true`, `false` or
  * its options. `src/checks/` reads the setting of each.
@@ -65,9 +77,9 @@ export type GateChecks = { run: RunCheck[]; [check: string]: unknown }
 /** `gate.drift`: whether a Step may write the tree; `src/drift.ts` reads it. */
 export type DriftSetting = "fail" | "allow"
 /** The Gate: its command, the steps run in order, whether they may write the tree, the Checks run after them. */
-export type Gate = { command?: string; steps: string[]; drift: DriftSetting; checks: GateChecks }
+export type Gate = { command?: string; steps: Step[]; drift: DriftSetting; checks: GateChecks }
 /** `gate` as one layer writes it: every key optional, `checks` Check by Check. */
-export type GateLayer = { command?: string; steps?: string[]; drift?: DriftSetting; checks?: Partial<GateChecks> }
+export type GateLayer = { command?: string; steps?: Step[]; drift?: DriftSetting; checks?: Partial<GateChecks> }
 
 /** One layer as written in a file: every key optional, unknown top-level keys tolerated. */
 export type AgenticConfig = {

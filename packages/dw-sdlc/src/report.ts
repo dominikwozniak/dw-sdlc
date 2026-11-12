@@ -2,7 +2,20 @@
 // one, the rule, what is wrong and the remedy; the same as a GitHub Actions workflow annotation; the
 // same as JSON.
 
-export type Failure = { file?: string; line?: number; rule: string; message: string; remedy: string }
+export type Failure = {
+  file?: string
+  line?: number
+  rule: string
+  message: string
+  remedy: string
+  /** What the repository owner wrote to try, printed as `hint: <text>` under the failure line. */
+  hint?: string
+}
+
+/** `hint: <text>` where the failure carries a Hint, nothing otherwise. */
+export function hintLines({ hint }: Failure): string[] {
+  return hint === undefined ? [] : [`hint: ${hint}`]
+}
 
 /** `file:line: rule: message — remedy`, without the location where the failure has none. */
 export function failureLine({ file, line, rule, message, remedy }: Failure): string {

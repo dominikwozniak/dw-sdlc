@@ -2,14 +2,15 @@
   "status": "fail",
   "command": "pnpm check",
   "steps": [
-    { "command": "echo step output", "status": "pass", "exitCode": 0, "tail": null },
-    { "command": "true", "status": "pass", "exitCode": 0, "tail": null }
+    { "command": "echo step output", "hint": null, "status": "pass", "exitCode": 0, "tail": null },
+    { "command": "true", "hint": null, "status": "pass", "exitCode": 0, "tail": null }
   ],
   "checks": [
-    { "name": "fresh", "command": "true", "status": "pass", "exitCode": 0, "tail": null },
+    { "name": "fresh", "command": "true", "hint": null, "status": "pass", "exitCode": 0, "tail": null },
     {
       "name": "stale",
       "command": "echo stale output >&2; exit 1",
+      "hint": null,
       "status": "fail",
       "exitCode": 1,
       "tail": ["stale output"]
