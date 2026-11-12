@@ -2,6 +2,7 @@
 // throwaway repositories: a pnpm lockfile, no Node lockfile at all, npm declared, pnpm declared over a
 // yarn lockfile. The guard fires only where the resolved config says pnpm.
 
+import { mkdirSync } from "node:fs"
 import { join } from "node:path"
 import { describe, it } from "node:test"
 
@@ -18,6 +19,16 @@ writeJson(join(NPM, ".ai", "agentic.config.json"), { packageManagers: { node: "n
 const DECLARED = initRepo(join(TMP, "declared"))
 write(join(DECLARED, "yarn.lock"), "")
 writeJson(join(DECLARED, ".ai", "agentic.config.json"), { packageManagers: { node: "pnpm" } })
+
+// A folder that is no repository, holding a pnpm one, an npm one and a plain folder.
+const OUTSIDE = join(TMP, "workspace")
+const OUTSIDE_PNPM = initRepo(join(OUTSIDE, "app"))
+write(join(OUTSIDE_PNPM, "package.json"), "")
+write(join(OUTSIDE_PNPM, "pnpm-lock.yaml"), "")
+const OUTSIDE_NPM = initRepo(join(OUTSIDE, "legacy"))
+write(join(OUTSIDE_NPM, "package.json"), "")
+writeJson(join(OUTSIDE_NPM, ".ai", "agentic.config.json"), { packageManagers: { node: "npm" } })
+mkdirSync(join(OUTSIDE, "plain"), { recursive: true })
 
 function blocked(name: string, command: string, cwd = PNPM): void {
   it(name, () => {
@@ -84,6 +95,41 @@ describe("a pnpm repository — wrappers seen through", () => {
   blocked("dq-backtick-npx", 'echo "`npx foo`"')
   // A heredoc body is text: a backtick in a commit message is markdown, not a substitution.
   allowed("heredoc-body-backtick", "git commit -F - <<'EOF'\nfix: x\n\nnever run `npm install` here\nEOF")
+})
+
+describe("a pnpm repository — an npm option before the verb", () => {
+  blocked("npm-prefix", "npm --prefix packages/app install")
+  blocked("npm-global", "npm -g install typescript")
+  blocked("npm-silent-ci", "npm --silent ci")
+  blocked("npm-workspace-run", "npm --workspace a run build")
+  blocked("npm-w-install", "npm -w a install lodash")
+  blocked("npm-prefix-equals", "npm --prefix=packages/app install")
+  blocked("npm-prefix-quoted", 'npm --prefix "packages/my app" install')
+  blocked("npm-two-options", "npm --silent --prefix app ci")
+  blocked("npm-option-after-chain", "pnpm build && npm --silent ci")
+  allowed("npm-version-short", "npm -v")
+  allowed("npm-view-package", "npm view lodash version")
+  allowed("npm-view-a-package-named-like-a-verb", "npm view run")
+  allowed("npm-option-then-no-verb", "npm --prefix app")
+  allowed("npm-option-then-other-verb", "npm --silent whoami")
+  allowed("npm-option-in-prose", 'git commit -m "docs: npm --silent ci is banned"')
+})
+
+describe("a cd out of the repository into a pnpm one", () => {
+  blocked("cd-npm-install", "cd app && npm install", OUTSIDE)
+  blocked("cd-yarn-add", "cd app && yarn add lodash", OUTSIDE)
+  blocked("cd-npx", "cd app; npx tsc", OUTSIDE)
+  blocked("cd-absolute-npm", `cd ${join(OUTSIDE, "app")} && npm ci`, OUTSIDE)
+  blocked("cd-subshell-npm", "(cd app && npm install)", OUTSIDE)
+  blocked("cd-option-npm", "cd -P app && npm install", OUTSIDE)
+  blocked("cd-then-option-npm", "cd app && npm --silent ci", OUTSIDE)
+  allowed("cd-pnpm", "cd app && pnpm install", OUTSIDE)
+  allowed("cd-into-npm-repo", "cd legacy && npm install", OUTSIDE)
+  allowed("cd-into-a-plain-folder", "cd plain && npm install", OUTSIDE)
+  allowed("cd-subshell-ended", "(cd app) && npm install", OUTSIDE)
+  allowed("no-cd-outside", "npm install", OUTSIDE)
+  blocked("cd-out-of-npm-into-pnpm", `cd ${PNPM} && npm install`, NPM)
+  allowed("cd-out-of-pnpm-into-npm", `cd ${NPM} && npm install`, PNPM)
 })
 
 describe("a pnpm repository — pnpm and the near-misses pass", () => {
