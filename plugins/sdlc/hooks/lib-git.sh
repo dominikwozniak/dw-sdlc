@@ -280,11 +280,11 @@ guard_opt() {
 # A pathspec's long magic, `:(top,glob)`, its parentheses \002 when the mask read them in a quote.
 GUARD_PATHSPEC_MAGIC=$'^:[(\002]([^)\002]*)[)\002](.*)$'
 
-# guard_whole_tree — 0 when guard_opts read a pathspec that names the whole tree: `.`, `*` or `**`
-# behind any `./`, or `./` or the `:/` or `:(top)` magic alone. A `*` crosses `/` in git's own
-# matching, not under `:(glob)`; any magic beyond `top`, `glob` and `icase` narrows what they reach.
+# guard_whole_tree — 0 when guard_opts read a pathspec that names the whole tree: `.`, `*`, `**` or
+# `**/*` behind any `./`, or `./` or the `:/` or `:(top)` magic alone. A `*` crosses `/` in git's own
+# matching, `**/*` only under `:(glob)`; any magic beyond `top`, `glob` and `icase` narrows them.
 guard_whole_tree() {
-  local word magic rest entry
+  local word magic rest narrowing
   for word in ${OPT_OPERANDS[@]+"${OPT_OPERANDS[@]}"}; do
     magic="" rest=$word
     if [[ "$word" =~ $GUARD_PATHSPEC_MAGIC ]]; then
@@ -294,15 +294,16 @@ guard_whole_tree() {
       magic=",top,"
       rest=${word#:/}
     fi
-    entry=${magic//,top,/,}
-    entry=${entry//,glob,/,}
-    entry=${entry//,icase,/,}
-    [[ -z "${entry//,/}" ]] || continue
+    narrowing=${magic//,top,/,}
+    narrowing=${narrowing//,glob,/,}
+    narrowing=${narrowing//,icase,/,}
+    [[ -z "${narrowing//,/}" ]] || continue
     while [[ "$rest" == ./* ]]; do
       rest=${rest#./}
     done
     case "$rest" in
       . | '**') return 0 ;;
+      '**/*') [[ "$magic" == *,glob,* ]] && return 0 ;;
       '*') [[ "$magic" != *,glob,* ]] && return 0 ;;
       "") [[ "$magic" == *,top,* || "$word" == ./* ]] && return 0 ;;
     esac

@@ -677,6 +677,8 @@ describe("the rm, whole-tree and push spellings of #318", () => {
   blocked("tree-top-ctl", "git checkout -- ':(top)'")
   blocked("tree-restore-top-glob-dstar", "git restore ':(top,glob)**'")
   allowed("tree-restore-glob-star", "git restore ':(glob)*'")
+  blocked("tree-restore-glob-dstar-star", "git restore ':(glob)**/*'")
+  allowed("tree-restore-dstar-star", "git restore '**/*'")
   allowed("tree-restore-staged-dotstar", "git restore --staged ./*")
   allowed("tree-restore-subdir-glob", "git restore 'src/*'")
   allowed("tree-restore-top-subdir", "git restore ':(top)src'")

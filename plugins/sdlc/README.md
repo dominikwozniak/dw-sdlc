@@ -90,8 +90,9 @@ disk is in the next session, a broken edit included.
     `reflog expire` and `delete`; `gc --prune=now|all`; `prune`; `update-ref -d`. A plain
     `branch -d` and `worktree remove` pass, because git keeps unmerged and dirty work from them
     itself. The whole tree is a pathspec of `.`, `*` or `**` behind any `./`, `./` alone, or the
-    `:/` or `:(top)` magic alone or before one of those. A `*` under `:(glob)` is not, nor is any
-    pathspec under magic beyond `top`, `glob` and `icase`, as `:(exclude)` or `:(attr:…)`.
+    `:/` or `:(top)` magic alone or before one of those. Under `:(glob)`, a `*` stops at the top
+    level and `**/*` reaches every file. Magic beyond `top`, `glob` and `icase`, such as
+    `:(exclude)` or `:(attr:…)`, narrows a pathspec, so it never names the whole tree.
   - forced branch delete: `branch -D`, `-d -f` or `--delete --force` passes when each branch it
     names is landed: its work is on origin's base branch, `baseBranch` or under `auto` the branch of
     origin that `origin/HEAD` names. Its tip is there, or a base commit since it forked holds the
@@ -223,11 +224,10 @@ in place.
 line: at `;`, `&`, `|`, a newline and a subshell's parentheses, each of which also stands as a scope
 line, so a `cd` inside a subshell ends with it. A redirect's `&`, as in `2>&1`, `<&0` and `&>`, is
 no cut: `git push 2>&1 origin main` is one push to `main`. A `cd` or `pushd` with a literal
-directory, behind its options and a `--`, moves where the shell stands. The guard keeps the
-directories `pushd` saves, so a `popd` or a bare `pushd` goes back as the shell does, and a subshell
-gives the stack back at its end too. A turn of the stack, `pushd +1`, reads as the session's
-directory. A `$(…)` or backtick substitution is one word of the
-command around it, not a cut: `guard_lift_substitutions` makes it the word `$_`, a value computed at
+directory, behind its options and a `--`, moves where the shell stands; `-n` keeps it there. The
+guard keeps the directories `pushd` saves, so a `popd` or a bare `pushd` goes back as the shell
+does, and a subshell gives the stack back at its end too. A `$(…)` or backtick substitution is one
+word of the command around it, not a cut: `guard_lift_substitutions` makes it the word `$_`, a value computed at
 runtime, and moves its body to a scope of its own just before that command, since the shell runs the
 body first. So `git push origin "$(git branch --show-current)" --force` is one push with its
 `--force`, and its body one command before it. A `$_` in the command's place, alone or glued to
@@ -388,9 +388,10 @@ spellings get past a rule; each comes from the adversarial pass of issue #318 an
 - `yarn` against a separator (`yarn;`, `(yarn)`, `yarn&&`) and `pnpm exec npm`.
 - A push to a protected branch named `@` or `heads/main`, or aimed at another repository by
   `GIT_DIR=`.
-- A `cd` in the background, in a pipeline or behind a false `||`, read as a move, so an `rm -rf *`
-  after it passes and `cd sub & cat .env` is judged as `sub/.env`: an ignored `.env` beside a
-  tracked `sub/.env` passes.
+- A `cd` or `pushd` in the background, in a pipeline or behind a false `||`, read as a move, so an
+  `rm -rf *` after it passes and `cd sub & cat .env` is judged as `sub/.env`: an ignored `.env`
+  beside a tracked `sub/.env` passes. A turn of the `pushd` stack, `pushd +1`, reads as the
+  session's directory.
 - A glob the command also quotes elsewhere, `cat .env* # '.env*'`, read as quoted.
 - gh: `-R` before the `pr` verb, a request body sent with `--input`.
 - commit: a message from a here-string, a `$(…)` before `-m`, a trailer key with no colon read as
