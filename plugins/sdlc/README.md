@@ -89,7 +89,9 @@ disk is in the next session, a broken edit included.
     whole tree unless `--staged` alone; `stash drop` and `clear`; `worktree remove --force`;
     `reflog expire` and `delete`; `gc --prune=now|all`; `prune`; `update-ref -d`. A plain
     `branch -d` and `worktree remove` pass, because git keeps unmerged and dirty work from them
-    itself.
+    itself. The whole tree is a pathspec of `.`, `*` or `**` behind any `./`, `./` alone, or the
+    `:/` or `:(top)` magic alone or before one of those; `*` under `:(glob)`, `:(exclude)` and
+    `:(literal)` are not.
   - forced branch delete: `branch -D`, `-d -f` or `--delete --force` passes when each branch it
     names is landed: its work is on origin's base branch, `baseBranch` or under `auto` the branch of
     origin that `origin/HEAD` names. Its tip is there, or a base commit since it forked holds the
@@ -111,9 +113,10 @@ disk is in the next session, a broken edit included.
   - gh: `repo delete`, `pr merge` or `close` with `--delete-branch`, and `api` deleting a ref or a
     repository or force-updating a ref, REST or GraphQL.
   - rm, read in place: aimed at `/`, `~`, `$HOME`, `..` and upward, the working directory by name
-    (`$PWD`, `$(pwd)`, `$(git rev-parse --show-toplevel)`), or a `.git` at any path, as any operand;
-    `.`, `./*` or a bare `*` too, unless a `cd` earlier in the command moved below the session's
-    directory; `find -delete`; `shred`.
+    (`$PWD`, `$(pwd)`, `$(git rev-parse --show-toplevel)`), `${HOME:?}` and `${PWD:?}` as well, or
+    a `.git` at any path, quoted parts such as `"$dir"/.git` included, with `objects`, `refs`,
+    `logs` or their contents; as any operand; `.`, `./*` or a bare `*` too, unless a `cd` or
+    `pushd` earlier in the command moved below the session's directory; `find -delete`; `shred`.
 - `block-env-access.sh` (file tools and Bash) — an env file (`.env`, `.env.*`, `.envrc`) is judged by
   `guardrails.envFiles` in the resolved config: a path in `deny` is refused, one in `allow` passes,
   the rest go to `policy` — `git` lets a tracked file through and refuses one git ignores or does
@@ -218,7 +221,11 @@ in place.
 
 `guard_scopes`, in `hooks/lib.sh`, cuts the masked scan into the commands the shell runs, one a
 line: at `;`, `&`, `|`, a newline and a subshell's parentheses, each of which also stands as a scope
-line, so a `cd` inside a subshell ends with it. A `$(…)` or backtick substitution is one word of the
+line, so a `cd` inside a subshell ends with it. A redirect's `&`, as in `2>&1`, `<&0` and `&>`, is
+no cut: `git push 2>&1 origin main` is one push to `main`. A `cd` or `pushd` with a literal
+directory, behind its options and a `--`, moves where the shell stands. The guard keeps no
+directory stack, so a `popd`, and a `pushd` with no directory or a `+1`, read as the session's
+directory. A `$(…)` or backtick substitution is one word of the
 command around it, not a cut: `guard_lift_substitutions` makes it the word `$_`, a value computed at
 runtime, and moves its body to a scope of its own just before that command, since the shell runs the
 body first. So `git push origin "$(git branch --show-current)" --force` is one push with its

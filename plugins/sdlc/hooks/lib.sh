@@ -113,8 +113,8 @@ guard_pipelines() {
 }
 
 # guard_scopes <scan> — the masked scan one command a line, a line of \001 and `(` or `)` where a
-# scope opens or closes, each substitution lifted first: README.md#commands-and-scopes. Split by sed,
-# as guard_pipelines is.
+# scope opens or closes, each substitution lifted first: README.md#commands-and-scopes. A redirect's
+# `&` becomes \003 and cuts nothing. Split by sed, as guard_pipelines is.
 guard_scopes() {
   local scan="$1" bt='`'
   if [[ "$scan" == *'$('* || "$scan" == *"$bt"* ]]; then
@@ -122,7 +122,8 @@ guard_scopes() {
     scan=$GUARD_LIFTED
   fi
   printf '%s\n' "$scan" |
-    sed -e $'s/[(\004]/\\\n\001(\\\n/g' -e $'s/[)\005]/\\\n\001)\\\n/g' -e $'s/`/\\\n\001`\\\n/g' |
+    sed -e $'s/>&/>\003/g' -e $'s/<&/<\003/g' -e $'s/&>/\003>/g' \
+      -e $'s/[(\004]/\\\n\001(\\\n/g' -e $'s/[)\005]/\\\n\001)\\\n/g' -e $'s/`/\\\n\001`\\\n/g' |
     tr ';&|' '\n\n\n' | sed -E '/^[[:space:]]*$/d'
 }
 
@@ -270,8 +271,8 @@ GUARD_SCOPE_STACK=""
 GUARD_SCOPE_BACKTICK=0
 
 # guard_scope_step <line> — one line of guard_scopes against GUARD_SHELL_DIR: a subshell opening saves
-# it, its end restores it, a `cd` (words in WORDS) moves it. Returns 1 for a scope line, which holds
-# no command.
+# it, its end restores it, a `cd` or `pushd` (words in WORDS) moves it, a `popd` or a stack turn sets
+# the payload's cwd: README.md#commands-and-scopes. Returns 1 for a scope line, which holds no command.
 guard_scope_step() {
   local word bt_line=$'\001`'
   case "$1" in
@@ -299,13 +300,38 @@ guard_scope_step() {
   esac
   guard_read_words "$1"
   guard_unwrap_words
-  if [[ ${#WORDS[@]} -gt 0 && "${WORDS[0]}" == cd ]]; then
-    # `cd -P dir`, `cd -L dir`: the options name no directory.
+  case "${WORDS[0]:-}" in
+    cd | pushd) ;;
+    popd)
+      GUARD_SHELL_DIR="$GUARD_CWD"
+      return 0
+      ;;
+    *) return 0 ;;
+  esac
+  # `cd -P dir`, `cd -L dir`, `pushd -n dir`: the options name no directory, and `--` ends them.
+  local i=1 n=${#WORDS[@]} stays=0
+  word=""
+  while ((i < n)); do
+    word=${WORDS[i]}
+    i=$((i + 1))
+    case "$word" in
+      --)
+        word=${WORDS[i]:-}
+        break
+        ;;
+      -[LPe@]*) ;;
+      -n)
+        [[ "${WORDS[0]}" == pushd ]] || break
+        stays=1
+        ;;
+      *) break ;;
+    esac
     word=""
-    for word in "${WORDS[@]:1}"; do
-      [[ "$word" == -[LPe@]* ]] || break
-      word=""
-    done
+  done
+  ((stays)) && return 0
+  if [[ "${WORDS[0]}" == pushd && ("$word" == "" || "$word" == [+-][0-9]*) ]]; then
+    GUARD_SHELL_DIR="$GUARD_CWD"
+  else
     GUARD_SHELL_DIR=$(guard_cd_dir "$word")
   fi
   return 0

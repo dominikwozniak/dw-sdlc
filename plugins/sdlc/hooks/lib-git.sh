@@ -15,6 +15,10 @@ GUARD_PUSH_REMOTE=""
 GUARD_PUSH_REFSPECS=""
 GUARD_GIT_VERB=""
 WORD_INDEX=0
+# A redirect word, its target glued or the next word when alone; guard_scopes made a redirect's `&`
+# \003, so `2>&1` reads `2>\0031` and `&>log` reads `\003>log`.
+GUARD_REDIRECT=$'^[0-9]*\003?[<>]'
+GUARD_REDIRECT_ALONE=$'^[0-9]*\003?(<|>|>>)$'
 
 # guard_git_verb <segment> — WORDS with the launchers off, GUARD_GIT_VERB, GUARD_PUSH_LOC where git
 # runs, WORD_INDEX the word after the verb; 1 for no git command. Globals, not stdout: a caller
@@ -55,9 +59,9 @@ guard_git_verb_words() {
   return 1
 }
 
-# guard_parse_push <segment> — 0 for a `git … push` once the launchers are off, its options read into
-# the GUARD_PUSH_* flags, a cluster letter by letter, and GUARD_PUSH_REFSPECS one a line, `+` off. A
-# bare `:` deletes nothing; a --prune deletes with --all, --tags, no refspec or a `*` refspec.
+# guard_parse_push <segment> — 0 for a `git … push`, launchers off, its options in the GUARD_PUSH_*
+# flags, a cluster letter by letter, GUARD_PUSH_REFSPECS one a line, `+` and redirects off. A bare `:`
+# deletes nothing; a --prune deletes with --all, --tags, no refspec or a `*` refspec.
 guard_parse_push() {
   local word i n prune=0
   GUARD_PUSH_BARE=0
@@ -103,7 +107,9 @@ guard_parse_push() {
         GUARD_PUSH_REFSPECS+="${GUARD_PUSH_REFSPECS:+$'\n'}${word#+}"
         ;;
       *)
-        if [[ -z "$GUARD_PUSH_REMOTE" ]]; then
+        if [[ "$word" =~ $GUARD_REDIRECT ]]; then
+          [[ "$word" =~ $GUARD_REDIRECT_ALONE ]] && i=$((i + 1))
+        elif [[ -z "$GUARD_PUSH_REMOTE" ]]; then
           GUARD_PUSH_REMOTE="$word"
         else
           [[ "$word" == :?* ]] && GUARD_PUSH_DELETE=1
@@ -271,13 +277,31 @@ guard_opt() {
   return 1
 }
 
-# guard_whole_tree — 0 when guard_opts read a pathspec that names the whole tree: `.`, `./`, `:/`,
-# `:(top)` or a bare `*`.
+# A pathspec's long magic, `:(top,glob)`, its parentheses \002 when the mask read them in a quote.
+GUARD_PATHSPEC_MAGIC=$'^:[(\002]([^)\002]*)[)\002](.*)$'
+
+# guard_whole_tree — 0 when guard_opts read a pathspec that names the whole tree: `.`, `*` or `**`
+# behind any `./`, or `./` or the `:/` or `:(top)` magic alone. A `*` crosses `/` in git's own
+# matching, not under `:(glob)`; `:(exclude)` and `:(literal)` reach none of them.
 guard_whole_tree() {
-  local word
+  local word magic rest
   for word in ${OPT_OPERANDS[@]+"${OPT_OPERANDS[@]}"}; do
-    case "$word" in
-      . | ./ | :/ | :/. | ':(top)' | '*') return 0 ;;
+    magic="" rest=$word
+    if [[ "$word" =~ $GUARD_PATHSPEC_MAGIC ]]; then
+      magic=",${BASH_REMATCH[1]},"
+      rest=${BASH_REMATCH[2]}
+    elif [[ "$word" == :/* ]]; then
+      magic=",top,"
+      rest=${word#:/}
+    fi
+    [[ "$magic" == *,exclude,* || "$magic" == *,literal,* ]] && continue
+    while [[ "$rest" == ./* ]]; do
+      rest=${rest#./}
+    done
+    case "$rest" in
+      . | '**') return 0 ;;
+      '*') [[ "$magic" != *,glob,* ]] && return 0 ;;
+      "") [[ "$magic" == *,top,* || "$word" == ./* ]] && return 0 ;;
     esac
   done
   return 1
