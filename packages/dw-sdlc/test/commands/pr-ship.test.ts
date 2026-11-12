@@ -170,6 +170,13 @@ describe("dw-sdlc pr ship", () => {
     assert.deepEqual(run.calls, [AUTH, READ])
   })
 
+  it("answers done with no command for a merged pull request from a fork, whose head branch lives on the fork", () => {
+    const run = json({ ...MERGED, fromFork: true })
+    assert.equal(run.status, 0, run.stderr)
+    assert.deepEqual(run.document, json({ ...MERGED, headDeleted: true }).document)
+    assert.deepEqual(run.calls, [AUTH, READ])
+  })
+
   it("answers done with no command once the merged pull request's head branch is gone from the remote", () => {
     const run = json({ ...MERGED, headDeleted: true })
     assert.equal(run.status, 0, run.stderr)
@@ -277,6 +284,7 @@ describe("dw-sdlc pr ship", () => {
       readyAt: null,
       branch: "feat/example",
       branchStands: true,
+      fromFork: false,
       base: "main",
       baseOid: BASE_OID,
       mergeCommit: null,
@@ -374,6 +382,7 @@ describe("dw-sdlc pr ship", () => {
     const cases: [Pr, number, string][] = [
       [MERGED, 0, "done: merged as b04365a — git push origin --delete feat/example"],
       [{ ...MERGED, headDeleted: true }, 0, "done: merged as b04365a"],
+      [{ ...MERGED, fromFork: true }, 0, "done: merged as b04365a"],
       [{ ...GREEN, state: "CLOSED" }, 30, "park stop: closed without merging"],
       [{ ...GREEN, mergeable: "UNKNOWN" }, 20, "wait: mergeability-unknown, recheck in 15 s"],
       [GREEN, 30, `park ready-to-merge: pr.merge is ask: the merge is the dev's — ${DEV_MERGE}`]
@@ -892,6 +901,7 @@ describe("dw-sdlc pr ship when it cannot run", () => {
       [[broken((pr) => (pr.headRefOid = 7))], `${at}.headRefOid is 7, not a string`],
       [[broken((pr) => delete pr.number)], `${at}.number is missing, not an integer`],
       [[broken((pr) => (pr.headRef = "feat/example"))], `${at}.headRef is "feat/example", not an object`],
+      [[broken((pr) => delete pr.isCrossRepository)], `${at}.isCrossRepository is missing, not a boolean`],
       [
         [
           broken(
