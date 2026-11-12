@@ -344,8 +344,9 @@ const ROWS: Row[] = [
     }
   },
   {
-    // A head whose every check was skipped has run nothing: a draft's are, until `ready` starts the run.
-    when: (pr) => ciOf(pr).length === 0 || (!pr.draft && ciOf(pr).every((check) => check.bucket === "skipping")),
+    // A head whose every check was skipped, or that has none, has run nothing. A draft's runs skip or
+    // never start until `ready` starts the run, so a draft is no case of it: `mark-ready` is its row.
+    when: (pr) => !pr.draft && (ciOf(pr).length === 0 || ciOf(pr).every((check) => check.bucket === "skipping")),
     answer: (pr, now, policy) =>
       now - Math.max(Date.parse(pr.headCommittedAt), Date.parse(pr.readyAt ?? pr.headCommittedAt)) <=
       GRACE_SECONDS * 1000
