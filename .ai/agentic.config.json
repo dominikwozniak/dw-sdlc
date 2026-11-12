@@ -27,8 +27,7 @@
       "temporal-language": true,
       "decision-records": true,
       "file-size-ratchet": true,
-      "comment-budget": true,
-      "disable-directives": true
+      "comment-budget": true
     }
   },
   "pr": { "merge": "auto" },
