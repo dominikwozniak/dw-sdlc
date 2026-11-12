@@ -114,11 +114,25 @@
           "minLength": 1
         },
         "steps": {
-          "description": "The Steps: toolchain commands run in order from the repository root through `sh -c`; the first that does not pass ends the Gate and no Check runs. Each one's output is captured, and its last 50 lines are printed when it does not pass; `--verbose` passes the output through instead. A command the shell cannot find (exit 127) or execute (126) means the Gate cannot run.",
+          "description": "The Steps: toolchain commands run in order from the repository root through `sh -c`; the first that does not pass ends the Gate and no Check runs. A Step is a command string, or an object with its `command` and a `hint`. Each one's output is captured, and its last 50 lines are printed when it does not pass, with the `hint` under them; `--verbose` passes the output through instead. A command the shell cannot find (exit 127) or execute (126) means the Gate cannot run.",
           "type": "array",
           "items": {
-            "type": "string",
-            "minLength": 1
+            "type": ["string", "object"],
+            "minLength": 1,
+            "properties": {
+              "command": {
+                "description": "The command the Step runs.",
+                "type": "string",
+                "minLength": 1
+              },
+              "hint": {
+                "description": "What to try when the Step fails: one line the Gate prints as `hint: <text>` under the failure. A passing Step prints nothing.",
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": ["command"],
+            "additionalProperties": false
           }
         },
         "drift": {
@@ -142,6 +156,11 @@
                     "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$"
                   },
                   "command": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "hint": {
+                    "description": "What to try when the script fails: one line the Gate prints as `hint: <text>` under the failure. A passing script prints nothing.",
                     "type": "string",
                     "minLength": 1
                   }

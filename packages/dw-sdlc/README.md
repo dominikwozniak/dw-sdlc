@@ -35,6 +35,10 @@ lines, exit codes and document.
 }
 ```
 
+A Step is a command string, or `{ "command": "…", "hint": "…" }`; a `gate.checks.run` entry takes a
+`hint` beside `name` and `command`. When the Step or script fails, the Gate prints `hint: <text>` under
+its failure line, and `--json` carries `hint` on every Step and Check, `null` where there is none.
+
 ```json
 { "scripts": { "check": "dw-sdlc gate" } }
 ```

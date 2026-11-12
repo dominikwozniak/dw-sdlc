@@ -3,12 +3,21 @@
 
 import { parseArgs } from "node:util"
 
-import { type Gate, type Problem, type RunCheck, repositoryRoot, resolveConfig } from "../agentic-config.ts"
+import {
+  type Gate,
+  type Problem,
+  type RunCheck,
+  repositoryRoot,
+  resolveConfig,
+  type Step,
+  stepCommand,
+  stepHint
+} from "../agentic-config.ts"
 import { CannotRun } from "../checks/check.ts"
 import { CHECK_NAMES, type EnabledCheck, enabledChecks, shippedCheck } from "../checks/index.ts"
 import { watchDrift } from "../drift.ts"
 import { type Fingerprint, fingerprint, isGreen, stampGreen } from "../gate-cache.ts"
-import { annotation, type Failure, failureJson, failureLine } from "../report.ts"
+import { annotation, type Failure, failureJson, failureLine, hintLines } from "../report.ts"
 import {
   holdingSignals,
   type Output,
@@ -33,6 +42,9 @@ Actions it is also a workflow annotation. A Step or run script prints nothing of
 does not pass: then its last ${TAIL_LINES} lines, both streams in the order written, under its own
 line. In a terminal a Step's line shows when it starts and takes its result when it ends.
 
+A Step written as { "command", "hint" }, and a run script with a hint, prints "hint: <text>" under its
+failure line when it does not pass; a passing one prints nothing more.
+
 Each Step runs between two records of every file git tracks or would track: a file the Step created,
 changed or deleted is Drift, one failure per file, and the Steps after it still run. Ignored files
 and edits made before the run never drift, and a Step a signal stopped is not compared. gate.drift
@@ -45,7 +57,7 @@ second signal, or one sent while the Checks the package ships run, ends the Gate
 
 --verbose passes each command's output through as it runs instead, under a line naming the command,
 and keeps no tail. --json prints the document alone; each Step and Check in it carries tail, the last
-${TAIL_LINES} lines of a command that did not pass, null otherwise. With --verbose, under --json, the
+${TAIL_LINES} lines of a command that did not pass, null otherwise, and hint, null where there is none. With --verbose, under --json, the
 commands' output goes to stderr and every tail is null.
 
 --update-baseline then rewrites the baseline of each Ratchet, only when every Step and every other
@@ -61,9 +73,10 @@ cannot run: an invalid config layer, a Step or Check whose command the shell can
 a Check missing an input it reads, or a tree it cannot record for Drift.`
 
 type Outcome = { status: Status | "skipped"; exitCode: number | null; tail: string[] | null }
-type StepReport = Outcome & { command: string }
-/** A Check the package ships runs in this process: it has no command. */
-type CheckReport = Outcome & { name: string; command: string | null }
+/** `hint` is what the Step carries to try when it fails, null where it has none. */
+type StepReport = Outcome & { command: string; hint: string | null }
+/** A Check the package ships runs in this process: it has no command and no hint. */
+type CheckReport = Outcome & { name: string; command: string | null; hint: string | null }
 type GateReport = {
   status: Status
   command: string | null
@@ -78,7 +91,7 @@ type Judged = { check: EnabledCheck; outcome: Outcome; failures: Failure[] }
 /** Where the Gate says what it runs: stdout, or stderr under `--json`. */
 type Log = { write: (text: string) => unknown }
 /** The Steps and Checks one run judges. */
-type Selection = { steps: string[]; run: RunCheck[]; shipped: EnabledCheck[] }
+type Selection = { steps: Step[]; run: RunCheck[]; shipped: EnabledCheck[] }
 /** How a run of the whole Gate goes: plain, refreshing each Ratchet's baseline, or cached on a green tree. */
 type Mode = "plain" | "update-baseline" | "cache"
 /** A run of the whole Gate, or of the Checks named `only` alone: no Step, no progress line, no refresh. */
@@ -325,7 +338,7 @@ export async function runGate(root: string, options: RunOptions): Promise<GateRe
   const failures: Failure[] = []
   const watch = watchDrift(root, config.gate)
   /** Runs one Step or Check, prints its progress and records its failure under `rule`, if it has one. */
-  const runOne = async (kind: Kind, subject: string, command: string): Promise<Outcome> => {
+  const runOne = async (kind: Kind, subject: string, command: string, hint: string | null): Promise<Outcome> => {
     progress.start(kind, subject)
     const ran = await runCommand(command, root, output)
     progress.end(kind, subject, ran)
@@ -334,7 +347,8 @@ export async function runGate(root: string, options: RunOptions): Promise<GateRe
       failures.push({
         rule: kind === "step" ? "step" : subject,
         message: `${JSON.stringify(command)} ${ran.detail}`,
-        remedy
+        remedy,
+        ...(hint === null ? {} : { hint })
       })
     }
     return { status: ran.status, exitCode: ran.exitCode, tail: ran.tail }
@@ -347,15 +361,19 @@ export async function runGate(root: string, options: RunOptions): Promise<GateRe
     const halted = (): boolean => failedStep || stoppedBy() !== undefined
     const steps: StepReport[] = []
     for (const step of selected.steps) {
-      const watched = halted() ? undefined : await watch.step(step, () => runOne("step", step, step))
+      const command = stepCommand(step)
+      const hint = stepHint(step)
+      const watched = halted() ? undefined : await watch.step(command, () => runOne("step", command, command, hint))
       failures.push(...(watched?.failures ?? []))
       const outcome: Outcome = watched?.result ?? SKIPPED
-      steps.push({ command: step, ...outcome })
+      steps.push({ command, hint, ...outcome })
       failedStep ||= outcome.status !== "pass"
     }
     const checks: CheckReport[] = []
     for (const check of selected.run) {
-      checks.push({ ...check, ...(halted() ? SKIPPED : await runOne("check", check.name, check.command)) })
+      const hint = check.hint ?? null
+      const outcome = halted() ? SKIPPED : await runOne("check", check.name, check.command, hint)
+      checks.push({ name: check.name, command: check.command, hint, ...outcome })
     }
     return { steps, checks, halted: halted() }
   })
@@ -381,7 +399,7 @@ export async function runGate(root: string, options: RunOptions): Promise<GateRe
       progress.end("check", check.name, outcome)
     }
     failures.push(...found)
-    checks.push({ name: check.name, command: null, ...outcome })
+    checks.push({ name: check.name, command: null, hint: null, ...outcome })
   }
   for (const note of notes) {
     log.write(`${note}\n`)
@@ -421,9 +439,11 @@ export function printReport(report: GateReport, json: boolean, label: string): n
       process.stderr.write(`${annotation(failure)}\n`)
     }
   } else {
-    const lines = report.failures.flatMap((failure) =>
-      actions ? [failureLine(failure), annotation(failure)] : [failureLine(failure)]
-    )
+    const lines = report.failures.flatMap((failure) => [
+      failureLine(failure),
+      ...(actions ? [annotation(failure)] : []),
+      ...hintLines(failure)
+    ])
     process.stdout.write(`${[...lines, verdict(label, report)].join("\n")}\n`)
   }
   return EXIT_CODES[report.status]

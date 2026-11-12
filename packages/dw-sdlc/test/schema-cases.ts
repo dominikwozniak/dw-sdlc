@@ -251,6 +251,46 @@ export const CASES: Case[] = [
     problems: [{ path: "gate.drift", message: 'false is not one of "fail", "allow"' }]
   },
   {
+    name: "the agentic schema takes a Step as a string or as an object with a command and a hint",
+    schema: AGENTIC_SCHEMA,
+    value: {
+      gate: { steps: ["pnpm lint", { command: "pnpm test" }, { command: "pnpm build", hint: "run pnpm clean" }] }
+    },
+    problems: []
+  },
+  {
+    name: "the agentic schema takes a hint beside a run entry's name and command",
+    schema: AGENTIC_SCHEMA,
+    value: { gate: { checks: { run: [{ ...RUN_CHECK, hint: "run pnpm docs:build" }] } } },
+    problems: []
+  },
+  {
+    name: "the agentic schema refuses an unknown key on a Step object and a Step object without a command",
+    schema: AGENTIC_SCHEMA,
+    value: { gate: { steps: [{ command: "pnpm lint", timeout: 60 }, { hint: "run pnpm clean" }] } },
+    problems: [
+      { path: "gate.steps[0]", message: 'unknown key "timeout"' },
+      { path: "gate.steps[1]", message: 'missing required key "command"' }
+    ]
+  },
+  {
+    name: "the agentic schema refuses an empty Step, an empty command or hint, and a Step of another type",
+    schema: AGENTIC_SCHEMA,
+    value: {
+      gate: {
+        steps: ["", { command: "", hint: "" }, 3],
+        checks: { run: [{ ...RUN_CHECK, hint: "" }] }
+      }
+    },
+    problems: [
+      { path: "gate.steps[0]", message: "must not be empty" },
+      { path: "gate.steps[1].command", message: "must not be empty" },
+      { path: "gate.steps[1].hint", message: "must not be empty" },
+      { path: "gate.steps[2]", message: "expected string or object, got 3" },
+      { path: "gate.checks.run[0].hint", message: "must not be empty" }
+    ]
+  },
+  {
     name: "the agentic schema refuses an unknown key under gate and in a run entry",
     schema: AGENTIC_SCHEMA,
     value: { gate: { parallel: true, checks: { run: [{ ...RUN_CHECK, timeout: 60 }] } } },

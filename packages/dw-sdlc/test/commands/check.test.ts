@@ -171,7 +171,14 @@ describe("dw-sdlc check --json", () => {
       command: "pnpm check",
       steps: [],
       checks: [
-        { name: "stale", command: "echo stale output; exit 1", status: "fail", exitCode: 1, tail: ["stale output"] }
+        {
+          name: "stale",
+          command: "echo stale output; exit 1",
+          hint: null,
+          status: "fail",
+          exitCode: 1,
+          tail: ["stale output"]
+        }
       ],
       failures: [
         {
@@ -192,8 +199,8 @@ describe("dw-sdlc check --json", () => {
     const run = runBin(["check", "comment-budget", "--json"], root)
     assert.equal(run.status, 1)
     assert.deepEqual(JSON.parse(run.stdout).checks, [
-      { name: "comment-budget", command: "true", status: "pass", exitCode: 0, tail: null },
-      { name: "comment-budget", command: null, status: "fail", exitCode: 1, tail: null }
+      { name: "comment-budget", command: "true", hint: null, status: "pass", exitCode: 0, tail: null },
+      { name: "comment-budget", command: null, hint: null, status: "fail", exitCode: 1, tail: null }
     ])
   })
 })

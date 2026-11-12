@@ -817,6 +817,16 @@ describe("adopting the Gate", () => {
     assert.equal(read(root, COMMITTED_FILE), config)
   })
 
+  it("leaves a gate key whose Steps are objects as it is, and refuses no layer", () => {
+    const gate = { steps: [{ command: "pnpm lint", hint: "run pnpm fix" }, "pnpm test"] }
+    const config = `${JSON.stringify({ version: 1, gate })}\n`
+    const root = withoutGate({ [COMMITTED_FILE]: config })
+    const result = setupBin(root, scratch("home"), "--add-package")
+    assert.equal(result.status, 0, result.stdout)
+    assert.ok(lines(result.stdout).includes(`unchanged   ${COMMITTED_FILE}`), result.stdout)
+    assert.equal(read(root, COMMITTED_FILE), config)
+  })
+
   it("refuses a committed config or a manifest that is not a JSON object with exit 1, and leaves it untouched", () => {
     for (const text of ["[]\n", "{ not json"]) {
       const root = withoutGate({ [COMMITTED_FILE]: text })

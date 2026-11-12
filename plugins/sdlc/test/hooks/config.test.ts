@@ -94,6 +94,24 @@ describe("hooks/lib.sh agrees with resolveConfig", () => {
         })
     ],
     [
+      "on Steps written as objects with a hint, and a run script with a hint",
+      () =>
+        repo({
+          files: {
+            [COMMITTED_FILE]: {
+              gate: {
+                steps: ["pnpm lint", { command: "pnpm test", hint: "run pnpm build first" }],
+                checks: { run: [{ name: "docs", command: "node docs.ts", hint: "run pnpm docs:build" }] }
+              }
+            }
+          }
+        })
+    ],
+    [
+      "on a Step object with an unknown key",
+      () => repo({ files: { [COMMITTED_FILE]: { gate: { steps: [{ command: "pnpm lint", timeout: 60 }] } } } })
+    ],
+    [
       "on a validation key, tolerated as an unknown top-level key",
       () => repo({ files: { [COMMITTED_FILE]: { validation: { commands: ["pnpm check"] } } } })
     ],

@@ -128,6 +128,36 @@ describe("dw-sdlc gate, the steps", () => {
     assert.equal(run.stderr, "")
   })
 
+  it("runs a Step written as an object by its command, and prints no hint line when it passes", () => {
+    const root = withGate({ steps: [{ command: "echo lint >> ran", hint: "run pnpm fix" }] }, { ".gitignore": "ran\n" })
+    const run = runBin(["gate"], root)
+    assert.equal(run.status, 0, run.stderr)
+    assert.equal(readFileSync(join(root, "ran"), "utf8"), "lint\n")
+    assert.deepEqual(timed(run.stdout), ["gate: step echo lint >> ran — pass (N s)", "gate: green — 1 step, 0 checks"])
+  })
+
+  it("prints a failing Step's hint under its failure line, as the Step objects and strings mix", () => {
+    const step = "echo stale output >&2; exit 1"
+    const root = withGate({ steps: ["true", { command: step, hint: "run pnpm generate to reset it" }] })
+    const run = runBin(["gate"], root)
+    assert.equal(run.status, 1)
+    assert.deepEqual(timed(run.stdout), [
+      "gate: step true — pass (N s)",
+      `gate: step ${step} — failed, exit 1 (N s); its last 50 lines:`,
+      "  stale output",
+      `step: ${JSON.stringify(step)} exited 1 — ${FAILED_REMEDY}`,
+      "hint: run pnpm generate to reset it",
+      "gate: failed — 1 failure"
+    ])
+  })
+
+  it("prints no hint line for a failing Step written as an object without one", () => {
+    const root = withGate({ steps: [{ command: "exit 1" }] })
+    const run = runBin(["gate"], root)
+    assert.equal(run.status, 1)
+    assert.ok(!run.stdout.includes("hint:"), run.stdout)
+  })
+
   it("exits 2 when the shell cannot find a step's command, with the shell's own words under its line", () => {
     const root = withGate({ steps: ["dw-sdlc-no-such-command", "touch second-step-ran"] })
     const run = runBin(["gate"], root)
@@ -201,7 +231,7 @@ describe("dw-sdlc gate, Drift", () => {
     assert.equal(run.status, 1)
     const { status, steps, failures } = JSON.parse(run.stdout)
     assert.equal(status, "fail")
-    assert.deepEqual(steps, [{ command: FORMAT, status: "pass", exitCode: 0, tail: null }])
+    assert.deepEqual(steps, [{ command: FORMAT, hint: null, status: "pass", exitCode: 0, tail: null }])
     assert.deepEqual(failures, [
       { file: "notes.md", line: null, rule: "drift", message: `${JSON.stringify(FORMAT)} changed it`, remedy: REMEDY }
     ])
@@ -410,7 +440,7 @@ describe("dw-sdlc gate --verbose", () => {
     const run = runBin(["gate", "--verbose", "--json"], root)
     assert.equal(run.status, 1)
     assert.deepEqual(JSON.parse(run.stdout).steps, [
-      { command: "echo step output; exit 1", status: "fail", exitCode: 1, tail: null }
+      { command: "echo step output; exit 1", hint: null, status: "fail", exitCode: 1, tail: null }
     ])
     assert.deepEqual(lines(run.stderr), ["gate: step echo step output; exit 1", "step output"])
   })
@@ -452,6 +482,29 @@ describe("dw-sdlc gate, the Checks", () => {
       ...NUMBERED_TAIL.map((line) => `  ${line}`),
       `numbered: ${JSON.stringify(NUMBERED)} exited 3 — ${FAILED_REMEDY}`,
       "gate: failed — 1 failure"
+    ])
+  })
+
+  it("prints a failing run script's hint under its failure line, and none for a passing one", () => {
+    const root = withGate({
+      checks: {
+        run: [
+          { name: "ok", command: "true", hint: "never printed" },
+          { name: "stale", command: "exit 2", hint: "run pnpm docs:build" },
+          { name: "plain", command: "exit 3" }
+        ]
+      }
+    })
+    const run = runBin(["gate"], root)
+    assert.equal(run.status, 1)
+    assert.deepEqual(lines(run.stdout), [
+      "gate: check ok — pass",
+      "gate: check stale — failed, exit 2; it printed nothing",
+      "gate: check plain — failed, exit 3; it printed nothing",
+      `stale: "exit 2" exited 2 — ${FAILED_REMEDY}`,
+      "hint: run pnpm docs:build",
+      `plain: "exit 3" exited 3 — ${FAILED_REMEDY}`,
+      "gate: failed — 2 failures"
     ])
   })
 
@@ -516,7 +569,7 @@ describe("dw-sdlc gate, the Checks the package ships", () => {
     const run = runBin(["gate", "--json"], root)
     assert.equal(run.status, 1)
     assert.deepEqual(JSON.parse(run.stdout).checks, [
-      { name: "primitives", command: null, status: "skipped", exitCode: null, tail: null }
+      { name: "primitives", command: null, hint: null, status: "skipped", exitCode: null, tail: null }
     ])
   })
 })
@@ -569,10 +622,29 @@ describe("dw-sdlc gate --json", () => {
     const run = runBin(["gate", "--json"], withGate({ steps: [NUMBERED, "true"] }))
     assert.equal(run.status, 1)
     assert.deepEqual(JSON.parse(run.stdout).steps, [
-      { command: NUMBERED, status: "fail", exitCode: 3, tail: NUMBERED_TAIL },
-      { command: "true", status: "skipped", exitCode: null, tail: null }
+      { command: NUMBERED, hint: null, status: "fail", exitCode: 3, tail: NUMBERED_TAIL },
+      { command: "true", hint: null, status: "skipped", exitCode: null, tail: null }
     ])
     assert.equal(run.stderr, "")
+  })
+
+  it("carries a Step's and a run script's hint, null where there is none, and a shipped Check's null", () => {
+    const root = withGate({
+      steps: [{ command: "true", hint: "a step hint" }, "true"],
+      checks: { run: [{ name: "docs", command: "exit 1", hint: "a check hint" }], "comment-budget": true }
+    })
+    const document = JSON.parse(runBin(["gate", "--json"], root).stdout)
+    assert.deepEqual(
+      document.steps.map(({ hint }: { hint: unknown }) => hint),
+      ["a step hint", null]
+    )
+    assert.deepEqual(
+      document.checks.map(({ name, hint }: { name: string; hint: unknown }) => [name, hint]),
+      [
+        ["docs", "a check hint"],
+        ["comment-budget", null]
+      ]
+    )
   })
 
   it("keeps a line a lone carriage return rewrote as a terminal shows it, the last text written over it", () => {
@@ -607,6 +679,18 @@ describe("dw-sdlc gate --cache", () => {
     assert.equal(run.status, 0, run.stdout)
     assert.deepEqual(lines(run.stdout), [CACHED_LINE])
     assert.equal(runs(root), 1)
+  })
+
+  it("fingerprints a config whose Steps are objects, skipping the second run and running again on a changed hint", () => {
+    const root = countingRepo({}, { steps: [{ command: "echo ran >> ran", hint: "one" }] })
+    write(join(root, ".git", "info", "exclude"), `${LOCAL}\n`)
+    assert.equal(runBin(["gate", "--cache"], root).status, 0)
+    assert.deepEqual(lines(runBin(["gate", "--cache"], root).stdout), [CACHED_LINE])
+    assert.equal(runs(root), 1)
+    const changed = { version: 1, gate: { steps: [{ command: "echo ran >> ran", hint: "two" }] } }
+    write(join(root, LOCAL), JSON.stringify(changed))
+    assert.equal(runBin(["gate", "--cache"], root).status, 0)
+    assert.equal(runs(root), 2)
   })
 
   it("runs the Gate again on a changed tracked file and on a new untracked one, never on an ignored one", () => {

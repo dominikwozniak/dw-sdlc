@@ -76,6 +76,12 @@ does not stop the next: first a repository's own scripts, which join through `ga
 package does not ship. `gate.command` is the command an agent or a person runs, inferred as
 `pnpm check` from the `check` script of `package.json` when no layer sets it.
 
+A Step is a command string, or `{ "command": "…", "hint": "…" }` when it has a Hint: one line that
+names what to try when it fails. A `gate.checks.run` entry takes a `hint` beside `name` and `command`
+the same way. The Gate prints `hint: <text>` under the failure line of a Step or script that does not
+pass, and nothing for one that passes; a Check the package ships keeps its remedy line and takes no
+Hint.
+
 The Gate is quiet in a terminal and for an agent alike, so its whole report fits in what an
 agent's Bash tool shows. A Step or run script runs with its two output streams captured into one, in
 the order written, and prints none of it when it passes. A green run prints one line per Step with
@@ -99,6 +105,16 @@ gate: step pnpm test — failed, exit 1 (71 s); its last 50 lines:
   ✖ failing tests:
   …
 step: "pnpm test" exited 1 — fix what it printed above; run it alone for the full output
+gate: failed — 1 failure
+```
+
+A failing Step with a Hint prints it under its failure line:
+
+```text
+gate: step pnpm generate:check — failed, exit 1 (4 s); its last 50 lines:
+  …
+step: "pnpm generate:check" exited 1 — fix what it printed above; run it alone for the full output
+hint: run pnpm generate to rewrite the stale files
 gate: failed — 1 failure
 ```
 
