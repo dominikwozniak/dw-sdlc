@@ -147,6 +147,17 @@ disk is in the next session, a broken edit included.
   `npm --prefix app ci`, does not hide it, and neither does a redirect among them, `npm 2>&1 install`.
   A `cd` moves the repository whose package manager counts:
   `cd app && npm install` from outside it is judged by `app`.
+- `block-filtered-output.sh` (when the command holds a pipe) — refuses a check command whose
+  output a later pipeline stage feeds to `head`, `tail`, `grep`, `egrep`, `fgrep`, `rg`, `sed`,
+  `awk`, `less` or `more`: the pipe hides the failure and, with `pipefail` off, turns the exit code
+  green. A check command is the config's `gate.command`, the command of each `gate.steps` entry and
+  each `gate.checks.run` script, `dw-sdlc gate` and `dw-sdlc check`, or a runner of the built-in
+  list: `vitest`, `jest`, `tsc`, `oxlint`, `eslint`, `vp check`, `rspec`, `rubocop`, `pytest`,
+  `cargo test` and `go test`, behind `pnpm exec`, `bundle exec`, a path or a `VAR=x`. With no config
+  the list alone applies. The refusal names the command and the filter and says to run it unpiped,
+  or to redirect it with `> <file> 2>&1` and read the file. `| tee` and a redirect pass, and so does
+  a pipe on any other command, `git log | head`. `guardrails.filteredOutput: "allow"` turns the
+  guard off; it is `"deny"` by default.
 - `block-store-writes.sh` (when the command names `asc` or a store script) — refuses an agent every
   write to App Store Connect, in every repository and with no config: `asc`, its CLI, reaches the
   whole account from any directory with the owner's Keychain key. An `asc` call passes as a read
@@ -388,6 +399,8 @@ spellings get past a rule; each comes from the adversarial pass of issue #318 an
 - A heredoc a shell reads another way: `bash /dev/stdin`, `. /dev/stdin`, `{ cat <<EOF … } | bash`,
   a pipe to a shell on a later line, `eval "$(cat <<EOF …)"`.
 - A `<<` inside `$(( ))` or `(( ))`, which the guard opens as a heredoc, dropping every later line.
+- A check command neither the config nor the built-in list names, such as a `package.json` script
+  `pnpm test:unit`, piped into a filter.
 - `yarn` against a separator (`yarn;`, `(yarn)`, `yarn&&`) and `pnpm exec npm`.
 - A push to a protected branch named `@` or `heads/main`, or aimed at another repository by
   `GIT_DIR=`.

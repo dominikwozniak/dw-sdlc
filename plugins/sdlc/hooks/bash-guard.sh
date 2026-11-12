@@ -56,6 +56,10 @@ esac
 case "$SCAN" in
   *asc* | *store:* | *store-*) guard block-store-writes.sh ;;
 esac
+# A pipe is the only way a filter reads a check command's output; the guard finds the command.
+case "$SCAN" in
+  *'|'*) guard block-filtered-output.sh ;;
+esac
 # The commit guard alone gets the command as typed: a heredoc body is where a multi-line commit
 # message is most often written, and the guard drops the other bodies itself.
 case "$SCAN" in

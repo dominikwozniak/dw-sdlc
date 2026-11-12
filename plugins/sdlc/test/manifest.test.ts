@@ -28,6 +28,7 @@ const DISPATCHED = [
   "block-env-access.sh",
   "block-non-pnpm.sh",
   "block-store-writes.sh",
+  "block-filtered-output.sh",
   "enforce-commit-hygiene.sh"
 ]
 /** A git hook a repository wires itself, never Claude Code. */

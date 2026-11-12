@@ -68,6 +68,14 @@
       "docs": ["plugins/sdlc/README.md#guards"]
     },
     {
+      "id": "guards.filtered-output",
+      "name": "Filtered output guard",
+      "group": "guards",
+      "summary": "Refuses a check command piped into head, tail, grep or another filter; guardrails.filteredOutput allow turns it off.",
+      "code": ["plugins/sdlc/hooks/block-filtered-output.sh"],
+      "docs": ["plugins/sdlc/README.md#guards"]
+    },
+    {
       "id": "guards.store-writes",
       "name": "Store writes guard",
       "group": "guards",
