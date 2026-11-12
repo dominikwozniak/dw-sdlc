@@ -95,9 +95,11 @@ disk is in the next session, a broken edit included.
     `:(exclude)` or `:(attr:…)`, narrows a pathspec, so it never names the whole tree.
   - `reset --hard` passes when no tracked file in the command's repository has a staged or unstaged
     change: untracked files survive it and the reflog keeps the old HEAD. It is refused when git cannot
-    answer (outside a repository, on an unborn HEAD), when a `-C` is computed at runtime, under
-    `GIT_DIR` or `GIT_WORK_TREE`, and after any command but a literal `cd`, since that command may
-    change the tree first.
+    answer (outside a repository, on an unborn HEAD), when a file is marked `assume-unchanged` or
+    `skip-worktree`, which hides its edits from `git diff` (a sparse checkout is one), when a `-C` is computed at runtime, under
+    `GIT_DIR` or `GIT_WORK_TREE`, and after any command but a literal `cd` or a git `fetch`, `status`, `log`, `show`, `diff`,
+    `rev-parse`, `rev-list`, `merge-base`, `ls-files`, `branch`, `remote`, `switch` or `worktree`,
+    since another command may change the tree first.
   - forced branch delete: `branch -D`, `-d -f` or `--delete --force` passes when each branch it
     names is landed: its work is on origin's base branch, `baseBranch` or under `auto` the branch of
     origin that `origin/HEAD` names. Its tip is there, or a base commit since it forked holds the

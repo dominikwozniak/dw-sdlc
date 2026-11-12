@@ -210,7 +210,7 @@ tree_unchanged() {
   [[ "$GUARD_COMMAND" == *GIT_DIR* || "$GUARD_COMMAND" == *GIT_WORK_TREE* ]] && return 1
   export GIT_OPTIONAL_LOCKS=0
   # `assume-unchanged` and `skip-worktree` files (tags a-z and S) hide their edits from diff.
-  git -C "$GUARD_PUSH_LOC" ls-files -v 2>/dev/null | grep -q '^[a-zS]' && return 1
+  git -C "$GUARD_PUSH_LOC" ls-files -v :/ 2>/dev/null | grep -q '^[a-zS]' && return 1
   git -C "$GUARD_PUSH_LOC" diff --quiet HEAD -- 2>/dev/null
 }
 
@@ -386,6 +386,13 @@ while IFS= read -r segment; do
   case "$verb" in
     # A cd to a path computed at runtime, or back with `-`, leaves the guard standing in the wrong place.
     cd) [[ "${WORDS[*]}" == *[\$\`]* || " ${WORDS[*]} " == *" - "* ]] && AFTER_COMMAND=1 ;;
+    # A git command that leaves a clean tree clean, as `git fetch origin && git reset --hard origin/x` needs.
+    git)
+      case "$GUARD_GIT_VERB" in
+        fetch | status | log | show | diff | rev-parse | rev-list | merge-base | ls-files | branch | remote | switch | worktree) ;;
+        *) AFTER_COMMAND=1 ;;
+      esac
+      ;;
     *) AFTER_COMMAND=1 ;;
   esac
 done < <(guard_scopes "$SCAN")

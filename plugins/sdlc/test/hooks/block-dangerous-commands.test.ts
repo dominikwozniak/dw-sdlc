@@ -3,7 +3,7 @@
 // the push policy reads the config, so the cases run against throwaway repositories with known files.
 
 import assert from "node:assert/strict"
-import { readdirSync, readFileSync, rmSync } from "node:fs"
+import { mkdirSync, readdirSync, readFileSync, rmSync } from "node:fs"
 import { join } from "node:path"
 import { describe, it } from "node:test"
 
@@ -103,6 +103,7 @@ const NEW_STAGED = withFile("reset-new-staged", (dir) => {
 const DELETED = withFile("reset-deleted", (dir) => rmSync(join(dir, "a.txt")))
 // A change git is told not to see: diff reports nothing, yet a reset --hard loses it.
 const ASSUME_UNCHANGED = withFile("reset-assume-unchanged", (dir) => {
+  mkdirSync(join(dir, "dir"))
   git(dir, "update-index", "--assume-unchanged", "a.txt")
   write(join(dir, "a.txt"), "b\n")
 })
@@ -273,6 +274,8 @@ describe("reset --hard — passes when no tracked file has a change, since nothi
   blocked("deleted-tracked-file", "git reset --hard", DELETED)
   blocked("assume-unchanged-edit", "git reset --hard", ASSUME_UNCHANGED)
   blocked("skip-worktree-edit", "git reset --hard", SKIP_WORKTREE)
+  blocked("assume-unchanged-edit-from-a-subdirectory", "git reset --hard", join(ASSUME_UNCHANGED, "dir"))
+  blocked("assume-unchanged-edit-dash-C-a-subdirectory", `git -C ${join(ASSUME_UNCHANGED, "dir")} reset --hard`, CLEAN)
   blocked("dash-C-to-a-dirty-tree", `git -C ${UNSTAGED} reset --hard`, CLEAN)
   blocked("cd-to-a-dirty-tree", `cd ${UNSTAGED} && git reset --hard`, CLEAN)
   blocked("dirty-sub-below-a-clean-cwd", "git -C sub reset --hard", DIRTY)
@@ -284,6 +287,12 @@ describe("reset --hard — passes when no tracked file has a change, since nothi
   blocked("cd-back", "cd - && git reset --hard", CLEAN)
   // Another command may change the tree before the reset runs, so only a reset that follows nothing but a cd is judged.
   blocked("after-a-write", "echo x >> a.txt && git reset --hard", CLEAN)
+  allowed("after-a-fetch", "git fetch origin && git reset --hard origin/main", CLEAN)
+  allowed("after-a-switch", "git switch -c topic && git reset --hard HEAD~0", CLEAN)
+  allowed("after-a-cd-and-a-status", `cd ${CLEAN} && git status && git reset --hard`, FEAT)
+  blocked("after-a-checkout-of-a-path", "git checkout HEAD~0 -- a.txt && git reset --hard", CLEAN)
+  blocked("after-a-stash-pop", "git stash pop && git reset --hard", CLEAN)
+  blocked("after-a-merge", "git merge --no-commit topic && git reset --hard", CLEAN)
   blocked("after-git-add", "git add -A; git reset --hard", CLEAN)
   blocked("after-a-substitution", "echo $(sed -i s/a/b/ a.txt) && git reset --hard", CLEAN)
   blocked("piped-into", "echo x | git reset --hard", CLEAN)
