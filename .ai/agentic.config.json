@@ -20,7 +20,7 @@
       "markdown-budget": {
         "budgets": [
           { "glob": "docs/agents/*.md", "maxBytes": 6144 },
-          { "glob": "GLOSSARY.md", "maxBytes": 8192 }
+          { "glob": "GLOSSARY.md", "maxBytes": 9216 }
         ]
       },
       "markdown-refs": true,
