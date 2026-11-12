@@ -1,5 +1,14 @@
 # dw-sdlc
 
+## 0.16.1
+
+### Patch Changes
+
+- cd91f3d: `dw-sdlc pr ship`: a reviewed draft of the viewer is marked ready even when no check has reported on its head. A draft starts no run, so the head waited on a check that never came and parked as unverified; a pull request that is not a draft keeps the rule.
+- 19d1978: `dw-sdlc pr ship` updates a branch from its base only when GitHub reports it `BEHIND`, under a rule that a branch be up to date. A branch only behind its base merges as it is, one CI run fewer, and the read makes no compare to judge it behind.
+- 573653e: `pr ship` answers `done` with no `git push origin --delete <branch>` for a merged pull request from a fork: its head branch lives on the fork, not on `origin`.
+- 356dc4d: `dw-sdlc worker start`: when the fetch of origin's default branch fails, the remedy names `git remote set-head origin --auto`, which repairs an `origin/HEAD` that names a branch gone from the remote.
+
 ## 0.16.0
 
 ### Minor Changes
