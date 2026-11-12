@@ -73,6 +73,7 @@ node <plugin root>/dw-sdlc/src/cli.ts doctor
 | env access            | `.env`, `.env.*`, `.envrc` outside the config's allow list or unknown to git                                                     |
 | credential leak       | reading `~/.ssh`, `~/.aws`, `~/.kube` and friends; `curl` or `wget` carrying a secret                                            |
 | package manager       | `npm`, `npx`, `yarn`, `bun` in a pnpm repository                                                                                 |
+| filtered output       | a check command (`vitest`, `tsc`, `dw-sdlc gate`) piped into `head`, `tail`, `grep`, `sed`, `awk`; `tee` or a redirect passes    |
 | commit hygiene        | a subject off the convention, a missing trailer, `git add -A` with no path, `git add .`                                          |
 | App Store Connect     | every `asc` write and `--confirm` on a store script, in every repository; reads and `--dry-run` pass                             |
 | large file (advisory) | flags a written file over 256 KiB                                                                                                |
@@ -112,6 +113,11 @@ anyway. The file and the Sync in full: [plugin README](plugins/sdlc/README.md#re
 
 `dw-sdlc pr ship` is the Ship script: it drives one pull request to merged, and `/sdlc-pr-ship` runs it
 for the agent. How it merges: [overview](docs/overview.md#how-the-ship-script-merges-a-pull-request).
+
+## Beside the engineering skills
+
+[Where dw-sdlc sits beside the engineering skills](docs/overview.md#where-dw-sdlc-sits-beside-the-engineering-skills)
+says what each carries, what is always on and what runs on the dev's word.
 
 ## Docs
 

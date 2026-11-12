@@ -8,8 +8,8 @@ them it carries the Sync of a repository's References and the skills that set a 
 check a machine and ship a pull request. The plugin
 [`sdlc-sessions`](../plugins/sdlc-sessions/README.md) depends on it and carries the skills that run a
 session. This page is the long version of the README: how a guard
-judges a call, where its rules come from, how the Gate runs, why the design is shaped this way, how
-the plugin is adopted and released, and how the Ship script merges a pull request. Every guard in full is in the
+judges a call, where its rules come from, how the Gate runs, why the design is shaped this way, where it sits beside the
+engineering skills, how the plugin is adopted and released, and how the Ship script merges a pull request. Every guard in full is in the
 [plugin README](../plugins/sdlc/README.md).
 
 ## How a guard judges a call
@@ -292,6 +292,92 @@ The repository's own supply chain follows the same idea: `pnpm-workspace.yaml` r
 version younger than 7 days, exotic transitive sources and unlisted install scripts. The research
 behind that and the plugin is in
 [`research/agentic-guardrails/`](research/agentic-guardrails/agentic-guardrails.md).
+
+## Where dw-sdlc sits beside the engineering skills
+
+The engineering skills in `.agents/skills/` are mattpocock's: `wayfinder`, `grilling`, `research`,
+`to-spec`, `to-tickets`, `triage`, `implement`, `implement-spec`, `tdd`, `code-review` and `handoff`. They
+plan, build and review the work, and each one stops where it asks the dev. `dw-sdlc` complements them and
+replaces none: it adds what they lack, the guards, the Gate, and the delivery from a Brief through the pull
+request, the Review, the merge and the Sweep. The guards still judge a skill's tool calls, and a skill
+still stops where it asks the dev.
+
+| stage                                | carried by                                  | invoked by                                              | whose      |
+| ------------------------------------ | ------------------------------------------- | ------------------------------------------------------- | ---------- |
+| chart a large effort                 | `wayfinder`                                 | the dev                                                 | mattpocock |
+| settle a plan, gather facts          | `grilling`, `research`                      | the dev, or a skill                                     | mattpocock |
+| write the spec and tickets           | `to-spec`, `to-tickets`, `triage`           | the dev                                                 | mattpocock |
+| hand the work to a session           | `/sdlc-brief` writes a Brief                | the dev                                                 | dw-sdlc    |
+| implement                            | `implement`, `tdd`, `code-review`           | the dev, or the start line of a Brief                   | mattpocock |
+| implement a spec as one pull request | `implement-spec`                            | the dev                                                 | mattpocock |
+| implement tickets in parallel        | `/sdlc-delegate` starts a Worker per ticket | the dev                                                 | dw-sdlc    |
+| keep an agent from harm              | the guards, the session hooks, `commit-msg` | a hook, on every call or commit it judges               | dw-sdlc    |
+| prove a change                       | the Gate, `pnpm check`                      | the dev, a Brief's Proof, CI                            | dw-sdlc    |
+| open the pull request                | `/sdlc-pr-open`                             | the agent, once the dev or a Brief wants a pull request | dw-sdlc    |
+| review, fix CI, merge                | `/sdlc-pr-ship` and the Ship script         | the dev, or a Brief                                     | dw-sdlc    |
+| say where a session stands           | `/sdlc-recap`                               | the dev, or a Brief                                     | dw-sdlc    |
+| pass context to the next agent       | `handoff`                                   | the dev                                                 | mattpocock |
+| remove what landed                   | `/sdlc-sweep`                               | the dev                                                 | dw-sdlc    |
+
+### What is always on
+
+Four things run with no one asking, each from a file in this repository:
+
+- **The guards.** `bash-guard.sh` judges every Bash command; `block-env-access.sh` judges a read, edit or write of a file and a Grep; `large-file-guard.sh` flags a
+  written file over 256 KiB. `plugins/sdlc/.claude-plugin/plugin.json` registers them.
+- **The session hooks.** At a session's start `session-start.sh` reports what the checkout lacks, and
+  `references-sync.sh` brings each Reference to its ref.
+- **The git hooks.** `.vite-hooks/commit-msg` runs `hooks/commit-msg.sh` on a commit typed in a terminal,
+  and `.vite-hooks/pre-commit` runs `vp staged` on the staged files.
+- **The Gate in CI.** `quality-gate.yaml` runs `pnpm check` on a pull request once it is ready, and on a
+  direct push to `main`, as [How a change lands](#how-a-change-lands) says.
+
+### What runs on the dev's word
+
+The skills `/sdlc-setup`, `/sdlc-doctor`, `/sdlc-references-add` and `/sdlc-brief` carry
+`disable-model-invocation: true`, so only the dev starts them. `/sdlc-sweep` acts only on the dev's word,
+by typing it or by "go" on a Recap's Sweep follow-up. `/sdlc-delegate` starts on the dev's words, and the
+model offers it in one line and waits for the dev's go. `/sdlc-pr-ship` and `/sdlc-recap` start when the dev
+types them or a Brief tells the session to. Every mattpocock skill above carries
+`disable-model-invocation: true` as well, except `grilling`, `research`, `tdd` and `code-review`, which another
+skill calls.
+
+### The ways to implement
+
+- **`/implement #<n>` in this session.** The session reads the issue, builds it and commits to the current
+  branch. The pull request follows when the dev asks for it, through `/sdlc-pr-open` and `/sdlc-pr-ship`.
+- **A Brief's start line in any terminal.** `/sdlc-brief` prints the line, which starts a Claude Code
+  session in its own worktree with the Brief as its first message. It needs no herdr.
+- **`/sdlc-delegate` through herdr.** A Lead starts a Worker per ticket, in parallel where the tickets
+  allow, each with its own session and pull request, and gathers their Recaps
+  ([How a Lead runs Workers](#how-a-lead-runs-workers)). This is the usual way to implement a spec.
+- **`implement-spec`.** The rare way, for a spec that lands as one pull request on an integration branch.
+  After it, the dev runs `/sdlc-pr-ship <n>` and `/sdlc-sweep`.
+
+herdr is optional: only `/sdlc-delegate` and the commands under `dw-sdlc worker` and `dw-sdlc lead` need
+it.
+
+Claude Code creates a Worker's worktree, from the `--worktree <name>` flag of its start line, and the Sweep
+removes it once the Worker's work has landed ([How a Sweep removes what finished work
+leaves](#how-a-sweep-removes-what-finished-work-leaves)).
+
+### The Review depths
+
+`/sdlc-pr-ship` reads a head at one of three depths, set by the dev's `--review` for a call, else by
+`pr.review`, whose default `auto` routes a depth from the size of the change. `full` runs the slash command
+`pr.reviewCommand` names, `/code-review` by default. `light` spawns one `sdlc-reviewer` subagent. `off`
+reads nothing, and the Ship script marks the head reviewed itself. The rules are in
+[How the Ship script merges a pull request](#how-the-ship-script-merges-a-pull-request). A Worker commits
+before it runs `/code-review`, which reads `HEAD`, so the Review reads its change and `/sdlc-pr-ship` skips a
+second `full` Review of a clean, unchanged head.
+
+### A Brief and a Recap beside `triage` and `handoff`
+
+- **A Brief beside `triage`'s agent brief.** The agent brief in the issue says what to build, durably. A Brief
+  says how the session runs: what it may write, what proves it done, how it ships and whom it reports to.
+  It points at the issue and retells none of it.
+- **A Recap beside `handoff`.** A Recap tells the dev where a session stands, with a verdict on whether it
+  can close. A `handoff` document gives the next agent the context to carry on.
 
 ## Adopting it in your repository
 

@@ -110,6 +110,13 @@ describe("the sdlc-sessions plugin", () => {
     assert.match(text, /--max-workers <n>/, "it counts in flight, not live terminals")
   })
 
+  it("has sdlc-delegate send a spec that lands as one pull request to implement-spec", () => {
+    const text = skillText("sdlc-delegate")
+    const before = text.slice(text.indexOf("## Before anything"), text.indexOf("## The tickets"))
+    assert.match(before, /A spec meant to land as one pull request belongs to `implement-spec`/)
+    assert.match(before, /the dev runs\s+`\/sdlc-pr-ship <n>` and `\/sdlc-sweep`/)
+  })
+
   it("has sdlc-recap offer a Sweep from its dry run in the main checkout, and in a linked worktree none", () => {
     const text = skillText("sdlc-recap")
     assert.ok(text.includes('dw-sdlc/src/cli.ts" sweep --dry-run --json'), "it reads the dry-run Sweep")
@@ -165,6 +172,7 @@ describe("the sdlc-sessions plugin", () => {
       "May write:",
       "Must not:",
       "Proof:",
+      "Commit before `/code-review`: it reads `HEAD`.",
       "/sdlc-pr-ship",
       "deliver it to the Lead the way Report says",
       "Report:",
