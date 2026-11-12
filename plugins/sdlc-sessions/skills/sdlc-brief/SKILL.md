@@ -23,7 +23,7 @@ When you cannot tell what the work is, ask one question and stop. A model or an 
 in `$ARGUMENTS` or the conversation, is their word on the routing. A Lead's terminal in their words makes
 the Brief one for that Lead: its Questions and Report lines take the template's Lead form.
 
-## Answer
+## The answer
 
 Write it in the conversation's language around the Brief; the Brief itself stays English. A line naming the
 Worker, its model and effort with the reason, then the three ways out. Recommend the lightest that fits:
@@ -41,11 +41,17 @@ Worker, its model and effort with the reason, then the three ways out. Recommend
    Lead starts the Worker. A Brief that names no Lead yet would have its Worker report to no one, so this way
    asks for the Lead's terminal and gives the Brief again in the Lead form.
 
-End with one line: which word picks each way.
+Then one line: which word picks each way, `start`, `issue` or `lead`.
 
-## Then stop
+Then stop. Nothing runs before the dev's word. On "issue", file it with `gh issue create --title <title>
+--body-file <file>`, using the Brief as the template says for an issue's body, then give the `/implement #N`
+line and a start line whose first message is that line. The start line and the Lead are theirs to run: this
+session starts no other session.
 
-Nothing runs before the dev's word. On "issue", file it with `gh issue create --title <title> --body-file
-<file>`, using the Brief as the template says for an issue's body, then give the `/implement #N` line and a
-start line whose first message is that line. The start line and the Lead are theirs to run: this session
-starts no other session.
+End with `Next: <word>` in a code span as the last line, the word that picks the way you recommended, the
+dev's to say and never acted on by this skill. The closed list:
+
+- the way you recommended: its word;
+- a question asked because the work is unclear: no line.
+
+Write the `Next:` line only when the dev invoked the skill. Called by another skill, write none.

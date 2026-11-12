@@ -22,3 +22,17 @@ copies of the package, and it too names the update.
 The `hc` line reports whether herdr's `hc`, which a Lead starts its Workers through, is on the agent's
 PATH: PASS with its path; when absent, a WARN with `sdlc-sessions` enabled and INFO without it. It never
 fails; to run Workers, install herdr.
+
+## The answer
+
+End with this section, in this order:
+
+1. The outcome in one sentence: how many PASS, WARN and FAIL lines the doctor printed.
+2. The doctor's lines, as it printed them.
+3. `Next: <command>` in a code span as the last line, the dev's command and never run by this skill. The
+   closed list:
+   - a FAIL: the remedy the first FAIL line names;
+   - no FAIL: no line.
+
+Write the `Next:` line only when the dev invoked the skill. Run from a Brief, or called by another skill,
+write none.

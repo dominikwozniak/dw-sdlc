@@ -84,7 +84,22 @@ empty on a detached HEAD, which has no pull request to open.
    marks it ready after its Review, so a repository that skips CI on drafts runs it once, on that head.
 4. One exists: `gh pr edit <n> --body-file <file>`, and `--title` only when it breaks the convention.
    Open no second pull request.
-5. Say the pull request's URL in one line, and stop. Do not merge, request a review or start
-   `/sdlc-pr-ship`; the dev or the Brief decides that.
+5. Stop after the answer below. Do not merge, request a review or start `/sdlc-pr-ship`; the dev or the
+   Brief decides that.
 
 A guard that refuses a command ends the run: show what it refused.
+
+## The answer
+
+End with this section, in this order:
+
+1. The outcome in one sentence: the pull request's URL, opened or with its body rewritten.
+2. Nothing else of its own: the title and the body are on the pull request.
+3. `Next: <command>` in a code span as the last line, the dev's command and never run by this skill. The
+   closed list:
+   - a pull request opened or rewritten: `/sdlc-pr-ship <n>`, with its number;
+   - a guard refused a command: no line.
+
+Write the `Next:` line only when the dev invoked the skill. Run from a Brief, which assigns the Ship to
+its next step, or called by another skill such as `implement-spec`, write none, and run nothing the line
+would name.

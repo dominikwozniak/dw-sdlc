@@ -128,3 +128,19 @@ pnpm exec dw-sdlc gate
 To turn `file-size-ratchet` on once the Gate is green, set it to `true` and run
 `pnpm exec dw-sdlc gate --update-baseline`: it records `.ai/file-size-ratchet.baseline.json`, which
 the repository commits. The refresh runs only when every other Check passes.
+
+## The answer
+
+End with this section, in this order:
+
+1. The outcome in one sentence: what the run wrote, or that it wrote nothing, or the `refused` line that
+   ended it.
+2. The lines of the dry run and the real run, the `config` check, the doctor and, when it ran, the Gate.
+3. `Next: <command>` in a code span as the last line, the dev's command and never run by this skill. The
+   closed list:
+   - the doctor printed a FAIL: the remedy its first FAIL line names;
+   - the Gate failed: `pnpm exec dw-sdlc gate --verbose`;
+   - otherwise, or a `refused` line ended the run: no line.
+
+Write the `Next:` line only when the dev invoked the skill. Run from a Brief, or called by another skill,
+write none.
