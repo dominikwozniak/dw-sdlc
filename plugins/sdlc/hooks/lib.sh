@@ -71,6 +71,21 @@ guard_read_payload() {
   return 0
 }
 
+# guard_read_file_payload <hook> <consequence> [args…] — guard_read_payload for a file-tool guard: a
+# payload jq cannot read, \001 included, exits 2 with a message saying why, then <consequence>; no jq
+# or empty stdin returns 1.
+guard_read_file_payload() {
+  local hook="$1" consequence="$2" rc
+  shift 2
+  guard_read_payload "$@"
+  rc=$?
+  if [[ $rc -eq $GUARD_UNREADABLE ]]; then
+    echo "$hook: the payload cannot be read: it is not JSON, or a field holds U+0001, the byte the reader splits on. $consequence" >&2
+    exit 2
+  fi
+  return $rc
+}
+
 # --- the text — the scanners in the files below --------------------------------------------------
 source "$GUARD_LIB_DIR/lib-lines.sh"
 source "$GUARD_LIB_DIR/lib-text.sh"
