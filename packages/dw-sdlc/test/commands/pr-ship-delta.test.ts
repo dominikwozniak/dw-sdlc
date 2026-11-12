@@ -96,9 +96,9 @@ type Files = Record<string, string | object>
 /** pr.review full: no compare beyond the two a carry reads; `pr-ship-route` reads auto. */
 const FULL: Files = { [COMMITTED_FILE]: { pr: { review: "full" } } }
 
-/** `dw-sdlc pr ship` on `graphql`; the compare that judges the head behind finds it lacks none of its base. */
+/** `dw-sdlc pr ship` on `graphql`, gh answering `commands` beside the read. */
 function ship(args: string[], graphql: Pr[], commands: Record<string, Response> = {}, files: Files = FULL) {
-  const gh = fakeGh({ graphql: graphql.map(served), commands: { ...compared(HEAD, []), ...commands } })
+  const gh = fakeGh({ graphql: graphql.map(served), commands })
   const run = runBin(["pr", "ship", ...TARGET, ...args], repo({ files }), gh.env)
   return { ...run, calls: gh.calls() }
 }
@@ -127,7 +127,7 @@ describe("dw-sdlc pr ship after a push to a reviewed pull request", () => {
         },
         name
       )
-      assert.deepEqual(run.calls, [AUTH, READ, compare(HEAD)], name)
+      assert.deepEqual(run.calls, [AUTH, READ], name)
     }
   })
 
@@ -189,7 +189,7 @@ describe("dw-sdlc pr ship after a push to a reviewed pull request", () => {
       action: "review",
       details: { depth: "full", source: "config", reviewCommand: "/code-review" }
     })
-    assert.deepEqual(run.calls, [AUTH, READ, compare(HEAD)])
+    assert.deepEqual(run.calls, [AUTH, READ])
   })
 
   it("carries nothing when the own changes differ, or a compare cannot show them whole", () => {
@@ -298,7 +298,7 @@ describe("dw-sdlc pr ship after a push to a reviewed pull request", () => {
     const run = ship(["--json"], [{ ...PUSHED_ON, viewerDidAuthor: false }])
     assert.equal(run.status, 30, run.stderr)
     assert.deepEqual(documentOf(run.stdout, ["action"]), { action: "ready-to-merge" })
-    assert.deepEqual(run.calls, [AUTH, READ, compare(HEAD)])
+    assert.deepEqual(run.calls, [AUTH, READ])
   })
 
   it("exits 2 when gh refuses a compare, or its reply does not parse", () => {
@@ -353,7 +353,7 @@ describe("dw-sdlc pr ship after a Review that left a Finding open", () => {
         },
         name
       )
-      assert.deepEqual(run.calls, [AUTH, READ, compare(HEAD)], name)
+      assert.deepEqual(run.calls, [AUTH, READ], name)
     }
   })
 
@@ -378,7 +378,7 @@ describe("dw-sdlc pr ship after a Review that left a Finding open", () => {
         },
         name
       )
-      assert.deepEqual(run.calls, [AUTH, READ, compare(HEAD)], name)
+      assert.deepEqual(run.calls, [AUTH, READ], name)
     }
   })
 

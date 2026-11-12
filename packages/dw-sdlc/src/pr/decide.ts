@@ -284,8 +284,9 @@ const ROWS: Row[] = [
     })
   },
   {
-    // GitHub reports BEHIND only under a rule that a branch be up to date; the compare tells it anywhere.
-    when: (pr) => pr.mergeStateStatus === "BEHIND" || (pr.behindBy ?? 0) > 0,
+    // GitHub reports BEHIND only under a rule that a branch be up to date. A branch only behind its base
+    // merges as it is: CI ran on its merge with the base as the base stood at that run.
+    when: (pr) => pr.mergeStateStatus === "BEHIND",
     answer: (pr) => ({ status: "act", action: "update-branch", actor: "script", reason: `behind ${pr.base}` })
   },
   {

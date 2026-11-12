@@ -215,18 +215,6 @@ export function carriesBase(before: PrState, after: PrState): boolean {
   return parseOrCannotRun(() => behindOf(reply)) === 0
 }
 
-/**
- * `pr` and how many commits of its base its head lacks, from the compare of the base with the head,
- * read only where the decision can reach the update: open, mergeable, not reported BEHIND already.
- */
-export function withBehind(pr: PrState): PrState {
-  if (pr.state !== "OPEN" || pr.mergeable !== "MERGEABLE" || pr.mergeStateStatus === "BEHIND") {
-    return pr
-  }
-  const reply = compared(pr, pr.baseOid, pr.head, `the compare with ${pr.base}`)
-  return { ...pr, behindBy: parseOrCannotRun(() => behindOf(reply)) }
-}
-
 /** The own changes of `pr` at `commit`, from the compare with its base; null when it cannot show them whole. */
 function ownChanges(pr: Omit<PrState, "carried" | "changed">, commit: string): string[] | null {
   const reply = compared(pr, pr.baseOid, commit, `the compare with ${commit.slice(0, 7)}`)
@@ -280,5 +268,5 @@ function query({ repo, number }: { repo: string; number: number }, sized: boolea
     throw new CannotRun(`${repo}#${number}: ${problem}`, remedy)
   }
   const parsed = parseOrCannotRun(() => parsePr(reply.stdout, repo))
-  return withChanged(withCarried({ ...parsed, behindBy: null }), sized)
+  return withChanged(withCarried(parsed), sized)
 }

@@ -6,18 +6,12 @@ import { describe, it } from "node:test"
 
 import { COMMITTED_FILE } from "../../src/agentic-config.ts"
 import { repo, runBin } from "../harness.ts"
-import { BASE_OID, fakeGh, GREEN, HEAD, type Pr, type Response, RUN, served } from "../pr-harness.ts"
+import { fakeGh, GREEN, HEAD, type Pr, RUN, served } from "../pr-harness.ts"
 
 const AUTO = { [COMMITTED_FILE]: { pr: { merge: "auto", review: "full" } } }
 const COMMAND = `gh pr merge 40 --squash --match-head-commit ${HEAD}`
-const BEHIND: Record<string, Response> = {
-  [["api", `repos/byarcadia-app/foundation/compare/${BASE_OID}...${HEAD}?per_page=1`].join(" ")]: {
-    stdout: JSON.stringify({ status: "ahead", behind_by: 0, files: [] })
-  }
-}
-
 function ship(pr: Pr, args: string[] = []) {
-  const gh = fakeGh({ graphql: [served(pr)], commands: BEHIND })
+  const gh = fakeGh({ graphql: [served(pr)] })
   const run = runBin(
     ["pr", "ship", "40", "-R", "byarcadia-app/foundation", "--json", ...args],
     repo({ files: AUTO }),

@@ -30,8 +30,7 @@ import {
   read,
   readAgain,
   readBranch,
-  said,
-  withBehind
+  said
 } from "../pr/read.ts"
 import type { PrState } from "../pr/state.ts"
 import { holds, renamedUpstream } from "../pr/upstream.ts"
@@ -45,18 +44,17 @@ is omitted, and answers the Action it needs next: the status, the action, whose 
 A branch pushed under another name has an upstream of that name. Where gh resolves no pull request
 for it, the script asks for the upstream's, and reads it only when its commits hold HEAD.
 The script performs its own Actions, each at most once and then reads again: it updates a branch
-behind its base, marks a draft ready once nothing else holds it back, and squash merges a pull
+GitHub reports BEHIND, marks a draft ready once nothing else holds it back, and squash merges a pull
 request ready to merge under pr.merge auto in .ai/agentic.config.json or with --merge for this call;
-under ask, the default, it parks with the merge command. A branch is behind when the compare of
-the base with the head shows the head lacks a commit of the base, or GitHub reports BEHIND, which
-it does only under a rule that a branch be up to date. A head without a ${REVIEW} success
-gets the Review depth --review names for this call, else pr.review: under full the agent reviews it
-with the command pr.reviewCommand names, /code-review by default; under light one sdlc-reviewer
-subagent reads the diff; under off the script posts the success itself, its description saying
-why. Under auto, the default, the script routes the depth from the changes the Review would read:
-lockfiles alone off; a file under .github/workflows/, more than 100 changed lines outside
-lockfiles, or a change it cannot size, more files than GitHub's compare lists or a file outside
-lockfiles with no patch, full; the rest light. After a push it names
+under ask, the default, it parks with the merge command. GitHub reports BEHIND only under a rule
+that a branch be up to date; a branch only behind its base merges as it is. A head without a
+${REVIEW} success gets the Review depth --review names for this call, else pr.review: under full
+the agent reviews it with the command pr.reviewCommand names, /code-review by default; under light
+one sdlc-reviewer subagent reads the diff; under off the script posts the success itself, its
+description saying why. Under auto, the default, the script routes the depth from the changes the
+Review would read: lockfiles alone off; a file under .github/workflows/, more than 100 changed
+lines outside lockfiles, or a change it cannot size, more files than GitHub's compare lists or a
+file outside lockfiles with no patch, full; the rest light. After a push it names
 the last commit a Review read under details.since, where the Review reads from and auto routes from:
 one with a ${REVIEW} success not posted under off, or the read mark pr reviewed --findings
 posts. It carries a success over a head whose only commits since are merges of the base, unless
@@ -240,7 +238,7 @@ function readTarget(cli: Cli, root: string, sized: boolean): PrState {
 function ship(cli: Cli, root: string, policy: Policy): { pr: PrState; answer: Answer; performed: Performed[] } {
   // Only pr.review auto routes the depth from the changes, so only it reads them.
   const sized = policy.review.depth === "auto"
-  let pr = withBehind(readTarget(cli, root, sized))
+  let pr = readTarget(cli, root, sized)
   const performed: Performed[] = []
   // The head each Action ran on.
   const postedOn = new Map<ScriptAction, string>()
@@ -274,7 +272,7 @@ function ship(cli: Cli, root: string, policy: Policy): { pr: PrState; answer: An
     const record = { action, command, exit: status, ...(message === "" ? {} : { stderr: message }) }
     postedOn.set(action, before.head)
     try {
-      pr = withBehind(readAgain(pr, sized))
+      pr = readAgain(pr, sized)
       performed.push({ ...record, ok: TOOK[action](before, pr) })
     } catch (error) {
       if (error instanceof CannotRun) {

@@ -6,18 +6,7 @@ import { describe, it } from "node:test"
 
 import { COMMITTED_FILE } from "../../src/agentic-config.ts"
 import { repo, runBin } from "../harness.ts"
-import {
-  BASE_OID,
-  type Context,
-  fakeGh,
-  GREEN,
-  HEAD,
-  type Pr,
-  type Response,
-  RUN,
-  served,
-  type Thread
-} from "../pr-harness.ts"
+import { type Context, fakeGh, GREEN, HEAD, type Pr, RUN, served, type Thread } from "../pr-harness.ts"
 
 const URL = "https://github.com/byarcadia-app/foundation/pull/40"
 const TARGET = ["40", "-R", "byarcadia-app/foundation", "--json"]
@@ -43,13 +32,6 @@ const THREAD: Thread = {
   lastByViewer: true
 }
 
-/** The compare that judges the head behind: it finds it lacks none of its base. */
-const BEHIND: Record<string, Response> = {
-  [["api", `repos/byarcadia-app/foundation/compare/${BASE_OID}...${HEAD}?per_page=1`].join(" ")]: {
-    stdout: JSON.stringify({ status: "ahead", ahead_by: 1, behind_by: 0 })
-  }
-}
-
 /** Changes requested by alice on READ_BY_REVIEW, answered by the push of the head, CI green and the head reviewed. */
 const ANSWERED: Pr = {
   ...GREEN,
@@ -62,7 +44,7 @@ const ANSWERED: Pr = {
 /** The answer's document for `pr`, the script's clock `seconds` after STARTED. */
 function answer(pr: Pr, seconds = 0) {
   const now = new Date(Date.parse(STARTED) + seconds * 1000).toISOString()
-  const gh = fakeGh({ graphql: [served(pr)], commands: BEHIND })
+  const gh = fakeGh({ graphql: [served(pr)] })
   const run = runBin(["pr", "ship", ...TARGET], repo({ files: FULL }), { ...gh.env, DW_SDLC_NOW: now })
   assert.notEqual(run.stdout, "", `no document; exit ${run.status}: ${run.stderr}`)
   return { status: run.status, stderr: run.stderr, document: JSON.parse(run.stdout) as Record<string, unknown> }

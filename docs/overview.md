@@ -352,13 +352,13 @@ Action that is not, as one line or, with `--json`, one document. The exit code s
 is: 0 done, 10 the agent's, 20 wait, 30 the dev's, 2 it cannot run. The script holds no state
 between calls and never sleeps: a `wait` carries `recheckAfter`, the seconds until the next call.
 
-The script owns four Actions, one `gh` command each. It updates a branch behind its base by
-merging the base in. It judges "behind" itself, from the compare of the base with the head: a head
-that lacks one commit of the base or more is behind, and so is one GitHub reports `BEHIND`. GitHub
-reports `BEHIND` only where a rule asks a branch to be up to date before it merges, so without the
-compare a branch behind its base would merge with no CI run on the tree the merge makes. It marks
-the head of the viewer's own pull request reviewed when the Review depth is `off`. It marks the
-viewer's own draft ready once no check fails or runs, no thread is open and the head is reviewed. A
+The script owns four Actions, one `gh` command each. It updates a branch by merging the base in,
+and only when GitHub reports it `BEHIND`, which GitHub does only where a rule asks a branch to be up
+to date before it merges. A branch only behind its base merges as it is: the Gate ran in CI on the
+pull request's merge with the base as the base stood at that run, and an update would run it once
+more, in GitHub Actions minutes, for no rule that asks for it. It marks the head of the viewer's
+own pull request reviewed when the Review depth is `off`. It marks the viewer's own draft ready
+once no check fails or runs, no thread is open and the head is reviewed. A
 ready head whose every check was skipped counts as having no CI: the script waits for the run its
 `ready` starts and never merges on the skip. It squash
 merges with `--match-head-commit`, so a push during the decision never merges blind. Each runs at

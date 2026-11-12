@@ -6,7 +6,7 @@ import { describe, it } from "node:test"
 
 import { COMMITTED_FILE } from "../../src/agentic-config.ts"
 import { repo, runBin } from "../harness.ts"
-import { BASE_OID, type Commit, fakeGh, GREEN, HEAD, type Pr, type Response, RUN, served } from "../pr-harness.ts"
+import { type Commit, fakeGh, GREEN, HEAD, type Pr, RUN, served } from "../pr-harness.ts"
 
 const TARGET = ["40", "-R", "byarcadia-app/foundation"]
 const AUTH = ["auth", "status", "--active", "--hostname", "github.com"]
@@ -33,13 +33,6 @@ const ACCEPT = `dw-sdlc pr reviewed 40 -R byarcadia-app/foundation --head ${HEAD
 /** The read mark `pr reviewed --findings` posts: a Review read the commit and left a Finding open. */
 const MARK: Pick<Commit, "review" | "described"> = { review: "FAILURE", described: "read, findings open" }
 
-/** The compare that judges the head behind: it finds it lacks none of its base. */
-const BEHIND: Record<string, Response> = {
-  [["api", `repos/byarcadia-app/foundation/compare/${BASE_OID}...${HEAD}?per_page=1`].join(" ")]: {
-    stdout: JSON.stringify({ status: "ahead", behind_by: 0, files: [] })
-  }
-}
-
 /** Green and the viewer's own, its head not reviewed, the history as a test states it. */
 function pushed(history: Commit[], more: Partial<Pr> = {}): Pr {
   const check = { kind: "run", name: "Check", state: "SUCCESS", link: RUN, startedAt: "2026-10-31T11:01:00Z" } as const
@@ -59,7 +52,7 @@ const FULL = { [COMMITTED_FILE]: { pr: { review: "full" } } }
 
 /** `dw-sdlc pr ship` on the one `pr` read; `pr.review` is full unless `files` say otherwise. */
 function ship(args: string[], pr: Pr, files: Record<string, string | object> = FULL) {
-  const gh = fakeGh({ graphql: [served(pr)], commands: BEHIND })
+  const gh = fakeGh({ graphql: [served(pr)] })
   const run = runBin(["pr", "ship", ...TARGET, "--json", ...args], repo({ files }), gh.env)
   return {
     ...run,
@@ -89,11 +82,7 @@ describe("dw-sdlc pr ship after three Reviews with no success between them", () 
         },
         args.join(" ")
       )
-      assert.deepEqual(run.calls, [
-        AUTH,
-        READ,
-        ["api", `repos/byarcadia-app/foundation/compare/${BASE_OID}...${HEAD}?per_page=1`]
-      ])
+      assert.deepEqual(run.calls, [AUTH, READ])
     }
   })
 
