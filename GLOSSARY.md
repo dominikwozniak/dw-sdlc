@@ -134,7 +134,7 @@ One toolchain command the Gate runs before its Checks, such as lint or the tests
 _Avoid_: Check (which judges the tree and runs on after another fails), stage, job
 
 **Gate**:
-The Steps and then the Checks a change must pass, run by one command, the same locally and in CI.
+The Steps and then the Checks a change must pass, run by one command, locally and in CI.
 _Avoid_: quality gate, CI (which runs it), lint (one part of a Step)
 
 **Drift**:

@@ -337,11 +337,15 @@ a real payload.
 
 `main` is protected in `.ai/agentic.config.json`, so a change reaches it through a pull request, and
 `quality-gate.yaml` runs `pnpm check` on it first, once it is ready: a draft skips the run. A squash
-merge, with `(#NN)` in its subject, skips the run on `main`; any other push to `main` gets it. The run
-is one job of the Shared workflow, `quality-gate` in the public `byarcadia-app/gh-actions-public`,
-pinned by its release tag's SHA, which Dependabot moves. For a small fix the agent commits on `main` and the
-push comes from Dominik's own terminal: the guards judge only the agent's tool calls. GitHub branch
-protection is not available on this private repository, so the guard is the only check.
+merge, with `(#NN)` in its subject, skips the run on `main`; any other push to `main` gets it. A pull
+request whose every file is content, such as docs, skills and the catalogues under `.ai/`, runs
+`pnpm test:content` in place of `pnpm test`: the tests that read the plugins' manifests and skills.
+Every other test reads only code and tooling, so a content change cannot break it; a plugin's
+release changes its manifest and runs them all. The run is one job of the Shared workflow,
+`quality-gate` in the public `byarcadia-app/gh-actions-public`, pinned by its release tag's SHA,
+which Dependabot moves. For a small fix the agent commits on `main` and the push comes from
+Dominik's own terminal: the guards judge only the agent's tool calls. GitHub branch protection is
+not available on this private repository, so the guard is the only check.
 
 ## How the Ship script merges a pull request
 
