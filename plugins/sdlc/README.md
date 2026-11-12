@@ -226,9 +226,10 @@ in place.
 line: at `;`, `&`, `|`, a newline and a subshell's parentheses, each of which also stands as a scope
 line, so a `cd` inside a subshell ends with it. A redirect's `&`, as in `2>&1`, `<&0` and `&>`, is
 no cut: `git push 2>&1 origin main` is one push to `main`. A `cd` or `pushd` with a literal
-directory, behind its options and a `--`, moves where the shell stands; `-n` keeps it there. The
+directory, behind its options and a `--`, moves where the shell stands. The
 guard keeps the directories `pushd` saves, so a `popd` or a bare `pushd` goes back as the shell
-does, and a subshell gives the stack back at its end too. A `$(…)` or backtick substitution is one
+does, and a subshell gives the stack back at its end too. `pushd` and `popd` take `-n`, which
+leaves the shell where it is: `pushd -n dir` saves `dir` and `popd -n` drops the top entry. A `$(…)` or backtick substitution is one
 word of the command around it, not a cut: `guard_lift_substitutions` makes it the word `$_`, a value computed at
 runtime, and moves its body to a scope of its own just before that command, since the shell runs the
 body first. So `git push origin "$(git branch --show-current)" --force` is one push with its
@@ -392,8 +393,8 @@ spellings get past a rule; each comes from the adversarial pass of issue #318 an
   `GIT_DIR=`.
 - A `cd` or `pushd` in the background, in a pipeline or behind a false `||`, read as a move, so an
   `rm -rf *` after it passes and `cd sub & cat .env` is judged as `sub/.env`: an ignored `.env`
-  beside a tracked `sub/.env` passes. A turn of the `pushd` stack, `pushd +1`, reads as the
-  session's directory.
+  beside a tracked `sub/.env` passes. A turn of the `pushd` stack, `pushd +1` or `popd +N`, reads as
+  the session's directory.
 - A glob the command also quotes elsewhere, `cat .env* # '.env*'`, read as quoted.
 - gh: `-R` before the `pr` verb, a request body sent with `--input`.
 - commit: a message from a here-string, a `$(…)` before `-m`, a trailer key with no colon read as
