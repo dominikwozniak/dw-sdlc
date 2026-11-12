@@ -93,11 +93,28 @@ describe("the message names the file, the size and the escape hatch", () => {
   }
 })
 
-describe("garbage is silent", () => {
-  it("empty payload", () => {
-    expectExit(runHook("large-file-guard", ""), 0)
+describe("a payload the guard cannot read is refused, naming why", () => {
+  it("a file_path holding U+0001", () => {
+    const verdict = run("Write", `${OVER}\u0001`)
+    expectExit(verdict, 2)
+    assert.match(verdict.stderr, /payload cannot be read.*U\+0001.*not checked/)
   })
   it("malformed payload", () => {
-    expectExit(runHook("large-file-guard", "not json"), 0)
+    const verdict = runHook("large-file-guard", "not json")
+    expectExit(verdict, 2)
+    assert.match(verdict.stderr, /payload cannot be read/)
+  })
+  it("an empty payload carries nothing to judge and passes", () => {
+    expectExit(runHook("large-file-guard", ""), 0)
+  })
+})
+
+describe("without jq every call passes", () => {
+  const NOJQ = { env: { PATH: scratch("large-nojq") } }
+  it("a file over the threshold", () => {
+    expectExit(run("Write", OVER, NOJQ.env), 0)
+  })
+  it("a payload with the byte", () => {
+    expectExit(run("Write", `${OVER}\u0001`, NOJQ.env), 0)
   })
 })

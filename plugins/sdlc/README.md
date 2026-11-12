@@ -122,6 +122,8 @@ disk is in the next session, a broken edit included.
   and `.env.template` names allowed anywhere, nothing denied. A path outside the repository root,
   or outside any repository, is judged by its basename against the `**/` entries alone. A `Grep`
   of a directory is judged by the env files its `glob` reaches.
+  A file-tool payload it cannot read, not JSON or holding U+0001 in a field, is refused with exit 2
+  and a message saying why; without `jq` it passes every call.
 - `credential-leak-guard.sh` (always on) — refuses reading the credential stores that are not dotenv
   (`~/.ssh`, `~/.aws`, `~/.gnupg`, `~/.kube`, `~/.netrc`, `~/.git-credentials`, `~/.pypirc`,
   `~/.pgpass`, the user's `~/.npmrc`), filtering an environment dump for a credential-ish name,
@@ -155,6 +157,8 @@ disk is in the next session, a broken edit included.
 - `large-file-guard.sh` (after a Write) — flags a file over 256 KiB once it is on disk: a pasted
   bundle, a blob, a dumped log. Advisory, so it is the one guard with a kill switch:
   `CLAUDE_MAX_WRITE_BYTES` raises or lowers the threshold, `0` disables it.
+  A payload it cannot read, not JSON or holding U+0001 in a field, exits 2 with a message saying
+  why; without `jq` it passes every call.
 - `rtk-rewrite.sh` (Bash, not a guard) — the plugin's wiring of `rtk hook claude`, so a machine wires
   nothing by hand and `rtk init --show` reporting "Hook: not found" is expected. Without rtk it is
   silent. In a linked worktree every command goes through unrewritten: the session's isolation check
