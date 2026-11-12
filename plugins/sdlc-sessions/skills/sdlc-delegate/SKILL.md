@@ -28,6 +28,9 @@ hc get "$HC_TERMINAL_ID" --json
   checkout, in herdr. Stop.
 - `HC_TERMINAL_ID` is this Lead's terminal, which every Brief names. The list is its Workers so far.
 
+A spec meant to land as one pull request belongs to `implement-spec`, not here. After it, the dev runs
+`/sdlc-pr-ship <n>` and `/sdlc-sweep`.
+
 ## The tickets
 
 Turn the source into tickets, one Worker each:

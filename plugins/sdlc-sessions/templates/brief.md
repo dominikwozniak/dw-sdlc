@@ -16,6 +16,7 @@ You are the Worker: do it yourself, start no other session. A subagent a skill r
 May write: <the paths or areas>.
 Must not: <what the source or the dev rules out>, or change anything outside May write.
 Proof: <what shows it is done: the checks to run and their result>.
+Commit before `/code-review`: it reads `HEAD`.
 Ship: open the pull request with `/sdlc-pr-open` and carry it through `/sdlc-pr-ship`. `pr.merge` in the config decides whether you end at merged or parked for the dev.
 Questions: <the questions instruction>
 Report: <the report instruction>
@@ -32,6 +33,9 @@ Model and effort: `<model>`, `<effort>`: <the reason, one clause>.
 - **Proof.** Every acceptance criterion of the source checked, and the config's `gate.command` green, when
   they exist, named as "every acceptance criterion of #<n>" and never copied. Otherwise the check that
   shows the goal is met.
+- **Commit line.** `implement` runs `code-review` before it commits, and `code-review` reads the diff from its
+  fixed point to `HEAD`. With the commit first, the Review reads the change, and `/sdlc-pr-ship` skips a
+  second `full` Review of a clean, unchanged head. Drop this line for read-only work.
 - **Ship.** Drop this line for read-only work. The skill `/sdlc-pr-open` writes the pull request body, so the
   Brief states no rule of it.
 - **Questions and Report, without a Lead.**

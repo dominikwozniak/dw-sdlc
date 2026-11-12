@@ -113,6 +113,11 @@ anyway. The file and the Sync in full: [plugin README](plugins/sdlc/README.md#re
 `dw-sdlc pr ship` is the Ship script: it drives one pull request to merged, and `/sdlc-pr-ship` runs it
 for the agent. How it merges: [overview](docs/overview.md#how-the-ship-script-merges-a-pull-request).
 
+## Beside the engineering skills
+
+`dw-sdlc` complements the mattpocock skills and replaces none; [where it sits beside them](docs/overview.md#where-dw-sdlc-sits-beside-the-engineering-skills)
+says what each carries, what is always on and what runs on the dev's word.
+
 ## Docs
 
 [how it works, why, releasing](docs/overview.md) · [plugin README](plugins/sdlc/README.md) · [decisions](docs/adr/) · [terms](GLOSSARY.md) · [Router](references/AGENTS.md)
