@@ -48,8 +48,11 @@ Under 300 words. The first line is `clean` or `findings: <n>`, `<n>` counting Fi
 known limit is no Finding when the spec says the dev accepted it. A smell, naming, duplication, a
 comment or a style rule broken without harm is no Finding: list it after the first line as
 `smell: <file>:<line> — <what>`. A harm in code the change neither touches nor reaches is no
-Finding either: list it as `follow-up: <file>:<line> — <what>`. Neither changes the count. A
-Finding the prompt named that the fix answers is a `fixed: <the Finding>` line; one it does not
+Finding either: list it as `follow-up: <file>:<line> — <what>`. Neither changes the count. When a
+spec is stated, the change may add what the spec did not ask for: list each addition as
+`added: <file>:<line> — <what the spec did not ask for>`. Like `smell:`, an `added:` line does not
+count toward `findings: <n>` and never holds the merge. With "None stated", write no `added:` line.
+Planned but not done is still a Finding, never an `added:` line. A Finding the prompt named that the fix answers is a `fixed: <the Finding>` line; one it does not
 answer is still a Finding. Then, one Finding each:
 
 ```

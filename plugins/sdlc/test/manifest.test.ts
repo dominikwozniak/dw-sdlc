@@ -203,6 +203,22 @@ describe("the sdlc plugin", () => {
     }
   })
 
+  it("has sdlc-reviewer list what no one asked for as added: lines, only with a spec and outside the Finding count", () => {
+    const text = readFileSync(join(PLUGIN_ROOT, "agents", "sdlc-reviewer.md"), "utf8")
+    assert.match(text, /`added: <file>:<line> — <what the spec did not ask for>`/)
+    assert.match(text, /When\s+a\s+spec\s+is\s+stated/)
+    assert.match(text, /does\s+not\s+count\s+toward\s+`findings: <n>`\s+and\s+never\s+holds\s+the\s+merge/)
+    assert.match(text, /Planned\s+but\s+not\s+done\s+is\s+still\s+a\s+Finding/)
+  })
+
+  it("has sdlc-pr-ship carry added: lines and scope creep into Decisions without you at every Review depth", () => {
+    const text = readFileSync(join(PLUGIN_ROOT, "skills", "sdlc-pr-ship", "SKILL.md"), "utf8")
+    assert.match(text, /Whatever\s+the\s+Review\s+depth,\s+carry\s+what\s+no\s+one\s+asked\s+for/)
+    assert.match(text, /Recap's\s+"Decisions\s+without\s+you"/)
+    assert.match(text, /at\s+`light`,\s+each\s+`added:`\s+line/)
+    assert.match(text, /at\s+`full`,\s+each\s+scope-creep\s+item\s+`code-review`\s+reports/)
+  })
+
   it("ends each skill in The answer, with a closed Next list and the rule for when no line is written", () => {
     for (const name of SKILLS) {
       const text = readFileSync(join(PLUGIN_ROOT, "skills", name, "SKILL.md"), "utf8")

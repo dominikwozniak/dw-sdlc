@@ -57,6 +57,10 @@ push makes.
   smells among them, each with one line in the Recap. A harm in code the pull request neither
   changes nor reaches goes to the Recap's follow-ups. Never post a success over an open Finding.
 
+  Whatever the Review depth, carry what no one asked for into the Recap's "Decisions without you",
+  one line each: at `light`, each `added:` line of the subagent's report, and at `full`, each
+  scope-creep item `code-review` reports. These never count as Findings and never hold the merge.
+
   Skip either Review when one earlier in this conversation read the changes since `<since>` at
   `<head>`, was clean, and nothing changed after it: no edit, no commit, no pull. Only a clean run
   of `details.reviewCommand`, or at `light` of `sdlc-reviewer` too, whose range ended at `<head>`
