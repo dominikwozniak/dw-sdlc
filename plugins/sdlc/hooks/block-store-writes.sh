@@ -33,10 +33,18 @@ check_store() {
 # alone, as `prices set` and `metadata apply` write without it. Under a verb, `--version` is the app's.
 check_asc() {
   [[ "${WORDS[0]##*/}" == asc ]] || return 0
-  local word flag verb="" shown=0 in_flags=0 hidden=0 dry=0 confirm=0 help=0
+  local word flag verb="" shown=0 in_flags=0 hidden=0 dry=0 confirm=0 help=0 skip=0
   for word in "${WORDS[@]:1}"; do
-    # A redirection ends asc's arguments: `2>` or `>out.json` is no verb.
-    [[ "$word" =~ ^[0-9]*[\<\>] ]] && break
+    # A redirect and its target are the shell's, no argument of asc: `2>&1` or `> out.json` is no verb,
+    # and the words after it are still asc's.
+    if ((skip)); then
+      skip=0
+      continue
+    fi
+    if [[ "$word" =~ $GUARD_REDIRECT ]]; then
+      [[ "$word" =~ $GUARD_REDIRECT_ALONE ]] && skip=1
+      continue
+    fi
     if [[ "$word" == -* ]]; then
       in_flags=1
       # asc reads a flag with one dash or two, and the last value wins. Any --confirm counts,

@@ -144,7 +144,8 @@ disk is in the next session, a broken edit included.
 - `block-non-pnpm.sh` (when the command names npm, npx, yarn or bun) — refuses them where the
   resolved `packageManagers.node` is `pnpm`, inferred from the lockfile when nothing declares it;
   silent in every other repository. An option before the npm verb, `npm -g install` or
-  `npm --prefix app ci`, does not hide it. A `cd` moves the repository whose package manager counts:
+  `npm --prefix app ci`, does not hide it, and neither does a redirect among them, `npm 2>&1 install`.
+  A `cd` moves the repository whose package manager counts:
   `cd app && npm install` from outside it is judged by `app`.
 - `block-store-writes.sh` (when the command names `asc` or a store script) — refuses an agent every
   write to App Store Connect, in every repository and with no config: `asc`, its CLI, reaches the
@@ -156,7 +157,8 @@ disk is in the next session, a broken edit included.
   (`asc --version`), or with `--dry-run` and no `--confirm`. Every other verb is refused —
   `metadata apply`, `prices set`, the asset library's `upload`, `rename`, `archive`, `unarchive`
   and `delete`, `localizations placements create`, `reorder`, `swap` and `delete` — and so is a flag
-  before the command, `asc --profile x metadata pull`, whose value would hide the verb. A store
+  before the command, `asc --profile x metadata pull`, whose value would hide the verb. A redirect
+  among the options, `asc … 2>&1 --confirm`, ends none of them. A store
   command, `pnpm store:<name>` or `node scripts/store-<name>.ts`, runs unless it carries
   `--confirm`, quoted or not, on a continuation line, or behind `rtk`, `env`, `sudo` or `VAR=value`.
 - `enforce-commit-hygiene.sh` (when the command names `git commit` or `git add`) — the subject must
