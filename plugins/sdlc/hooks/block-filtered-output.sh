@@ -34,12 +34,20 @@ stage_words() {
 # stage_text <stage> — the stage as typed, launchers and path included, without its redirects; a quoted
 # separator's \002 shown as `|`.
 stage_text() {
-  local word text="" stage="$1"
+  local word text="" stage="$1" skip=0
   local -a words
   stage=${stage#"${stage%%[!$LEAD]*}"}
   read -ra words <<<"$stage"
   for word in "${words[@]}"; do
-    [[ "$word" == *$'\003'* ]] && continue
+    # A redirect is no part of the command: `2>&1`, `>out`, and `> out` with its target.
+    if ((skip)); then
+      skip=0
+      continue
+    fi
+    if [[ "$word" == *$'\003'* || "$word" =~ ^[0-9]*[\<\>] ]]; then
+      [[ "$word" =~ ^[0-9]*(\>\>?|\<)$ ]] && skip=1
+      continue
+    fi
     text+="${text:+ }${word//$'\002'/|}"
   done
   printf '%s' "$text"
@@ -48,7 +56,8 @@ stage_text() {
 # builtin_check — 0 when CORE_WORDS run a test runner, a type checker or a linter of the built-in list.
 builtin_check() {
   local i=0 word next
-  while ((i < ${#CORE_WORDS[@]})) && [[ "$RUNNERS" == *" ${CORE_WORDS[i]} "* ]]; do
+  # A runner's own option, `npx --no-install`, stands before the tool.
+  while ((i < ${#CORE_WORDS[@]})) && [[ "$RUNNERS" == *" ${CORE_WORDS[i]} "* || "${CORE_WORDS[i]}" == -?* ]]; do
     i=$((i + 1))
   done
   # `python -m pytest`: the module is the tool.
@@ -58,6 +67,8 @@ builtin_check() {
   ((i < ${#CORE_WORDS[@]})) || return 1
   word=${CORE_WORDS[i]##*/}
   next=${CORE_WORDS[i + 1]-}
+  # cargo's toolchain, `cargo +nightly test`, stands between the tool and its verb.
+  [[ "$word" == cargo && "$next" == +?* ]] && next=${CORE_WORDS[i + 2]-}
   case "$word" in
     vitest | jest | tsc | oxlint | eslint | rspec | rubocop | pytest) return 0 ;;
     vp) [[ "$next" == "check" ]] && return 0 ;;
@@ -100,7 +111,7 @@ filter_of() {
 }
 
 # A substitution's body is a command of its own, and a subshell's parenthesis ends nothing a pipe reads.
-SCAN=$(guard_mask_quoted_separators "$GUARD_COMMAND")
+SCAN=$(guard_mask_quoted_separators "$(printf '%s\n' "$GUARD_COMMAND" | guard_strip_heredocs | guard_join_continuations)")
 if [[ "$SCAN" == *'$('* || "$SCAN" == *'`'* ]]; then
   guard_lift_substitutions "$SCAN"
   SCAN=$GUARD_LIFTED

@@ -401,7 +401,8 @@ spellings get past a rule; each comes from the adversarial pass of issue #318 an
   a pipe to a shell on a later line, `eval "$(cat <<EOF …)"`.
 - A `<<` inside `$(( ))` or `(( ))`, which the guard opens as a heredoc, dropping every later line.
 - A check command neither the config nor the built-in list names, such as a `package.json` script
-  `pnpm test:unit`, piped into a filter.
+  `pnpm test:unit`, piped into a filter; a pipe left at the end of a line, `vitest |⏎tail`; and a
+  runner behind an option that takes a value, `pnpm --filter app exec vitest`.
 - `yarn` against a separator (`yarn;`, `(yarn)`, `yarn&&`) and `pnpm exec npm`.
 - A push to a protected branch named `@` or `heads/main`, or aimed at another repository by
   `GIT_DIR=`.
