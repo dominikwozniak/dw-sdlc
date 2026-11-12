@@ -202,6 +202,7 @@ describe("git add — the whole tree is refused, names pass", () => {
   allowed("add-extension-glob", "git add *.md")
   allowed("add-dotslash-path", "git add ./docs")
   allowed("add-top-path", "git add ':(top)docs'")
+  allowed("add-pwd-subpath", 'git add "$PWD/docs"')
   allowed("add-star-dry-run", "git add -n *")
   allowed("commit-a-is-not-add", `git commit -a -m "${GOOD_MSG}"`)
 })

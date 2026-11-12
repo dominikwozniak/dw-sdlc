@@ -247,7 +247,7 @@ reset_group() {
   ADD_PATHS_ONLY=0
 }
 
-# add_path <word> — one pathspec of a `git add`: `.`, `*`, `:/`, `:(top)` and `$PWD` are the whole tree.
+# add_path <word> — one pathspec of a `git add`, a trailing `/` dropped (`./` is `.`, `:/` is `:`): `.`, `*`, `:/`, `:(top)`, `$PWD` are the whole tree.
 add_path() {
   case "${1%/}" in
     . | ./. | '*' | './*' | : | :/. | ':/*' | ':(top)' | ':(top).' | ':(top)*' | '$PWD' | '${PWD}' | '$(pwd)') ADD_WHOLE="$1" ;;

@@ -131,7 +131,7 @@ disk is in the next session, a broken edit included.
 - `block-non-pnpm.sh` (when the command names npm, npx, yarn or bun) — refuses them where the
   resolved `packageManagers.node` is `pnpm`, inferred from the lockfile when nothing declares it;
   silent in every other repository. An option before the npm verb, `npm -g install` or
-  `npm --prefix app ci`, changes nothing. A `cd` moves the repository whose package manager counts:
+  `npm --prefix app ci`, does not hide it. A `cd` moves the repository whose package manager counts:
   `cd app && npm install` from outside it is judged by `app`.
 - `block-store-writes.sh` (when the command names `asc` or a store script) — refuses an agent every
   write to App Store Connect, in every repository and with no config: `asc`, its CLI, reaches the
