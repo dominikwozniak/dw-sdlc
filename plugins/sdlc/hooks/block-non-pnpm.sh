@@ -17,7 +17,10 @@ END='([^A-Za-z0-9_-]|$)'
 # `npm --prefix app ci`. These options take their value as the next word; every other one stands alone.
 NPM_VALUE_OPTS='prefix|workspace|w|registry|cache|userconfig|globalconfig|loglevel|tag|otp|include|omit|install-strategy'
 NPM_VALUE='("[^"]*"|'"'"'[^'"'"']*'"'"'|[^[:space:]]+)'
-NPM_OPTS="([[:space:]]+(--?[A-Za-z][-A-Za-z0-9]*=${NPM_VALUE}|--?(${NPM_VALUE_OPTS})[[:space:]]+${NPM_VALUE}|--?[A-Za-z][-A-Za-z0-9]*))*"
+# A redirect among them is the shell's, not npm's: `npm 2>&1 install`, `npm > log install`. Its `&` is
+# \003 once guard_scopes has read the line, so both spell it.
+NPM_REDIRECT=$'[0-9]*[&\003]?[<>][^[:space:]]+|[0-9]*(>>?|<)[[:space:]]+'"${NPM_VALUE}"
+NPM_OPTS="([[:space:]]+(--?[A-Za-z][-A-Za-z0-9]*=${NPM_VALUE}|--?(${NPM_VALUE_OPTS})[[:space:]]+${NPM_VALUE}|--?[A-Za-z][-A-Za-z0-9]*|${NPM_REDIRECT}))*"
 # Bare `npx` and bare `yarn` have no subcommand list: every form of them is the wrong package
 # manager. `pnpm dlx` does not match — the boundary fires on a whole word, and `dlx` is not `npx`.
 BLOCKED_PATTERNS=(
