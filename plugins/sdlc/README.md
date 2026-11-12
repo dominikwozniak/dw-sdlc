@@ -130,8 +130,13 @@ disk is in the next session, a broken edit included.
   and a message saying why; without `jq` it passes every call.
 - `credential-leak-guard.sh` (always on) — refuses reading the credential stores that are not dotenv
   (`~/.ssh`, `~/.aws`, `~/.gnupg`, `~/.kube`, `~/.netrc`, `~/.git-credentials`, `~/.pypirc`,
-  `~/.pgpass`, the user's `~/.npmrc`), filtering an environment dump for a credential-ish name,
-  printing such a variable's value, and any `curl` or `wget` carrying one of those or a dotenv file.
+  `~/.pgpass`, the user's `~/.npmrc`, by `$HOME`, `${HOME}` or a `cd` home), filtering an
+  environment dump for a credential-ish name, printing such a variable's value, and any `curl` or
+  `wget` carrying one of those or a dotenv file. A dump is `env` running no command, `printenv`
+  naming no variable, a bare `set`, or `export`, `declare` or `typeset` with options alone, behind
+  a launcher or by path too. A print is `echo`, `printf` or `print` of the variable, `printenv`
+  naming it, `cat`, `head`, `tail` or `tee` of a here-string holding it, or `node`, `python`,
+  `ruby` or `perl` code that reads it from the environment and prints.
 - `block-non-pnpm.sh` (when the command names npm, npx, yarn or bun) — refuses them where the
   resolved `packageManagers.node` is `pnpm`, inferred from the lockfile when nothing declares it;
   silent in every other repository.
