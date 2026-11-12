@@ -522,7 +522,7 @@
       "id": "gate.check",
       "name": "pnpm check",
       "group": "gate",
-      "summary": "The Gate command: dw-sdlc gate behind the check script, the same in a terminal and in CI.",
+      "summary": "The Gate command: dw-sdlc gate; CI swaps in pnpm test:content for pnpm test on a content-only PR.",
       "code": ["package.json", ".ai/agentic.config.json", ".github/workflows/quality-gate.yaml", "vite.config.ts"],
       "docs": ["AGENTS.md#commands", "docs/overview.md#how-the-gate-runs", "GLOSSARY.md"]
     },

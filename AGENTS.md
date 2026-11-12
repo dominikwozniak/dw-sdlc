@@ -3,8 +3,8 @@
 > `CLAUDE.md` is a symlink to this file — edit `AGENTS.md` directly.
 
 The software delivery process Dominik works by, and the Claude Code tooling that carries it, proven
-here before it goes wider. `README.md` is the one-minute front page for a person; `docs/overview.md`
-is its long form: how a guard works, why the design, adopting and releasing.
+here before it goes wider. `README.md` is the front page; `docs/overview.md`
+is its long form: how a guard works, the design, adopting, releasing.
 
 ## Project map
 
@@ -72,15 +72,15 @@ is its long form: how a guard works, why the design, adopting and releasing.
   guards enforce both from `.ai/agentic.config.json`. `.vite-hooks/commit-msg` checks the subject of
   every commit, a terminal's included. `pnpm install` installs it and the pre-commit hook.
 - `main` is a protected branch: a change reaches it through a pull request, after `pnpm check` passes
-  in CI. For a small fix the agent commits on `main` and the push comes from Dominik's own terminal;
-  the guards judge only the agent's tool calls. GitHub branch protection is unavailable on this private
-  repository, so the guard is the only check.
+  in CI. For a small fix the agent commits on `main` and the push comes from Dominik's terminal,
+  which the guards skip. Branch protection is unavailable on this private
+  repository; the guard is the only check.
 - Commit before `/code-review`: it reads committed work only, the diff from its fixed point to `HEAD`.
 
 ## Commands
 
 ```bash
-pnpm check                      # dw-sdlc gate: gate.steps, then its Checks; = CI
+pnpm check                      # dw-sdlc gate: gate.steps, then its Checks
 pnpm exec dw-sdlc gate [--json] [--verbose] [--update-baseline | --cache] # a line per Step and Check, --verbose streams all; exit 0 green, 1 failed or Drift, 2 cannot run
 pnpm exec dw-sdlc check <name> [--json] # one Check of the Gate by name, no Step; off in the config, it runs on defaults
 pnpm exec dw-sdlc primitives --paths <files> [--json] # the Primitives owning each path, with docs
@@ -94,6 +94,7 @@ pnpm exec dw-sdlc worker ls [--json] # this Lead's Workers: state, status, folde
 pnpm exec dw-sdlc worker report --to <lead> --recap <file> # a Recap to the Lead, retried while blocked; exit 1 gives up
 pnpm exec vp check [--fix]      # Vite+: oxfmt, oxlint and the type check from vite.config.ts
 pnpm test                       # node --test over every *.test.ts under packages/*/test/ and plugins/*/test/
+pnpm test:content               # CI's `pnpm test` on a content-only PR
 pnpm agentic:check [file]       # resolve the config (+ .local) or validate one file
 pnpm guardrails:setup [--dry-run] # write this machine's local config, excludes, deny rules, lease exception
 pnpm guardrails:doctor          # one PASS / WARN / FAIL line per machine check; exit 1 on a FAIL

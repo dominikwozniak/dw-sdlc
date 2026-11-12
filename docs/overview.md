@@ -65,7 +65,9 @@ whole store account from any directory. It carries no other stack-specific guard
 
 ## How the Gate runs
 
-`pnpm check` is the Gate, the one command a change must pass, the same in a terminal and in CI. Its
+`pnpm check` is the Gate, the one command a change must pass, in a terminal and in CI. CI
+runs the whole Gate on every push and on every pull request but one that changes only content,
+where `pnpm test:content` stands in for `pnpm test` ([how CI runs it](#how-a-change-lands)). Its
 script is `dw-sdlc gate`, the bin of the `dw-sdlc` package, which reads the `gate` key of the
 resolved config. The Steps under `gate.steps` run in order from the repository root through `sh -c`,
 and the first that fails ends the Gate. Then every Check under `gate.checks` runs, and a failed Check
