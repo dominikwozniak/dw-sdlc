@@ -291,8 +291,8 @@ The engineering skills in `.agents/skills/` are mattpocock's: `wayfinder`, `gril
 `to-spec`, `to-tickets`, `triage`, `implement`, `implement-spec`, `tdd`, `code-review` and `handoff`. They
 plan, build and review the work, and each one stops where it asks the dev. `dw-sdlc` complements them and
 replaces none: it adds what they lack, the guards, the Gate, and the delivery from a Brief through the pull
-request, the Review, the merge and the Sweep. A hook or a rule of `dw-sdlc` never fires inside a skill's
-normal steps and never overrides where a skill stops for the dev.
+request, the Review, the merge and the Sweep. The guards still judge a skill's tool calls. No `dw-sdlc`
+rule adds a step to a skill or overrides where it stops for the dev.
 
 | stage                                | carried by                                  | invoked by                                              | whose      |
 | ------------------------------------ | ------------------------------------------- | ------------------------------------------------------- | ---------- |
@@ -319,9 +319,10 @@ Four things run with no one asking, each from a file in this repository:
   written file over 256 KiB. `plugins/sdlc/.claude-plugin/plugin.json` registers them.
 - **The session hooks.** At a session's start `session-start.sh` reports what the checkout lacks, and
   `references-sync.sh` brings each Reference to its ref.
-- **`commit-msg`.** `.vite-hooks/commit-msg` runs `hooks/commit-msg.sh` on a commit typed in a terminal.
-- **The Gate in CI.** `quality-gate.yaml` runs `pnpm check` on a pull request once it is ready, as
-  [How a change lands](#how-a-change-lands) says.
+- **The git hooks.** `.vite-hooks/commit-msg` runs `hooks/commit-msg.sh` on a commit typed in a terminal,
+  and `.vite-hooks/pre-commit` runs `vp staged` on the staged files.
+- **The Gate in CI.** `quality-gate.yaml` runs `pnpm check` on a pull request once it is ready, and on a
+  direct push to `main`, as [How a change lands](#how-a-change-lands) says.
 
 ### What runs on the dev's word
 
@@ -355,7 +356,7 @@ leaves](#how-a-sweep-removes-what-finished-work-leaves)).
 ### The Review depths
 
 `/sdlc-pr-ship` reads a head at one of three depths, set by the dev's `--review` for a call, else by
-`pr.review`, else routed from the size of the change by `auto`. `full` runs the slash command
+`pr.review`, whose default `auto` routes a depth from the size of the change. `full` runs the slash command
 `pr.reviewCommand` names, `/code-review` by default. `light` spawns one `sdlc-reviewer` subagent. `off`
 reads nothing, and the Ship script marks the head reviewed itself. The rules are in
 [How the Ship script merges a pull request](#how-the-ship-script-merges-a-pull-request). A Worker commits
