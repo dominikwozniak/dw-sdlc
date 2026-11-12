@@ -29,6 +29,7 @@ paths its clone skips. Before you research, open the clones whose
 | `dmmulroy-anti-slop`      | writing an oxlint JS plugin rule with RuleTester, a lint policy against `unknown`, `as` and `typeof` in TypeScript, or a skill that vendors code into a repo and updates it in place |
 | `pstack`                  | a mode skill that routes a task to playbooks, a skill that runs several models or parallel agents on one task, or engineering principles written as skills                           |
 | `grateful-me-app-v2`      | agent instructions, docs and checks for a real product repo, the dw-solo lane in daily use, or guard hooks and a check script for an Expo app                                        |
+| `humanlayer`              | a Claude Code hook, a phased research-plan-implement skill set, subagents a skill calls, an oxlint JS plugin with tests that hold the lint config, or per-worktree dev services      |
 
 <!-- references:end -->
 

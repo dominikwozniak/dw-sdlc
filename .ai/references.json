@@ -88,6 +88,21 @@
       ],
       "what": "byArcadia's Grateful Me v2, an iOS-only gratitude journal on Expo 57, expo-router, HeroUI Native on Uniwind and Drizzle over expo-sqlite, built by agents day to day: an `AGENTS.md` Task Router with `<important if>` blocks and a size budget its own check enforces, topic docs under `docs/agents/`, 104 decision records, the dw-solo lane under `.ai/`, Claude Code guard hooks, prior apps as read-only submodules with a `conflicts.md`, and 19 repo-specific check scripts behind `pnpm check`. The clone leaves out the installed skills in `.agents/skills/`, the closed changes in `.ai/archive/`, the HTML design boards in `docs/design/` and the vendored anti-slop in `tools/oxlint/anti-slop/`: 646 of its 1382 files",
       "when": "agent instructions, docs and checks for a real product repo, the dw-solo lane in daily use, or guard hooks and a check script for an Expo app"
+    },
+    {
+      "dir": "humanlayer",
+      "repository": "https://github.com/humanlayer/humanlayer",
+      "ref": "main",
+      "skip": [
+        "apps/riptide-ui/",
+        "apps/riptide-api/",
+        "apps/riptide-cloud/",
+        "packages/ui/",
+        "packages/db/",
+        "contracts/riptide-api-contract/"
+      ],
+      "what": "HumanLayer's TurboRepo monorepo on Bun, built by agents day to day: a `CLAUDE.md` of `<important if>` blocks, Claude Code hooks against filtered check output and for checks at Stop, 28 skills under `.claude/skills/`, the Research-Plan-Implement plugin in `apps/riptide-rpi-claude-plugin/`, bundled subagents and auto-advance in `apps/riptide-daemon/`, in-repo oxlint JS plugins under `tools/oxlint/` with RuleTester and config-contract tests, a silent check wrapper, and per-worktree devstacks in `apps/devstack/`. The clone leaves out its product UI, API, database schema and component library: 3919 of its 5873 files",
+      "when": "a Claude Code hook, a phased research-plan-implement skill set, subagents a skill calls, an oxlint JS plugin with tests that hold the lint config, or per-worktree dev services"
     }
   ]
 }
