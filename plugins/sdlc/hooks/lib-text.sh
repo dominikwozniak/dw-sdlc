@@ -22,7 +22,7 @@ guard_quote_walk() {
 # a nested walk leaves as it was. It reads its window and the 512 characters before, for guard_qw_live.
 guard_qw_walk() {
   local live="${2:-0}" st="${3:-P}" from="${4:-0}" stop="${5:-}"
-  local around base=0 rest pos=${4:-0} wend total=$1 top run ch kind len quote prev="" depth=${#st} behind=""
+  local around base=0 rest pos=${4:-0} wend total=$1 top run ch kind len prev="" depth=${#st} behind=""
   ((from > 512)) && base=$((from - 512))
   wend=$((from + GUARD_QW_WINDOW < total ? from + GUARD_QW_WINDOW : total))
   around=${GUARD_QW_SRC:base:wend-base}
@@ -66,7 +66,6 @@ guard_qw_walk() {
     ch=${rest:0:1}
     kind="t$top"
     len=1
-    quote=""
     case "$ch" in
       '\')
         kind="e$top"
@@ -150,12 +149,11 @@ guard_qw_walk() {
         fi
         ;;
       '<')
-        # `<<` and what follows it: 1 the `-`, 2 the quote, 3 the delimiter. A `<<<` is a here-string.
+        # `<<` and its delimiter, the whole word, quotes and all. A `<<<` is a here-string.
         if [[ "$top" == [PUVB] && "$prev" != '<' && "${rest:1:1}" == '<' && "${rest:2:1}" != '<' ]] &&
           [[ "${rest:2:256}" =~ $GUARD_HEREDOC_DELIM ]]; then
           kind=h
           len=$((2 + ${#BASH_REMATCH[0]}))
-          quote=${BASH_REMATCH[2]}
         fi
         ;;
     esac
@@ -169,13 +167,6 @@ guard_qw_walk() {
     ((live)) && behind+=${rest:0:len}
     rest=${rest:len}
     pos=$((pos + len))
-    # The quote closing a quoted delimiter opens nothing.
-    if [[ -n "$quote" && "$quote" != '\' && "${rest:0:1}" == "$quote" ]]; then
-      guard_qw_piece "t$top" "$quote"
-      ((live)) && behind+=$quote
-      rest=${rest:1}
-      pos=$((pos + 1))
-    fi
     case "$stop$kind" in
       oo[sad]) break ;;
       cc?) ((${#st} < depth)) && break ;;
@@ -191,7 +182,7 @@ guard_qw_walk() {
 # guard_qw_live <before> — 0 when the text before a quote ends in GUARD_LIVE_QUOTE. Past its first
 # character a match holds no GUARD_QW_NOT_LIVE character, so any tail holding one decides: the last
 # 128 characters do unless none is there, and a long command costs a step per quote.
-GUARD_QW_NOT_LIVE='[!A-Za-z_+<[:space:]-]'
+GUARD_QW_NOT_LIVE='[!A-Za-z0-9_+<[:space:]./\\-]'
 guard_qw_live() {
   local pre=$1
   ((${#pre} > 128)) && pre=${pre:${#pre}-128}
