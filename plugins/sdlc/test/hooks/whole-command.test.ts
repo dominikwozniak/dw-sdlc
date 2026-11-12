@@ -12,7 +12,15 @@ const FEAT = initRepo(join(TMP, "feat"), { branch: "feat" })
 write(join(FEAT, "pnpm-lock.yaml"), "")
 write(join(FEAT, ".gitignore"), "*.local\n")
 write(join(FEAT, ".env.local"), "SECRET=1\n")
-initRepo(join(FEAT, "sub"), { branch: "main" })
+// A committed file with a change, so a reset --hard here loses work and the guard refuses it for that.
+function modifiedFile(dir: string): void {
+  write(join(dir, "a.txt"), "a\n")
+  git(dir, "add", "a.txt")
+  commit(dir, "-m", "init")
+  write(join(dir, "a.txt"), "b\n")
+}
+modifiedFile(FEAT)
+modifiedFile(initRepo(join(FEAT, "sub"), { branch: "main" }))
 const APP = initRepo(join(FEAT, "app"), { branch: "main" })
 write(join(APP, "pnpm-lock.yaml"), "")
 const COMMIT_DENY = initRepo(join(TMP, "commit-deny"), { branch: "main" })
