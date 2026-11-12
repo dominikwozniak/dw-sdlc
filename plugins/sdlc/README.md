@@ -90,8 +90,8 @@ disk is in the next session, a broken edit included.
     `reflog expire` and `delete`; `gc --prune=now|all`; `prune`; `update-ref -d`. A plain
     `branch -d` and `worktree remove` pass, because git keeps unmerged and dirty work from them
     itself. The whole tree is a pathspec of `.`, `*` or `**` behind any `./`, `./` alone, or the
-    `:/` or `:(top)` magic alone or before one of those; `*` under `:(glob)`, `:(exclude)` and
-    `:(literal)` are not.
+    `:/` or `:(top)` magic alone or before one of those. A `*` under `:(glob)` is not, nor is any
+    pathspec under magic beyond `top`, `glob` and `icase`, as `:(exclude)` or `:(attr:…)`.
   - forced branch delete: `branch -D`, `-d -f` or `--delete --force` passes when each branch it
     names is landed: its work is on origin's base branch, `baseBranch` or under `auto` the branch of
     origin that `origin/HEAD` names. Its tip is there, or a base commit since it forked holds the
@@ -223,8 +223,9 @@ in place.
 line: at `;`, `&`, `|`, a newline and a subshell's parentheses, each of which also stands as a scope
 line, so a `cd` inside a subshell ends with it. A redirect's `&`, as in `2>&1`, `<&0` and `&>`, is
 no cut: `git push 2>&1 origin main` is one push to `main`. A `cd` or `pushd` with a literal
-directory, behind its options and a `--`, moves where the shell stands. The guard keeps no
-directory stack, so a `popd`, and a `pushd` with no directory or a `+1`, read as the session's
+directory, behind its options and a `--`, moves where the shell stands. The guard keeps the
+directories `pushd` saves, so a `popd` or a bare `pushd` goes back as the shell does, and a subshell
+gives the stack back at its end too. A turn of the stack, `pushd +1`, reads as the session's
 directory. A `$(…)` or backtick substitution is one word of the
 command around it, not a cut: `guard_lift_substitutions` makes it the word `$_`, a value computed at
 runtime, and moves its body to a scope of its own just before that command, since the shell runs the

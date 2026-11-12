@@ -269,12 +269,14 @@ guard_cd_dir() {
 
 GUARD_SCOPE_STACK=""
 GUARD_SCOPE_BACKTICK=0
+# The directories `pushd` saved, top last, each behind a \037.
+GUARD_DIR_STACK=""
 
-# guard_scope_step <line> — one line of guard_scopes against GUARD_SHELL_DIR: a subshell opening saves
-# it, its end restores it, a `cd` or `pushd` (words in WORDS) moves it, a `popd` or a stack turn sets
-# the payload's cwd: README.md#commands-and-scopes. Returns 1 for a scope line, which holds no command.
+# guard_scope_step <line> — one line of guard_scopes against GUARD_SHELL_DIR and GUARD_DIR_STACK: a
+# subshell opening saves them, its end restores them, a `cd`, `pushd` or `popd` (words in WORDS) moves
+# them: README.md#commands-and-scopes. Returns 1 for a scope line, which holds no command.
 guard_scope_step() {
-  local word bt_line=$'\001`'
+  local word verb entry i=1 keep=0 bt_line=$'\001`'
   case "$1" in
     "$bt_line")
       if ((GUARD_SCOPE_BACKTICK)); then
@@ -287,12 +289,13 @@ guard_scope_step() {
       return 1
       ;;
     $'\001(')
-      GUARD_SCOPE_STACK+=$'\n'"$GUARD_SHELL_DIR"
+      GUARD_SCOPE_STACK+=$'\n'"$GUARD_SHELL_DIR"$'\036'"$GUARD_DIR_STACK"
       return 1
       ;;
     $'\001)')
       if [[ -n "$GUARD_SCOPE_STACK" ]]; then
-        GUARD_SHELL_DIR="${GUARD_SCOPE_STACK##*$'\n'}"
+        entry=${GUARD_SCOPE_STACK##*$'\n'}
+        GUARD_SHELL_DIR=${entry%%$'\036'*} GUARD_DIR_STACK=${entry#*$'\036'}
         GUARD_SCOPE_STACK="${GUARD_SCOPE_STACK%$'\n'*}"
       fi
       return 1
@@ -300,51 +303,43 @@ guard_scope_step() {
   esac
   guard_read_words "$1"
   guard_unwrap_words
-  case "${WORDS[0]:-}" in
-    cd | pushd) ;;
-    popd)
-      GUARD_SHELL_DIR="$GUARD_CWD"
-      return 0
-      ;;
-    *) return 0 ;;
-  esac
-  # `cd -P dir`, `cd -L dir`, `pushd -n dir`: the options name no directory, and `--` ends them.
-  local i=1 n=${#WORDS[@]} stays=0
-  word=""
-  while ((i < n)); do
-    word=${WORDS[i]}
+  verb=${WORDS[0]:-}
+  [[ "$verb" == cd || "$verb" == pushd || "$verb" == popd ]] || return 0
+  # `cd -P dir`: the options name no directory, and `--` ends them. `-n` keeps the shell where it is.
+  while [[ "${WORDS[i]:-}" == -[LPen@]* ]]; do
+    [[ "${WORDS[i]}" == *n* ]] && keep=1
     i=$((i + 1))
-    case "$word" in
-      --)
-        word=${WORDS[i]:-}
-        break
-        ;;
-      -[LPe@]*) ;;
-      -n)
-        [[ "${WORDS[0]}" == pushd ]] || break
-        stays=1
-        ;;
-      *) break ;;
-    esac
-    word=""
   done
-  ((stays)) && return 0
-  if [[ "${WORDS[0]}" == pushd && ("$word" == "" || "$word" == [+-][0-9]*) ]]; then
-    GUARD_SHELL_DIR="$GUARD_CWD"
-  else
-    GUARD_SHELL_DIR=$(guard_cd_dir "$word")
-  fi
+  [[ "${WORDS[i]:-}" == -- ]] && i=$((i + 1))
+  word=${WORDS[i]:-}
+  case "$verb:$word" in
+    pushd:[+-][0-9]* | popd:[+-][0-9]*)
+      # A turn of the stack, which the guard does not follow.
+      GUARD_SHELL_DIR=$GUARD_CWD GUARD_DIR_STACK=""
+      ;;
+    popd:*)
+      entry=${GUARD_DIR_STACK##*$'\037'}
+      [[ -n "$GUARD_DIR_STACK" ]] && ! ((keep)) && GUARD_SHELL_DIR=$entry
+      GUARD_DIR_STACK=${GUARD_DIR_STACK%$'\037'*}
+      ;;
+    pushd:)
+      # The top two swap; with nothing saved, the shell stays.
+      [[ -n "$GUARD_DIR_STACK" ]] || return 0
+      entry=${GUARD_DIR_STACK##*$'\037'}
+      GUARD_DIR_STACK=${GUARD_DIR_STACK%$'\037'*}$'\037'"$GUARD_SHELL_DIR"
+      GUARD_SHELL_DIR=$entry
+      ;;
+    pushd:*)
+      if ((keep)); then
+        GUARD_DIR_STACK+=$'\037'"$(guard_cd_dir "$word")"
+      else
+        GUARD_DIR_STACK+=$'\037'"$GUARD_SHELL_DIR"
+        GUARD_SHELL_DIR=$(guard_cd_dir "$word")
+      fi
+      ;;
+    *) ((keep)) || GUARD_SHELL_DIR=$(guard_cd_dir "$word") ;;
+  esac
   return 0
-}
-
-# guard_worktree_main <cwd> — prints the main checkout of the linked worktree holding <cwd>; returns 1
-# for a main checkout or no repository. A linked worktree's --git-dir differs from --git-common-dir.
-guard_worktree_main() {
-  local git_dir common_dir
-  git_dir=$(git -C "$1" rev-parse --path-format=absolute --git-dir 2>/dev/null) || return 1
-  common_dir=$(git -C "$1" rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || return 1
-  [[ "$git_dir" != "$common_dir" ]] || return 1
-  dirname "$common_dir"
 }
 
 # guard_subject_by_git <subject> — 0 for git's own machine-written subjects, which no project pattern

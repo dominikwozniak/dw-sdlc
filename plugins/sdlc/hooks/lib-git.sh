@@ -282,9 +282,9 @@ GUARD_PATHSPEC_MAGIC=$'^:[(\002]([^)\002]*)[)\002](.*)$'
 
 # guard_whole_tree — 0 when guard_opts read a pathspec that names the whole tree: `.`, `*` or `**`
 # behind any `./`, or `./` or the `:/` or `:(top)` magic alone. A `*` crosses `/` in git's own
-# matching, not under `:(glob)`; `:(exclude)` and `:(literal)` reach none of them.
+# matching, not under `:(glob)`; any magic beyond `top`, `glob` and `icase` narrows what they reach.
 guard_whole_tree() {
-  local word magic rest
+  local word magic rest entry
   for word in ${OPT_OPERANDS[@]+"${OPT_OPERANDS[@]}"}; do
     magic="" rest=$word
     if [[ "$word" =~ $GUARD_PATHSPEC_MAGIC ]]; then
@@ -294,7 +294,10 @@ guard_whole_tree() {
       magic=",top,"
       rest=${word#:/}
     fi
-    [[ "$magic" == *,exclude,* || "$magic" == *,literal,* ]] && continue
+    entry=${magic//,top,/,}
+    entry=${entry//,glob,/,}
+    entry=${entry//,icase,/,}
+    [[ -z "${entry//,/}" ]] || continue
     while [[ "$rest" == ./* ]]; do
       rest=${rest#./}
     done
@@ -354,4 +357,14 @@ guard_landed() {
   git -C "$1" rev-list --no-merges --max-count="$GUARD_LANDED_SCAN" "$fork..$2" |
     GIT_NO_LAZY_FETCH=1 git -C "$1" diff-tree --stdin -p --binary --no-renames 2>/dev/null |
     git patch-id --verbatim | cut -d' ' -f1 | grep -xF "$patch" >/dev/null
+}
+
+# guard_worktree_main <cwd> — prints the main checkout of the linked worktree holding <cwd>; returns 1
+# for a main checkout or no repository. A linked worktree's --git-dir differs from --git-common-dir.
+guard_worktree_main() {
+  local git_dir common_dir
+  git_dir=$(git -C "$1" rev-parse --path-format=absolute --git-dir 2>/dev/null) || return 1
+  common_dir=$(git -C "$1" rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || return 1
+  [[ "$git_dir" != "$common_dir" ]] || return 1
+  dirname "$common_dir"
 }

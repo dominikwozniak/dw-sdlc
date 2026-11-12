@@ -648,8 +648,9 @@ describe("rm aimed at the root, the home, the working directory or the repositor
   allowed("message-line-shred", 'git commit -m "fix: x\n\nshred was the bug"')
 })
 
-// F16, F26 and three cases of F31 in #318, each payload as the pass sent it, from a feature branch
-// beside a checkout on main. The passes hold the same spellings to ordinary work.
+// The payloads of #318 for an rm target, a whole-tree pathspec and a push target, named as #318 names
+// them, run from a feature branch beside a checkout on main. Each allowed case is ordinary work in
+// the same spelling, which the guard must not refuse.
 describe("the rm, whole-tree and push spellings of #318", () => {
   blocked("rm-var-dot-git", 'rm -rf "$dir"/.git')
   blocked("rm-bvar-dot-git", 'rm -rf "${dir}"/.git')
@@ -682,6 +683,8 @@ describe("the rm, whole-tree and push spellings of #318", () => {
   allowed("tree-restore-glob-subdir", "git restore ':(glob)src/**'")
   allowed("tree-restore-exclude", "git restore ':(exclude)*'")
   allowed("tree-restore-literal-star", "git restore ':(literal)*'")
+  allowed("tree-restore-attr-star", "git restore ':(attr:generated)*'")
+  blocked("tree-restore-icase-star", "git restore ':(icase)*'")
   allowed("tree-checkout-dotslash-subdir", "git checkout -- ./src")
 
   blocked("push-amp-redirect-mid", "git push 2>&1 origin main")
@@ -690,6 +693,10 @@ describe("the rm, whole-tree and push spellings of #318", () => {
   blocked("push-amp-redirect-end", "git push origin main 2>&1")
   blocked("push-amp-redirect-all", "git push &>/dev/null origin main")
   blocked("push-pushd-then-popd", "pushd ../on-main-topic && popd && git push", ON_MAIN)
+  blocked("push-popd-back-to-main", "cd ../on-main && pushd ../feat && popd && git push")
+  blocked("push-pushd-n-then-popd", "pushd -n ../on-main && popd && git push")
+  blocked("push-pushd-swap-back-to-main", "cd ../on-main && pushd ../feat && pushd && git push")
+  allowed("push-popd-back-to-the-feature-branch", "pushd ../on-main && popd && git push")
   allowed("push-amp-redirect-mid-feature", "git push 2>&1 origin feat")
   allowed("push-pushd-into-a-feature-worktree", "pushd ../on-main-topic && git push", ON_MAIN)
   allowed("push-cd-dd-into-a-feature-worktree", "cd -- ../on-main-topic && git push", ON_MAIN)
