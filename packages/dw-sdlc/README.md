@@ -48,7 +48,7 @@ its `roots` to `maxProseLines` lines of prose, 3 by default.
 `dw-sdlc pr ship [<n>] [-R owner/name]` reads one pull request through an authenticated `gh` and
 answers the one Action it needs next, as a line or, with `--json`, one document. The exit code says
 whose turn it is: 0 done, 10 the agent's, 20 wait, 30 the dev's, 2 it cannot run. The script
-performs its own Actions: it updates a branch behind its base, marks the head reviewed when the
+performs its own Actions: it updates a branch GitHub reports `BEHIND`, marks the head reviewed when the
 Review depth is `off`, marks a draft ready once nothing else holds it back, and squash merges a pull
 request that is green, reviewed and opened by the `gh` account, when the merge is its own. `--dry-run` performs nothing: it answers the first Action the
 script would perform as the dev's. It never deletes a branch; a merged pull request answers with

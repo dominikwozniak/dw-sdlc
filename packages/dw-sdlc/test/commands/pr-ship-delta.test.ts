@@ -96,9 +96,9 @@ type Files = Record<string, string | object>
 /** pr.review full: no compare beyond the two a carry reads; `pr-ship-route` reads auto. */
 const FULL: Files = { [COMMITTED_FILE]: { pr: { review: "full" } } }
 
-/** `dw-sdlc pr ship` on `graphql`; the compare that judges the head behind finds it lacks none of its base. */
+/** `dw-sdlc pr ship` on `graphql`, gh answering `commands` beside the read. */
 function ship(args: string[], graphql: Pr[], commands: Record<string, Response> = {}, files: Files = FULL) {
-  const gh = fakeGh({ graphql: graphql.map(served), commands: { ...compared(HEAD, []), ...commands } })
+  const gh = fakeGh({ graphql: graphql.map(served), commands })
   const run = runBin(["pr", "ship", ...TARGET, ...args], repo({ files }), gh.env)
   return { ...run, calls: gh.calls() }
 }

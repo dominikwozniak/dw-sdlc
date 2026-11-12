@@ -82,9 +82,9 @@ function commandOf(args: string[]): string {
 /** The files of a test's checkout: a relative path and its text, an object written as JSON. */
 type Files = Record<string, string | object>
 
-/** `dw-sdlc pr ship` on `graphql`; the compare that judges the head behind finds it lacks none of its base. */
+/** `dw-sdlc pr ship` on `graphql`, gh answering `commands` beside the read. */
 function ship(args: string[], graphql: Pr[], commands: Record<string, Response> = {}, files: Files = {}) {
-  const gh = fakeGh({ graphql: graphql.map(served), commands: { ...compared(BASE_OID, []), ...commands } })
+  const gh = fakeGh({ graphql: graphql.map(served), commands })
   const run = runBin(["pr", "ship", ...TARGET, ...args], repo({ files }), gh.env)
   return { ...run, calls: gh.calls() }
 }

@@ -356,9 +356,8 @@ The script owns four Actions, one `gh` command each. It updates a branch by merg
 and only when GitHub reports it `BEHIND`, which GitHub does only where a rule asks a branch to be up
 to date before it merges. A branch only behind its base merges as it is: the Quality Gate ran on the
 pull request's merge with the base as the base stood at that run, and an update would run it once
-more, in GitHub Actions minutes, for no rule that asks for it. It marks
-the head of the viewer's own pull request reviewed when the Review depth is `off`. It marks the
-viewer's own draft ready once no check fails or runs, no thread is open and the head is reviewed. A
+more, in GitHub Actions minutes, for no rule that asks for it. It marks the head of the viewer's
+own pull request reviewed when the Review depth is `off`. It marks the viewer's own draft ready once no check fails or runs, no thread is open and the head is reviewed. A
 ready head whose every check was skipped counts as having no CI: the script waits for the run its
 `ready` starts and never merges on the skip. It squash
 merges with `--match-head-commit`, so a push during the decision never merges blind. Each runs at
