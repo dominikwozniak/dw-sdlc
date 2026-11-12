@@ -468,6 +468,30 @@ export const CASES: Case[] = [
     ]
   },
   {
+    name: "the agentic schema takes disable-directives as true or with its files and exempt",
+    schema: AGENTIC_SCHEMA,
+    value: {
+      gate: { checks: { "disable-directives": { files: ["src/**/*.ts"], exempt: ["src/vendor/**"] } } }
+    },
+    problems: []
+  },
+  {
+    name: "the agentic schema takes disable-directives set to true",
+    schema: AGENTIC_SCHEMA,
+    value: { gate: { checks: { "disable-directives": true } } },
+    problems: []
+  },
+  {
+    name: "the agentic schema refuses a disable-directives option it does not take and a glob that is not a list",
+    schema: AGENTIC_SCHEMA,
+    value: { gate: { checks: { "disable-directives": { files: "src/**", exempt: [""], directives: ["noqa"] } } } },
+    problems: [
+      { path: "gate.checks.disable-directives.files", message: 'expected array, got "src/**"' },
+      { path: "gate.checks.disable-directives.exempt[0]", message: "must not be empty" },
+      { path: "gate.checks.disable-directives", message: 'unknown key "directives"' }
+    ]
+  },
+  {
     name: "the agentic schema refuses a Check set to neither a boolean nor an object",
     schema: AGENTIC_SCHEMA,
     value: { gate: { checks: { primitives: false, "agents-map": "yes" } } },

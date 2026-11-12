@@ -218,6 +218,14 @@ schema.
   a run of `//` or `#` lines, each alone on its line; a comment after code is none. In shell, a `#`
   opens a comment only where it starts a word of code: never inside a quote, a `${…}`, an arithmetic
   `((…))` or a heredoc body, and the shebang on line 1 is none.
+- `disable-directives` holds every Disable directive in a comment to a reason: `oxlint-disable*` and
+  `eslint-disable*` in every form, `@ts-expect-error` and `@ts-ignore` in JavaScript and TypeScript,
+  `rubocop:disable` in Ruby and `noqa` in Python. A reason is text after `--` on the directive's line;
+  for the two `@ts-` directives, text after the directive, with or without `:`; or a comment on the
+  line directly above. A directive inside a string or a template is none; Ruby and Python are read by
+  their `#` comments outside strings. It fails hard, with no Ratchet, and leaves a rule set to `off`
+  in a lint config alone. `files` picks the files and `exempt` leaves some out, `references/**`,
+  `**/vendor/**` and `**/node_modules/**` by default.
 
 The Checks that read many files judge the ones git tracks or would track, never one it ignores, so a
 link to an ignored file, or to another case of a file's name, fails on a Mac as it fails in CI. A

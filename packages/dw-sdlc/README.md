@@ -46,6 +46,9 @@ its failure line, and `--json` carries `hint` on every Step and Check, `null` wh
 Under `gate.checks`, a Check the package ships is `true` for its defaults or an object of its options.
 `comment-budget` holds each comment block in the JavaScript, TypeScript and shell (`.sh`) files under
 its `roots` to `maxProseLines` lines of prose, 3 by default.
+`disable-directives` fails every Disable directive in a comment that gives no reason: `oxlint-disable*`,
+`eslint-disable*`, `@ts-expect-error`, `@ts-ignore`, `rubocop:disable` and `noqa`. A reason follows `--`
+on the directive's line, follows an `@ts-` directive, or is a comment on the line above.
 
 ## The Ship script
 
