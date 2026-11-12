@@ -61,21 +61,21 @@ node <plugin root>/dw-sdlc/src/cli.ts doctor
 
 ## What it stops
 
-| guard                 | refuses                                                                                                     |
-| --------------------- | ----------------------------------------------------------------------------------------------------------- |
-| dangerous commands    | `reset --hard`, `clean -fd`, `stash clear`, remote branch deletion, `rm` at `/` `~` `.`, `find -delete`     |
-| forced delete         | `branch -D` of a branch not yet on the base, `-M`, `worktree remove --force`, `stash drop`                  |
-| lost-commit record    | `reflog expire`, `gc --prune=now`, `prune`, `update-ref -d`, `rm -rf .git`                                  |
-| force push            | bare `push --force`; a lease push passes, or asks first under `forcePush: ask`, never to a protected branch |
-| plain push            | any push straight to a protected branch: those take pull requests                                           |
-| commit                | a commit, merge, cherry-pick or revert on a protected branch, under `commitOnProtected: deny`               |
-| GitHub CLI            | `gh repo delete`, `gh pr merge --delete-branch`, a `gh api` call that deletes or force-moves a ref          |
-| env access            | `.env`, `.env.*`, `.envrc` outside the config's allow list or unknown to git                                |
-| credential leak       | reading `~/.ssh`, `~/.aws`, `~/.kube` and friends; `curl` or `wget` carrying a secret                       |
-| package manager       | `npm`, `npx`, `yarn`, `bun` in a pnpm repository                                                            |
-| commit hygiene        | a subject off the convention, a missing trailer, `git add -A` with no path, `git add .`                     |
-| App Store Connect     | every `asc` write and `--confirm` on a store script, in every repository; reads and `--dry-run` pass        |
-| large file (advisory) | flags a written file over 256 KiB                                                                           |
+| guard                 | refuses                                                                                                                          |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| dangerous commands    | `reset --hard` with uncommitted changes, `clean -fd`, `stash clear`, remote branch deletion, `rm` at `/` `~` `.`, `find -delete` |
+| forced delete         | `branch -D` of a branch not yet on the base, `-M`, `worktree remove --force`, `stash drop`                                       |
+| lost-commit record    | `reflog expire`, `gc --prune=now`, `prune`, `update-ref -d`, `rm -rf .git`                                                       |
+| force push            | bare `push --force`; a lease push passes, or asks first under `forcePush: ask`, never to a protected branch                      |
+| plain push            | any push straight to a protected branch: those take pull requests                                                                |
+| commit                | a commit, merge, cherry-pick or revert on a protected branch, under `commitOnProtected: deny`                                    |
+| GitHub CLI            | `gh repo delete`, `gh pr merge --delete-branch`, a `gh api` call that deletes or force-moves a ref                               |
+| env access            | `.env`, `.env.*`, `.envrc` outside the config's allow list or unknown to git                                                     |
+| credential leak       | reading `~/.ssh`, `~/.aws`, `~/.kube` and friends; `curl` or `wget` carrying a secret                                            |
+| package manager       | `npm`, `npx`, `yarn`, `bun` in a pnpm repository                                                                                 |
+| commit hygiene        | a subject off the convention, a missing trailer, `git add -A` with no path, `git add .`                                          |
+| App Store Connect     | every `asc` write and `--confirm` on a store script, in every repository; reads and `--dry-run` pass                             |
+| large file (advisory) | flags a written file over 256 KiB                                                                                                |
 
 Each rule holds at every command position: an indented line, a loop, a subshell, behind `sudo`,
 `xargs`, `timeout`, `find -exec` or `bash -c`, and in a heredoc a shell reads. Every rule in full:

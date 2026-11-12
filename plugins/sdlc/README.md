@@ -83,7 +83,7 @@ disk is in the next session, a broken edit included.
   separator, in a subshell or a substitution, behind `sudo`, `env`, `xargs`, `timeout`, `time`,
   `nohup`, `nice`, `exec`, `stdbuf`, `find -exec`, `bash -c`, `eval`, `rtk`, a shell keyword, a
   `VAR=x`, a path or a backslash, and in a heredoc or here-string a shell reads.
-  - git, read word by word: `reset --hard`; `clean` with `-f`, `-d`, `-x`, `-X` or `--force` unless
+  - git, read word by word: `reset --hard` with uncommitted changes; `clean` with `-f`, `-d`, `-x`, `-X` or `--force` unless
     a dry run; `branch -M` and `-C`, and `-f` or `--force` on a move, a copy or an existing branch;
     `checkout -f` or of the whole tree; `switch -f` and `--discard-changes`; a `restore` of the
     whole tree unless `--staged` alone; `stash drop` and `clear`; `worktree remove --force`;
@@ -93,6 +93,13 @@ disk is in the next session, a broken edit included.
     `:/` or `:(top)` magic alone or before one of those. Under `:(glob)`, a `*` stops at the top
     level and `**/*` reaches every file. Magic beyond `top`, `glob` and `icase`, such as
     `:(exclude)` or `:(attr:…)`, narrows a pathspec, so it never names the whole tree.
+  - `reset --hard` passes when no tracked file in the command's repository has a staged or unstaged
+    change: untracked files survive it and the reflog keeps the old HEAD. It is refused when git cannot
+    answer (outside a repository, on an unborn HEAD), when a file is marked `assume-unchanged` or
+    `skip-worktree`, which hides its edits from `git diff` (a sparse checkout is one), when a `-C` is computed at runtime, under
+    `GIT_DIR` or `GIT_WORK_TREE`, and after any command but a literal `cd` or a git `fetch`, `status`, `log`, `show`, `diff`,
+    `rev-parse`, `rev-list`, `merge-base`, `ls-files`, `branch`, `remote`, `switch` or `worktree`,
+    since another command may change the tree first.
   - forced branch delete: `branch -D`, `-d -f` or `--delete --force` passes when each branch it
     names is landed: its work is on origin's base branch, `baseBranch` or under `auto` the branch of
     origin that `origin/HEAD` names. Its tip is there, or a base commit since it forked holds the
@@ -373,6 +380,9 @@ spellings get past a rule; each comes from the adversarial pass of issue #318 an
 - Expansion the guard does not perform: braces, and a glob anywhere but the env guard's words
   (`cat .env{,.local}`, `cat ~/.ss?/id_rsa`, `rm -rf .g[i]t`, `rm -rf **`, `{git,reset,--hard}`),
   the tildes `~+` and `~user`, and a name the file system folds, `.ENV.LOCAL` on APFS.
+- A command before `reset --hard` that writes a tracked file through its own output: a redirect or
+  `--output` on an allowed git verb, `-c diff.external=…` or `-c core.fsmonitor=…`. The reset discards
+  that output, which the command can write again.
 - A `Grep` glob that reaches an env file only through a name outside the probes, `*.qa` reaching
   `.env.qa`.
 - A quoted command name or option: `"rm"`, `r''m`, `r\m`, `g""it`, `find . "-delete"`.

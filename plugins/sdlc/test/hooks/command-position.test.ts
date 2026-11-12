@@ -11,6 +11,11 @@ import { bashPayload, commit, git, initRepo, runHookAsync, scratch, verdictOf, w
 
 const TMP = scratch("position")
 const FEAT = initRepo(join(TMP, "feat"), { branch: "feat" })
+// A committed file with a change, so a reset --hard here loses work and the guard refuses it for that.
+write(join(FEAT, "a.txt"), "a\n")
+git(FEAT, "add", "a.txt")
+commit(FEAT, "-m", "init")
+write(join(FEAT, "a.txt"), "b\n")
 const ASK = initRepo(join(TMP, "ask"), { branch: "feat" })
 writeJson(join(ASK, ".ai", "agentic.config.json"), { guardrails: { forcePush: "ask" } })
 // Repositories that take no commit on a protected branch, and any subject, so only that rule speaks.

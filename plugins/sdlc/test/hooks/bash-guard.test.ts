@@ -9,7 +9,9 @@ import { describe, it } from "node:test"
 
 import {
   bashPayload,
+  commit,
   expectExit,
+  git,
   hookPath,
   initRepo,
   pathWithFakeBash,
@@ -17,6 +19,7 @@ import {
   runHook,
   scratch,
   verdictOf,
+  write,
   writeJson,
   type RunOptions,
   type Verdict
@@ -27,14 +30,28 @@ const SOH = "\u0001"
 function run(command: string, cwd = REPO_ROOT, options: RunOptions = {}): Verdict {
   return runHook("bash-guard", bashPayload(command, cwd), options)
 }
-function allowed(name: string, command: string): void {
+// A repository with one committed file: a reset --hard loses nothing in it, or a modified file is lost.
+function withFile(name: string, modified: boolean): string {
+  const dir = initRepo(join(scratch(name), "repo"), { branch: "feat" })
+  write(join(dir, "a.txt"), "a\n")
+  git(dir, "add", "a.txt")
+  commit(dir, "-m", "init")
+  if (modified) {
+    write(join(dir, "a.txt"), "b\n")
+  }
+  return dir
+}
+const CLEAN = withFile("clean", false)
+const DIRTY = withFile("dirty", true)
+
+function allowed(name: string, command: string, cwd = REPO_ROOT): void {
   it(name, () => {
-    expectExit(run(command), 0)
+    expectExit(run(command, cwd), 0)
   })
 }
-function refused(name: string, command: string): void {
+function refused(name: string, command: string, cwd = REPO_ROOT): void {
   it(name, () => {
-    expectExit(run(command), 2)
+    expectExit(run(command, cwd), 2)
   })
 }
 
@@ -49,7 +66,8 @@ describe("executable and silent on ordinary work", () => {
 
 describe("block-dangerous-commands is wired and always on", () => {
   refused("git push --force", "git push --force")
-  refused("git reset --hard", "git reset --hard")
+  refused("git reset --hard", "git reset --hard", DIRTY)
+  allowed("git reset --hard on a tree with no change", "git reset --hard", CLEAN)
   refused("rtk-disabled force push", "RTK_DISABLED=1 git push --force")
   refused("second command in a chain", "pnpm test && git clean -fd")
   allowed("lease push to a feature branch", "git push --force-with-lease origin feat-x")
@@ -57,11 +75,12 @@ describe("block-dangerous-commands is wired and always on", () => {
   refused("heredoc opener still counts", "git push --force <<EOF\nbody\nEOF")
   refused("an unquoted heredoc body's substitution runs", "cat > x <<EOF\n$(git push --force)\nEOF")
   refused("a comment ending in a backslash hides no line", "ls # note \\\ngit push --force")
-  refused("a << inside double quotes hides nothing", 'echo "a << EOF"\ngit reset --hard')
+  refused("a << inside double quotes hides nothing", 'echo "a << EOF"\ngit reset --hard', DIRTY)
   refused("a << behind a comment hides nothing", "# note << EOF\nrm -rf /")
   refused(
     "a quoted line carried over hides nothing",
-    'git commit -m "fix: a thing\n\nCo-Authored-By: X <x@example.com>\n\nsee << EOF"\ngit reset --hard'
+    'git commit -m "fix: a thing\n\nCo-Authored-By: X <x@example.com>\n\nsee << EOF"\ngit reset --hard',
+    DIRTY
   )
 })
 
@@ -71,7 +90,7 @@ describe("a line continuation joins its lines, as the shell does", () => {
     "printf '%s\\n' \\\n  'git push --force-with-lease origin master'"
   )
   refused("a push split over a continuation", "git push \\\n  --force")
-  refused("a reset split over a continuation", "git reset \\\n  --hard")
+  refused("a reset split over a continuation", "git reset \\\n  --hard", DIRTY)
   refused("an escaped backslash ends no line", "echo a\\\\\ngit push --force")
 })
 

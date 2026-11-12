@@ -199,6 +199,21 @@ check_branch_delete() {
   return 0
 }
 
+# tree_unchanged — 0 when no tracked file at GUARD_PUSH_LOC has a staged or unstaged change, so a
+# `reset --hard` loses nothing. What git cannot answer, and a tree a command or a variable may change
+# or move before the reset runs, count as changed: plugins/sdlc/README.md#guards.
+tree_unchanged() {
+  local bt='`'
+  ((AFTER_COMMAND)) && return 1
+  # A -C or --git-dir computed at runtime names a repository the guard cannot read.
+  [[ "${WORDS[*]:0:WORD_INDEX}" == *'$'* || "${WORDS[*]:0:WORD_INDEX}" == *"$bt"* ]] && return 1
+  [[ "$GUARD_COMMAND" == *GIT_DIR* || "$GUARD_COMMAND" == *GIT_WORK_TREE* ]] && return 1
+  export GIT_OPTIONAL_LOCKS=0
+  # `assume-unchanged` and `skip-worktree` files (tags a-z and S) hide their edits from diff.
+  git -C "$GUARD_PUSH_LOC" ls-files -v :/ 2>/dev/null | grep -q '^[a-zS]' && return 1
+  git -C "$GUARD_PUSH_LOC" diff --quiet HEAD -- 2>/dev/null
+}
+
 # check_git <segment> — a git command, its verb in GUARD_GIT_VERB and its words in WORDS.
 check_git() {
   local why="" sub="${WORDS[WORD_INDEX]:-}" word
@@ -219,7 +234,7 @@ check_git() {
       ;;
     reset)
       guard_opts "" "--pathspec-from-file"
-      guard_opt --hard && why="discards the index and every uncommitted change"
+      guard_opt --hard && ! tree_unchanged && why="discards the index and every uncommitted change"
       ;;
     clean)
       guard_opts "e" "--exclude"
@@ -358,12 +373,27 @@ check_gh_api() {
 
 # An ask is held until every segment is judged: a refusal further on still wins.
 ASK=""
+# 1 once a command that may change the tree has run: a reset then meets another tree than the one read.
+AFTER_COMMAND=0
 while IFS= read -r segment; do
   guard_scope_step "$segment" || continue
-  case "${WORDS[0]:-}" in
+  verb=${WORDS[0]:-}
+  case "$verb" in
     git) guard_git_verb_words && check_git "$segment" ;;
     gh) check_gh ;;
     rm) check_rm_here "$segment" ;;
+  esac
+  case "$verb" in
+    # A cd to a path computed at runtime, or back with `-`, leaves the guard standing in the wrong place.
+    cd) [[ "${WORDS[*]}" == *[\$\`]* || " ${WORDS[*]} " == *" - "* ]] && AFTER_COMMAND=1 ;;
+    # A git command that leaves a clean tree clean, as `git fetch origin && git reset --hard origin/x` needs.
+    git)
+      case "$GUARD_GIT_VERB" in
+        fetch | status | log | show | diff | rev-parse | rev-list | merge-base | ls-files | branch | remote | switch | worktree) ;;
+        *) AFTER_COMMAND=1 ;;
+      esac
+      ;;
+    *) AFTER_COMMAND=1 ;;
   esac
 done < <(guard_scopes "$SCAN")
 [[ -n "$ASK" ]] && guard_ask "$ASK"
