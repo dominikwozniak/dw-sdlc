@@ -353,7 +353,7 @@ The env and credential guards look for a path among a command's words. `guard_st
 - A comment runs nothing, so its words are dropped.
 
 The words are then read command by command, through `guard_scopes`: a relative path counts from
-where a `cd` earlier in the command left the shell, and for the env guard a `pushd` too. A glob the
+where a `cd`, `pushd` or `popd` earlier in the command left the shell. A glob the
 env guard reads, one whose last segment opens with a `.`, is the files it expands to there; quoted,
 as in `find . -name '.env*'`, it stays the word it is.
 
