@@ -57,7 +57,7 @@ function linesOf({ start, text }: Comment, language: Language): { line: number; 
 /** Whether `rest`, the text of a directive's line after its name, gives a reason. */
 function givesReason(directive: string, rest: string): boolean {
   if (directive.startsWith("@ts-")) {
-    return rest.replace(/^\s*:/, "").trim() !== ""
+    return /[^\s-]/.test(rest.replace(/^\s*:/, ""))
   }
   return DASH_REASON.test(rest)
 }
@@ -84,8 +84,8 @@ function run(root: string, { files, exempt }: DisableDirectivesOptions): Finding
       })
     )
     const directiveLines = new Set(found.map(({ line }) => line))
-    // The line above a directive gives a reason when a comment ends on it and no directive does.
-    const commentEnds = new Set(comments.map(({ end }) => end))
+    // The line above a directive gives a reason when a comment alone on its line ends on it and no directive does.
+    const commentEnds = new Set(comments.filter(({ kind }) => kind !== "trailing").map(({ end }) => end))
     for (const { line, directive, rest } of found) {
       const above = commentEnds.has(line - 1) && !directiveLines.has(line - 1)
       if (!givesReason(directive, rest) && !above) {

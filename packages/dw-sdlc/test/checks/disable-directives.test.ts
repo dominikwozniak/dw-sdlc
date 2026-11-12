@@ -133,6 +133,16 @@ describe("the disable-directives Check", () => {
     )
   })
 
+  it("does not take a trailing comment on the line above, or a bare `--` after an @ts- directive, as a reason", () => {
+    assert.deepEqual(
+      judge({
+        "src/trailing.ts": "const a = 1 // about a\n// eslint-disable-next-line no-console\nconsole.log(1)\n",
+        "src/dashes.ts": "// @ts-ignore --\nconst b: number = 'x'\n"
+      }),
+      [bare("src/dashes.ts:1", "@ts-ignore"), bare("src/trailing.ts:2", "eslint-disable-next-line")]
+    )
+  })
+
   it("reads the line of a directive inside a block comment", () => {
     assert.deepEqual(judge({ "src/a.ts": "/**\n * about it\n * @ts-ignore\n */\nconst a = 1\n" }), [
       bare("src/a.ts:3", "@ts-ignore")
