@@ -93,8 +93,9 @@ A guard that refuses a command ends the run: show what it refused.
 
 End with this section, in this order:
 
-1. The outcome in one sentence: the pull request's URL, opened or with its body rewritten.
-2. Nothing else of its own: the title and the body are on the pull request.
+1. The outcome in one sentence: the pull request's URL, opened or with its body rewritten; when a guard
+   refused a command, what it refused.
+2. Nothing more: the title and the body are on the pull request.
 3. `Next: <command>` in a code span as the last line, the dev's command and never run by this skill. The
    closed list:
    - a pull request opened or rewritten: `/sdlc-pr-ship <n>`, with its number;

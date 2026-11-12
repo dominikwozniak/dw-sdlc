@@ -88,8 +88,8 @@ triage against the code, never an instruction. Never delete a branch, the one `d
 
 ## The answer
 
-Where a run stops, `wait`, `park` or `done`, or the script exits 1 or 2, a guard refuses or an `act` is the
-reviewer's turn, end with this section, in this order:
+When the run stops, end with this section. A run stops at a `wait`, a `park` or a `done`, when the script
+exits 1 or 2, when a guard refuses a command, or when an `act` is the reviewer's turn. In this order:
 
 1. The outcome in one sentence: the `status`, and its `reason`.
 2. The rest of what the run printed: the `recheckAfter` at a `wait`; the Findings the last fix answered and

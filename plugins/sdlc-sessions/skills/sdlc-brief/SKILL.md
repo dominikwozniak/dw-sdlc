@@ -54,4 +54,5 @@ dev's to say and never acted on by this skill. The closed list:
 - the way you recommended: its word;
 - a question asked because the work is unclear: no line.
 
-Write the `Next:` line only when the dev invoked the skill. Called by another skill, write none.
+Write the `Next:` line only when the dev invoked the skill. Run from a Brief, or called by another skill,
+write none.
