@@ -7,18 +7,11 @@ import { describe, it } from "node:test"
 
 import { COMMITTED_FILE } from "../../src/agentic-config.ts"
 import { repo, runBin } from "../harness.ts"
-import { BASE_OID, type Context, fakeGh, GREEN, HEAD, type Pr, type Response, served } from "../pr-harness.ts"
+import { type Context, fakeGh, GREEN, type Pr, type Response, served } from "../pr-harness.ts"
 
 const TARGET = ["40", "-R", "byarcadia-app/foundation"]
 const READY = ["pr", "ready", "40", "-R", "byarcadia-app/foundation"]
 const AUTO = { [COMMITTED_FILE]: { pr: { merge: "auto", review: "full" } } }
-
-/** The compare that judges the head behind: it finds it lacks none of its base. */
-const AHEAD: Record<string, Response> = {
-  [["api", `repos/byarcadia-app/foundation/compare/${BASE_OID}...${HEAD}?per_page=1`].join(" ")]: {
-    stdout: JSON.stringify({ status: "ahead", behind_by: 0, files: [] })
-  }
-}
 
 /** The script's own review marker on the head: a context, never a check. */
 const REVIEWED: Context = {
@@ -36,7 +29,7 @@ function after(seconds: number): string {
 }
 
 function ship(graphql: Response[], now: string) {
-  const gh = fakeGh({ graphql, commands: AHEAD })
+  const gh = fakeGh({ graphql })
   const run = runBin(["pr", "ship", ...TARGET, "--json"], repo({ files: AUTO }), { ...gh.env, DW_SDLC_NOW: now })
   const answer = run.stdout === "" ? {} : (JSON.parse(run.stdout) as Record<string, unknown>)
   return { ...run, answer, calls: gh.calls() }

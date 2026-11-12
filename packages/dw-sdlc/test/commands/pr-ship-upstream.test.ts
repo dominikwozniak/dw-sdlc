@@ -30,11 +30,6 @@ const NO_PR: Response = { exit: 1, stderr: 'no pull requests found for branch "f
 const FOUND: Response = { stdout: JSON.stringify({ url: URL }) }
 const NAME_IT = "name it: dw-sdlc pr ship <n> -R owner/name"
 
-/** The compare of the base with `oid`, the call that judges a branch behind its base. */
-function compare(oid: string): string[] {
-  return ["api", `repos/byarcadia-app/foundation/compare/${GREEN.baseOid}...${oid}?per_page=1`]
-}
-
 /** A clone of a bare remote, on main at one pushed commit, its config asking for full Reviews. */
 function clone(): string {
   const remote = scratch("remote")
@@ -62,10 +57,9 @@ function head(root: string): string {
   return git(root, "rev-parse", "HEAD").trim()
 }
 
-/** `dw-sdlc pr ship <args>` from `root` against a fake gh playing `scenario`, every compare answered behind by none. */
-function ship(root: string, args: string[], scenario: Scenario, pr: Pr) {
-  const behind = { stdout: JSON.stringify({ status: "ahead", ahead_by: 1, behind_by: 0 }) }
-  const gh = fakeGh({ ...scenario, commands: { [compare(pr.head).join(" ")]: behind, ...scenario.commands } })
+/** `dw-sdlc pr ship <args>` from `root` against a fake gh playing `scenario`. */
+function ship(root: string, args: string[], scenario: Scenario) {
+  const gh = fakeGh(scenario)
   const run = runBin(["pr", "ship", ...args], root, gh.env)
   return { ...run, calls: gh.calls() }
 }
@@ -79,13 +73,13 @@ describe("dw-sdlc pr ship on a branch pushed under another name", () => {
   it("takes the pull request of its upstream's name when it holds the local head", () => {
     const root = pushedRenamed()
     const pr = { ...GREEN, head: head(root), branch: "fix/feat" }
-    const run = ship(root, ["--json"], renamed(pr), pr)
+    const run = ship(root, ["--json"], renamed(pr))
     assert.equal(run.status, 30, run.stderr)
     const document = JSON.parse(run.stdout) as { pr: string; head: string; action: string }
     assert.equal(document.pr, URL)
     assert.equal(document.head, pr.head)
     assert.equal(document.action, "ready-to-merge")
-    assert.deepEqual(run.calls, [AUTH, VIEW, VIEW_RENAMED, READ, compare(pr.head)])
+    assert.deepEqual(run.calls, [AUTH, VIEW, VIEW_RENAMED, READ])
   })
 
   it("takes none when that pull request lacks the local head, and performs nothing", () => {
@@ -93,7 +87,7 @@ describe("dw-sdlc pr ship on a branch pushed under another name", () => {
     const pushed = head(root)
     commit(root, "--allow-empty", "-m", "not pushed")
     const pr = { ...GREEN, head: pushed, branch: "fix/feat" }
-    const run = ship(root, ["--merge"], renamed(pr), pr)
+    const run = ship(root, ["--merge"], renamed(pr))
     assert.equal(run.status, 2)
     assert.equal(run.stdout, "")
     const short = head(root).slice(0, 7)
@@ -111,7 +105,7 @@ describe("dw-sdlc pr ship on a branch pushed under another name", () => {
     const parent = { ...GREEN, head: head(root), branch: "fix/feat" }
     git(root, "switch", "-q", "-c", "feat", "--track", "origin/fix/feat")
     commit(root, "--allow-empty", "-m", "on feat")
-    const run = ship(root, [], renamed(parent), parent)
+    const run = ship(root, [], renamed(parent))
     assert.equal(run.status, 2)
     assert.match(run.stderr, /lacks HEAD/)
     assert.deepEqual(run.calls, [AUTH, VIEW, VIEW_RENAMED, READ])
@@ -120,7 +114,7 @@ describe("dw-sdlc pr ship on a branch pushed under another name", () => {
   it("exits 2 with a remedy when neither name has a pull request", () => {
     const root = pushedRenamed()
     const scenario: Scenario = { commands: { "pr view": NO_PR } }
-    const run = ship(root, [], scenario, GREEN)
+    const run = ship(root, [], scenario)
     assert.equal(run.status, 2)
     assert.deepEqual(lines(run.stderr), [
       `dw-sdlc pr ship: gh pr view found no pull request for feat, nor for fix/feat, the name its upstream gives — ${NAME_IT}`
@@ -132,25 +126,25 @@ describe("dw-sdlc pr ship on a branch pushed under another name", () => {
     const root = pushedRenamed()
     const pr = { ...GREEN, head: head(root), branch: "feat" }
     const scenario: Scenario = { commands: { "pr view": FOUND }, graphql: [served(pr)] }
-    const run = ship(root, [], scenario, pr)
+    const run = ship(root, [], scenario)
     assert.equal(run.status, 30, run.stderr)
-    assert.deepEqual(run.calls, [AUTH, VIEW, READ, compare(pr.head)])
+    assert.deepEqual(run.calls, [AUTH, VIEW, READ])
   })
 
   it("reads the pull request a number names, and asks nothing by the upstream's name", () => {
     const root = pushedRenamed()
     const pr = { ...GREEN, head: head(root) }
     const scenario: Scenario = { commands: { "pr view": FOUND }, graphql: [served(pr)] }
-    const run = ship(root, ["40"], scenario, pr)
+    const run = ship(root, ["40"], scenario)
     assert.equal(run.status, 30, run.stderr)
-    assert.deepEqual(run.calls, [AUTH, ["pr", "view", "40", "--json", "url"], READ, compare(pr.head)])
+    assert.deepEqual(run.calls, [AUTH, ["pr", "view", "40", "--json", "url"], READ])
   })
 
   it("leaves a repository -R names to gh, and asks nothing by the upstream's name", () => {
     const root = pushedRenamed()
     const said = "argument required when using the --repo flag"
     const scenario: Scenario = { commands: { "pr view": { exit: 1, stderr: `${said}\n` } } }
-    const run = ship(root, ["-R", "byarcadia-app/foundation"], scenario, GREEN)
+    const run = ship(root, ["-R", "byarcadia-app/foundation"], scenario)
     assert.equal(run.status, 2)
     assert.deepEqual(lines(run.stderr), [`dw-sdlc pr ship: gh pr view found no pull request: ${said} — ${NAME_IT}`])
     assert.deepEqual(run.calls, [AUTH, ["pr", "view", "-R", "byarcadia-app/foundation", "--json", "url"]])
@@ -171,7 +165,7 @@ describe("dw-sdlc pr ship on a branch pushed under another name", () => {
     for (const [label, setup] of setups) {
       const root = pushedRenamed()
       setup(root)
-      const run = ship(root, [], { commands: { "pr view": NO_PR } }, GREEN)
+      const run = ship(root, [], { commands: { "pr view": NO_PR } })
       assert.equal(run.status, 2, label)
       assert.deepEqual(run.calls, [AUTH, VIEW], label)
     }

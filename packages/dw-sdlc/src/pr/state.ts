@@ -114,11 +114,6 @@ export type PrState = {
    * auto` to route on: `unsized` when the compare cannot list them all, null when not read.
    */
   changed: ChangedFile[] | "unsized" | null
-  /**
-   * How many commits of the base the head lacks, from the compare of the base with the head; null when
-   * not read.
-   */
-  behindBy: number | null
 }
 
 /**
@@ -438,7 +433,7 @@ export function parseDefaultBranch(reply: string): string {
 }
 
 /** The state of the pull request in `reply`, the text `gh api graphql` printed for QUERY on `repo`. */
-export function parsePr(reply: string, repo: string): Omit<PrState, "carried" | "changed" | "behindBy"> {
+export function parsePr(reply: string, repo: string): Omit<PrState, "carried" | "changed"> {
   const pr = child(child(child(rootOf(reply, "the reply"), "data"), "repository"), "pullRequest")
   const commit = child(firstNode(pr, "commits"), "commit")
   const rollup = childOrNull(commit, "statusCheckRollup")
