@@ -361,8 +361,21 @@ describe("dw-sdlc worker start, the base of the Worker", () => {
     const run = startIt()
     assert.equal(run.status, 2)
     assert.match(run.stderr, /git fetch origin main failed, so the Worker would begin from a stale base/)
-    assert.match(run.stderr, /check the network and the access to origin, then start the Worker again/)
+    assert.match(run.stderr, /check the network and the access to origin; .*then start the Worker again/)
     assert.equal(run.stdout, "")
+    assert.deepEqual(herdr.hcCalls(), [LISTED])
+  })
+
+  it("names git remote set-head origin --auto when origin/HEAD names a branch gone from the remote", () => {
+    const { root, herdr, startIt } = cloned()
+    git(root, "push", "-q", "origin", "main:old")
+    git(root, "fetch", "-q", "origin")
+    git(root, "remote", "set-head", "origin", "old")
+    git(root, "push", "-q", "origin", "--delete", "old")
+    const run = startIt()
+    assert.equal(run.status, 2)
+    assert.match(run.stderr, /git fetch origin old failed, so the Worker would begin from a stale base/)
+    assert.match(run.stderr, /git remote set-head origin --auto/)
     assert.deepEqual(herdr.hcCalls(), [LISTED])
   })
 
