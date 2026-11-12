@@ -27,4 +27,33 @@ jobs:
       node-version: "24.19.0"
       # About twice a green run: tests growing back past it fail the job before they eat the minutes.
       timeout-minutes: 7
-      run: pnpm check --verbose
+      # The merge commit and both its parents: the first is the base the pull request is judged on.
+      fetch-depth: 2
+      # A pull request whose every file is content, as the awk lists it, runs `pnpm test:content` in
+      # place of `pnpm test`. Those tests read the plugins' manifests and skills; every other test
+      # reads only code, tooling and the scratch repositories it writes. A test that reads a content
+      # file belongs in `test:content`. A plugin's manifest is no content: its release runs every
+      # test. The swap is a local config layer, git-excluded as on every machine, so the Gate's line
+      # names the Step it ran. The step runs `bash -e` without pipefail, so the diff runs alone,
+      # where its failure fails the job.
+      run: |
+        if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+          changed=$(git diff --name-only --no-renames HEAD^1 HEAD)
+          code=$(printf '%s\n' "$changed" | awk '
+            /^(docs|\.agents|\.changeset|\.claude\/skills)\// { next }
+            /^plugins\/[^\/]+\/(skills|agents|templates)\// { next }
+            /^((references|plugins\/[^\/]+)\/)?(AGENTS|CLAUDE|README|GLOSSARY)\.md$/ { next }
+            /^\.ai\/(references|primitives|file-size-ratchet\.baseline)\.json$/ { next }
+            /^skills-lock\.json$/ { next }
+            /^plugins\/sdlc\/test\/(manifest\.test|skill-lines\.test|skill-lines)\.ts$/ { next }
+            /^plugins\/sdlc-sessions\/test\/manifest\.test\.ts$/ { next }
+            { print }
+          ')
+          if [ -z "$code" ]; then
+            echo "::notice::pnpm test:content runs in place of pnpm test: the pull request changes no code."
+            jq '{gate: {steps: [.gate.steps[] | if . == "pnpm test" then "pnpm test:content" else . end]}}' \
+              .ai/agentic.config.json > .ai/agentic.config.local.json
+            echo .ai/agentic.config.local.json >> .git/info/exclude
+          fi
+        fi
+        pnpm check --verbose
