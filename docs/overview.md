@@ -291,8 +291,8 @@ The engineering skills in `.agents/skills/` are mattpocock's: `wayfinder`, `gril
 `to-spec`, `to-tickets`, `triage`, `implement`, `implement-spec`, `tdd`, `code-review` and `handoff`. They
 plan, build and review the work, and each one stops where it asks the dev. `dw-sdlc` complements them and
 replaces none: it adds what they lack, the guards, the Gate, and the delivery from a Brief through the pull
-request, the Review, the merge and the Sweep. The guards still judge a skill's tool calls. No `dw-sdlc`
-rule adds a step to a skill or overrides where it stops for the dev.
+request, the Review, the merge and the Sweep. The guards still judge a skill's tool calls, and a skill
+still stops where it asks the dev.
 
 | stage                                | carried by                                  | invoked by                                              | whose      |
 | ------------------------------------ | ------------------------------------------- | ------------------------------------------------------- | ---------- |
@@ -331,7 +331,7 @@ The skills `/sdlc-setup`, `/sdlc-doctor`, `/sdlc-references-add` and `/sdlc-brie
 by typing it or by "go" on a Recap's Sweep follow-up. `/sdlc-delegate` starts on the dev's words, and the
 model offers it in one line and waits for the dev's go. `/sdlc-pr-ship` and `/sdlc-recap` start when the dev
 types them or a Brief tells the session to. Every mattpocock skill above carries
-`disable-model-invocation: true` as well, bar `grilling`, `research`, `tdd` and `code-review`, which another
+`disable-model-invocation: true` as well, except `grilling`, `research`, `tdd` and `code-review`, which another
 skill calls.
 
 ### The ways to implement
