@@ -10,6 +10,8 @@ export type Failure = {
   remedy: string
   /** What the repository owner wrote to try, printed as `hint: <text>` under the failure line. */
   hint?: string
+  /** The Disable directive a `disable-directives` failure names, as written. */
+  directive?: string
 }
 
 /** `hint: <text>` where the failure carries a Hint, nothing otherwise. */
@@ -43,7 +45,8 @@ export function annotation({ file, line, rule, message, remedy }: Failure): stri
   return `::error ${properties.join(",")}::${escapeData(`${message} — ${remedy}`)}`
 }
 
-/** The failure as JSON: every key present, null where it has no file or line. */
-export function failureJson({ file, line, rule, message, remedy }: Failure): Record<string, unknown> {
-  return { file: file ?? null, line: line ?? null, rule, message, remedy }
+/** The failure as JSON: every key present, null where it has no file or line, and `directive` where it names one. */
+export function failureJson({ file, line, rule, message, remedy, directive }: Failure): Record<string, unknown> {
+  const json = { file: file ?? null, line: line ?? null, rule, message, remedy }
+  return directive === undefined ? json : { ...json, directive }
 }

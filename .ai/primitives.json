@@ -646,7 +646,19 @@
       "name": "comment-budget Check",
       "group": "gate",
       "summary": "Holds each JavaScript, TypeScript and shell comment block under the roots to a few lines of prose, three by default.",
-      "code": ["packages/dw-sdlc/src/checks/comment-budget.ts"],
+      "code": ["packages/dw-sdlc/src/checks/comment-budget.ts", "packages/dw-sdlc/src/checks/comments.ts"],
+      "docs": ["docs/overview.md#the-checks-the-package-ships"]
+    },
+    {
+      "id": "gate.disable-directives",
+      "name": "disable-directives Check",
+      "group": "gate",
+      "summary": "Fails every Disable directive in a JavaScript, TypeScript, Ruby or Python comment that gives no reason.",
+      "code": [
+        "packages/dw-sdlc/src/checks/disable-directives.ts",
+        "packages/dw-sdlc/src/checks/comments.ts",
+        "packages/dw-sdlc/src/checks/hash-comments.ts"
+      ],
       "docs": ["docs/overview.md#the-checks-the-package-ships"]
     },
     {

@@ -403,6 +403,31 @@
                 }
               },
               "additionalProperties": false
+            },
+            "disable-directives": {
+              "description": "Every Disable directive in a comment gives a reason: `oxlint-disable*` and `eslint-disable*` in every form, `@ts-expect-error` and `@ts-ignore` in JavaScript and TypeScript, `rubocop:disable` in Ruby and `noqa` in Python. A reason is text after `--` on the directive's line; for `@ts-expect-error` and `@ts-ignore`, text after the directive, with or without `:`; or a comment on the line directly above. A directive inside a string or a template is none, and a rule set to `off` in a lint config is not judged. A hard fail, with no Ratchet; the Gate runs it, never a session hook.",
+              "type": ["boolean", "object"],
+              "properties": {
+                "files": {
+                  "description": "Globs of the files to read, against the files git tracks or would track; `*` and `**` skip a name that starts with a dot. Default every JavaScript, TypeScript, Ruby (`.rb`, `.rake`, `.gemspec`, `.ru`, `Rakefile`, `Gemfile`) and Python file.",
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "uniqueItems": true
+                },
+                "exempt": {
+                  "description": "Globs of the files left out. Default `references/**`, `**/vendor/**` and `**/node_modules/**`; a list replaces the default.",
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "uniqueItems": true
+                }
+              },
+              "additionalProperties": false
             }
           },
           "additionalProperties": false

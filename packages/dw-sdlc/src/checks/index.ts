@@ -5,6 +5,7 @@ import { agentsMap } from "./agents-map.ts"
 import { type Check, type Finding, optionsOf } from "./check.ts"
 import { commentBudget } from "./comment-budget.ts"
 import { decisionRecords } from "./decision-records.ts"
+import { disableDirectives } from "./disable-directives.ts"
 import { fileSizeRatchet } from "./file-size-ratchet.ts"
 import { markdownBudget } from "./markdown-budget.ts"
 import { markdownRefs } from "./markdown-refs.ts"
@@ -48,7 +49,8 @@ const SHIPPED: Shipped[] = [
   ship(temporalLanguage),
   ship(decisionRecords),
   ship(fileSizeRatchet),
-  ship(commentBudget)
+  ship(commentBudget),
+  ship(disableDirectives)
 ]
 
 /** The name of every Check the package ships, in the order the Gate runs them. */
