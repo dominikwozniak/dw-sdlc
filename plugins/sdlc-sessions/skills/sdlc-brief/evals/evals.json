@@ -21,6 +21,7 @@
         "The Worker's name has the form worker-77-<slug>",
         "The start line starts from cd /repo/tool and holds cswap run -- --dangerously-skip-permissions with --worktree worker-77-, --model sonnet and --effort high, and the Brief in single quotes",
         "Three ways out appear: the start line, an issue and a Lead, with the start line recommended",
+        "The answer ends with the last line Next: in a code span naming the word that picks a way, the one of the recommended start line",
         "The issue way files a new issue whose body is the Brief and which points at issue 77",
         "Nothing was started, filed or commented on"
       ]

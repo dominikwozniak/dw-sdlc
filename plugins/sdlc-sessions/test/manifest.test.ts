@@ -91,6 +91,16 @@ describe("the sdlc-sessions plugin", () => {
     }
   })
 
+  it("ends sdlc-brief in The answer, its Next line the word that picks a way and written only for the dev", () => {
+    const text = skillText("sdlc-brief")
+    const headings = [...text.matchAll(/^## (.+)$/gm)].map((match) => match[1])
+    assert.equal(headings.at(-1), "The answer")
+    const answer = text.slice(text.lastIndexOf("## The answer"))
+    assert.match(answer, /`Next: <word>` in a code span as the last line, the word that picks the way/)
+    assert.match(answer, /The closed list:/)
+    assert.match(answer, /Write the `Next:` line only when the dev invoked the skill/)
+  })
+
   it("has sdlc-delegate refuse in a Worker, list its Workers, start each by the command within its limit and wait only a bounded time", () => {
     const text = skillText("sdlc-delegate")
     assert.ok(text.includes('dw-sdlc/src/cli.ts" worker ls --json'), "it lists the Workers")

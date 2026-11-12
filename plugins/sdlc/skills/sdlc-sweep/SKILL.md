@@ -25,9 +25,13 @@ Add `--dry-run` only when the dev asked to look first, then report it as "would 
   worktree, say to run `/sdlc-sweep` from the main checkout; leave out any bare `dw-sdlc` command the
   reason quotes.
 
-## Report it
+## The answer
 
-One short table, a row per item, removed first:
+End with this section, in this order.
+
+**The outcome**, in one sentence: how many items the Sweep removed (or would remove) and how many it kept.
+
+**Report it.** One short table, a row per item, removed first:
 
 | result | kind | item | reason |
 | ------ | ---- | ---- | ------ |
@@ -39,3 +43,12 @@ all, one line: nothing to sweep.
 Never run a kept item's command: a forced delete, a forced worktree removal, `git worktree unlock` or
 stopping a terminal is the dev's call. Do not run the Sweep again, fix a kept item or clean up beyond
 it. Stop after the report.
+
+**Next.** `Next: <command>` in a code span as the last line, the dev's command and never run by this
+skill. The closed list:
+
+- a kept item with a `command`: the command of the first such item;
+- nothing kept, or no kept item with a `command`: no line.
+
+Write the `Next:` line only when the dev invoked the skill. Run from a Brief, or called by another skill,
+write none.

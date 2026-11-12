@@ -189,5 +189,17 @@ every entry the file holds and the Router on the right, as
 `| how others built a skill, hook or plugin, before designing one | references/AGENTS.md |`. Write
 it only after a yes, and never rewrite a row or a line that is already there.
 
-End with the `dir`, the licence, the ref, the `only` and the `skip` with their counts, the Sync's
-line, and the files the run changed, for the user to commit.
+## The answer
+
+End with this section, in this order:
+
+1. The outcome in one sentence: the Reference added under its `dir`, or why the run stopped.
+2. The `dir`, the licence, the ref, the `only` and the `skip` with their counts, the Sync's line, and the
+   files the run changed, for the user to commit.
+3. `Next: <command>` in a code span as the last line, the dev's command and never run by this skill. The
+   closed list:
+   - the Sync succeeded and the run changed files: `git add` with those files by name;
+   - the run stopped on a `refused` line, a failed Sync or a repository already listed: no line.
+
+Write the `Next:` line only when the dev invoked the skill. Run from a Brief, or called by another skill,
+write none.

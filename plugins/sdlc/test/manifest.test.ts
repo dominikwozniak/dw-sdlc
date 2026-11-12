@@ -202,6 +202,18 @@ describe("the sdlc plugin", () => {
     }
   })
 
+  it("ends each skill in The answer, with a closed Next list and the rule for when no line is written", () => {
+    for (const name of SKILLS) {
+      const text = readFileSync(join(PLUGIN_ROOT, "skills", name, "SKILL.md"), "utf8")
+      const headings = [...text.matchAll(/^## (.+)$/gm)].map((match) => match[1])
+      assert.equal(headings.at(-1), "The answer", `${name} ends in ## The answer`)
+      const answer = text.slice(text.lastIndexOf("## The answer"))
+      assert.match(answer, /`Next: <(?:command|word)>` in a code span as the last line/, `${name} names the Next line`)
+      assert.match(answer, /The\s+closed list:/, `${name} holds a closed list`)
+      assert.match(answer, /Write the `Next:` line only when the dev invoked the skill/, `${name} says who sees Next`)
+    }
+  })
+
   it("links the dw-sdlc package", () => {
     assert.equal(realpathSync(join(PLUGIN_ROOT, "dw-sdlc")), realpathSync(join(REPO_ROOT, "packages", "dw-sdlc")))
   })
