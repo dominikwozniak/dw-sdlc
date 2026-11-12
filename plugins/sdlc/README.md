@@ -130,7 +130,9 @@ disk is in the next session, a broken edit included.
   printing such a variable's value, and any `curl` or `wget` carrying one of those or a dotenv file.
 - `block-non-pnpm.sh` (when the command names npm, npx, yarn or bun) — refuses them where the
   resolved `packageManagers.node` is `pnpm`, inferred from the lockfile when nothing declares it;
-  silent in every other repository.
+  silent in every other repository. An option before the npm verb, `npm -g install` or
+  `npm --prefix app ci`, changes nothing. A `cd` moves the repository whose package manager counts:
+  `cd app && npm install` from outside it is judged by `app`.
 - `block-store-writes.sh` (when the command names `asc` or a store script) — refuses an agent every
   write to App Store Connect, in every repository and with no config: `asc`, its CLI, reaches the
   whole account from any directory with the owner's Keychain key. An `asc` call passes as a read
@@ -151,8 +153,9 @@ disk is in the next session, a broken edit included.
   must carry `commit.trailer` when one is declared, and a `--trailer` counts, since git writes it
   into the message. A live backtick inside `-m` or an unquoted heredoc is refused: the shell runs it
   as a substitution, which mangles the message and still exits 0. So is a `git add` of the whole
-  tree: `-A` or `--all` with no path, `.`, `./` or `:/`. `-A <paths>` stages those paths, and a dry
-  run stages nothing. A commit inside a substitution or another shell is out of the guard's reach;
+  tree: `-A` or `--all` with no path, or a pathspec that is the whole tree: `.`, `*` and `./*`, the
+  top-level magic `:/`, `:/*` and `:(top)`, `$PWD` and `$(pwd)`. `-A <paths>` stages those paths, and a
+  dry run stages nothing. A commit inside a substitution or another shell is out of the guard's reach;
   the [Commit hook](#commit-hook) checks its subject.
 - `large-file-guard.sh` (after a Write) — flags a file over 256 KiB once it is on disk: a pasted
   bundle, a blob, a dumped log. Advisory, so it is the one guard with a kill switch:
