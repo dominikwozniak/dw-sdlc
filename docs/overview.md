@@ -403,10 +403,11 @@ described `read, findings open`, the read mark. The mark sits on a head the fix 
 so the head of the pull request never shows it from an earlier round. Three Reviews with no
 success between them park the pull request, as the next paragraph says. Contexts under
 `dw-sdlc/` never count as CI. The script never deletes a branch: a merged pull request answers
-`done` with the deletion command for the dev while its head branch still stands on the remote. The
+`done` with the deletion command for the dev while its head branch still stands on `origin`. The
 same GraphQL query reads `headRef`, which GitHub leaves null once the branch is gone, as
-`delete_branch_on_merge` leaves it at the merge. A merged pull request with no `headRef` answers
-`done` with no command.
+`delete_branch_on_merge` leaves it at the merge, and `isCrossRepository`. A merged pull request with no
+`headRef`, or one from a fork, whose branch lives on the fork and not on `origin`, answers `done` with
+no command.
 
 The Review limit is 3, a constant with no config key, so no repository turns the loop back on. The same
 GraphQL query counts the read marks on the commits after the last review success of any kind: a
@@ -509,8 +510,9 @@ terminal herdr started: `$HC_TERMINAL_ID` is the Lead's address, and without it 
   branch `origin/HEAD` names, else `baseBranch` of the config, else every branch of origin) into that
   checkout: Claude Code branches the Worker's worktree from the cached `origin/<default>` and refetches it
   only after a day, so without the fetch a Worker could begin from an older ref. A checkout with no origin
-  skips the fetch; a failed or timed-out fetch starts no Worker and exits 2. The Brief travels as an
-  argument of the Worker's command, so herdr keeps no `first_message` for it; the command reads the terminal
+  skips the fetch; a failed or timed-out fetch starts no Worker and exits 2, and its remedy names
+  `git remote set-head origin --auto` for an `origin/HEAD` that names a branch gone from the remote. The
+  Brief travels as an argument of the Worker's command, so herdr keeps no `first_message` for it; the command reads the terminal
   for up to `--wait` seconds (30) until the Worker's status turns `working`, `blocked` or `done`. It exits 1
   when herdr reports the first message unsent, the terminal has ended, the Worker reports an error or it
   shows no work in time. It never sends the Brief again: the Lead reads the terminal first.

@@ -34,7 +34,8 @@ export function freshenOrigin(root: string, baseBranch: string): void {
   const stale = (why: string): Refusal =>
     new Refusal(
       `${fetched} failed, so the Worker would begin from a stale base: ${why}`,
-      "check the network and the access to origin, then start the Worker again"
+      "check the network and the access to origin; when origin/HEAD names a branch the remote no longer has, " +
+        "run `git remote set-head origin --auto`; then start the Worker again"
     )
   let result: ReturnType<typeof exec>
   try {
