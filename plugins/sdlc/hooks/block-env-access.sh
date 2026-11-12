@@ -62,15 +62,24 @@ physical() {
   printf '%s/%s' "${real%/}" "$base"
 }
 
-# relative_to_root <path> — REL, the path relative to FILE_ROOT: the repository root or, from a linked
-# worktree, its main checkout's. Outside both REL is the basename and OUTSIDE is set, so only the `**/`
-# entries apply. Globals, not stdout: a subshell would lose the flag.
+# here — where the shell stands, GUARD_SHELL_DIR, resolved through symlinks as CWD is.
+here() {
+  if [[ "$GUARD_SHELL_DIR" == "$GUARD_CWD" ]]; then
+    printf '%s' "$CWD"
+  else
+    (cd "$GUARD_SHELL_DIR" 2>/dev/null && pwd -P) || printf '%s' "$GUARD_SHELL_DIR"
+  fi
+}
+
+# relative_to_root <path> <base> — REL, the path relative to FILE_ROOT: the repository root or, from a
+# linked worktree, its main checkout's. Outside both REL is the basename and OUTSIDE is set, so only the
+# `**/` entries apply. Globals, not stdout: a subshell would lose the flag.
 REL=""
 FILE_ROOT=""
 OUTSIDE=0
 relative_to_root() {
   local abs
-  abs=$(physical "$(normalize "$(guard_absolute "$1" "$CWD")")")
+  abs=$(physical "$(normalize "$(guard_absolute "$1" "$2")")")
   OUTSIDE=0
   FILE_ROOT="$REPO_ROOT"
   if [[ -n "$REPO_ROOT" && "$abs" == "$REPO_ROOT/"* ]]; then
@@ -116,12 +125,14 @@ listed() {
   return 1
 }
 
-# refused <path> — 0 when the path must be refused; REASON says why.
+# refused <path> — 0 when the path must be refused; REASON says why. A relative path is read from where
+# the shell stands.
 refused() {
-  local path="$1" abs
+  local path="$1" abs base
   is_env_name "$path" || return 1
   prepare
-  relative_to_root "$path"
+  base=$(here)
+  relative_to_root "$path" "$base"
   if listed "$DENY_LIST" "$REL"; then
     REASON="'$MATCHED' in guardrails.envFiles.deny names it"
     return 0
@@ -135,9 +146,10 @@ refused() {
     REASON="outside a repository only guardrails.envFiles.allow lets an env file through"
     return 0
   fi
-  abs=$(guard_absolute "$path" "$CWD")
-  git -C "$FILE_ROOT" ls-files --error-unmatch -- "$abs" >/dev/null 2>&1 && return 1
-  if git -C "$FILE_ROOT" check-ignore -q -- "$abs" 2>/dev/null; then
+  # A path is a name, never a pathspec: as one, `.env.*` matched the tracked .env.example.
+  abs=$(guard_absolute "$path" "$base")
+  git -C "$FILE_ROOT" --literal-pathspecs ls-files --error-unmatch -- "$abs" >/dev/null 2>&1 && return 1
+  if git -C "$FILE_ROOT" --literal-pathspecs check-ignore -q -- "$abs" 2>/dev/null; then
     REASON="git ignores it"
   else
     REASON="git does not track it"
@@ -158,16 +170,26 @@ fi
 # Each env file under the path that the glob matches gets the verdict a Read of it gets. Only a glob
 # that could name one lists the tree: `*.ts` cannot, `.env*`, `*` or `.env.{local,production}` can.
 
-# could_name_env <glob> — 0 when the glob's last segment can match an env file's name: it is one
-# itself, or a pattern one of the probe names fits. A brace group is not a bash pattern, so there the
-# literal text before it decides.
+# could_name_env <glob> — 0 when the glob's last segment, one `{a,b}` group expanded, is an env name
+# or fits a probe name. Probes, not a listing: listing the ignored files costs every `*.ts` Grep a
+# walk of node_modules.
+ENV_PROBES=".env .envrc .env.local .env.development .env.dev .env.production .env.prod .env.staging .env.test .env.ci"
 could_name_env() {
-  local pat="${1##*/}" head name
+  local glob="$1" pat pre post alts alt name
+  if [[ "$glob" == *"{"*"}"* ]]; then
+    pre="${glob%%\{*}"
+    post="${glob#*\}}"
+    alts="${glob#*\{}"
+    alts="${alts%%\}*}"
+    while IFS= read -r alt; do
+      could_name_env "$pre$alt$post" && return 0
+    done <<<"${alts//,/$'\n'}"
+    return 1
+  fi
+  pat="${glob##*/}"
   is_env_name "$pat" && return 0
-  head="${pat%%\{*}"
-  for name in .env .env.local .envrc; do
+  for name in $ENV_PROBES; do
     [[ "$name" == $pat ]] && return 0
-    [[ "$pat" == *"{"* && "$name" == "$head"* ]] && return 0
   done
   return 1
 }
@@ -222,18 +244,89 @@ if [[ "$GUARD_TOOL" == "Grep" && -n "$GUARD_GLOB" ]] && could_name_env "$GUARD_G
   fi
 fi
 
+# --- a Bash command ------------------------------------------------------------------------------
+
+# env_paths <token> — the paths a word names, one a line, from where the shell stands: a glob the
+# files it expands to, a `<rev>:<path>` its path, from the root unless `./` or `../` opens it;
+# README.md#paths-in-a-command.
+env_paths() {
+  local tok="$1" path top
+  case "$tok" in
+    *[*?[]*)
+      # The words lost their quotes: a quoted glob stays a word. `*`, `?` and `[…]` never match a
+      # leading dot, so only a last segment opening with `.` can reach an env file.
+      if [[ "$GUARD_COMMAND" == *"'$tok'"* || "$GUARD_COMMAND" == *"\"$tok\""* ]]; then
+        printf '%s\n' "$tok"
+        return 0
+      fi
+      [[ "${tok##*/}" == .* ]] || return 0
+      [[ "$tok" == "~/"* ]] && tok="$HOME/${tok#"~/"}"
+      (cd "$GUARD_SHELL_DIR" 2>/dev/null && compgen -G "$tok")
+      return 0
+      ;;
+  esac
+  if [[ "$tok" == *:* ]] && ! is_env_name "$tok"; then
+    path=${tok#*:}
+    [[ "$tok" == :[0-3]:* ]] && path=${tok#:?:}
+    if is_env_name "$path"; then
+      case "$path" in
+        ./* | ../*) ;;
+        *) top=$(git -C "$GUARD_SHELL_DIR" rev-parse --show-toplevel 2>/dev/null) && path="$top/$path" ;;
+      esac
+      printf '%s\n' "$path"
+      return 0
+    fi
+  fi
+  printf '%s\n' "$tok"
+}
+
+# note_pushd — a `pushd <dir>` (words in WORDS) moves where the shell stands as guard_scope_step moves
+# it for a `cd`, and saves where it stood; a `popd` goes back there.
+DIRS=""
+note_pushd() {
+  local word=""
+  case "${WORDS[0]:-}" in
+    pushd)
+      for word in "${WORDS[@]:1}"; do
+        [[ "$word" == -n ]] || break
+        word=""
+      done
+      [[ -n "$word" ]] || return 0
+      DIRS+=$'\n'"$GUARD_SHELL_DIR"
+      GUARD_SHELL_DIR=$(guard_cd_dir "$word")
+      ;;
+    popd)
+      if [[ -n "$DIRS" ]]; then
+        GUARD_SHELL_DIR="${DIRS##*$'\n'}"
+        DIRS="${DIRS%$'\n'*}"
+      fi
+      ;;
+  esac
+}
+
 # The first line holds the command's own words, each line after it a substitution's or those of a
-# quote handed to a shell: a markdown backtick span in a double-quoted `--body` is one, and the
-# refusal says so. Every env name holds `.env`, so a text without one has no token to read.
+# quote handed to a shell, and the refusal says which. Each line starts at the payload's cwd. Every
+# env name holds `.env` and a glob reaching one a `.` before its glob character.
+DOT_GLOB='(^|[[:space:]/=:])\.[^[:space:]/]*[][*?]'
 STRIPPED=""
 [[ -n "$GUARD_COMMAND" ]] && STRIPPED=$(guard_strip_quoted "$GUARD_COMMAND")
-if [[ "$STRIPPED" == *.env* ]]; then
+if [[ "$STRIPPED" == *.env* || "$STRIPPED" =~ $DOT_GLOB ]]; then
   WHO="'$GUARD_COMMAND'"
   NOTE=""
   while IFS= read -r words; do
-    while IFS= read -r token; do
-      refused "$token" && refuse "$WHO" "$token" "$NOTE"
-    done < <(guard_tokens "$words")
+    GUARD_SHELL_DIR="$GUARD_CWD"
+    GUARD_SCOPE_STACK=""
+    GUARD_SCOPE_BACKTICK=0
+    DIRS=""
+    while IFS= read -r segment; do
+      guard_scope_step "$segment" || continue
+      note_pushd
+      while IFS= read -r token; do
+        while IFS= read -r path; do
+          refused "$path" && refuse "$WHO" "$path" "$NOTE"
+        done < <(env_paths "$token")
+      done < <(guard_tokens "$segment")
+    done < <(guard_scopes "$words")
     WHO="A command substitution or a quoted command in '$GUARD_COMMAND'"
     NOTE="The shell runs the quote handed to bash -c, eval or rtk run, and a \$(…) or a backtick span inside double quotes and an unquoted heredoc body too; to keep a substitution as text, escape it, single-quote it, or quote the heredoc's delimiter (<<'EOF')."
   done <<<"$STRIPPED"

@@ -121,7 +121,11 @@ disk is in the next session, a broken edit included.
   root, `**/` meaning at any depth; the defaults are policy `git`, the `.env.example`, `.env.sample`
   and `.env.template` names allowed anywhere, nothing denied. A path outside the repository root,
   or outside any repository, is judged by its basename against the `**/` entries alone. A `Grep`
-  of a directory is judged by the env files its `glob` reaches.
+  of a directory is judged by the env files its `glob` reaches, once the glob fits an env name or a
+  common environment's: `.env.local`, `.env.development`, `.env.dev`, `.env.production`, `.env.prod`,
+  `.env.staging`, `.env.test`, `.env.ci`. In a Bash command a path is read from where a `cd` or
+  `pushd` earlier in it left the shell, a glob is judged by the files the shell expands it to, and a
+  `<rev>:<path>` such as `HEAD:.env.production` by its path.
   A file-tool payload it cannot read, not JSON or holding U+0001 in a field, is refused with exit 2
   and a message saying why; without `jq` it passes every call.
 - `credential-leak-guard.sh` (always on) — refuses reading the credential stores that are not dotenv
@@ -332,6 +336,11 @@ The env and credential guards look for a path among a command's words. `guard_st
   a shell's `-c`, `eval` or `rtk run` is read the same way.
 - A comment runs nothing, so its words are dropped.
 
+The words are then read command by command, through `guard_scopes`: a relative path counts from
+where a `cd` earlier in the command left the shell, and for the env guard a `pushd` too. A glob the
+env guard reads, one whose last segment opens with a `.`, is the files it expands to there; quoted,
+as in `find . -name '.env*'`, it stays the word it is.
+
 Two costs follow. A quoted path holding a space reads as prose, so `cat "my dir/.env"` passes.
 Outside the search tools, a quoted word that is exactly a guarded name reads as that file. An
 unterminated quote hands back the text as typed: the guard fails closed and judges what was typed.
@@ -342,9 +351,11 @@ The guards catch the commands an agent writes in ordinary work, not a deliberate
 ([ADR 0017](../../docs/adr/0017-guards-catch-ordinary-commands-not-deliberate-evasion.md)). These
 spellings get past a rule; each comes from the adversarial pass of issue #318 and is listed, not caught.
 
-- Expansion the guard does not perform: braces and globs (`cat .env{,.local}`, `cat ~/.ss?/id_rsa`,
-  `rm -rf .g[i]t`, `rm -rf **`, `{git,reset,--hard}`), the tildes `~+` and `~user`, and a name the
-  file system folds, `.ENV.LOCAL` on APFS.
+- Expansion the guard does not perform: braces, and a glob anywhere but the env guard's words
+  (`cat .env{,.local}`, `cat ~/.ss?/id_rsa`, `rm -rf .g[i]t`, `rm -rf **`, `{git,reset,--hard}`),
+  the tildes `~+` and `~user`, and a name the file system folds, `.ENV.LOCAL` on APFS.
+- A `Grep` glob that reaches an env file only through a name outside the probes, `*.qa` reaching
+  `.env.qa`.
 - A quoted command name or option: `"rm"`, `r''m`, `r\m`, `g""it`, `find . "-delete"`.
 - A shell two levels deep, `sh -c 'sh -c "…"'`, and a quote `rtk` runs through a verb other than
   `run` or behind a flag: `rtk err`, `rtk proxy`, `rtk -v run`.
