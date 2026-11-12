@@ -228,8 +228,8 @@ line, so a `cd` inside a subshell ends with it. A redirect's `&`, as in `2>&1`, 
 no cut: `git push 2>&1 origin main` is one push to `main`. A `cd` or `pushd` with a literal
 directory, behind its options and a `--`, moves where the shell stands. The
 guard keeps the directories `pushd` saves, so a `popd` or a bare `pushd` goes back as the shell
-does, and a subshell gives the stack back at its end too. `-n` keeps the shell where it is for
-`pushd` and `popd` only: `pushd -n dir` saves `dir` and `popd -n` drops the top one. A `$(…)` or backtick substitution is one
+does, and a subshell gives the stack back at its end too. `pushd` and `popd` take `-n`, which
+leaves the shell where it is: `pushd -n dir` saves `dir` and `popd -n` drops the top entry. A `$(…)` or backtick substitution is one
 word of the command around it, not a cut: `guard_lift_substitutions` makes it the word `$_`, a value computed at
 runtime, and moves its body to a scope of its own just before that command, since the shell runs the
 body first. So `git push origin "$(git branch --show-current)" --force` is one push with its
