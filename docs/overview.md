@@ -499,8 +499,10 @@ Every other test reads only code and tooling, so a content change cannot break i
 release changes its manifest and runs them all. The run is one job of the Shared workflow,
 `quality-gate` in the public `byarcadia-app/gh-actions-public`, pinned by its release tag's SHA,
 which Dependabot moves. For a small fix the agent commits on `main` and the push comes from
-Dominik's own terminal: the guards judge only the agent's tool calls. GitHub branch protection is
-not available on this private repository, so the guard is the only check.
+Dominik's own terminal: the guards judge only the agent's tool calls. On GitHub the `main` ruleset
+asks for a pull request and a green `Check`, squash merges only, refuses a force push and a deletion,
+and lets the admin bypass it: that bypass lets the terminal's push through, and merges the version
+pull request, on which CI never runs.
 
 ## How the Ship script merges a pull request
 
@@ -803,10 +805,10 @@ as the trusted publisher. A publish with no trusted publisher saved fails with `
 and no reason in the log: pnpm warns why it skipped OIDC, and changesets drops that warning. What the
 releases showed is in the [research notes](research/gate/toolchain.md#npm-publishing).
 
-npm attests provenance only for a build from a public repository, and this one is private, so the
-workflow leaves pnpm's `provenance` setting unset and trusted publishing decides: a version published
-from here carries no provenance, and once the repository is public npm attaches it. Trust evidence
-then only grows from one version to the next. A consumer on `trustPolicy: no-downgrade` refuses a
+npm attests provenance only for a build from a public repository. The workflow leaves pnpm's
+`provenance` setting unset and trusted publishing decides, so a version published from here carries
+provenance; the versions up to 0.17.0 were built while the repository was private and carry none.
+Trust evidence only grows from one version to the next. A consumer on `trustPolicy: no-downgrade` refuses a
 version that carries less trust evidence than an earlier one, so a version after 0.1.0 never goes
 out on an access token. A consumer takes a release through Dependabot after the seven days of
 `minimumReleaseAge`; one that cannot wait names `dw-sdlc` in `minimumReleaseAgeExclude` under its own
