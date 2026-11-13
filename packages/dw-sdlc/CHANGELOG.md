@@ -1,5 +1,16 @@
 # dw-sdlc
 
+## 0.18.0
+
+### Minor Changes
+
+- 6d20bbe: `dw-sdlc primitives --diff <base>` names the Primitives a change removes, adds or extends, as a markdown block for a pull request body or as `--json` with each Primitive's summary and docs. `dw-sdlc recap --json` carries the Primitives of the session's branch. The `primitives` Check fails an id that does not start with its group and a `.` or a `-`, and a `docs` entry that names a superseded or deprecated decision record.
+- a193f43: The Gate ships `skill-sections`, a Check that holds each README section a skill copies between `<!-- README.md#<anchor> -->` and `<!-- /README.md#<anchor> -->` to its source. It fails a part that differs from its section, a part whose anchor names no heading, a part no Primitive lists among its docs, and a marker without its pair. `dw-sdlc check skill-sections --write` writes each part from its section.
+
+### Patch Changes
+
+- 99ec8ef: `dw-sdlc gate` keeps a SIGINT or SIGTERM that reaches it just as its last command ends. The run stops and is not stamped green by `--cache`.
+
 ## 0.17.0
 
 ### Minor Changes

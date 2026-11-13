@@ -1,6 +1,6 @@
 {
   "name": "dw-sdlc",
-  "version": "0.17.0",
+  "version": "0.18.0",
   "description": "The Gate and the agentic config of a repository: the dw-sdlc bin with the Gate, the setup, the doctor, the config check, the Sync and setup of References, and the Ship script that drives a pull request to merged; the resolver of the config's layers, its JSON Schema and the validator that reads it.",
   "license": "MIT",
   "repository": {
