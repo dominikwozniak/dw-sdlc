@@ -4,7 +4,7 @@
     "name": "Dominik Woźniak"
   },
   "metadata": {
-    "description": "Dominik Woźniak's software delivery process for Claude Code: a plugin marketplace and the code behind it.",
+    "description": "Claude Code plugins that extend the engineering skills: guards, a Gate and the road from a pull request to merged.",
     "version": "0.1.0"
   },
   "plugins": [
@@ -12,7 +12,7 @@
       "name": "sdlc",
       "version": "0.27.0",
       "source": "./plugins/sdlc",
-      "description": "Dominik Woźniak's software delivery process in one plugin: deterministic guards that refuse destructive git, the env files the repository does not vouch for, the wrong package manager, sloppy commits and writes to App Store Connect; the Sync that brings a repository's References to their ref as a session starts; and the skills /sdlc-setup, /sdlc-doctor, /sdlc-references-add, /sdlc-pr-open, which opens a pull request and writes its body, /sdlc-pr-ship, which drives a pull request to merged, and /sdlc-sweep, which removes what has landed. A repository's own rules come from its .ai/agentic.config.json.",
+      "description": "Guards on every tool call and the road from a pull request to merged, beside the engineering skills and replacing none: refuses destructive git, unvouched env files, the wrong package manager and sloppy commits; routes Bash through rtk when present; syncs References; skills to set a repository up, check a machine, open, ship and sweep pull requests. Needs jq and Node 24.",
       "keywords": ["guardrails", "hooks", "skills", "git", "env", "pnpm", "worktree", "references"],
       "category": "utilities",
       "tags": ["guardrails", "hooks", "safety", "references"]
@@ -21,7 +21,7 @@
       "name": "sdlc-sessions",
       "version": "0.7.0",
       "source": "./plugins/sdlc-sessions",
-      "description": "The skills that run a Claude Code session: /sdlc-recap answers where a session stands, in one fixed shape, with whether it can be closed; /sdlc-brief turns an issue, a spec or an idea into a Brief, the start of a Worker session; /sdlc-delegate makes the session a Lead that hands Briefs to Workers in herdr and relays their Recaps. It depends on sdlc, so a session keeps its guards.",
+      "description": "Session skills beside sdlc: /sdlc-recap says where a session stands and whether it can close, /sdlc-brief writes a Brief, the start of a Worker session, and /sdlc-delegate makes the session a Lead that runs Workers in herdr terminals and gathers their Recaps. It depends on sdlc, so every session keeps its guards.",
       "keywords": ["sessions", "recap", "skills"],
       "category": "utilities",
       "tags": ["sessions", "recap"]

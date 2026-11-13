@@ -1,7 +1,7 @@
 {
   "name": "sdlc-sessions",
   "version": "0.7.0",
-  "description": "The skills that run a Claude Code session: /sdlc-recap answers where a session stands, in one fixed shape, with whether it can be closed; /sdlc-brief turns an issue, a spec or an idea into a Brief, the start of a Worker session; /sdlc-delegate makes the session a Lead that hands Briefs to Workers in herdr and relays their Recaps. It depends on sdlc, so a session keeps its guards.",
+  "description": "Session skills beside sdlc: /sdlc-recap says where a session stands and whether it can close, /sdlc-brief writes a Brief, the start of a Worker session, and /sdlc-delegate makes the session a Lead that runs Workers in herdr terminals and gathers their Recaps. It depends on sdlc, so every session keeps its guards.",
   "author": {
     "name": "Dominik Woźniak"
   },

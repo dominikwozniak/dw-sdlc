@@ -1,7 +1,7 @@
 {
   "name": "sdlc",
   "version": "0.27.0",
-  "description": "Dominik Woźniak's software delivery process in one plugin: deterministic guards that refuse destructive git, the env files the repository does not vouch for, the wrong package manager, sloppy commits and writes to App Store Connect; the Sync that brings a repository's References to their ref as a session starts; and the skills /sdlc-setup, /sdlc-doctor, /sdlc-references-add, /sdlc-pr-open, which opens a pull request and writes its body, /sdlc-pr-ship, which drives a pull request to merged, and /sdlc-sweep, which removes what has landed. A repository's own rules come from its .ai/agentic.config.json.",
+  "description": "Guards on every tool call and the road from a pull request to merged, beside the engineering skills and replacing none: refuses destructive git, unvouched env files, the wrong package manager and sloppy commits; routes Bash through rtk when present; syncs References; skills to set a repository up, check a machine, open, ship and sweep pull requests. Needs jq and Node 24.",
   "author": {
     "name": "Dominik Woźniak"
   },
