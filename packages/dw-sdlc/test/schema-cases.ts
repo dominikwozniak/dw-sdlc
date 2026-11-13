@@ -492,6 +492,21 @@ export const CASES: Case[] = [
     ]
   },
   {
+    name: "the agentic schema takes skill-sections as true or with its files",
+    schema: AGENTIC_SCHEMA,
+    value: { gate: { checks: { "skill-sections": { files: ["tools/*/skills/**/*.md"] } } } },
+    problems: []
+  },
+  {
+    name: "the agentic schema refuses a skill-sections option it does not take and a glob that is not a list",
+    schema: AGENTIC_SCHEMA,
+    value: { gate: { checks: { "skill-sections": { files: "skills/**", readme: "README.md" } } } },
+    problems: [
+      { path: "gate.checks.skill-sections.files", message: 'expected array, got "skills/**"' },
+      { path: "gate.checks.skill-sections", message: 'unknown key "readme"' }
+    ]
+  },
+  {
     name: "the agentic schema refuses a Check set to neither a boolean nor an object",
     schema: AGENTIC_SCHEMA,
     value: { gate: { checks: { primitives: false, "agents-map": "yes" } } },

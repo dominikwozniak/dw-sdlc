@@ -556,7 +556,7 @@
       "id": "gate.one-check",
       "name": "dw-sdlc check",
       "group": "gate",
-      "summary": "Runs one Check of the Gate by name and no Step, on its defaults where the config leaves it off.",
+      "summary": "Runs one Check of the Gate by name and no Step, on its defaults where off; --write first writes what it derives.",
       "code": ["packages/dw-sdlc/src/commands/check.ts"],
       "docs": ["docs/overview.md#the-checks-the-package-ships", "packages/dw-sdlc/README.md#commands"]
     },
@@ -660,6 +660,14 @@
         "packages/dw-sdlc/src/checks/hash-comments.ts"
       ],
       "docs": ["docs/overview.md#the-checks-the-package-ships"]
+    },
+    {
+      "id": "gate.skill-sections",
+      "name": "skill-sections Check",
+      "group": "gate",
+      "summary": "Holds each README section a skill copies between markers to its source; check --write writes each.",
+      "code": ["packages/dw-sdlc/src/checks/skill-sections.ts"],
+      "docs": ["docs/overview.md#the-checks-the-package-ships", "packages/dw-sdlc/README.md#the-gate"]
     },
     {
       "id": "gate.pre-commit",

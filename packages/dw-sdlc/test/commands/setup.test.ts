@@ -721,7 +721,8 @@ describe("adopting the Gate", () => {
     ["decision-records", false],
     ["file-size-ratchet", false],
     ["comment-budget", true],
-    ["disable-directives", false]
+    ["disable-directives", false],
+    ["skill-sections", false]
   ]
   const PINNED = `wrote       package.json — pins dw-sdlc ${VERSION} as a devDependency; pnpm install brings it in`
   const GATE_KEY =

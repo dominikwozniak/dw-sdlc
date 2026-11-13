@@ -162,6 +162,10 @@ The smallest unit of meaning a repository exposes to an agent: a module, a hook,
 a skill. The catalogue names where its code lives and which document explains it.
 _Avoid_: component, feature, building block
 
+**Part**:
+A README section a skill copies whole between two markers, held to its source by the `skill-sections` Check.
+_Avoid_: snippet, include, partial
+
 **Agent map**:
 The file an agent reads first in a repository, `AGENTS.md`: where things live, the commands, and the
 Task Router that sends a task to the one document it needs.
