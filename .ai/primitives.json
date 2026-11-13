@@ -33,7 +33,12 @@
         "plugins/sdlc/hooks/lib-words.sh",
         "plugins/sdlc/hooks/lib-git.sh"
       ],
-      "docs": ["plugins/sdlc/README.md#layout", "plugins/sdlc/README.md#reading-a-command", "GLOSSARY.md"]
+      "docs": [
+        "plugins/sdlc/README.md#layout",
+        "plugins/sdlc/README.md#reading-a-command",
+        "docs/contributing/bash-guard.md",
+        "GLOSSARY.md"
+      ]
     },
     {
       "id": "guards.dangerous-commands",
@@ -459,9 +464,10 @@
       "summary": "The catalogue Claude Code installs the plugins from, this repository's own; it lists sdlc and sdlc-sessions.",
       "code": [".claude-plugin/marketplace.json"],
       "docs": [
-        "docs/overview.md#from-github-or-from-a-clone",
+        "docs/contributing/development.md#from-github-or-from-a-clone",
         "docs/adr/0001-guards-ship-from-this-marketplace.md",
-        "docs/adr/0012-the-loop-ships-as-sdlc-loop-beside-sdlc.md"
+        "docs/adr/0010-one-sdlc-plugin-carries-guards-sync-and-gate.md",
+        "docs/adr/0019-dw-sdlc-extends-the-engineering-skills.md"
       ]
     },
     {
@@ -472,8 +478,8 @@
       "code": ["plugins/sdlc/.claude-plugin/plugin.json", "plugins/sdlc/README.md"],
       "docs": [
         "plugins/sdlc/README.md#install",
-        "docs/overview.md#releasing-the-plugin",
-        "docs/adr/0012-the-loop-ships-as-sdlc-loop-beside-sdlc.md"
+        "docs/contributing/releasing.md#releasing-the-plugin",
+        "docs/adr/0010-one-sdlc-plugin-carries-guards-sync-and-gate.md"
       ]
     },
     {
@@ -488,7 +494,7 @@
       ],
       "docs": [
         "plugins/sdlc-sessions/README.md#install",
-        "docs/overview.md#releasing-the-plugin",
+        "docs/contributing/releasing.md#releasing-the-plugin",
         "docs/adr/0014-session-helpers-ship-as-sdlc-sessions-beside-sdlc.md"
       ]
     },
@@ -506,8 +512,8 @@
       ],
       "docs": [
         "plugins/sdlc/README.md#layout",
-        "docs/overview.md#from-github-or-from-a-clone",
-        "docs/overview.md#releasing-the-package",
+        "docs/contributing/development.md#from-github-or-from-a-clone",
+        "docs/contributing/releasing.md#releasing-the-package",
         "docs/adr/0008-gate-runs-from-a-pinned-package-plugin-adapts.md"
       ]
     },
@@ -517,7 +523,7 @@
       "group": "distribution",
       "summary": "Turns pending changesets into the version pull request; once it merges, publishes the package to npm.",
       "code": [".github/workflows/release.yaml", ".changeset/config.json", "packages/dw-sdlc/CHANGELOG.md"],
-      "docs": ["docs/overview.md#releasing-the-package"]
+      "docs": ["docs/contributing/releasing.md#releasing-the-package"]
     },
     {
       "id": "distribution.bin",
@@ -533,7 +539,12 @@
       "group": "gate",
       "summary": "The Gate command: dw-sdlc gate; CI swaps in pnpm test:content for pnpm test on a content-only PR.",
       "code": ["package.json", ".ai/agentic.config.json", ".github/workflows/quality-gate.yaml", "vite.config.ts"],
-      "docs": ["AGENTS.md#commands", "docs/overview.md#how-the-gate-runs", "GLOSSARY.md"]
+      "docs": [
+        "AGENTS.md#commands",
+        "docs/overview.md#how-the-gate-runs",
+        "docs/contributing/how-a-change-lands.md",
+        "GLOSSARY.md"
+      ]
     },
     {
       "id": "gate.runner",
