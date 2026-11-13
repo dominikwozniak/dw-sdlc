@@ -734,6 +734,28 @@ does, never merges and never starts `/sdlc-pr-ship`, which comes after it.
   as "merge it" and "is CI green?"; `evals/evals.json` holds four behaviours: a repository with a
   template, one without, a branch that has a pull request, and an issue as the source.
 
+### Running its evals
+
+An eval of a skill that opens pull requests, `sdlc-pr-open` or any like it, runs a real agent, and
+that agent can run `git push` and `gh pr create` for real. Run such evals only in a setup that cannot
+reach GitHub:
+
+1. **A scratch clone whose `origin` is no GitHub repository.** Clone the repository into a temporary
+   folder, outside the working tree, then point `origin` at a path that does not exist:
+   `git clone --local <repo> <scratch> && git -C <scratch> remote set-url origin /nonexistent/no-remote.git`.
+   Never leave `origin` as the clone's own source: a push to a local path succeeds. With this
+   remote `git push` fails with "repository ... does not exist", and `gh pr create` fails with "none of
+   the git remotes configured for this repository point to a known GitHub host". Neither opens a
+   connection to GitHub.
+2. **One worker.** Run the evals one at a time, never in parallel: parallel workers write the same
+   temporary command under the scratch clone's `.claude/commands` and collide.
+3. **The installed `sdlc` plugin turned off in the scratch clone.** Put
+   `{"enabledPlugins": {"sdlc@dw-sdlc": false}}` in `<scratch>/.claude/settings.local.json`. While it is
+   on, the installed skill wins over the temporary command the run loads, so the run measures the
+   installed copy and not the change.
+
+Start the run from the scratch clone, never from the real checkout. Delete the clone after the run.
+
 ## Shipping a pull request
 
 `/sdlc-pr-ship [<n>]` drives one pull request to merged through the Ship script, `dw-sdlc pr ship`,
