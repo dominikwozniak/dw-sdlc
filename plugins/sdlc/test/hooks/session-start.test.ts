@@ -247,12 +247,14 @@ describe("a references key is its plugin's, never a config problem", () => {
 })
 
 describe("a missing jq is said out loud, as plain text", () => {
-  it("jq missing line", () => {
+  it("jq missing line, naming the plugin and an install for every platform", () => {
     const NOJQ = sandbox(
       join(TMP, "nojq"),
       TOOLS.filter((tool) => tool !== "jq")
     )
-    has(stdoutOf(MAIN, NOJQ), "jq is missing")
+    const out = stdoutOf(MAIN, NOJQ)
+    has(out, "sdlc: jq is missing")
+    has(out, "https://jqlang.org/download/")
   })
 })
 

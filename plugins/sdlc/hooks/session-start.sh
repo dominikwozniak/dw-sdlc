@@ -10,7 +10,7 @@ say() { REPORT+="${REPORT:+$'\n'}$1"; }
 
 # Without jq nothing below can run, and plain stdout reaches Claude for SessionStart.
 if ! command -v jq >/dev/null 2>&1; then
-  printf '%s\n' "guardrails: jq is missing, so every guard in this plugin is silent until it is installed (brew install jq)."
+  printf '%s\n' "sdlc: jq is missing, so every guard in this plugin is silent until it is installed (https://jqlang.org/download/)."
   exit 0
 fi
 
