@@ -143,6 +143,44 @@ describe("the command as typed holds no redirect, a continuation line or a runne
   blocked("cargo with a toolchain", "cargo +nightly test | tail", BARE)
 })
 
+describe("a pnpm or cargo option before the verb does not hide a check command", () => {
+  blocked("pnpm --filter", "pnpm --filter app exec vitest | tail", BARE)
+  blocked("pnpm -F", "pnpm -F app exec tsc | grep x", BARE)
+  blocked("pnpm -C", "pnpm -C packages/app exec oxlint | head", BARE)
+  blocked("pnpm --dir", "pnpm --dir packages/app exec vitest run | head", BARE)
+  blocked("pnpm --filter=value", "pnpm --filter=app exec vitest | tail", BARE)
+  blocked("pnpm -r", "pnpm -r exec vitest | tail", BARE)
+  blocked("pnpm --recursive", "pnpm --recursive exec vitest | tail", BARE)
+  blocked("pnpm -w", "pnpm -w exec vitest | tail", BARE)
+  blocked("pnpm --filter, then run", "pnpm --filter app run vitest | tail", BARE)
+  blocked("pnpm --filter, then the tool", "pnpm --filter app vitest | tail", BARE)
+  blocked("two pnpm options", "pnpm -r --filter app exec vitest | tail", BARE)
+  blocked("pnpm option with a redirect among the words", "pnpm --filter app exec vitest 2>&1 | tail", BARE)
+  blocked("cargo --locked", "cargo --locked test | head", BARE)
+  blocked("cargo --offline", "cargo --offline test | grep x", BARE)
+  blocked("cargo --frozen", "cargo --frozen test | tail", BARE)
+  blocked("cargo --color auto", "cargo --color never test | tail", BARE)
+  blocked("cargo -Z flag", "cargo -Z unstable-options test | tail", BARE)
+  blocked("cargo toolchain, then an option", "cargo +nightly --locked test | tail", BARE)
+  it("names the command as typed", () => {
+    assert.match(
+      run("pnpm --filter app exec vitest | tail", BARE).stderr,
+      /'pnpm --filter app exec vitest' is piped into 'tail'/
+    )
+  })
+  allowed("pnpm --filter, redirected", "pnpm --filter app exec vitest > out.log 2>&1", BARE)
+  allowed("pnpm --filter, unpiped", "pnpm --filter app exec vitest", BARE)
+  allowed("pnpm --filter, tee", "pnpm --filter app exec vitest | tee out.log", BARE)
+  allowed("cargo --locked, unpiped", "cargo --locked test", BARE)
+  allowed("cargo --locked, redirected", "cargo --locked test > out.log 2>&1", BARE)
+  allowed("pnpm --filter on no check command", "pnpm --filter app exec ls | head", BARE)
+  allowed("pnpm --filter with a filter as the value", "pnpm --filter tail exec ls | head", BARE)
+  allowed("pnpm -r on a script outside the list", "pnpm -r test | tail", BARE)
+  allowed("cargo --locked build", "cargo --locked build | head", BARE)
+  allowed("cargo with only an option", "cargo --version | head", BARE)
+  allowed("a config command is matched as written", "pnpm -r check | tail")
+})
+
 describe("a filter behind a tee still hides the exit code", () => {
   blocked("tee, then tail", "vitest run | tee out.log | tail", BARE)
 })

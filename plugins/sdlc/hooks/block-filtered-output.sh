@@ -16,6 +16,9 @@ FILTER_RE='^(head|tail|grep|egrep|fgrep|rg|sed|awk|less|more)$'
 # The runners a package manager or an interpreter puts in front of a tool; the launcher table of
 # lib-words.sh, which guard_unwrap_words reads, holds the shell's own.
 RUNNERS=" pnpm yarn npm npx bunx exec dlx bundle uv poetry run -- "
+# The options that take their value as the next word, before the verb: pnpm's and cargo's own.
+PNPM_VALUE_OPTIONS=" --filter -F --dir -C "
+CARGO_VALUE_OPTIONS=" --color --config -Z -C "
 DW_SDLC_RE='(^|[[:space:]/])dw-sdlc([[:space:]]+|/src/cli\.ts[[:space:]]+)(gate|check)([[:space:]]|$)'
 LEAD=$' \t\003'
 
@@ -55,9 +58,14 @@ stage_text() {
 
 # builtin_check — 0 when CORE_WORDS run a test runner, a type checker or a linter of the built-in list.
 builtin_check() {
-  local i=0 word next
-  # A runner's own option, `npx --no-install`, stands before the tool.
+  local i=0 word next pnpm=0
+  # A runner's own option, `npx --no-install`, stands before the tool. pnpm's `--filter app` and the
+  # like take the next word as their value.
   while ((i < ${#CORE_WORDS[@]})) && [[ "$RUNNERS" == *" ${CORE_WORDS[i]} "* || "${CORE_WORDS[i]}" == -?* ]]; do
+    [[ "${CORE_WORDS[i]}" == pnpm ]] && pnpm=1
+    if ((pnpm)) && [[ "$PNPM_VALUE_OPTIONS" == *" ${CORE_WORDS[i]} "* ]]; then
+      i=$((i + 1))
+    fi
     i=$((i + 1))
   done
   # `python -m pytest`: the module is the tool.
@@ -67,8 +75,16 @@ builtin_check() {
   ((i < ${#CORE_WORDS[@]})) || return 1
   word=${CORE_WORDS[i]##*/}
   next=${CORE_WORDS[i + 1]-}
-  # cargo's toolchain, `cargo +nightly test`, stands between the tool and its verb.
-  [[ "$word" == cargo && "$next" == +?* ]] && next=${CORE_WORDS[i + 2]-}
+  # cargo's toolchain, `cargo +nightly test`, and its options, `cargo --locked test`, stand between
+  # the tool and its verb.
+  if [[ "$word" == cargo ]]; then
+    local j=$((i + 1))
+    while ((j < ${#CORE_WORDS[@]})) && [[ "${CORE_WORDS[j]}" == [+-]?* ]]; do
+      [[ "$CARGO_VALUE_OPTIONS" == *" ${CORE_WORDS[j]} "* ]] && j=$((j + 1))
+      j=$((j + 1))
+    done
+    next=${CORE_WORDS[j]-}
+  fi
   case "$word" in
     vitest | jest | tsc | oxlint | eslint | rspec | rubocop | pytest) return 0 ;;
     vp) [[ "$next" == "check" ]] && return 0 ;;

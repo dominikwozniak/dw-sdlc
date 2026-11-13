@@ -160,7 +160,9 @@ disk is in the next session, a broken edit included.
   green. A check command is the config's `gate.command`, the command of each `gate.steps` entry and
   each `gate.checks.run` script, `dw-sdlc gate` and `dw-sdlc check`, or a runner of the built-in
   list: `vitest`, `jest`, `tsc`, `oxlint`, `eslint`, `vp check`, `rspec`, `rubocop`, `pytest`,
-  `cargo test` and `go test`, behind `pnpm exec`, `bundle exec`, a path or a `VAR=x`. With no config
+  `cargo test` and `go test`, behind `pnpm exec`, `bundle exec`, a path or a `VAR=x`; a pnpm option
+  (`--filter app`, `-F app`, `--dir d`, `-C d`, `-r`, `-w`) or a cargo option (`--locked`,
+  `--offline`, `--frozen`) before the verb does not hide it. With no config
   the list alone applies. The refusal names the command and the filter and says to run it unpiped,
   or to redirect it with `> <file> 2>&1` and read the file. `| tee` and a redirect pass, and so does
   a pipe on any other command, `git log | head`; a filter behind the `tee`, `| tee f | tail`, is
@@ -411,9 +413,7 @@ spellings get past a rule; each comes from the adversarial pass of issue #318 an
   a pipe to a shell on a later line, `eval "$(cat <<EOF …)"`.
 - A `<<` inside `$(( ))` or `(( ))`, which the guard opens as a heredoc, dropping every later line.
 - A check command neither the config nor the built-in list names, such as a `package.json` script
-  `pnpm test:unit`, piped into a filter; a pipe left at the end of a line, `vitest |⏎tail`; and a
-  runner behind an option that takes a value, `pnpm --filter app exec vitest`, or a cargo option,
-  `cargo --locked test`.
+  `pnpm test:unit`, piped into a filter; and a pipe left at the end of a line, `vitest |⏎tail`.
 - `yarn` against a separator (`yarn;`, `(yarn)`, `yarn&&`) and `pnpm exec npm`.
 - A push to a protected branch named `@` or `heads/main`, or aimed at another repository by
   `GIT_DIR=`.
