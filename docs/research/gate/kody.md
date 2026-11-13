@@ -32,21 +32,33 @@ Read from `R/kody` on 2026-10-25, the clone at its `main` ref of that day.
 
 ## The primitives map
 
-- `docs/contributing/architecture/primitives.yaml`, header lines 1-19: "Stable vocabulary for the
+Read from `R/kody` on 2026-11-13, at `1df043a`.
+
+- `docs/contributing/architecture/primitives.yaml`, header lines 1-26: "Stable vocabulary for the
   visual-recap skill"; "This is NOT a living feature changelog and NOT derived source-of-truth for
   behavior"; "Update this file only when adding, removing, or materially reshaping a primitive (id,
   name, group, code roots, or meaning). Do NOT edit `summary` for ordinary feature work"; "`code`
   entries are coarse ownership roots for `classify-primitives.mjs` (longest-prefix match). Prefer
-  directories over file lists. Keep the map small." Sections `version`, `groups`, `primitives`,
-  `invariants`; 76 `id` entries across them.
+  directories over file lists. Keep the map small." Lines 8-11 name the risk labels `composes`,
+  `extends` and `adds`; lines 21-26 give every primitive an `adrs` list, "Link the current record,
+  never a superseded one". Sections `version`, `groups`, `primitives`, `invariants`: 5 groups, 62
+  primitives, 13 invariants from line 1025, 80 `id` entries in all. An invariant has an `id`, a
+  `summary` and `docs`, and no `code` (lines 1025-1031).
 - `.agents/skills/visual-recap/scripts/primitives-map.mjs:15-32`: a primitive is `id`, `name`,
-  `group?`, `summary?`, `code[]`, `docs[]`; the parser reads a constrained YAML subset of its own.
+  `group?`, `summary?`, `code[]`, `docs[]`, `adrs?`; the parser reads a constrained YAML subset of its
+  own. Lines 275-323 hold every `code`, `docs` and `adrs` path to the disk, each `adrs` entry to a
+  record under `docs/contributing/decisions/` that is not superseded, and a record named under `docs`
+  to "decision records belong in adrs, not docs".
 - `.agents/skills/visual-recap/scripts/check-primitives-map.mjs:1-8, 15`: "unique ids", "every
   code/docs path resolves on disk", "summaries stay single-line and short (no feature-changelog
-  essays)", `maxSummaryLength = 120`. Wired as `"primitives:check"` in `package.json:61`.
-- `.agents/skills/visual-recap/scripts/classify-primitives.mjs:1-9`: classifies the paths of
-  `git diff --name-only base...head`, or stdin, against the map, so a PR recap names the primitives it
-  composes, extends or adds.
+  essays)", `maxSummaryLength = 120`. Wired as `"primitives:check"` in `package.json:65`.
+- `.agents/skills/visual-recap/scripts/classify-primitives.mjs:1-9`: maps the paths of
+  `git diff --name-only base...head`, or stdin, to the primitives whose `code` root is the longest
+  prefix, every tied primitive on a tie, and a file no root matches to `unmatched`
+  (`primitives-map.mjs:212-264`). Wired as `"primitives:classify"` in `package.json:67`. It prints no
+  class: the visual-recap skill has the agent roll up to `adds`, `extends` or `composes`, choosing
+  `composes` against `extends` from the diff, each with a risk of low, medium or high
+  (`.agents/skills/visual-recap/SKILL.md:25-33`).
 
 ## Principles
 
