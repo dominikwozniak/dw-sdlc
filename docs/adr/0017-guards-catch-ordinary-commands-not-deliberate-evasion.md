@@ -19,7 +19,8 @@ rule until that rule is widened as a decision of its own.
 
 Holding the guards to a deliberate evasion as well is rejected: no walker reads every spelling bash
 accepts. A real shell parser closes the cut points but not the rules on globs, `cd`, options and
-spellings; whether one fits a hook that runs on every Bash call is measured in #331.
+spellings; whether one fits a hook that runs on every Bash call is measured in #331 and answered in
+ADR 0018, which keeps the word walker.
 
 ## Consequences
 

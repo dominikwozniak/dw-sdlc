@@ -35,6 +35,12 @@ such as `then` or `do`. Its options are read with it, so the command behind stay
 **Plain words**:
 A command segment's shell words with the quotes gone and quoted prose dropped.
 
+**Word walker**:
+The one reader of a shell command the Bash guards share, written in bash: it walks the Scan by its words to
+find each Command position and the Plain words after it, with no shell parser behind it. A spelling it does not
+read and only a deliberate evasion writes is a Known limit.
+_Avoid_: parser
+
 ### Config
 
 **Layer**:
