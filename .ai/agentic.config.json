@@ -28,8 +28,7 @@
       "decision-records": true,
       "file-size-ratchet": true,
       "comment-budget": true,
-      "disable-directives": true,
-      "skill-sections": true
+      "disable-directives": true
     }
   },
   "pr": { "merge": "auto" },
