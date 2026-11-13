@@ -82,7 +82,7 @@ is its long form: how a guard works, the design, adopting, releasing.
 ```bash
 pnpm check                      # dw-sdlc gate: gate.steps, then its Checks
 pnpm exec dw-sdlc gate [--json] [--verbose] [--update-baseline | --cache] # a line per Step and Check, --verbose streams all; exit 0 green, 1 failed or Drift, 2 cannot run
-pnpm exec dw-sdlc check <name> [--json] # one Check of the Gate by name, no Step; off in the config, it runs on defaults
+pnpm exec dw-sdlc check <name> [--json] [--write] # one Check by name, no Step; off in the config, it runs on defaults
 pnpm exec dw-sdlc primitives --paths <files> | --diff <base> [--json] # the Primitives owning a path, or a change removes, adds, extends
 pnpm exec dw-sdlc pr ship [<n>] [-R owner/name] [--merge] [--review full|light|off] [--dry-run] [--json] [--verbose] # the Action a pull request needs next, done when the script owns it; exit 0 done, 10 act, 20 wait, 30 park, 2 cannot run
 pnpm exec dw-sdlc pr reviewed <n> [-R owner/name] --head <sha> [--findings | --accept] [--json] # post dw-sdlc/review on that head; exit 2 when it moved or cannot run

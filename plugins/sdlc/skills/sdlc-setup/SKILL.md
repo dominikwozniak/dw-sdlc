@@ -63,7 +63,8 @@ which the user writes, and the first Gate names what the map lacks. Every other 
 Four read an input the repository adds first: `primitives` a catalogue, `decision-records` a records
 directory, `markdown-budget` the docs its glob matches, `file-size-ratchet` its baseline.
 `disable-directives` fails every Disable directive without a reason, so a repository turns it on once
-its directives give one.
+its directives give one. `skill-sections` fails a skill whose part differs from the README section it copies, so a
+repository turns it on once a skill holds a part.
 
 ## What each file is
 
