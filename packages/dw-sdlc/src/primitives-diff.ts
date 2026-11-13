@@ -64,9 +64,11 @@ function changeSince(root: string, base: string): { mergeBase: string; files: st
   return { mergeBase, files: diff.out.split("\0").filter((path) => path !== "") }
 }
 
-/** How many of `files` the Primitive `id` owns in `catalogue`. */
-function owned(catalogue: Catalogue, files: string[], id: string): number {
-  return files.filter((file) => primitivesNaming(catalogue, file).some((primitive) => primitive.id === id)).length
+/** How many of `files` the Primitive `id` owns in any of `catalogues`. */
+function owned(catalogues: Catalogue[], files: string[], id: string): number {
+  return files.filter((file) =>
+    catalogues.some((catalogue) => primitivesNaming(catalogue, file).some((primitive) => primitive.id === id))
+  ).length
 }
 
 function describe(primitive: Primitive, kind: PrimitiveClass, files: number, changed: Set<string>): Change {
@@ -106,10 +108,10 @@ export function primitivesDiff(root: string, base: string): PrimitivesDiff | Ref
   const changes: Change[] = [
     ...atBase.primitives
       .filter(({ id }) => !inHead.has(id))
-      .map((primitive) => describe(primitive, "removes", owned(atBase, files, primitive.id), changed)),
+      .map((primitive) => describe(primitive, "removes", owned([atBase], files, primitive.id), changed)),
     ...atHead.primitives.flatMap((primitive): Change[] => {
       const kind: PrimitiveClass = inBase.has(primitive.id) ? "extends" : "adds"
-      const count = owned(atHead, files, primitive.id)
+      const count = owned(kind === "adds" ? [atHead] : [atBase, atHead], files, primitive.id)
       return kind === "adds" || count > 0 ? [describe(primitive, kind, count, changed)] : []
     })
   ]

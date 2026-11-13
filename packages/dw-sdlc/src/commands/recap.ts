@@ -436,7 +436,7 @@ function report(json: boolean): number {
   if (facts.next !== null && "unread" in facts.next) {
     process.stderr.write(`dw-sdlc recap: warning: the backlog was not read: ${facts.next.unread}\n`)
   }
-  const rolled = asksGh ? rollup(root, branch, baseOf) : { primitives: [] }
+  const rolled = asksGh ? rollup(root, branch, defaultBranch) : { primitives: [] }
   if ("unread" in rolled) {
     process.stderr.write(`dw-sdlc recap: warning: the Primitives were not read: ${rolled.unread}\n`)
   }

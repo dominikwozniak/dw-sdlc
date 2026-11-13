@@ -12,8 +12,8 @@ export type Rolled = { id: string; class: PrimitiveClass }
 /** What the rollup read: the Primitives, and why it could not read them when it could not. */
 export type Rollup = { primitives: Rolled[]; unread?: string }
 
-/** `baseOf` names the default branch and is asked only once the repository has a catalogue and `branch` is no base. */
-export function rollup(root: string, branch: string, baseOf: () => string): Rollup {
+/** `defaultOf` names the default branch and is asked only once the repository has a catalogue and `branch` is no base. */
+export function rollup(root: string, branch: string, defaultOf: () => string): Rollup {
   const { guardrails, gate } = resolveConfig(root).config
   if (guardrails.protectedBranches.includes(branch)) {
     return { primitives: [] }
@@ -21,7 +21,7 @@ export function rollup(root: string, branch: string, baseOf: () => string): Roll
   if (asked(root, ["cat-file", "-e", `HEAD:${catalogueFile(gate.checks)}`]) === undefined) {
     return { primitives: [] }
   }
-  const base = baseOf()
+  const base = defaultOf()
   if (branch === base) {
     return { primitives: [] }
   }

@@ -142,6 +142,25 @@ describe("dw-sdlc primitives --diff", () => {
     ])
   })
 
+  it("counts a file the Primitive owned at the base, though the change drops it from its code", () => {
+    const dir = history({ ...BASE_FILES, [CATALOGUE]: catalogue(HOOK) }, (path) => {
+      overwrite(path, {
+        [CATALOGUE]: catalogue({ ...HOOK, code: ["plugins/demo/hooks/other.sh"] }),
+        "plugins/demo/hooks/hello.sh": "echo moved\n"
+      })
+    })
+    const json = JSON.parse(runBin(["primitives", "--diff", "main", "--json"], dir).stdout)
+    assert.deepEqual(
+      json.primitives.map(({ id, class: kind, files }: { id: string; class: string; files: number }) => [
+        id,
+        kind,
+        files
+      ]),
+      [["hooks.hello", "extends", 1]]
+    )
+    assert.equal(json.outside, 1)
+  })
+
   it("adds every Primitive when the base has no catalogue", () => {
     const dir = history(BASE_FILES, (path) => {
       overwrite(path, { [CATALOGUE]: catalogue(HOOK, KEY), "plugins/demo/hooks/hello.sh": "echo again\n" })
