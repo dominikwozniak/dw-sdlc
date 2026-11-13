@@ -1,0 +1,69 @@
+name: Bug report
+description: A guard, a skill or a dw-sdlc command does something other than what it says it does.
+labels: [bug]
+body:
+  - type: checkboxes
+    attributes:
+      label: Preflight
+      options:
+        - label: I am on the latest release of the plugin and of `dw-sdlc`.
+          required: true
+        - label: I searched the open and closed issues and found no duplicate.
+          required: true
+        - label: This is not a security issue. Those go through a [private report](https://github.com/dominikwozniak/dw-sdlc/security/advisories/new).
+          required: true
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you or the agent ran, and what came back. Paste the output or the guard's message rather than describing it.
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected instead
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: The shortest path from a working install to the wrong result. For a guard, the exact command the agent ran.
+      value: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Versions
+      description: The plugin's from `claude plugin list`, and `dw-sdlc` from the repository's lockfile.
+      placeholder: "sdlc 0.25.0, dw-sdlc 0.17.0"
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: "Operating system, `claude --version`, `node --version`, `bash --version`, `jq --version`, `gh --version`, and what `/sdlc-doctor` prints."
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Configuration
+      description: The relevant part of `.ai/agentic.config.json`, and of `.ai/agentic.config.local.json` if you have one, with anything private taken out.
+      render: json
+    validations:
+      required: false
