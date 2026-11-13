@@ -48,13 +48,8 @@ export type CatalogueRead =
   | { state: "invalid"; problems: string[] }
   | { state: "valid"; catalogue: Catalogue; text: string }
 
-/** The catalogue at `file` under `root`, or why there is none to read. */
-export function readCatalogue(root: string, file: string): CatalogueRead {
-  const path = join(root, file)
-  if (!existsSync(path)) {
-    return { state: "missing" }
-  }
-  const text = readFileSync(path, "utf8")
+/** The catalogue `text` holds, or why it is not one. */
+export function parseCatalogue(text: string): Exclude<CatalogueRead, { state: "missing" }> {
   let parsed: unknown
   try {
     parsed = JSON.parse(text)
@@ -67,6 +62,12 @@ export function readCatalogue(root: string, file: string): CatalogueRead {
   }
   // The schema above is the runtime twin of `Catalogue`: a document it accepts has this shape.
   return { state: "valid", catalogue: parsed as Catalogue, text }
+}
+
+/** The catalogue at `file` under `root`, or why there is none to read. */
+export function readCatalogue(root: string, file: string): CatalogueRead {
+  const path = join(root, file)
+  return existsSync(path) ? parseCatalogue(readFileSync(path, "utf8")) : { state: "missing" }
 }
 
 /**
