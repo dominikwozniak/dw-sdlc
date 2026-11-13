@@ -323,7 +323,7 @@ describe("diagnose", () => {
     })
   })
 
-  it("jq missing is a FAIL that names the consequence", () => {
+  it("jq missing is a FAIL that names the consequence and an install for every platform", () => {
     const checks = diagnose({
       root: ROOT,
       home: HOME,
@@ -333,6 +333,7 @@ describe("diagnose", () => {
     const check = line(checks, "jq")
     assert.equal(check.level, "FAIL")
     assert.match(check.detail, /every guard is silent/)
+    assert.match(check.detail, /https:\/\/jqlang\.org\/download\//)
   })
 
   it("the plugin absent, disabled or another version", () => {
