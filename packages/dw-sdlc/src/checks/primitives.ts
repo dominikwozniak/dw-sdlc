@@ -1,13 +1,14 @@
-// `primitives`: the catalogue says what is true of the tree. Unique ids, a known group, a one-line
-// summary, every code and docs path on disk with its anchor resolving, and every file under the roots
-// named by a Primitive.
+// `primitives`: the catalogue says what is true of the tree. Unique ids that start with their group, a
+// one-line summary, real code and docs paths, no decision record out of force, every file named.
 
 import { existsSync } from "node:fs"
 import { join } from "node:path"
 
+import { resolveConfig } from "../agentic-config.ts"
 import { type Catalogue, CATALOGUE_FILE, type Primitive, primitivesNaming, readCatalogue } from "../catalogue.ts"
 import { type Anchors, anchorsOf } from "../markdown.ts"
 import { CannotRun, type Check, type Finding, optionsOf } from "./check.ts"
+import { decisionRecords, OUT_OF_FORCE, recordStatus } from "./decision-records.ts"
 import { treeFiles } from "./tree.ts"
 
 export type PrimitivesOptions = { file: string; roots: string[] }
@@ -23,6 +24,8 @@ const REMEDIES = {
   shape:
     "give it the catalogue's shape: version 1, groups of id and name, primitives of id, name, group, summary, code and docs",
   duplicate: "give each Primitive an id of its own",
+  prefix: "start the id with its group and a . or a -, or move the Primitive into the group its id starts with",
+  record: "name the record that replaces it, or drop the entry",
   group: "add the group to groups, or move the Primitive into one listed there",
   summary: `keep the summary to one line of ${MAX_SUMMARY} characters or fewer`,
   path: "fix the path or drop it",
@@ -42,10 +45,20 @@ function lineOf(text: string, id: string, nth: number): number | undefined {
 }
 
 /** What is wrong with one Primitive, declared at `at`: its group, its summary, each code and docs entry. */
-function judge(root: string, catalogue: Catalogue, primitive: Primitive, at: Location, cache: Anchors): Finding[] {
+function judge(
+  root: string,
+  catalogue: Catalogue,
+  primitive: Primitive,
+  at: Location,
+  cache: Anchors,
+  records: string[]
+): Finding[] {
   const { id, group, summary, code, docs } = primitive
   const findings: Finding[] = []
   const fail = (message: string, remedy: string) => findings.push({ ...at, message, remedy })
+  if (!id.startsWith(`${group}.`) && !id.startsWith(`${group}-`)) {
+    fail(`the id ${show(id)} does not start with its group ${show(group)} and a "." or a "-"`, REMEDIES.prefix)
+  }
   if (!catalogue.groups.some((known) => known.id === group)) {
     fail(`${show(id)} is in group ${show(group)}, which groups does not list`, REMEDIES.group)
   }
@@ -65,6 +78,13 @@ function judge(root: string, catalogue: Catalogue, primitive: Primitive, at: Loc
     } else if (anchor !== undefined && !anchorsOf(root, path, cache).has(anchor)) {
       fail(`${show(id)} names the doc ${show(entry)}, which has no heading with that anchor`, REMEDIES.anchor)
     }
+    const status = recordStatus(root, records, path)
+    if (status !== undefined && OUT_OF_FORCE.has(status.split(/\s+/)[0] ?? "")) {
+      fail(
+        `${show(id)} names the decision record ${show(entry)}, whose status ${show(status)} is no longer in force`,
+        REMEDIES.record
+      )
+    }
   }
   return findings
 }
@@ -78,6 +98,9 @@ function run(root: string, { file, roots }: PrimitivesOptions): Finding[] {
     return read.problems.map((message) => ({ file, message, remedy: REMEDIES.shape }))
   }
   const { catalogue, text } = read
+  const records = (
+    optionsOf(decisionRecords, resolveConfig(root).config.gate.checks["decision-records"]) ?? decisionRecords.defaults
+  ).dirs
   const findings: Finding[] = []
   const seen = new Map<string, number>()
   const cache: Anchors = new Map()
@@ -93,7 +116,7 @@ function run(root: string, { file, roots }: PrimitivesOptions): Finding[] {
         remedy: REMEDIES.duplicate
       })
     }
-    findings.push(...judge(root, catalogue, primitive, at, cache))
+    findings.push(...judge(root, catalogue, primitive, at, cache, records))
   }
   for (const path of treeFiles(root, roots)) {
     if (!TEST_FILE.test(path) && primitivesNaming(catalogue, path).length === 0) {

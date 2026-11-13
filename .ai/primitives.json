@@ -121,10 +121,7 @@
       "group": "hooks",
       "summary": "Runs the Sync at startup and prints its lines; a repository without .ai/references.json gets no output.",
       "code": ["plugins/sdlc/hooks/references-sync.sh"],
-      "docs": [
-        "plugins/sdlc/README.md#the-sync-at-session-start",
-        "docs/adr/0006-sync-ships-as-a-plugin-for-local-sessions.md"
-      ]
+      "docs": ["plugins/sdlc/README.md#the-sync-at-session-start"]
     },
     {
       "id": "hooks.commit-msg",
@@ -286,8 +283,8 @@
       "id": "tools.primitives",
       "name": "dw-sdlc primitives",
       "group": "tools",
-      "summary": "Names the Primitives that own each path it is given, with their summaries and documents; plain or --json.",
-      "code": ["packages/dw-sdlc/src/commands/primitives.ts"],
+      "summary": "Names the Primitives that own each path, or that a change removes, adds or extends; plain or --json.",
+      "code": ["packages/dw-sdlc/src/commands/primitives.ts", "packages/dw-sdlc/src/primitives-diff.ts"],
       "docs": ["docs/overview.md#the-checks-the-package-ships", "AGENTS.md#commands"]
     },
     {
@@ -307,7 +304,11 @@
       "name": "dw-sdlc recap",
       "group": "tools",
       "summary": "Reads the facts a Recap rests on, answers whether the session can close by exit code, and lists the next candidates.",
-      "code": ["packages/dw-sdlc/src/commands/recap.ts", "packages/dw-sdlc/src/recap-next.ts"],
+      "code": [
+        "packages/dw-sdlc/src/commands/recap.ts",
+        "packages/dw-sdlc/src/recap-next.ts",
+        "packages/dw-sdlc/src/recap-primitives.ts"
+      ],
       "docs": ["plugins/sdlc-sessions/README.md#dw-sdlc-recap", "GLOSSARY.md", "AGENTS.md#commands"]
     },
     {
@@ -460,7 +461,7 @@
       "docs": [
         "docs/overview.md#from-github-or-from-a-clone",
         "docs/adr/0001-guards-ship-from-this-marketplace.md",
-        "docs/adr/0010-one-sdlc-plugin-carries-guards-sync-and-gate.md"
+        "docs/adr/0012-the-loop-ships-as-sdlc-loop-beside-sdlc.md"
       ]
     },
     {
@@ -472,7 +473,7 @@
       "docs": [
         "plugins/sdlc/README.md#install",
         "docs/overview.md#releasing-the-plugin",
-        "docs/adr/0010-one-sdlc-plugin-carries-guards-sync-and-gate.md"
+        "docs/adr/0012-the-loop-ships-as-sdlc-loop-beside-sdlc.md"
       ]
     },
     {
@@ -581,7 +582,7 @@
       "id": "gate.primitives",
       "name": "primitives Check",
       "group": "gate",
-      "summary": "Holds the catalogue to the tree: unique ids, known groups, short summaries, real paths, each root's files named.",
+      "summary": "Holds the catalogue to the tree: ids that start with their group, real paths, every file named, no retired decision.",
       "code": ["packages/dw-sdlc/src/checks/primitives.ts", "packages/dw-sdlc/src/catalogue.ts", ".ai/primitives.json"],
       "docs": ["docs/overview.md#the-checks-the-package-ships", "GLOSSARY.md"]
     },

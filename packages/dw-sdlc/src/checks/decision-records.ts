@@ -31,6 +31,9 @@ const RECORD = /^(\d+)-[^/]+\.md$/
 /** The first words of a status that put a record in force, so it governs the paths under its `touches`. */
 const IN_FORCE = new Set(["accepted", "active"])
 
+/** The first words of a status that say a record once governed and no longer does. */
+export const OUT_OF_FORCE = new Set(["deprecated", "superseded"])
+
 /** A character that makes a path under `touches` a glob. */
 const GLOB = /[*?[\]{}]/
 
@@ -59,7 +62,7 @@ function isDirectory(path: string): boolean {
  * The `status` of the frontmatter `text` opens with, its quotes dropped, and its 1-based line. It keeps a
  * reader apart from `frontmatter`, which a status never goes through: a ` #` is part of it.
  */
-function statusOf(text: string): { value: string; line: number } | undefined {
+export function statusOf(text: string): { value: string; line: number } | undefined {
   const lines = text.split("\n")
   if (lines[0]?.trim() !== "---") {
     return undefined
@@ -77,6 +80,19 @@ function statusOf(text: string): { value: string; line: number } | undefined {
 function isDay(value: string): boolean {
   const date = new Date(`${value}T00:00:00Z`)
   return /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(date.getTime()) && date.toISOString().startsWith(value)
+}
+
+/**
+ * The status of the decision record `path` names, whole, or "" when it has none; undefined when `path` is
+ * no record of `dirs` or is not on disk. A record is a file `<number>-<slug>.md` directly under a directory.
+ */
+export function recordStatus(root: string, dirs: string[], path: string): string | undefined {
+  const inDirs = dirs.some((dir) => {
+    const prefix = `${dir.replace(/\/+$/, "")}/`
+    return path.startsWith(prefix) && RECORD.test(path.slice(prefix.length))
+  })
+  const file = join(root, path)
+  return inDirs && existsSync(file) ? (statusOf(readFileSync(file, "utf8"))?.value ?? "") : undefined
 }
 
 function judgeDate({ file, keys }: DecisionRecord): Finding[] {

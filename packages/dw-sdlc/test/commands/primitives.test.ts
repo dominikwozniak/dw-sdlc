@@ -140,7 +140,10 @@ describe("dw-sdlc primitives --paths", () => {
   it("exits 2 with its usage without --paths", () => {
     const run = runBin(["primitives", "plugins/demo/hooks/hello.sh"], withCatalogue())
     assert.equal(run.status, 2)
-    assert.ok(run.stderr.startsWith("dw-sdlc primitives: name the paths with --paths\n"), run.stderr)
+    assert.ok(
+      run.stderr.startsWith("dw-sdlc primitives: name the paths with --paths, or a base with --diff\n"),
+      run.stderr
+    )
     assert.match(run.stderr, /Usage: dw-sdlc primitives/)
   })
 

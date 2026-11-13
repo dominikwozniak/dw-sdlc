@@ -21,6 +21,17 @@ merges nothing and does not start `/sdlc-pr-ship`, which comes after.
 - `GLOSSARY.md`, when there is one: its words go in the body.
 - The base: the repository's default branch (`gh repo view --json defaultBranchRef --jq .defaultBranchRef.name`),
   unless the dev or the Brief names another.
+- The Primitives block, when the repository has a catalogue, the file `gate.checks.primitives.file` of
+  the config names, `.ai/primitives.json` by default. Run `git fetch origin <base>`, then:
+
+  ```bash
+  node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" primitives --diff origin/<base>
+  ```
+
+  It prints the block between `<!-- primitives:start -->` and `<!-- primitives:end -->`: what the
+  committed change removes, adds and extends, decided by the script. Take it whole and edit nothing.
+  A repository with no catalogue gets no block and no failure. Exit 2 leaves the block out; say why in
+  the answer, one line, from what it printed. Never read the catalogue yourself to write it.
 
 ## 2. Write the title
 
@@ -42,26 +53,30 @@ dev names. A kickoff line that names no issue, and no issue named, leave the bod
 rewrite keeps the `Closes` line of the body it replaces.
 
 **With a template**, fill every section of it, in its order, and drop a section only when the
-template itself says it is optional. The `Closes` line sits above the template's first heading.
+template itself says it is optional. The `Closes` line sits above the template's first heading. The
+Primitives block goes in the template's Primitives section when it has one, in place of any block
+already there; a template with no such section gets it after its description of the change.
 
 **Without a template**, the body has this shape:
 
 1. The `Closes` line, when there is one.
 2. Why the change exists, in one to three sentences.
-3. `## Summary`: the smallest view that makes the point: a diff sketch, a call tree, a file tree,
+3. The Primitives block, when there is one.
+4. `## Summary`: the smallest view that makes the point: a diff sketch, a call tree, a file tree,
    pseudocode. `references/summary-views.md` shows each, and when to pick it.
-4. `## Evidence`: a before and an after from a run, such as the failing test and the passing one,
+5. `## Evidence`: a before and an after from a run, such as the failing test and the passing one,
    as output or pseudocode of the test. Run it when no run exists. When the change cannot be run,
    say that in one line; never write output that was not seen.
-5. `## Merge Danger`: **Door**, one-way or two-way: two-way when a revert undoes it, one-way when
+6. `## Merge Danger`: **Door**, one-way or two-way: two-way when a revert undoes it, one-way when
    it deletes data or cannot be walked back. **Blast Radius** in one word, such as `none`,
    `consumers` or `layout`. Each gets a line only when it needs one.
 
 Whatever the shape:
 
 - The body is a snapshot in the present tense, as if written from scratch. After a review it is
-  rewritten whole from the diff as it stands; never append a section, a changelog or a
-  "review feedback" note. History belongs to git and the page timeline.
+  rewritten whole from the diff as it stands, the Primitives command run again; never append a
+  section, a second block, a changelog or a "review feedback" note. History belongs to git and the
+  page timeline.
 - It says nothing the diff already says: no list of files, no restated code.
 - A change that moves a flow or a sequence gets one small mermaid diagram, as the view of the Summary
   or in the template section that explains the change. Any other change gets none.

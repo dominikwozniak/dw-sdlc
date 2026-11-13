@@ -20,14 +20,14 @@ is its long form: how a guard works, the design, adopting, releasing.
 - `plugins/sdlc-sessions/` — the session helpers, depending on `sdlc`: `skills/`, `templates/brief.md`,
   a `dw-sdlc` link, the manifest test
 - `plugins/sdlc/` — the plugin `.claude-plugin/marketplace.json` lists first, enabled at user
-  scope: `hooks/` the bash guards on a shared `lib.sh` plus the jq config contract, and the session
+  scope: `hooks/` the bash guards on a shared `lib.sh` plus the jq config contract, the session
   hooks, the report and the Sync; `skills/` holding `sdlc-setup`, `sdlc-doctor`,
-  `sdlc-references-add`, `sdlc-pr-open`, `sdlc-pr-ship` and `sdlc-sweep`; `agents/` the `sdlc-reviewer` subagent a `light` Review spawns; `dw-sdlc` a link to the package, whose bin hooks and skills run; `test/` the hook
+  `sdlc-references-add`, `sdlc-pr-open`, `sdlc-pr-ship` and `sdlc-sweep`; `agents/` the `sdlc-reviewer` a `light` Review spawns; `dw-sdlc` a link to the package, whose bin hooks and skills run; `test/` the hook
   tests, mirroring `hooks/`, each spawning a hook on its payload, and the manifest test
 - `.ai/` — `agentic.config.json`, this repo's agent rules against the package's schema;
   `references.json`, the References it reads; `primitives.json`, the catalogue of what this
-  repo exposes to an agent, held to the tree by the `primitives` Check; `file-size-ratchet.baseline.json`, the files the Ratchet lets stay over limit (`agentic.config.local.json` is one machine's layer, git-excluded)
-- `.claude/settings.json` — tracked; turns the dw-solo plugins off here and keeps the clones'
+  repo exposes to an agent, held to the tree by the `primitives` Check; `file-size-ratchet.baseline.json`, the files the Ratchet lets stay over limit (`agentic.config.local.json`, one machine's layer, git-excluded)
+- `.claude/settings.json` — tracked; turns the dw-solo plugins off here, keeps the clones'
   `CLAUDE.md` and `AGENTS.md` out of context. `.claude/settings.local.json` is one machine's
   permission backstop, git-excluded; a worktree reads it and the local config from the main checkout
 - `.agents/skills/` — the engineering skills it works with, pinned in `skills-lock.json`;
@@ -35,9 +35,9 @@ is its long form: how a guard works, the design, adopting, releasing.
 - `docs/agents/` — how those skills use this repo: issue tracker, domain docs
 - `docs/overview.md` — the README's long form; `docs/adr/` — decision records, a paragraph each, for a
   choice hard to reverse, surprising without context and a real trade-off; read those naming a file
-  before changing it
-- `docs/specs/` — the design record of a built feature; `docs/research/<feature>/` — the dated outside
-  facts that spec rests on. New work goes in GitHub Issues
+  before a change
+- `docs/specs/` — a built feature's design record; `docs/research/<feature>/` — the dated outside
+  facts it rests on. New work goes in GitHub Issues
 - `GLOSSARY.md` — what a word means here
 - `references/` — repositories cloned per machine for reading, never tracked; the Router is
   `references/AGENTS.md`, its table written from `.ai/references.json`; the Sync hook fetches them
@@ -83,7 +83,7 @@ is its long form: how a guard works, the design, adopting, releasing.
 pnpm check                      # dw-sdlc gate: gate.steps, then its Checks
 pnpm exec dw-sdlc gate [--json] [--verbose] [--update-baseline | --cache] # a line per Step and Check, --verbose streams all; exit 0 green, 1 failed or Drift, 2 cannot run
 pnpm exec dw-sdlc check <name> [--json] # one Check of the Gate by name, no Step; off in the config, it runs on defaults
-pnpm exec dw-sdlc primitives --paths <files> [--json] # the Primitives owning each path, with docs
+pnpm exec dw-sdlc primitives --paths <files> | --diff <base> [--json] # the Primitives owning a path, or a change removes, adds, extends
 pnpm exec dw-sdlc pr ship [<n>] [-R owner/name] [--merge] [--review full|light|off] [--dry-run] [--json] [--verbose] # the Action a pull request needs next, done when the script owns it; exit 0 done, 10 act, 20 wait, 30 park, 2 cannot run
 pnpm exec dw-sdlc pr reviewed <n> [-R owner/name] --head <sha> [--findings | --accept] [--json] # post dw-sdlc/review on that head; exit 2 when it moved or cannot run
 pnpm exec dw-sdlc recap [--json] # a Recap's facts and close verdict, read-only; exit 0 can close, 1 cannot, 2 cannot run

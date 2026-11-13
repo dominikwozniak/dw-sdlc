@@ -51,6 +51,11 @@ what changed for the dev, never the tool calls or the files: links carry the det
 | --------------------------------- | ---- |
 | `dw-sdlc recap` answers the close | #222 |
 
+Under the table, one line from `primitives` of the document, which names the Primitives the session's
+branch changed, one `<class> <id>` each as the document prints them, such as
+`Primitives: extends gate.runner, adds gate.cache`. The ids and classes stay as printed. Write no line
+when `primitives` is empty, as it is on the default branch and in a repository with no catalogue.
+
 **Decisions without you.** Each choice the session made alone that the dev might have made differently,
 one line each, with why. A routine call no one would question does not belong here.
 

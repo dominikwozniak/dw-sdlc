@@ -64,6 +64,18 @@ function failures(stdout: string): string[] {
   return lines(stdout).slice(1, -1)
 }
 
+const record = (status: string) => `---\nstatus: ${status}\n---\n\n# A decision\n`
+const RECORDS = {
+  "docs/adr/0001-old.md": record("superseded"),
+  "docs/adr/0002-current.md": record("accepted"),
+  "docs/adr/0003-idea.md": record("proposed"),
+  "docs/adr/0004-live.md": record("active"),
+  "docs/adr/0005-gone.md": record("deprecated")
+}
+const withDocs = (...docs: string[]) => catalogue([{ ...HOOK, docs: ["docs/demo.md", ...docs] }, MANIFEST])
+const out = (id: string, status: string) =>
+  `${CATALOGUE}:1: primitives: "hooks.hello" names the decision record "docs/adr/${id}", whose status "${status}" is no longer in force — name the record that replaces it, or drop the entry`
+
 describe("the primitives Check", () => {
   it("passes a catalogue whose ids, groups, summaries, code and docs hold and that names every file", () => {
     const run = runBin(["gate"], withCatalogue(catalogue()))
@@ -96,10 +108,24 @@ describe("the primitives Check", () => {
   })
 
   it("fails a group that groups does not list", () => {
-    const run = runBin(["gate"], withCatalogue(catalogue([{ ...HOOK, group: "guards" }, MANIFEST])))
+    const run = runBin(["gate"], withCatalogue(catalogue([{ ...HOOK, id: "guards.hello", group: "guards" }, MANIFEST])))
     assert.equal(run.status, 1)
     assert.deepEqual(failures(run.stdout), [
-      `${CATALOGUE}:1: primitives: "hooks.hello" is in group "guards", which groups does not list — add the group to groups, or move the Primitive into one listed there`
+      `${CATALOGUE}:1: primitives: "guards.hello" is in group "guards", which groups does not list — add the group to groups, or move the Primitive into one listed there`
+    ])
+  })
+
+  it("fails an id that does not start with its group and a dot or a dash, and passes either separator", () => {
+    const dashed = { ...MANIFEST, id: "distribution-demo" }
+    const bare = { ...HOOK, id: "hooks" }
+    const stray = { ...HOOK, id: "hookshot.hello" }
+    assert.equal(runBin(["gate"], withCatalogue(catalogue([HOOK, dashed]))).status, 0)
+    const run = runBin(["gate"], withCatalogue(catalogue([bare, stray, MANIFEST])))
+    assert.equal(run.status, 1)
+    const remedy = "start the id with its group and a . or a -, or move the Primitive into the group its id starts with"
+    assert.deepEqual(failures(run.stdout), [
+      `${CATALOGUE}:1: primitives: the id "hooks" does not start with its group "hooks" and a "." or a "-" — ${remedy}`,
+      `${CATALOGUE}:1: primitives: the id "hookshot.hello" does not start with its group "hooks" and a "." or a "-" — ${remedy}`
     ])
   })
 
@@ -147,10 +173,12 @@ describe("the primitives Check", () => {
   })
 
   it("reports a Primitive on its own line when a group has the same id", () => {
-    const moved = { ...HOOK, id: "hooks", code: ["plugins/demo/hooks/hello.sh", "plugins/demo/hooks/gone.sh"] }
-    const run = runBin(["gate"], withCatalogue(JSON.stringify(catalogue([moved, MANIFEST]), null, 2)))
+    const moved = { ...HOOK, code: ["plugins/demo/hooks/hello.sh", "plugins/demo/hooks/gone.sh"] }
+    const groups = [...GROUPS, { id: "hooks.hello", name: "Same id" }]
+    const document = { version: 1, groups, primitives: [moved, MANIFEST] }
+    const run = runBin(["gate"], withCatalogue(JSON.stringify(document, null, 2)))
     assert.deepEqual(failures(run.stdout), [
-      `${CATALOGUE}:15: primitives: "hooks" names code at "plugins/demo/hooks/gone.sh", which does not exist — fix the path or drop it`
+      `${CATALOGUE}:19: primitives: "hooks.hello" names code at "plugins/demo/hooks/gone.sh", which does not exist — fix the path or drop it`
     ])
   })
 
@@ -220,5 +248,42 @@ describe("the primitives Check's options", () => {
     const run = runBin(["gate"], withCatalogue({}, {}, false))
     assert.equal(run.status, 0, run.stdout)
     assert.deepEqual(lines(run.stdout), ["gate: green — 0 steps, 0 checks"])
+  })
+
+  describe("a docs entry that names a decision record", () => {
+    it("passes a record in force or proposed, an anchor on it, and a doc that is no record", () => {
+      const docs = withDocs(
+        "docs/adr/0002-current.md",
+        "docs/adr/0003-idea.md",
+        "docs/adr/0004-live.md#a-decision",
+        "docs/adr/README.md"
+      )
+      const run = runBin(["gate"], withCatalogue(docs, { ...RECORDS, "docs/adr/README.md": "# ADRs\n" }))
+      assert.equal(run.status, 0, run.stdout)
+    })
+
+    it("fails a record that is superseded or deprecated, and passes one only proposed", () => {
+      const docs = withDocs("docs/adr/0001-old.md#a-decision", "docs/adr/0003-idea.md", "docs/adr/0005-gone.md")
+      const run = runBin(["gate"], withCatalogue(docs, RECORDS))
+      assert.equal(run.status, 1)
+      assert.deepEqual(failures(run.stdout), [
+        out("0001-old.md#a-decision", "superseded"),
+        out("0005-gone.md", "deprecated")
+      ])
+    })
+
+    it("reads the directories the decision-records setting names, and the defaults while it is off", () => {
+      const moved = { "records/0001-old.md": record("deprecated") }
+      const docs = withDocs("records/0001-old.md")
+      const on = { version: 1, gate: { checks: { primitives: true, "decision-records": { dirs: ["records"] } } } }
+      const named = runBin(["gate"], withCatalogue(docs, { ...moved, [CONFIG]: on }))
+      assert.equal(named.status, 1)
+      assert.deepEqual(failures(named.stdout).slice(1), [
+        `${CATALOGUE}:1: primitives: "hooks.hello" names the decision record "records/0001-old.md", whose status "deprecated" is no longer in force — name the record that replaces it, or drop the entry`
+      ])
+      const off = { version: 1, gate: { checks: { primitives: true, "decision-records": false } } }
+      const unnamed = runBin(["gate"], withCatalogue(docs, { ...moved, [CONFIG]: off }))
+      assert.equal(unnamed.status, 0, unnamed.stdout)
+    })
   })
 })

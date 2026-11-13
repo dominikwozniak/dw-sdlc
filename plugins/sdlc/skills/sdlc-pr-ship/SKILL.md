@@ -43,8 +43,18 @@ push makes.
   does not have ends the run: name it and stop. At `light`, `git fetch origin <base>`, then spawn
   the `sdlc:sdlc-reviewer` subagent. It does not see this conversation, so its prompt holds all it
   reads: the diff command `git diff <since>...<head>`, the files
-  `git diff --name-only <since>...<head>` lists, and the spec as this conversation states it, the
-  issue or the dev's ask, else "none stated". Its report's first line, `clean` or `findings: <n>`, is the result. When the
+  `git diff --name-only <since>...<head>` lists, the spec as this conversation states it, the
+  issue or the dev's ask, else "none stated", and the Primitives the change touches. Get those once,
+  over the same range, from the checkout at `<head>`:
+
+  ```bash
+  node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" primitives --diff <since> --json
+  ```
+
+  Put in the prompt, for each Primitive of its `primitives`, the `id`, the `class`, the `summary`
+  and each `docs` entry whose `touched` is false, nothing else of the catalogue; "none" when the
+  list is empty. Exit 2, a repository with no catalogue included, sends "not read" and the one line it
+  printed, never "none". Its report's first line, `clean` or `findings: <n>`, is the result. When the
   changes since `<since>` are a fix for Findings an earlier Review in this conversation left open,
   name each of those Findings to the Review, in the command's arguments at `full` and in the
   subagent's prompt at `light`: it checks each one is fixed and that the fix breaks nothing.
