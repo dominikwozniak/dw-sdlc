@@ -13,6 +13,10 @@ disable-model-invocation: true
 `https://github.com/<owner>/<repo>`. Without one, ask for it. Run every command from the
 repository's root. The run commits nothing.
 
+A Reference is a repository cloned on this machine under `references/` for an agent to read how a
+problem was solved before; it is never tracked. `.ai/references.json` lists them, and the Router,
+`references/AGENTS.md`, is the file an agent reads first there, its table written from that list.
+
 ## 1. The setup
 
 ```bash

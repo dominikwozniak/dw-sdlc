@@ -15,7 +15,8 @@ the prompt holds all you get:
 - the files the diff touches;
 - the spec as the conversation states it: the issue, or what the dev asked for. "None stated" means
   you judge the change on its own;
-- the Primitives the change touches: each one's id, class and summary, and the entries of its docs that
+- the Primitives the change touches, the guards, hooks, scripts, config keys and skills the repository's
+  catalogue lists: each one's id, class and summary, and the entries of its docs that
   the change leaves untouched, as `path#anchor` or `path`. "none" means it touches no Primitive; "not
   read" means the catalogue could not be read, and you check no Primitive;
 - when the change is a fix, the Findings an earlier Review left open that it answers. Check each

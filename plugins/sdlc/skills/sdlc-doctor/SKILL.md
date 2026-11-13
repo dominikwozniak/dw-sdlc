@@ -27,7 +27,8 @@ fails; to run Workers, install herdr.
 
 End with this section, in this order:
 
-1. The outcome in one sentence: how many PASS, WARN and FAIL lines the doctor printed.
+1. The outcome in one sentence: how many PASS, WARN and FAIL lines the doctor printed; an INFO line
+   counts as none.
 2. The doctor's lines, as it printed them.
 3. `Next: <command>` in a code span as the last line, the dev's command and never run by this skill. The
    closed list:

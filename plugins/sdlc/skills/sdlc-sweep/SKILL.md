@@ -5,8 +5,10 @@ description: Remove what finished work leaves behind, with the Sweep, and report
 
 # sdlc-sweep
 
-Run the Sweep from the main checkout, report it and stop. It acts only on the dev's word: the slash
-command, or "go" on a Recap follow-up that names it. Without one of those, do not run it. It runs
+Run the Sweep from the main checkout, report it and stop. The Sweep removes what finished work leaves:
+branches whose work has landed on the base, clean worktrees, stale locks, and the terminals of finished
+Worker sessions. It acts only on the dev's word: the slash
+command, or "go" on a follow-up that names it in a Recap, the session report of `/sdlc-recap`. Without one of those, do not run it. It runs
 through the plugin's link to the package, never a `dw-sdlc` from PATH:
 
 ```bash
@@ -18,8 +20,8 @@ Add `--dry-run` only when the dev asked to look first, then report it as "would 
 ## Read the answer
 
 - Exit 0, nothing kept, and exit 1, something kept, both print one document on stdout: `removed` and
-  `kept`, each item with its `kind` (`branch`, `worktree`, `lock` or `terminal`), its `name` or
-  `path`, its `reason`, and for some kept items the dev's `command`; a kept item with none needs
+  `kept`, each item with its `kind` (`branch`, `worktree`, `lock` or `terminal`), its `name`, a
+  branch, a path or a terminal's address, its `reason`, and for some kept items the dev's `command`; a kept item with none needs
   nothing from the dev.
 - Exit 2: it cannot run, and the reason is on stderr. Say it in one line and stop. In a linked
   worktree, say to run `/sdlc-sweep` from the main checkout; leave out any bare `dw-sdlc` command the

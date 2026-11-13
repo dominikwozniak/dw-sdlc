@@ -7,7 +7,8 @@ argument-hint: "[#issue ... | spec path | split] [model or effort]"
 # sdlc-delegate
 
 This session becomes a Lead. It coordinates and writes no code: each Worker does its work in its own herdr
-terminal and reports back with a Recap. The dev talks to the Lead while the Workers run.
+terminal and reports back with a Recap, the fixed-shape session report of `/sdlc-recap`. A Brief is the
+fixed-shape first message a Worker starts from. The dev talks to the Lead while the Workers run.
 
 ## Before anything
 
@@ -28,15 +29,16 @@ hc get "$HC_TERMINAL_ID" --json
   checkout, in herdr. Stop.
 - `HC_TERMINAL_ID` is this Lead's terminal, which every Brief names. The list is its Workers so far.
 
-A spec meant to land as one pull request belongs to `implement-spec`, not here. After it, the dev runs
-`/sdlc-pr-ship <n>` and `/sdlc-sweep`.
+A spec meant to land as one pull request belongs to `implement-spec`, of the engineering skills
+(`mattpocock/skills`), not here. After it, the dev runs `/sdlc-pr-ship <n>` and `/sdlc-sweep`. Where this
+session has no `implement-spec`, offer the spec whole to one Worker.
 
 ## The tickets
 
 Turn the source into tickets, one Worker each:
 
 - **An issue.** Read it with `gh issue view <n> --json number,title,state,labels,subIssues,blockedBy`.
-  When it has open sub-issues, as a spec `/to-tickets` cut does, each open sub-issue is a ticket, read the
+  When it has open sub-issues, as a spec cut by `/to-tickets` of the engineering skills does, each open sub-issue is a ticket, read the
   same way. Otherwise the issue is one ticket.
 - **A list of issues.** Each one is read as an issue.
 - **A spec in a file.** One ticket: one Worker takes it whole.
@@ -46,7 +48,7 @@ Turn the source into tickets, one Worker each:
   the whole to one Worker.
 
 Skip a closed ticket, and one whose triage label says it needs a human or more information, such as
-`ready-for-human` or `needs-info`.
+`ready-for-human` or `needs-info`, the labels the engineering skills' `triage` sets.
 
 `blockedBy` orders the rest. A ticket whose blockers are all closed is ready now. One blocked by an open
 ticket of this set waits in the queue until every blocker is closed. One blocked by an open issue outside
@@ -153,12 +155,14 @@ The dev's own words come with these: answer them in plain text, then end your tu
 ## The combined Recap
 
 When every Worker has reported its end and the queue is empty, or the dev asks, give one Recap for all of
-them. Use the shape of `${CLAUDE_PLUGIN_ROOT}/skills/sdlc-recap/SKILL.md`, its facts from `recap --json`,
+them. Use the shape of `${CLAUDE_PLUGIN_ROOT}/skills/sdlc-recap/SKILL.md`, its facts from
+`node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" recap --json`,
 which counts the live Workers. What happened has a row a Worker with its pull request; check every
 "merged" or "green" live with `gh`. Waiting on names each Worker still live and what it waits on, and each
 ticket still queued and what it waits behind.
 
-Once every Worker has reported its end, the Recap carries the Sweep follow-up that `sdlc-recap` describes.
+Once every Worker has reported its end, the Recap carries the Sweep follow-up that `sdlc-recap` describes:
+the Sweep removes landed branches, clean worktrees and finished Workers' terminals.
 The dev's "go" runs `/sdlc-sweep`, which stops and removes the terminals of this Lead's Workers whose turn
 has ended and clears their worktrees, which lets the Lead close. A Worker still working or blocked stays,
 and so does a finished Worker whose worktree the Sweep keeps, such as one with uncommitted files. After the
