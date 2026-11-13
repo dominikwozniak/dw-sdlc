@@ -19,7 +19,7 @@ claude plugin install sdlc@dw-sdlc --scope user
 ```
 
 `--sparse` checks out only the catalogue, the plugins and the `dw-sdlc` package they link to, not the
-docs and tooling around them. The repository is private, so the clone uses your git credentials.
+docs and tooling around them. The repository is public, so the clone needs no credentials.
 
 > [!NOTE]
 > The guards need `jq`. Without it every guard is silent, and the doctor says so.

@@ -72,9 +72,8 @@ is its long form: how a guard works, the design, adopting, releasing.
   guards enforce both from `.ai/agentic.config.json`. `.vite-hooks/commit-msg` checks the subject of
   every commit, a terminal's included. `pnpm install` installs it and the pre-commit hook.
 - `main` is a protected branch: a change reaches it through a pull request, after `pnpm check` passes
-  in CI. For a small fix the agent commits on `main` and the push comes from Dominik's terminal,
-  which the guards skip. Branch protection is unavailable on this private
-  repository; the guard is the only check.
+  in CI, as GitHub's `main` ruleset asks; the admin bypasses it. For a small fix the agent commits on
+  `main` and the push comes from Dominik's terminal, which the guards skip.
 - Commit before `/code-review`: it reads committed work only, the diff from its fixed point to `HEAD`.
 
 ## Commands
