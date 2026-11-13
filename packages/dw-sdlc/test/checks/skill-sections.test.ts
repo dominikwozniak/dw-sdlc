@@ -116,14 +116,16 @@ describe("the skill-sections Check", () => {
     assert.deepEqual(sections(withSkill({ [SKILL]: skill })), { status: 0, failures: [] })
   })
 
-  it("fails a code fence that never closes, so the parts after it are never left unread", () => {
+  it("fails a code fence that never closes above a marker, so the part after it is never left unread", () => {
     const skill = `# Skill\n\n\`\`\`sh\npnpm test\n\n${part("errors", "## Errors\n\nStale.")}\n`
     assert.deepEqual(sections(withSkill({ [SKILL]: skill })), {
       status: 1,
       failures: [
-        `${SKILL}:3: skill-sections: a code fence opens here and never closes, so no marker after it is read — close the fence`
+        `${SKILL}:3: skill-sections: a code fence opens here and never closes, so the markers after it are not read — close the fence`
       ]
     })
+    const noMarker = `${part("errors", "## Errors\n\nOld text.")}\n\n\`\`\`sh\npnpm test\n`
+    assert.deepEqual(sections(withSkill({ [SKILL]: noMarker })), { status: 0, failures: [] })
   })
 
   it("passes a repository with no skills, and skills with no part, without reading the catalogue", () => {

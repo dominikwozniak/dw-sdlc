@@ -119,8 +119,9 @@ function render(root: string, path: string, sources: Sources): Rendered {
     }
   }
   const fence = openFence(text)
-  if (fence !== undefined) {
-    const message = "a code fence opens here and never closes, so no marker after it is read"
+  const hidden = fence === undefined ? "" : text.split("\n").slice(fence).join("\n")
+  if (fence !== undefined && hidden.search(MARKER) !== -1) {
+    const message = "a code fence opens here and never closes, so the markers after it are not read"
     findings.push({ file: path, line: fence, message, remedy: REMEDIES.fence })
   }
   pieces.push(text.slice(copied))

@@ -235,8 +235,8 @@ schema.
   differs from its section, when the README has no heading with its anchor, and when no Primitive
   names `<README>#<anchor>` among its docs, so a part repeats only a section the catalogue points
   to. A marker without its pair fails too, so a mistyped one never leaves a part unchecked. A marker
-  inside code is none, and a code fence that never closes fails, since it would hide every marker
-  after it.
+  inside code is none, and a code fence that never closes above a marker fails, since it hides that
+  marker.
   `dw-sdlc check skill-sections --write` writes each part from its section, and an empty pair is a
   part it fills. A repository with no part passes without reading the catalogue; one with a part
   and no valid catalogue cannot run.
