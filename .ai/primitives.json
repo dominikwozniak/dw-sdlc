@@ -17,7 +17,11 @@
       "group": "guards",
       "summary": "Reads a shell command once and spawns each guard only where the command could trip it.",
       "code": ["plugins/sdlc/hooks/bash-guard.sh"],
-      "docs": ["plugins/sdlc/README.md#layout", "docs/overview.md#how-a-guard-judges-a-call", "GLOSSARY.md"]
+      "docs": [
+        "docs/contributing/plugin-internals.md#layout",
+        "docs/overview.md#how-a-guard-judges-a-call",
+        "GLOSSARY.md"
+      ]
     },
     {
       "id": "guards.lib",
@@ -34,7 +38,7 @@
         "plugins/sdlc/hooks/lib-git.sh"
       ],
       "docs": [
-        "plugins/sdlc/README.md#layout",
+        "docs/contributing/plugin-internals.md#layout",
         "plugins/sdlc/README.md#reading-a-command",
         "docs/contributing/bash-guard.md",
         "GLOSSARY.md"
@@ -160,7 +164,7 @@
         "plugins/sdlc/hooks/config.jq",
         "plugins/sdlc/hooks/schema.jq"
       ],
-      "docs": ["plugins/sdlc/README.md#layout", "docs/adr/0003-invalid-config-layer-runs-strictest.md"]
+      "docs": ["docs/contributing/plugin-internals.md#layout", "docs/adr/0003-invalid-config-layer-runs-strictest.md"]
     },
     {
       "id": "config.guardrails",
@@ -511,7 +515,7 @@
         "plugins/sdlc/dw-sdlc"
       ],
       "docs": [
-        "plugins/sdlc/README.md#layout",
+        "docs/contributing/plugin-internals.md#layout",
         "docs/contributing/development.md#from-github-or-from-a-clone",
         "docs/contributing/releasing.md#releasing-the-package",
         "docs/adr/0008-gate-runs-from-a-pinned-package-plugin-adapts.md"
@@ -531,7 +535,11 @@
       "group": "distribution",
       "summary": "The package's command line: one table of subcommands, each a module under src/commands/.",
       "code": ["packages/dw-sdlc/src/cli.ts"],
-      "docs": ["AGENTS.md#commands", "docs/overview.md#how-the-gate-runs", "plugins/sdlc/README.md#layout"]
+      "docs": [
+        "AGENTS.md#commands",
+        "docs/overview.md#how-the-gate-runs",
+        "docs/contributing/plugin-internals.md#layout"
+      ]
     },
     {
       "id": "gate.check",
