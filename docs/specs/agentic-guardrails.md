@@ -10,7 +10,7 @@ ignored files it needs with nothing telling the session so.
 
 ## Goal
 
-- `claude plugin install guardrails@dw-sdlc` is the whole install: afterwards `~/.claude/settings.json`
+- `claude plugin install sdlc@dw-sdlc` is the whole install: afterwards `~/.claude/settings.json`
   holds no hook entries and `~/.claude/hooks/` is empty, yet `git reset --hard` is
   refused in every repository.
 - A repository declares its rules in `.ai/agentic.config.json`, optionally overridden by
@@ -27,9 +27,9 @@ ignored files it needs with nothing telling the session so.
 
 ## Solution
 
-One Claude Code plugin, `guardrails`, published from this repository's marketplace: bash guards on a
+One Claude Code plugin, `sdlc`, published from this repository's marketplace: bash guards on a
 shared library, a JSON Schema for the per-repository config, a TypeScript reader, a setup skill, a
-doctor and a session-start report. `plugins/guardrails/README.md` lists the guards and what each
+doctor and a session-start report. `plugins/sdlc/README.md` lists the guards and what each
 refuses.
 
 ## Decisions
@@ -152,7 +152,7 @@ refuses.
 
 ## Testing
 
-- `plugins/guardrails/test/harness.ts` spawns `hooks/<guard>.sh` with the JSON payload on stdin;
+- `plugins/sdlc/test/harness.ts` spawns `hooks/<guard>.sh` with the JSON payload on stdin;
   every input a test reads is built beside it in a scratch directory.
 - The jq and TypeScript copies of the config contract run on one case list, so a change to either
   side fails there first.
@@ -173,46 +173,46 @@ refuses.
 ## Tasks
 
 - [x] Task: Config contract
-  - Verify: `pnpm agentic:check` passes here; `test/scripts/agentic-config.test.ts` fails a document
+  - Verify: `pnpm agentic:check` passes here; `packages/dw-sdlc/test/agentic-config.test.ts` fails a document
     that allows a force push
-  - Files: `plugins/guardrails/config/agentic.config.schema.json`, `plugins/guardrails/scripts/agentic-config.ts`
+  - Files: `packages/dw-sdlc/config/agentic.config.schema.json`, `packages/dw-sdlc/src/agentic-config.ts`
 - [x] Task: Plugin skeleton and shared library
-  - Verify: `claude plugin validate plugins/guardrails --strict` passes; after
-    `claude plugin marketplace add ./` and the install, `claude plugin list` shows `guardrails@dw-sdlc`
-  - Files: `.claude-plugin/marketplace.json`, `plugins/guardrails/.claude-plugin/plugin.json`,
-    `plugins/guardrails/hooks/lib.sh`
+  - Verify: `claude plugin validate plugins/sdlc --strict` passes; after
+    `claude plugin marketplace add ./` and the install, `claude plugin list` shows `sdlc@dw-sdlc`
+  - Files: `.claude-plugin/marketplace.json`, `plugins/sdlc/.claude-plugin/plugin.json`,
+    `plugins/sdlc/hooks/lib.sh`
 - [x] Task: Dispatcher and git guard with the lease policy
   - Verify: `test/hooks/block-dangerous-commands.test.ts` exits 2 for `git push --force`,
     `git -C sub push -f`, `git push --force-with-lease origin master` and `RTK_DISABLED=1 git push --force`,
     0 for `git push --force-with-lease --force-if-includes origin feat`
-  - Files: `plugins/guardrails/hooks/bash-guard.sh`, `plugins/guardrails/hooks/block-dangerous-commands.sh`
+  - Files: `plugins/sdlc/hooks/bash-guard.sh`, `plugins/sdlc/hooks/block-dangerous-commands.sh`
 - [x] Task: Env and credential guards decided by git
   - Verify: `test/hooks/block-env-access.test.ts` on a scratch repo with a tracked `.env` and an ignored
     `.env.local`: Read of `.env` exits 0, of `.env.local` 2, a `cp` of `.env.local` 2, `cat .env.example` 0
-  - Files: `plugins/guardrails/hooks/block-env-access.sh`, `plugins/guardrails/hooks/credential-leak-guard.sh`
+  - Files: `plugins/sdlc/hooks/block-env-access.sh`, `plugins/sdlc/hooks/credential-leak-guard.sh`
 - [x] Task: Config-driven package-manager and commit guards
   - Verify: `test/hooks/block-non-pnpm.test.ts` lets `yarn install` through where the resolved package
     manager is not pnpm and refuses `npm install` under `packageManagers.node: pnpm`;
     `test/hooks/enforce-commit-hygiene.test.ts` accepts a subject on the convention, refuses one off it
     and refuses `git add -A`
-  - Files: `plugins/guardrails/hooks/block-non-pnpm.sh`, `plugins/guardrails/hooks/enforce-commit-hygiene.sh`
+  - Files: `plugins/sdlc/hooks/block-non-pnpm.sh`, `plugins/sdlc/hooks/enforce-commit-hygiene.sh`
 - [x] Task: Session-start report
   - Verify: `test/hooks/session-start.test.ts` prints the include and setup lines from a scratch linked
     worktree and nothing from the main checkout
-  - Files: `plugins/guardrails/hooks/session-start.sh`
+  - Files: `plugins/sdlc/hooks/session-start.sh`
 - [x] Task: Setup skill
-  - Verify: `test/scripts/guardrails-setup.test.ts`: a run against a scratch repo writes the local
+  - Verify: `packages/dw-sdlc/test/commands/setup.test.ts`: a run against a scratch repo writes the local
     config, the exclude entries and the deny rules; a second run changes nothing; `--convention`
     pins the named preset in the local config and a repeat with or without the flag changes nothing
-  - Files: `plugins/guardrails/skills/sdlc-guardrails-setup/SKILL.md`, `plugins/guardrails/scripts/guardrails-setup.ts`
+  - Files: `plugins/sdlc/skills/sdlc-setup/SKILL.md`, `packages/dw-sdlc/src/commands/setup.ts`
 - [x] Task: Doctor
-  - Verify: `test/scripts/guardrails-doctor.test.ts` fakes each probe and asserts its PASS / WARN /
+  - Verify: `packages/dw-sdlc/test/commands/doctor.test.ts` fakes each probe and asserts its PASS / WARN /
     FAIL line; `pnpm guardrails:doctor` lists every check here
-  - Files: `plugins/guardrails/scripts/guardrails-doctor.ts`
+  - Files: `packages/dw-sdlc/src/commands/doctor.ts`
 - [x] Task: RTK verification
   - Verify: `docs/research/agentic-guardrails/agentic-guardrails.md` records a source line or a run for
     each rtk question; the doctor's rtk check reflects the excluded filters
-  - Files: `docs/research/agentic-guardrails/rtk.md`, `plugins/guardrails/scripts/guardrails-doctor.ts`
+  - Files: `docs/research/agentic-guardrails/rtk.md`, `packages/dw-sdlc/src/commands/doctor.ts`
 - [x] Task: The rtk hook ships in the plugin
   - Acceptance: `~/.claude/settings.json` wires no hook and `~/.claude/hooks/` is empty; a linked
     worktree runs `git status --short` and a main checkout still gets the rewrite. Probed on Claude
@@ -221,37 +221,37 @@ refuses.
     and the same session with no hook runs it
   - Verify: `test/hooks/rtk-rewrite.test.ts` against a fake rtk on PATH; the doctor test fails a
     user settings file that wires `rtk-hook-guard.sh` or `rtk hook claude`
-  - Files: `plugins/guardrails/hooks/rtk-rewrite.sh`, `plugins/guardrails/.claude-plugin/plugin.json`,
-    `plugins/guardrails/scripts/guardrails-doctor.ts`
+  - Files: `plugins/sdlc/hooks/rtk-rewrite.sh`, `plugins/sdlc/.claude-plugin/plugin.json`,
+    `packages/dw-sdlc/src/commands/doctor.ts`
 - [x] Task: Every spelling of a whole-tree discard is refused
   - Verify: `test/hooks/block-dangerous-commands.test.ts` refuses `git checkout HEAD -- .`,
     `git checkout -f master`, `git switch --discard-changes main` and `git restore --worktree .`, and
     lets `git restore --staged .` through
-  - Files: `plugins/guardrails/hooks/block-dangerous-commands.sh`
+  - Files: `plugins/sdlc/hooks/block-dangerous-commands.sh`
 - [x] Task: `rm` at a directory's contents is refused like the directory
   - Verify: the same file refuses `rm -rf ./*`, `~/*`, `$HOME/*` and a bare `*`, and lets `rm -rf tmp/*`
     and `rm -rf *.log` through
-  - Files: `plugins/guardrails/hooks/block-dangerous-commands.sh`
+  - Files: `plugins/sdlc/hooks/block-dangerous-commands.sh`
 - [x] Task: The written local config points at a schema an editor can open
   - Acceptance: `$schema` is a `file://` URL to the schema in the marketplace's clone, whose path
     survives a plugin update; without a registered clone holding it, the `$id`. A local file that
     differs only in `$schema` is rewritten, not refused
-  - Verify: `test/scripts/guardrails-setup.test.ts`
-  - Files: `plugins/guardrails/scripts/guardrails-setup.ts`, `plugins/guardrails/scripts/agentic-config.ts`
+  - Verify: `packages/dw-sdlc/test/commands/setup.test.ts`
+  - Files: `packages/dw-sdlc/src/commands/setup.ts`, `packages/dw-sdlc/src/agentic-config.ts`
 - [x] Task: A subshell or a substitution is the same command
   - Verify: the guard test refuses `(rm -rf /)`, `(find . -name '*.pyc' -delete)`, `echo $(rm -rf .)`
     and `(git checkout .)`
-  - Files: `plugins/guardrails/hooks/block-dangerous-commands.sh`
+  - Files: `plugins/sdlc/hooks/block-dangerous-commands.sh`
 - [x] Task: The env guard judges a directory `Grep` whose `glob` names an env file
   - Acceptance: a `Grep` with `path` on a directory and `glob: ".env*"` is refused like a Read of each
     env file the glob reaches there, so a tracked `.env` alone passes and an ignored `.env.local` refuses
   - Verify: cases in `test/hooks/block-env-access.test.ts` and `test/hooks/lib.test.ts`
-  - Files: `plugins/guardrails/hooks/block-env-access.sh`, `plugins/guardrails/hooks/lib.sh`
+  - Files: `plugins/sdlc/hooks/block-env-access.sh`, `plugins/sdlc/hooks/lib.sh`
 - [x] Task: A commit subject in single quotes with a `$` is still checked
   - Acceptance: `git commit -m 'bad subject with $X'` is refused like `git commit -m 'bad subject'`,
     and so is a double-quoted `"\$X"`; a double-quoted `"$X"` still passes as unknowable
   - Verify: cases in `test/hooks/enforce-commit-hygiene.test.ts`
-  - Files: `plugins/guardrails/hooks/enforce-commit-hygiene.sh`
+  - Files: `plugins/sdlc/hooks/enforce-commit-hygiene.sh`
 - [x] Task: A heredoc opener inside quotes or a comment opens nothing
   - Acceptance: `echo "a << EOF"` or `# see << EOF` on one line followed by `git reset --hard` on the
     next is refused like the bare command, and `git commit -m "docs: use <<EOF"` keeps its subject
@@ -259,7 +259,7 @@ refuses.
     which is what bash runs
   - Verify: cases in `test/hooks/lib.test.ts`, `test/hooks/bash-guard.test.ts`,
     `test/hooks/enforce-commit-hygiene.test.ts` and `test/hooks/block-env-access.test.ts`
-  - Files: `plugins/guardrails/hooks/lib-text.sh`, `plugins/guardrails/hooks/enforce-commit-hygiene.sh`
+  - Files: `plugins/sdlc/hooks/lib-text.sh`, `plugins/sdlc/hooks/enforce-commit-hygiene.sh`
 - [x] Task: A commit from a terminal meets the subject rule
   - Acceptance: a `commit-msg` hook refuses a subject off the resolved `commit.pattern` and reads the
     same config as the guards; comment lines, leading blank lines and a `--verbose` diff are skipped,
@@ -294,7 +294,7 @@ Open work on the plugin is tracked in GitHub Issues.
 - The bash guards re-implement the merge in jq (`lib.sh`, `config.jq`): two enums ordered strict-first
   (`STRICTNESS`), one superset list, any invalid layer → `STRICTEST_GUARDRAILS`. The TypeScript reader
   in `packages/dw-sdlc/src/agentic-config.ts` and its tests are the reference behaviour.
-- The plugin is self-contained once installed: a marketplace install copies `plugins/guardrails/`
+- The plugin is self-contained once installed: a marketplace install copies `plugins/sdlc/`
   alone, and its `dw-sdlc` link to `packages/dw-sdlc` arrives as a real directory. The repository's
   `scripts/` keeps repo tooling only.
 - `hooks/schema.jq` and `hooks/config.jq` are the jq twins of the TypeScript contract.

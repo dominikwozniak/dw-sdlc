@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: deprecated
 ---
 
 # The Loop ships as a second plugin, `sdlc-loop`, that depends on `sdlc`
@@ -16,6 +16,9 @@ move the guards. `sdlc-loop` lists `sdlc` under `dependencies`. Installing it br
 Claude Code refuses to disable `sdlc` while `sdlc-loop` is enabled, because the Loop's skills rely on
 the guards, for instance to refuse a branch deletion. The name is `loop`, not `workflow`, which here
 means a GitHub Actions workflow.
+
+Not adopted: `sdlc-pr-ship` ships in `sdlc` under ADR 0010, and the session helpers are a plugin of
+their own under ADR 0014.
 
 ## Consequences
 

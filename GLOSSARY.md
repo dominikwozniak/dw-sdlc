@@ -1,6 +1,8 @@
 # dw-sdlc
 
-The software delivery process Dominik works by, and the Claude Code tooling that carries it.
+Claude Code tooling that holds my agentic workflow where the engineering skills leave it loose:
+guards on every tool call, a Gate that proves a change, and the road from a pull request to merged. It
+extends those skills and replaces none.
 
 ## Language
 
@@ -97,8 +99,9 @@ How closely a Review reads the changes: full, light, or off, where no one reads 
 _Avoid_: tier, level, mode (a permission mode says what the agent may do unasked)
 
 **Finding**:
-What a Review reports that holds the merge: a concrete harm the pull request's own changes cause, a miss
-against the spec, or a bug fix without its regression test. A Review with none is clean.
+What a Review reports that holds the merge: a concrete harm the pull request's own changes cause, a doc
+or Primitive summary they make false, a miss against the spec, or a bug fix without its regression
+test. A Review with none is clean.
 _Avoid_: nit, smell (a judgement call the agent may decline), issue (a GitHub Issue)
 
 **Read mark**:
@@ -175,15 +178,15 @@ _Avoid_: instructions file, rules
 
 ### Distribution
 
+**Engineering skills**:
+The skills that plan, build and review the work, `mattpocock/skills` here. dw-sdlc runs beside them and replaces none.
+_Avoid_: framework, base plugin
+
 **Marketplace**:
 The catalogue Claude Code installs plugins from. This repository is one.
 
 **Plugin**:
 One installable unit the marketplace lists: hooks and skills under one version.
-
-**Proving ground**:
-A repository other than this one that adopts each release as it ships and judges it on real work.
-_Avoid_: playground, pilot, sandbox
 
 ### Research
 

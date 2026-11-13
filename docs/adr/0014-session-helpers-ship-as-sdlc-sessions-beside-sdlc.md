@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # The session helpers ship as their own plugin, `sdlc-sessions`, that depends on `sdlc`
@@ -18,8 +18,8 @@ effort. The command belongs to one machine, so `sdlc-setup` writes it into the l
 `pr.reviewCommand`, the key has no strictness order (ADR 0003): the guards keep a Worker safe, not its
 command. The helpers are not part of `sdlc`. That plugin keeps every tool call safe on every machine;
 these are work the dev starts, and `sdlc-delegate` needs `hc`, which a machine that wants only the
-guards has no reason to install. They are not the Loop of ADR 0012 either: the Loop moves one change
-to merged, and the helpers run the sessions that do it. `sdlc-sessions` lists `sdlc` under
+guards has no reason to install. They are not the pull-request skills either: `sdlc-pr-ship`, in `sdlc`,
+moves one change to merged, and the helpers run the sessions that do it. `sdlc-sessions` lists `sdlc` under
 `dependencies`, so a Worker that starts with permission prompts bypassed still runs behind the guards.
 
 ## Consequences
