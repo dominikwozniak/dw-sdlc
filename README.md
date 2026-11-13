@@ -87,7 +87,7 @@ terminal meets the same subject rule through the [commit hook](plugins/sdlc/READ
 
 ```json
 {
-  "$schema": "https://raw.githubusercontent.com/dominikwozniak/dw-sdlc/main/plugins/guardrails/config/agentic.config.schema.json",
+  "$schema": "https://raw.githubusercontent.com/dominikwozniak/dw-sdlc/main/packages/dw-sdlc/config/agentic.config.schema.json",
   "version": 1,
   "guardrails": { "protectedBranches": ["main"] }
 }

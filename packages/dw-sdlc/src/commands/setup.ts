@@ -119,8 +119,8 @@ function committedConfig(root: string): AgenticConfig {
 
 /**
  * What the machine's layer points `$schema` at: the marketplace clone's schema as a `file://` URL, as an
- * editor cannot fetch the `$id` from a private repository and the clone, unlike the install cache, keeps
- * its path across plugin updates. Without a registered clone holding the schema, the `$id`.
+ * editor reads it offline at the installed version and the clone, unlike the install cache, keeps its
+ * path across plugin updates. Without a registered clone holding the schema, the `$id`.
  */
 export function schemaReference(claudeDir: string): string {
   const registry = readJson(join(claudeDir, "plugins", "known_marketplaces.json"))

@@ -81,7 +81,7 @@ repository turns it on once a skill holds a part.
   holds something besides `$schema`: a pin flag, the package manager, `worker.command` or a block
   it already has. Otherwise the run reports `skipped` and writes nothing, and a file that holds
   nothing beyond what the setup owns stays as it is. `$schema` is a `file://` URL to the schema in
-  the marketplace's clone, since the `$id` sits in a private repository an editor cannot fetch. A `guardrails` block the file holds is kept on every run, and `--force-push` and
+  the marketplace's clone, which an editor reads offline at the installed version. A `guardrails` block the file holds is kept on every run, and `--force-push` and
   `--commit-on-protected` pin those two keys in it. An existing file with other content than
   `$schema`, the pins and that block is refused; `--force` overwrites it and keeps the pins and the
   block. Run from a linked worktree, it goes to the main checkout with the two
