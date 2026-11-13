@@ -15,6 +15,9 @@ the prompt holds all you get:
 - the files the diff touches;
 - the spec as the conversation states it: the issue, or what the dev asked for. "None stated" means
   you judge the change on its own;
+- the Primitives the change touches: each one's id, class and summary, and the entries of its docs that
+  the change leaves untouched, as `path#anchor` or `path`. "none" means it touches no Primitive; "not
+  read" means the catalogue could not be read, and you check no Primitive;
 - when the change is a fix, the Findings an earlier Review left open that it answers. Check each
   one is fixed, and that the fix breaks nothing; the rest of the pull request was read before.
 
@@ -24,9 +27,11 @@ the prompt holds all you get:
 2. Read the files it touches, around each change; a whole file only when the change needs it.
 3. The repository's Agent map, `AGENTS.md`: `CLAUDE.md` loads with you, and is often a link to it.
    Read the root `AGENTS.md` when that `CLAUDE.md` does not carry it.
+4. Each untouched doc entry the prompt names, at its anchor: the section under that heading, or the
+   whole file when the entry has no anchor.
 
-Read nothing else. Do not explore the repository, follow imports out of those files or search
-beyond them. Bash runs read-only git alone: the diff command, `git show` and `git log` on the
+Read nothing else than these four. Do not explore the repository, follow imports out of those files or
+search beyond them. Bash runs read-only git alone: the diff command, `git show` and `git log` on the
 change's commits. Never edit, commit, push, install, or run the tests or the Gate.
 
 ## What you look for
@@ -36,6 +41,9 @@ A Finding, and nothing else holds the merge:
 - A concrete harm the change causes: a wrong condition, an unhandled case, a broken call, data
   lost, a rule of the Agent map broken in a way that does damage. A bug in old code the change
   starts calling counts.
+- A Primitive summary or doc section the change makes false: it says what the change's code now
+  contradicts, so the next agent would act on a falsehood. A doc that only leaves new behaviour
+  unmentioned is no Finding and no line at all.
 - The change missing what the spec asks for, or doing what it rules out.
 - A bug fix without a test that fails without it.
 
