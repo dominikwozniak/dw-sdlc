@@ -9,11 +9,11 @@ extends those skills and replaces none.
 ### Guards
 
 **Guard**:
-One hook that judges a tool call before it runs and answers with a verdict. A Check judges the tree.
+One hook that judges a tool call and answers with a verdict, before the call runs or, for a flag only, after it. A Check judges the tree.
 _Avoid_: rule
 
 **Dispatcher**:
-The guard that reads a shell command once and runs the others in order; the first deny or ask ends it.
+The guard that reads a shell command once and runs the others in order; the first deny ends it, and an ask waits for the rest, since a later deny wins.
 
 **Verdict**:
 A guard's answer to a tool call: deny, ask or pass.
