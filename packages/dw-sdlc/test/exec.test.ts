@@ -90,23 +90,25 @@ describe("exec", () => {
     assert.ok(performance.now() - started < 3000, "the tool was killed at its limit, not when it chose to exit")
   })
 
-  for (const [shape, around] of [
-    ["in the foreground", (child: string) => `${child}; true`],
-    ["in the background", (child: string) => `${child} & wait`],
-    ["left behind by a shell that exits", (child: string) => `${child} &`]
-  ] as const) {
-    it(`stops a child of the tool ${shape} with it`, () => {
-      let pid: number | undefined
-      try {
-        pid = stoppedChildPid(around)
-        assert.ok(Number.isInteger(pid) && pid > 0, "the child wrote its pid")
-        assert.ok(gone(pid, GONE_MS), `the child ${pid} is still running`)
-      } finally {
-        if (pid !== undefined && pid > 0 && !gone(pid, 0)) {
-          process.kill(pid, "SIGKILL")
+  for (let run = 1; run <= 50; run++) {
+    for (const [shape, around] of [
+      ["in the foreground", (child: string) => `${child}; true`],
+      ["in the background", (child: string) => `${child} & wait`],
+      ["left behind by a shell that exits", (child: string) => `${child} &`]
+    ] as const) {
+      it(`stops a child of the tool ${shape} with it, run ${run}`, () => {
+        let pid: number | undefined
+        try {
+          pid = stoppedChildPid(around)
+          assert.ok(Number.isInteger(pid) && pid > 0, "the child wrote its pid")
+          assert.ok(gone(pid, GONE_MS), `the child ${pid} is still running`)
+        } finally {
+          if (pid !== undefined && pid > 0 && !gone(pid, 0)) {
+            process.kill(pid, "SIGKILL")
+          }
         }
-      }
-    })
+      })
+    }
   }
 
   it("names a long command by its start, on one line", () => {
