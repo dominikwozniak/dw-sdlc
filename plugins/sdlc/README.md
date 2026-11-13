@@ -162,7 +162,7 @@ disk is in the next session, a broken edit included.
   list: `vitest`, `jest`, `tsc`, `oxlint`, `eslint`, `vp check`, `rspec`, `rubocop`, `pytest`,
   `cargo test` and `go test`, behind `pnpm exec`, `bundle exec`, a path or a `VAR=x`; a pnpm option
   (`--filter app`, `-F app`, `--dir d`, `-C d`, `-r`, `-w`) or a cargo option (`--locked`,
-  `--offline`, `--frozen`) before the verb does not hide it. With no config
+  `--offline`, `--frozen`, `--color never`) before the verb does not hide it. With no config
   the list alone applies. The refusal names the command and the filter and says to run it unpiped,
   or to redirect it with `> <file> 2>&1` and read the file. `| tee` and a redirect pass, and so does
   a pipe on any other command, `git log | head`; a filter behind the `tee`, `| tee f | tail`, is

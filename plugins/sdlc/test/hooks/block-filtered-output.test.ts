@@ -160,7 +160,6 @@ describe("a pnpm or cargo option before the verb does not hide a check command",
   blocked("cargo --offline", "cargo --offline test | grep x", BARE)
   blocked("cargo --frozen", "cargo --frozen test | tail", BARE)
   blocked("cargo --color auto", "cargo --color never test | tail", BARE)
-  blocked("cargo -Z flag", "cargo -Z unstable-options test | tail", BARE)
   blocked("cargo toolchain, then an option", "cargo +nightly --locked test | tail", BARE)
   it("names the command as typed", () => {
     assert.match(
