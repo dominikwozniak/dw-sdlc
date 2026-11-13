@@ -734,7 +734,7 @@ does, never merges and never starts `/sdlc-pr-ship`, which comes after it.
   as "merge it" and "is CI green?"; `evals/evals.json` holds four behaviours: a repository with a
   template, one without, a branch that has a pull request, and an issue as the source.
 
-### Running its evals
+### Running the evals of a pull-request skill
 
 An eval of a skill that opens pull requests, `sdlc-pr-open` or any like it, runs a real agent, and
 that agent can run `git push` and `gh pr create` for real. Run such evals only in a setup that cannot
@@ -754,7 +754,9 @@ reach GitHub:
    on, the installed skill wins over the temporary command the run loads, so the run measures the
    installed copy and not the change.
 
-Start the run from the scratch clone, never from the real checkout. Delete the clone after the run.
+Start the agent with the scratch clone as its working directory, never the real checkout. Leave
+`GH_REPO` unset in its environment and add no other remote to the clone: either one gives `gh` and `git`
+a way to reach GitHub. Delete the clone after the run.
 
 ## Shipping a pull request
 
