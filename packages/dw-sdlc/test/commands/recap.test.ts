@@ -74,6 +74,7 @@ type Document = {
   pullRequest: { url: string; state: string; status: string; action: string; actor: string; reason: string } | null
   worktree: { linked: boolean; path: string }
   workers: { name: string; address: string; state: string; status: string; folder: string }[] | null
+  primitives: { id: string; class: string }[]
   close: { verdict: "yes" | "no"; line: string; reasons: Reason[] }
   next: { number: number; title: string; url: string; parent: number | null }[] | null
 }
@@ -206,6 +207,7 @@ describe("dw-sdlc recap", () => {
       pullRequest: null,
       worktree: { linked: false, path: root },
       workers: null,
+      primitives: [],
       next: [],
       close: {
         verdict: "yes",
@@ -1103,5 +1105,73 @@ describe("dw-sdlc recap, the next session", () => {
         stdout
       )
     }
+  })
+})
+
+function entry(id: string, code: string): object {
+  return {
+    id,
+    name: id,
+    group: "gate",
+    summary: `What ${id} does.`,
+    code: [code],
+    docs: ["docs/gate.md"]
+  }
+}
+
+/** A catalogue of two Primitives and the files they own, pushed on main of a clone. */
+function withCatalogue(): string {
+  const root = clone()
+  const primitives = [entry("gate.runner", "src/runner.ts"), entry("gate.cache", "src/cache.ts")]
+  writeJson(join(root, ".ai/primitives.json"), { version: 1, groups: [], primitives })
+  write(join(root, "src/runner.ts"), "export {}\n")
+  write(join(root, "src/cache.ts"), "export {}\n")
+  write(join(root, "docs/gate.md"), "# Gate\n")
+  git(root, "add", "-A")
+  commit(root, "-m", "catalogue")
+  git(root, "push", "-q")
+  return root
+}
+
+describe("dw-sdlc recap, the Primitives", () => {
+  it("rolls up what the branch changed since its merge-base with origin/<default>", () => {
+    const root = withCatalogue()
+    git(root, "switch", "-q", "-c", "feat")
+    write(join(root, "src/runner.ts"), "export const changed = true\n")
+    write(join(root, "package.json"), "{}\n")
+    git(root, "add", "-A")
+    commit(root, "-m", "change the runner")
+    const { doc } = document(root, noPr)
+    assert.deepEqual(doc.primitives, [{ id: "gate.runner", class: "extends" }])
+    assert.match(recap(root, noPr).stdout, /^primitives: extends gate\.runner$/m)
+  })
+
+  it("carries none on the default branch, and prints no line for none", () => {
+    const root = withCatalogue()
+    write(join(root, "src/runner.ts"), "export const changed = true\n")
+    git(root, "add", "-A")
+    commit(root, "-m", "change the runner on main")
+    assert.deepEqual(document(root, noPr).doc.primitives, [])
+    assert.doesNotMatch(recap(root, noPr).stdout, /^primitives:/m)
+  })
+
+  it("carries none for a branch that touches no Primitive", () => {
+    const root = withCatalogue()
+    git(root, "switch", "-q", "-c", "feat")
+    write(join(root, "package.json"), "{}\n")
+    git(root, "add", "-A")
+    commit(root, "-m", "bump")
+    assert.deepEqual(document(root, noPr).doc.primitives, [])
+  })
+
+  it("carries none with a warning when it cannot read the catalogue", () => {
+    const root = withCatalogue()
+    git(root, "switch", "-q", "-c", "feat")
+    write(join(root, ".ai/primitives.json"), "{ nope")
+    git(root, "add", "-A")
+    commit(root, "-m", "break the catalogue")
+    const run = recap(root, noPr, "--json")
+    assert.equal(JSON.parse(run.stdout).primitives.length, 0)
+    assert.match(run.stderr, /dw-sdlc recap: warning: the Primitives were not read: \.ai\/primitives\.json: not JSON/)
   })
 })

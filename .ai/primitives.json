@@ -304,7 +304,11 @@
       "name": "dw-sdlc recap",
       "group": "tools",
       "summary": "Reads the facts a Recap rests on, answers whether the session can close by exit code, and lists the next candidates.",
-      "code": ["packages/dw-sdlc/src/commands/recap.ts", "packages/dw-sdlc/src/recap-next.ts"],
+      "code": [
+        "packages/dw-sdlc/src/commands/recap.ts",
+        "packages/dw-sdlc/src/recap-next.ts",
+        "packages/dw-sdlc/src/recap-primitives.ts"
+      ],
       "docs": ["plugins/sdlc-sessions/README.md#dw-sdlc-recap", "GLOSSARY.md", "AGENTS.md#commands"]
     },
     {

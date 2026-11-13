@@ -11,6 +11,7 @@ import { CannotRun, defaultBranch, now, readBranch } from "../pr/read.ts"
 import type { PrState } from "../pr/state.ts"
 import { holds, upstreamName } from "../pr/upstream.ts"
 import { type Candidate, type Next, READY_LABEL, readNext } from "../recap-next.ts"
+import { type Rolled, rollup } from "../recap-primitives.ts"
 import { isLive, Refusal, type Worker, workersOf, workingFolders } from "../worker/herdr.ts"
 import { asked, git } from "../working-tree.ts"
 
@@ -36,6 +37,10 @@ The session cannot be closed over any of these:
 A pull request closed without merging merges nothing, and a detached HEAD names no pull request. There a
 commit counts as pushed only on a remote branch, and the command asks the remote which branches still
 stand. A branch force-pushed since the last fetch can still read as holding it, so fetch first to be exact.
+
+Beside the facts it lists the Primitives the session's branch changed, as primitives --diff classes them
+from its merge-base with origin/<default>: ids and classes, none on the default branch or in a repository
+with no catalogue. A catalogue it cannot read lists none, with a warning.
 
 A linked worktree is a reason beside the verdict, never against it: the session cannot remove the
 directory it runs in.
@@ -253,11 +258,11 @@ type Ahead = { base: string; commits: number }
  * The commits on top of the base that no pull request holds. A branch the config protects takes changes
  * through pull requests rather than making one, and so does the default branch: neither needs one.
  */
-function aheadOf(root: string, branch: string, shipped: Shipped | null): Ahead | null {
+function aheadOf(root: string, branch: string, baseOf: () => string): Ahead | null {
   if (resolveConfig(root).config.guardrails.protectedBranches.includes(branch)) {
     return null
   }
-  const base = shipped?.pr.base ?? defaultBranch()
+  const base = baseOf()
   if (branch === base) {
     return null
   }
@@ -367,7 +372,12 @@ function nextLine(next: Next | null): string {
   return named.length === 0 ? "none" : named.join(", ")
 }
 
-function linesOf(local: Local, { shipped, askedGh, workers, next }: Facts, line: string): string {
+function primitivesLine(primitives: Rolled[]): string[] {
+  const named = primitives.map(({ id, class: kind }) => `${kind} ${id}`)
+  return named.length === 0 ? [] : [`primitives: ${named.join(", ")}`]
+}
+
+function linesOf(local: Local, { shipped, askedGh, workers, next }: Facts, primitives: Rolled[], line: string): string {
   const none = askedGh ? "none" : "gh not asked"
   return [
     `branch: ${local.branch ?? "detached HEAD"}`,
@@ -377,6 +387,7 @@ function linesOf(local: Local, { shipped, askedGh, workers, next }: Facts, line:
     `worktree: ${local.worktree.linked ? `linked at ${local.worktree.path}` : "main checkout"}`,
     `workers: ${workersLine(workers)}`,
     `next: ${nextLine(next)}`,
+    ...primitivesLine(primitives),
     line
   ].join("\n")
 }
@@ -411,7 +422,9 @@ function report(json: boolean): number {
   const local = standing(root, read, shipped, held)
   // An open pull request can still take the head, and a commit-less repository has nothing to merge.
   const nothingToMerge = held || shipped?.pr.state === "OPEN" || head === null
-  const ahead = asksGh && !nothingToMerge ? aheadOf(root, branch, shipped) : null
+  let named: string | undefined
+  const baseOf = () => (named ??= shipped?.pr.base ?? defaultBranch())
+  const ahead = asksGh && !nothingToMerge ? aheadOf(root, branch, baseOf) : null
   const facts: Facts = {
     shipped,
     ahead,
@@ -423,6 +436,10 @@ function report(json: boolean): number {
   if (facts.next !== null && "unread" in facts.next) {
     process.stderr.write(`dw-sdlc recap: warning: the backlog was not read: ${facts.next.unread}\n`)
   }
+  const rolled = asksGh ? rollup(root, branch, baseOf) : { primitives: [] }
+  if ("unread" in rolled) {
+    process.stderr.write(`dw-sdlc recap: warning: the Primitives were not read: ${rolled.unread}\n`)
+  }
   const next: Candidate[] | null = facts.next !== null && "candidates" in facts.next ? facts.next.candidates : null
   const close = closeOf(reasonsOf(local, facts))
   const pullRequest =
@@ -430,8 +447,12 @@ function report(json: boolean): number {
       ? null
       : { url: shipped.pr.url, number: shipped.pr.number, state: shipped.pr.state, ...shipped.answer }
   const output = json
-    ? JSON.stringify({ ...local, askedGh: asksGh, pullRequest, workers: facts.workers, close, next }, null, 2)
-    : linesOf(local, facts, close.line)
+    ? JSON.stringify(
+        { ...local, askedGh: asksGh, pullRequest, workers: facts.workers, primitives: rolled.primitives, close, next },
+        null,
+        2
+      )
+    : linesOf(local, facts, rolled.primitives, close.line)
   process.stdout.write(`${output}\n`)
   return close.verdict === "yes" ? 0 : 1
 }
