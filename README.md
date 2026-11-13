@@ -28,14 +28,15 @@ Where each one starts and stops: [overview](docs/overview.md#where-dw-sdlc-sits-
 
 ## Requirements
 
-| tool                                              | needed for                                                          | without it                                                        |
-| ------------------------------------------------- | ------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| Claude Code, git, bash                            | everything                                                          | nothing runs                                                      |
-| `jq`                                              | every guard                                                         | every guard is silent; the session start and the doctor say so    |
-| Node 24                                           | the Sync at session start, setup, doctor, the Gate, the Ship script | each session start prints that the Sync failed; those skills fail |
-| `gh`, signed in                                   | `/sdlc-pr-open`, `/sdlc-pr-ship`, `/sdlc-recap`, `/sdlc-delegate`   | those skills cannot read or write GitHub                          |
-| [herdr](https://herdr.dev) and its `hc`, optional | `/sdlc-delegate`, `dw-sdlc lead` and `dw-sdlc worker`               | no Workers; everything else runs                                  |
-| `rtk`, optional                                   | the plugin's rewrite hook, which trims command output               | the hook stays silent                                             |
+| tool                                                            | needed for                                                          | without it                                                        |
+| --------------------------------------------------------------- | ------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| Claude Code, git, bash                                          | everything                                                          | nothing runs                                                      |
+| `jq`                                                            | every guard                                                         | every guard is silent; the session start and the doctor say so    |
+| Node 24                                                         | the Sync at session start, setup, doctor, the Gate, the Ship script | each session start prints that the Sync failed; those skills fail |
+| `gh`, signed in                                                 | `/sdlc-pr-open`, `/sdlc-pr-ship`, `/sdlc-recap`, `/sdlc-delegate`   | those skills cannot read or write GitHub                          |
+| [herdr](https://herdr.dev) and its `hc`, optional               | `/sdlc-delegate`, `dw-sdlc lead` and `dw-sdlc worker`               | no Workers; everything else runs                                  |
+| `rtk`, optional                                                 | the plugin's rewrite hook, which trims command output               | the hook stays silent                                             |
+| [safe-chain](https://github.com/AikidoSec/safe-chain), optional | checking the packages an agent installs against a malware blocklist | the doctor's `safe chain` line warns; the guards are unaffected   |
 
 **Works with** [`mattpocock/skills`](https://github.com/mattpocock/skills), recommended rather than
 required. Three places call them: a Brief starts with `/implement`, a `full` Review runs `/code-review`
@@ -105,11 +106,11 @@ repository's `.claude/settings.json`.
 | credential leak       | reading `~/.ssh`, `~/.aws`, `~/.kube` and friends; `curl` or `wget` carrying a secret                                            |
 | package manager       | `npm`, `npx`, `yarn`, `bun` in a pnpm repository                                                                                 |
 | filtered output       | a check command (`vitest`, `tsc`, `dw-sdlc gate`) piped into `head`, `tail`, `grep`, `sed`, `awk`; `tee` or a redirect passes    |
-| commit hygiene        | a subject off the convention, a missing trailer, `git add -A` with no path, `git add .`                                          |
+| commit hygiene        | a subject off the convention, a missing `commit.trailer` when one is declared, `git add -A` with no path, `git add .`            |
 | App Store Connect     | every `asc` write and `--confirm` on a store script, in every repository; reads and `--dry-run` pass                             |
 | large file (advisory) | flags a written file over 256 KiB                                                                                                |
 
-Each rule holds at every command position: an indented line, a loop, a subshell, behind `sudo`,
+Each rule holds at every command position, within its [known limits](plugins/sdlc/README.md#known-limits): an indented line, a loop, a subshell, behind `sudo`,
 `xargs`, `timeout`, `find -exec` or `bash -c`, and in a heredoc a shell reads. Every rule in full:
 [plugin README](plugins/sdlc/README.md#guards).
 

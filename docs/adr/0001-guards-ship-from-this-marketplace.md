@@ -5,7 +5,7 @@ status: accepted
 # The guards ship as one plugin from this repository's marketplace
 
 Claude Code merges hooks from every scope and runs them all, so a guard needs to live in one place
-only. The guards are the `guardrails` plugin under `plugins/guardrails/`, published through this
+only. The guards are the `sdlc` plugin under `plugins/sdlc/`, published through this
 repository's own marketplace `dw-sdlc`: one `enabledPlugins` line installs them for a user in every
 repository, and `${CLAUDE_PLUGIN_ROOT}` gives every guard the one shared `lib.sh`. Hook files copied
 into each repository's `.claude/hooks/`, or wired by hand in `~/.claude/settings.json`, carry the
