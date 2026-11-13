@@ -13,21 +13,33 @@ export type Link = { target: string; line: number }
 const FENCE = /^[ \t]*(`{3,}|~{3,})/
 const ATX = /^ {0,3}(#{1,6})[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$/
 
+type Scanned = { text: string; line: number; fenced: boolean; edge?: "open" | "close" }
+
 /** Each line with its 1-based number, `fenced` when a code fence opens, closes or encloses it. */
-function scan(text: string): { text: string; line: number; fenced: boolean }[] {
+function scan(text: string): Scanned[] {
   let fence: string | undefined
   return text.split("\n").map((line, index) => {
     const marker = FENCE.exec(line)?.[1]
     if (fence === undefined && marker !== undefined) {
       fence = marker
-      return { text: line, line: index + 1, fenced: true }
+      return { text: line, line: index + 1, fenced: true, edge: "open" }
     }
     if (fence !== undefined && marker !== undefined && marker[0] === fence[0] && marker.length >= fence.length) {
       fence = undefined
-      return { text: line, line: index + 1, fenced: true }
+      return { text: line, line: index + 1, fenced: true, edge: "close" }
     }
     return { text: line, line: index + 1, fenced: fence !== undefined }
   })
+}
+
+/** The 1-based line of the code fence `text` leaves open at its end; none when every fence closes. */
+export function openFence(text: string): number | undefined {
+  const lines = scan(text)
+  const last = lines.at(-1)
+  if (last === undefined || !last.fenced || last.edge === "close") {
+    return undefined
+  }
+  return lines.findLast(({ edge }) => edge === "open")?.line
 }
 
 /**

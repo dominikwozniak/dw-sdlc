@@ -230,11 +230,13 @@ schema.
   with `<!-- README.md#<anchor> -->` and closes with `<!-- /README.md#<anchor> -->`, each on its own
   line, with a blank line inside each. Between them sits the section of the README under the heading
   with GitHub's anchor `<anchor>`, up to the next heading of its level or above. The README is the
-  `README.md` of the directory that holds the `skills` directory the file is in. The skill files are
-  `**/skills/**/*.md` by default. A part fails when it differs from its section, when the README has
-  no heading with its anchor, and when no Primitive names `<README>#<anchor>` among its docs, so a
-  part repeats only a section the catalogue points to. A marker without its pair fails too, so a
-  mistyped one never leaves a part unchecked; a marker inside code is none.
+  `README.md` of the directory that holds the `skills` directory the file is in, or of the file's own
+  directory outside one. The skill files are `**/skills/**/*.md` by default. A part fails when it
+  differs from its section, when the README has no heading with its anchor, and when no Primitive
+  names `<README>#<anchor>` among its docs, so a part repeats only a section the catalogue points
+  to. A marker without its pair fails too, so a mistyped one never leaves a part unchecked. A marker
+  inside code is none, and a code fence that never closes fails, since it would hide every marker
+  after it.
   `dw-sdlc check skill-sections --write` writes each part from its section, and an empty pair is a
   part it fills. A repository with no part passes without reading the catalogue; one with a part
   and no valid catalogue cannot run.

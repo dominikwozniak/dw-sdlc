@@ -7,7 +7,7 @@ import { join, posix } from "node:path"
 
 import { resolveConfig } from "../agentic-config.ts"
 import { readCatalogue } from "../catalogue.ts"
-import { headings, prose } from "../markdown.ts"
+import { headings, openFence, prose } from "../markdown.ts"
 import { CannotRun, type Check, type Finding } from "./check.ts"
 import { catalogueFile } from "./primitives.ts"
 import { matching, treeFiles } from "./tree.ts"
@@ -25,7 +25,8 @@ const REMEDIES = {
   unpaired:
     "open a part with <!-- README.md#<anchor> --> and close it with <!-- /README.md#<anchor> -->, each on its own line",
   missing: "create it, or point gate.checks.primitives.file at the catalogue",
-  invalid: "fix what dw-sdlc check primitives names"
+  invalid: "fix what dw-sdlc check primitives names",
+  fence: "close the fence"
 }
 
 type Marker = { close: boolean; anchor: string; start: number; end: number }
@@ -116,6 +117,11 @@ function render(root: string, path: string, sources: Sources): Rendered {
       copied = close.start
       rewritten++
     }
+  }
+  const fence = openFence(text)
+  if (fence !== undefined) {
+    const message = "a code fence opens here and never closes, so no marker after it is read"
+    findings.push({ file: path, line: fence, message, remedy: REMEDIES.fence })
   }
   pieces.push(text.slice(copied))
   return { text: pieces.join(""), findings, rewritten }

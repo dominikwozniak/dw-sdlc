@@ -61,7 +61,8 @@ markers, each on its own line, and `dw-sdlc check skill-sections --write` fills 
 The anchor is GitHub's, and the section runs from its heading to the next heading of its level or
 above, in the `README.md` beside the `skills` directory that holds the file. The Check fails a part
 that differs from its section, a part whose anchor names no heading of the README, a part from a
-section no Primitive in `.ai/primitives.json` names among its docs, and a marker without its pair.
+section no Primitive in `.ai/primitives.json` names among its docs, a marker without its pair, and a
+code fence that never closes, which would hide the markers after it.
 
 ## The Ship script
 
