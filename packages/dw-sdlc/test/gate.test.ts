@@ -377,7 +377,9 @@ describe("dw-sdlc gate, stopped by a signal", () => {
   })
 
   it("never reads green, nor stamps the cache, when its last Step signals the Gate", () => {
-    const root = withGate({ steps: ["kill -INT $PPID"], checks: { "markdown-refs": true } })
+    // The Step ends with exit 0 once the Gate passes the signal on, so it never ends before the Gate holds it.
+    const step = "trap 'kill $!; exit 0' INT; sleep 30 & kill -INT $PPID; wait"
+    const root = withGate({ steps: [step], checks: { "markdown-refs": true } })
     const first = runBin(["gate", "--cache"], root)
     assert.notEqual(first.status, 0, first.stdout)
     const second = runBin(["gate", "--cache"], root)
