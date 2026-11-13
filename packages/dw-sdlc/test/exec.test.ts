@@ -38,21 +38,24 @@ function hanging(tool: string, over: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv 
   return { PATH: `${dir}${delimiter}${process.env.PATH ?? ""}`, DW_SDLC_LIMIT_MS: LIMIT, ...over }
 }
 
-/** How long a stopped child may take to die on a loaded machine; the child sleeps well past it. */
+/** How long a stopped child may take to die on a loaded machine. */
 const GONE_MS = 10_000
 
 /** The first limit a child-stop run tries, and the last, doubling in between. */
 const FIRST_LIMIT_MS = 500
 const LAST_LIMIT_MS = 16_000
 
+/** The child outlives the last limit and the wait for it to die, so a child left running shows as running. */
+const CHILD_SLEEP_S = (LAST_LIMIT_MS + GONE_MS) / 1000 + 30
+
 /**
  * The pid a child of the tool wrote before `exec` stopped the tool at its limit, 0 when none did. A run whose
  * limit passed before the child wrote its pid says nothing of `exec`, so it runs again with the limit doubled.
  */
-function stoppedChild(around: (child: string) => string): number {
+function stoppedChildPid(around: (child: string) => string): number {
   for (let limitMs = FIRST_LIMIT_MS; ; limitMs *= 2) {
     const pidFile = join(scratch("child"), "pid")
-    const child = `sh -c 'echo $$ > "$0"; exec sleep 30' "${pidFile}"`
+    const child = `sh -c 'echo $$ > "$0"; exec sleep ${CHILD_SLEEP_S}' "${pidFile}"`
     assert.throws(
       () => exec("sh", ["-c", around(child)], { limitMs }),
       (error: unknown) => error instanceof TimedOut
@@ -95,7 +98,7 @@ describe("exec", () => {
     it(`stops a child of the tool ${shape} with it`, () => {
       let pid: number | undefined
       try {
-        pid = stoppedChild(around)
+        pid = stoppedChildPid(around)
         assert.ok(Number.isInteger(pid) && pid > 0, "the child wrote its pid")
         assert.ok(gone(pid, GONE_MS), `the child ${pid} is still running`)
       } finally {
