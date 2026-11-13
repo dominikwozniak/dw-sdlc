@@ -226,6 +226,20 @@ schema.
   their `#` comments outside strings. It fails hard, with no Ratchet, and leaves a rule set to `off`
   in a lint config alone. `files` picks the files and `exempt` leaves some out, `references/**`,
   `**/vendor/**` and `**/node_modules/**` by default.
+- `skill-sections` holds each README section a skill copies, a part, to its source. A part opens
+  with `<!-- README.md#<anchor> -->` and closes with `<!-- /README.md#<anchor> -->`, each on its own
+  line, with a blank line inside each. Between them sits the section of the README under the heading
+  with GitHub's anchor `<anchor>`, up to the next heading of its level or above. The README is the
+  `README.md` of the directory that holds the `skills` directory the file is in, or of the file's own
+  directory outside one. The skill files are `**/skills/**/*.md` by default. A part fails when it
+  differs from its section, when the README has no heading with its anchor, and when no Primitive
+  names `<README>#<anchor>` among its docs, so a part repeats only a section the catalogue points
+  to. A marker without its pair fails too, so a mistyped one never leaves a part unchecked. A marker
+  inside code is none, and a code fence that never closes above a marker fails, since it hides that
+  marker.
+  `dw-sdlc check skill-sections --write` writes each part from its section, and an empty pair is a
+  part it fills. A repository with no part passes without reading the catalogue; one with a part
+  and no valid catalogue cannot run.
 
 The Checks that read many files judge the ones git tracks or would track, never one it ignores, so a
 link to an ignored file, or to another case of a file's name, fails on a Mac as it fails in CI. A
@@ -261,6 +275,10 @@ leaves it out, so a Check can be tried before it is turned on. Its lines, its ex
 `--json` document are the Gate's, the document with no Step; it prints no line of its own for a
 Check that passes, and a run script that does not pass prints its last 50 lines. It takes no
 `--update-baseline`: a refresh needs every other Check to pass, and only the Gate runs them.
+`--write` first writes what a Check derives from its sources, then judges the tree it wrote; only
+`skill-sections` derives files, and any other name exits 2. Its line on what it wrote goes to
+stdout, or to stderr under `--json`. A part it cannot write, such as one whose anchor names no
+heading, stays as it is and fails.
 
 `dw-sdlc primitives --paths <files>` answers from the same catalogue: for each path, the Primitives
 whose `code` names it nearest, with their summaries and the documents to read, or that none does.
@@ -389,7 +407,8 @@ and stops on a no. On a yes it pins the package and runs the install. The commit
 has stays. The key turns on `markdown-refs`, `temporal-language` and `comment-budget`, which judge
 the tree as it is, and `agents-map`, which reads the map the user writes. Every other Check is
 `false`, since each reads an input the repository adds first: a catalogue, a records directory, the
-docs a glob matches, a Task Router row or Primitive for each doc, a Ratchet's baseline. The setup
+docs a glob matches, a Task Router row or Primitive for each doc, a Ratchet's baseline, the
+catalogue a skill's part is listed in. The setup
 never writes `AGENTS.md`: the first `dw-sdlc gate` names what the map lacks through `agents-map`.
 The Ratchet joins once the Gate is green: `file-size-ratchet` set to `true`, then
 `dw-sdlc gate --update-baseline` records the baseline to commit.

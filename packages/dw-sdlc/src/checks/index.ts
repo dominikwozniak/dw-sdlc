@@ -11,6 +11,7 @@ import { markdownBudget } from "./markdown-budget.ts"
 import { markdownRefs } from "./markdown-refs.ts"
 import { primitives } from "./primitives.ts"
 import { routedDocs } from "./routed-docs.ts"
+import { skillSections } from "./skill-sections.ts"
 import { temporalLanguage } from "./temporal-language.ts"
 
 /** A Check turned on by its setting, ready to judge a tree, and to refresh its baseline if it is a Ratchet. */
@@ -18,6 +19,7 @@ export type EnabledCheck = {
   name: string
   run: (root: string) => Finding[]
   baseline?: { file: string; refresh: (root: string) => string }
+  write?: (root: string) => string
 }
 
 type Shipped = { name: string; enable: (setting: unknown) => EnabledCheck | undefined }
@@ -35,6 +37,10 @@ function ship<Options extends object>(check: Check<Options>): Shipped {
       if (baseline !== undefined) {
         enabled.baseline = { file: baseline.file, refresh: (root) => baseline.refresh(root, options) }
       }
+      const { write } = check
+      if (write !== undefined) {
+        enabled.write = (root) => write(root, options)
+      }
       return enabled
     }
   }
@@ -50,7 +56,8 @@ const SHIPPED: Shipped[] = [
   ship(decisionRecords),
   ship(fileSizeRatchet),
   ship(commentBudget),
-  ship(disableDirectives)
+  ship(disableDirectives),
+  ship(skillSections)
 ]
 
 /** The name of every Check the package ships, in the order the Gate runs them. */

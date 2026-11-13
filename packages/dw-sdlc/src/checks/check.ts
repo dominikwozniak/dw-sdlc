@@ -30,6 +30,8 @@ export type Check<Options extends object> = {
   run: (root: string, options: Options) => Finding[]
   /** Present on a Ratchet. */
   baseline?: Baseline<Options>
+  /** Present on a Check that derives files from their sources: writes them, says what it wrote. */
+  write?: (root: string, options: Options) => string
 }
 
 /** The options `setting` turns the Check on with: the defaults under `true`, an object over them, else off. */

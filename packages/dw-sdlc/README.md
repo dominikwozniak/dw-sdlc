@@ -50,6 +50,20 @@ its `roots` to `maxProseLines` lines of prose, 3 by default.
 `eslint-disable*`, `@ts-expect-error`, `@ts-ignore`, `rubocop:disable` and `noqa`. A reason follows `--`
 on the directive's line, follows an `@ts-` directive, or is a comment on the line above.
 
+`skill-sections` holds each README section a skill copies to its source. A part sits between two
+markers, each on its own line, and `dw-sdlc check skill-sections --write` fills an empty pair:
+
+```md
+<!-- README.md#errors -->
+<!-- /README.md#errors -->
+```
+
+The anchor is GitHub's, and the section runs from its heading to the next heading of its level or
+above, in the `README.md` beside the `skills` directory that holds the file, or beside the file
+outside one. The Check fails a part that differs from its section, a part whose anchor names no
+heading of the README, a part from a section no Primitive in `.ai/primitives.json` names among its
+docs, a marker without its pair, and a code fence that never closes above a marker, which hides it.
+
 ## The Ship script
 
 `dw-sdlc pr ship [<n>] [-R owner/name]` reads one pull request through an authenticated `gh` and
