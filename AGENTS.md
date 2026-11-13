@@ -2,49 +2,42 @@
 
 > `CLAUDE.md` is a symlink to this file — edit `AGENTS.md` directly.
 
-The software delivery process Dominik works by, and the Claude Code tooling that carries it, proven
-here before it goes wider. `README.md` is the front page; `docs/overview.md`
-is its long form: how a guard works, the design, adopting, releasing.
+Claude Code tooling that holds Dominik's agentic workflow where the Engineering skills leave it loose:
+guards on every tool call, a Gate that proves a change, and the road from a pull request to merged. It
+extends those skills and replaces none. `README.md` is the front page, `docs/overview.md` how it works,
+`docs/contributing/` how this repository is built and released.
 
 ## Project map
 
-- `packages/dw-sdlc/` — the `dw-sdlc` package: `src/` the resolver of the config's
-  layers, the JSON Schema validator and the bin, `cli.ts`, one row per subcommand, each a
-  module under `commands/` (`gate`, `check`, `primitives`, `setup`, `doctor`, `config`,
-  `references sync`, `references setup`, `pr ship`, `pr reviewed`, `recap`, `sweep`, `lead start`,
-  `worker start`, `worker ls`, `worker report`), one module per Check under `checks/` beside what they share, under `pr/` the read the `pr` commands and
-  `recap` share and the Ship script's decision, under `worker/` the herdr calls and `launch.ts`, the start
-  both `start` commands share, and `recap-next.ts` the next-session candidates `recap` lists; `config/` the JSON Schemas of `.ai/agentic.config.json` and `.ai/references.json`; `templates/` the
-  Router the setup writes; `test/` their tests, the bin spawned on a throwaway repo from the source
-  and the packed tarball; `dist/` what `pnpm pack` emits, ignored
-- `plugins/sdlc-sessions/` — the session helpers, depending on `sdlc`: `skills/`, `templates/brief.md`,
-  a `dw-sdlc` link, the manifest test
-- `plugins/sdlc/` — the plugin `.claude-plugin/marketplace.json` lists first, enabled at user
-  scope: `hooks/` the bash guards on a shared `lib.sh` plus the jq config contract, the session
-  hooks, the report and the Sync; `skills/` holding `sdlc-setup`, `sdlc-doctor`,
-  `sdlc-references-add`, `sdlc-pr-open`, `sdlc-pr-ship` and `sdlc-sweep`; `agents/` the `sdlc-reviewer` a `light` Review spawns; `dw-sdlc` a link to the package, whose bin hooks and skills run; `test/` the hook
-  tests, mirroring `hooks/`, each spawning a hook on its payload, and the manifest test
+- `packages/dw-sdlc/` — the `dw-sdlc` package: `src/cli.ts` the bin, one row per subcommand, each a
+  module under `src/commands/`; one module per Check under `src/checks/`; `src/pr/` the Ship script,
+  `src/worker/` the herdr calls; `config/` the JSON Schemas of `.ai/*.json`; `templates/` the Router
+  the setup writes; `test/` the bin spawned on a throwaway repo and the packed tarball
+- `plugins/sdlc/` — guards, session hooks, the Sync, six skills and the `sdlc-reviewer` agent, as
+  `plugins/sdlc/README.md#layout` lists; `dw-sdlc` links the package its hooks and skills run;
+  `test/` mirrors `hooks/`
+- `plugins/sdlc-sessions/` — the session skills, depending on `sdlc`: `skills/`, `templates/brief.md`
 - `.ai/` — `agentic.config.json`, this repo's agent rules against the package's schema;
-  `references.json`, the References it reads; `primitives.json`, the catalogue of what this
-  repo exposes to an agent, held to the tree by the `primitives` Check; `file-size-ratchet.baseline.json`, the files the Ratchet lets stay over limit (`agentic.config.local.json`, one machine's layer, git-excluded)
+  `references.json`, the References it reads; `primitives.json`, the catalogue of what this repo
+  exposes to an agent, held to the tree by the `primitives` Check; `file-size-ratchet.baseline.json`,
+  the files the Ratchet lets stay over limit (`agentic.config.local.json`, one machine's layer, git-excluded)
 - `.claude/settings.json` — tracked; turns the dw-solo plugins off here, keeps the clones'
   `CLAUDE.md` and `AGENTS.md` out of context. `.claude/settings.local.json` is one machine's
   permission backstop, git-excluded; a worktree reads it and the local config from the main checkout
-- `.agents/skills/` — the engineering skills it works with, pinned in `skills-lock.json`;
+- `.agents/skills/` — the Engineering skills it works with, pinned in `skills-lock.json`;
   `.claude/skills/` links them
 - `docs/agents/` — how those skills use this repo: issue tracker, domain docs
-- `docs/overview.md` — the README's long form; `docs/adr/` — decision records, a paragraph each, for a
-  choice hard to reverse, surprising without context and a real trade-off; read those naming a file
-  before a change
-- `docs/specs/` — a built feature's design record; `docs/research/<feature>/` — the dated outside
-  facts it rests on. New work goes in GitHub Issues
+- `docs/overview.md` — how it works, for a user; `docs/contributing/` — development, how a change lands,
+  releasing, the bash guard's parser, evals
+- `docs/adr/` — decision records; `docs/specs/` — a built feature's design record;
+  `docs/research/<feature>/` — the dated outside facts it rests on. New work goes in GitHub Issues
 - `GLOSSARY.md` — what a word means here
 - `references/` — repositories cloned per machine for reading, never tracked; the Router is
   `references/AGENTS.md`, its table written from `.ai/references.json`; the Sync hook fetches them
 - `ideas/` — local-only notes, gitignored
-- `.github/` — CI: `workflows/quality-gate.yaml` runs `pnpm check` on every pull request and on direct
-  pushes to `main`; `workflows/release.yaml` turns `.changeset/` into a version pull request and, once it
-  merges, publishes to npm. Dependabot groups updates weekly
+- `.github/` — `workflows/quality-gate.yaml` runs `pnpm check` on a pull request once it is out of
+  draft and on a push to `main` that is not a squash merge; `workflows/release.yaml` turns
+  `.changeset/` into a version pull request and, once it merges, publishes to npm
 
 ## Never
 
@@ -61,10 +54,14 @@ is its long form: how a guard works, the design, adopting, releasing.
   the `.ts` extension.
 - **Formatting, import order, lint and the type check belong to Vite+**, configured in `vite.config.ts`.
   The pre-commit hook runs `vp staged`: `vp lint --fix` and `vp fmt` on the staged files.
-- **CI runs on `ubuntu-latest`.** External actions are pinned to a full commit SHA with a `# vX.Y.Z`
-  comment.
+- **External actions are pinned** to a full commit SHA with a `# vX.Y.Z` comment.
 - **A skill the plugin ships is named `sdlc-<verb>`, or `sdlc-<area>-<verb>`**, as `sdlc-setup` and
   `sdlc-references-add`, so the skills group in the slash menu and never collide with dw-solo's `dw-*`.
+- **Tests pin the words of a skill.** `plugins/*/test/manifest.test.ts` holds each description and
+  frontmatter, and `plugins/sdlc/test/skill-lines.test.ts` each `dw-sdlc` line a SKILL.md runs to the
+  bin's `--help`. A changed description or command line changes its test in the same commit.
+- **This session's guards run from the installed plugin**, not this tree. A guard you edit takes
+  effect after a release and `claude plugin update`; until then `pnpm test` is its only proof.
 
 ## Git
 
@@ -74,47 +71,42 @@ is its long form: how a guard works, the design, adopting, releasing.
 - `main` is a protected branch: a change reaches it through a pull request, after `pnpm check` passes
   in CI, as GitHub's `main` ruleset asks; the admin bypasses it. For a small fix the agent commits on
   `main` and the push comes from Dominik's terminal, which the guards skip.
+- `pr.merge` is `auto` here: the Ship script merges a pull request it finds ready, unasked.
 - Commit before `/code-review`: it reads committed work only, the diff from its fixed point to `HEAD`.
 
 ## Commands
 
 ```bash
-pnpm check                      # dw-sdlc gate: gate.steps, then its Checks
-pnpm exec dw-sdlc gate [--json] [--verbose] [--update-baseline | --cache] # a line per Step and Check, --verbose streams all; exit 0 green, 1 failed or Drift, 2 cannot run
-pnpm exec dw-sdlc check <name> [--json] [--write] # one Check by name, no Step; off in the config, it runs on defaults
-pnpm exec dw-sdlc primitives --paths <files> | --diff <base> [--json] # the Primitives owning a path, or a change removes, adds, extends
-pnpm exec dw-sdlc pr ship [<n>] [-R owner/name] [--merge] [--review full|light|off] [--dry-run] [--json] [--verbose] # the Action a pull request needs next, done when the script owns it; exit 0 done, 10 act, 20 wait, 30 park, 2 cannot run
-pnpm exec dw-sdlc pr reviewed <n> [-R owner/name] --head <sha> [--findings | --accept] [--json] # post dw-sdlc/review on that head; exit 2 when it moved or cannot run
-pnpm exec dw-sdlc recap [--json] # a Recap's facts and close verdict, read-only; exit 0 can close, 1 cannot, 2 cannot run
-pnpm exec dw-sdlc sweep [--dry-run] [--json] # main checkout only: removes Landed branches, clean worktrees, stale locks, its Workers' terminals; names the rest; exit 0 none kept, 1 some, 2 cannot run
-pnpm exec dw-sdlc lead start --name <name> --prompt <first message> [--wait <seconds>] [--json] # the next session as a Lead in a herdr terminal; exit 0 started, 1 not, 2 cannot run
-pnpm exec dw-sdlc worker start --brief <file> --name <name> [--model] [--effort] [--json] # a Worker on a Brief in a herdr terminal; exits as `lead start`
-pnpm exec dw-sdlc worker ls [--json] # this Lead's Workers: state, status, folder
-pnpm exec dw-sdlc worker report --to <lead> --recap <file> # a Recap to the Lead, retried while blocked; exit 1 gives up
+pnpm check                      # dw-sdlc gate: gate.steps, then its Checks; exit 0 green, 1 failed or Drift, 2 cannot run
+pnpm exec dw-sdlc --help        # every subcommand; `dw-sdlc <command> --help` gives its flags and exit codes
+pnpm exec dw-sdlc check <name> [--json] [--write] # one Check by name, no Step
+pnpm exec dw-sdlc primitives --paths <files> | --diff <base> [--json] # the Primitives owning a path, with their docs
+pnpm exec dw-sdlc pr ship [<n>] [--dry-run] # the Action a pull request needs next; exit 0 done, 10 act, 20 wait, 30 park, 2 cannot run
 pnpm exec vp check [--fix]      # Vite+: oxfmt, oxlint and the type check from vite.config.ts
 pnpm test                       # node --test over every *.test.ts under packages/*/test/ and plugins/*/test/
 pnpm test:content               # CI's `pnpm test` on a content-only PR
-pnpm agentic:check [file]       # resolve the config (+ .local) or validate one file
-pnpm guardrails:setup [--dry-run] # write this machine's local config, excludes, deny rules, lease exception
-pnpm guardrails:doctor          # one PASS / WARN / FAIL line per machine check; exit 1 on a FAIL
-pnpm references:sync [dir...]   # clone or update each reference repository on this machine
-pnpm references:setup [--check] # the Router's table from .ai/references.json; --check exits 1 when it is behind
 pnpm changeset                  # record a change to the dw-sdlc package for its next release
 ```
+
+`pnpm agentic:check`, `guardrails:setup`, `guardrails:doctor`, `references:sync` and `references:setup`
+run `dw-sdlc config`, `setup`, `doctor`, `references sync` and `references setup`.
 
 ## Task Router
 
 Match this table **before** researching or coding — read every row that matches, explore only the rest.
 
-| task                                                                     | read                                                                      |
-| ------------------------------------------------------------------------ | ------------------------------------------------------------------------- |
-| how others built a skill, hook, plugin or workflow, before designing one | `references/AGENTS.md`, then the clones whose `when` matches the task     |
-| reading, adding or updating a reference repository                       | `references/AGENTS.md`, then `plugins/sdlc/README.md`                     |
-| editing a guard, `lib.sh`, the schema or the config resolver             | `docs/adr/*.md`, then the Decisions of `docs/specs/agentic-guardrails.md` |
-| explaining the repo, editing `README.md` or anything under `docs/`       | `README.md`, `docs/overview.md`, `GLOSSARY.md`                            |
-| releasing the plugin or the package, bumping a version                   | `docs/overview.md`, its two Releasing sections                            |
-| planning new work, filing or reading an issue                            | `docs/agents/issue-tracker.md`                                            |
-| what a guard, hook, script, key or skill is and where it lives           | `.ai/primitives.json`, or `dw-sdlc primitives --paths` on the files       |
+| task                                                                     | read                                                                         |
+| ------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
+| how others built a skill, hook, plugin or workflow, before designing one | `references/AGENTS.md`, then the clones whose `when` matches the task        |
+| reading, adding or updating a reference repository                       | `references/AGENTS.md`, then `plugins/sdlc/README.md`                        |
+| editing a guard, `lib.sh`, the schema or the config resolver             | `dw-sdlc primitives --paths` on the files, then the ADRs and docs it names   |
+| editing a skill, its description or the reviewer agent                   | `.agents/skills/writing-for-agents/SKILL.md`, then the skill's plugin README |
+| why a part is built this way, or changing a choice a record names        | `docs/adr/`                                                                  |
+| working on this repository: setup, a change landing, the guard parser    | `docs/contributing/`                                                         |
+| explaining the repo, editing `README.md` or anything under `docs/`       | `README.md`, `docs/overview.md`, `GLOSSARY.md`                               |
+| releasing the plugin or the package, bumping a version                   | `docs/contributing/releasing.md`                                             |
+| planning new work, filing or reading an issue                            | `docs/agents/issue-tracker.md`                                               |
+| what a guard, hook, script, key or skill is and where it lives           | `.ai/primitives.json`, or `dw-sdlc primitives --paths` on the files          |
 
 ## Agent skills
 
