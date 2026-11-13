@@ -73,8 +73,10 @@ export async function holdingSignals<T>(body: () => Promise<T>): Promise<T> {
   try {
     return await body()
   } finally {
-    // One turn of the event loop hands a signal that landed after the last command to its handler.
-    await new Promise((resolve) => setImmediate(resolve))
+    // libuv takes a signal at once but hands it to its handler only when the loop next polls, and a
+    // handler released before that poll loses it. The last command's exit is read in a poll and the
+    // first immediate runs right after it, so the second waits for one more poll.
+    await new Promise((resolve) => setImmediate(() => setImmediate(resolve)))
     // The Gate's own signal may still be on its way after a command it ended: the handlers stay, so
     // that signal does not end the Gate before its report.
     if (commandEndedBy === undefined || received !== undefined) {
