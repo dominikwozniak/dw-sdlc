@@ -94,7 +94,7 @@ buys one more Review past it.
 | ------------------ | ------------------------------------------------------------------------------------------ |
 | `gate`             | the Steps of `gate.steps` in order, then every Check under `gate.checks`                   |
 | `check <name>`     | one Check of the Gate by its name, without the Steps and the other Checks                  |
-| `primitives`       | the Primitives that own each path, with their summaries and documents                      |
+| `primitives`       | the Primitives that own each path, or that a change removes, adds or extends               |
 | `setup`            | this machine's local config layer, the git excludes and the permission rules               |
 | `doctor`           | one PASS / WARN / FAIL line per machine check the guardrails rely on                       |
 | `config`           | the resolved agentic config, or one file validated against the schema                      |

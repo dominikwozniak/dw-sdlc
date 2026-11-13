@@ -1,7 +1,5 @@
-// `primitives`: the catalogue says what is true of the tree. Unique ids, a known group, a one-line
-// summary, an id that starts with its group, every code and docs path on disk with its anchor resolving,
-// no docs entry that names a decision record no longer in force, and every file under the roots named by a
-// Primitive.
+// `primitives`: the catalogue says what is true of the tree. Unique ids that start with their group, a
+// one-line summary, real code and docs paths, no decision record out of force, every file named.
 
 import { existsSync } from "node:fs"
 import { join } from "node:path"

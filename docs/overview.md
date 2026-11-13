@@ -164,11 +164,13 @@ them, or `false`; the schema's descriptions name each option and its default. Ea
 under `packages/dw-sdlc/src/checks/`, one row of the list the Gate runs them in, and one key of the
 schema.
 
-- `primitives` holds the Primitives catalogue, `.ai/primitives.json`, to the tree: unique ids, a
-  group that `groups` lists, a summary of one line within 120 characters, every `code` and `docs`
-  path on disk with its heading anchor resolving, and every file under the roots named by the `code`
-  of a Primitive, the file itself or a directory above it. The roots are `packages`, `plugins`,
-  `scripts` and `src` by default; a test file needs no Primitive.
+- `primitives` holds the Primitives catalogue, `.ai/primitives.json`, to the tree: unique ids, each
+  starting with its group and a `.` or a `-`, a group that `groups` lists, a summary of one line within
+  120 characters, every `code` and `docs` path on disk with its heading anchor resolving, no `docs`
+  entry that names a decision record whose status is `superseded` or `deprecated`, and every file under
+  the roots named by the `code` of a Primitive, the file itself or a directory above it. A decision
+  record is a file `<number>-<slug>.md` under the directories `decision-records` names, on or off.
+  The roots are `packages`, `plugins`, `scripts` and `src` by default; a test file needs no Primitive.
 - `agents-map` holds `AGENTS.md` to 10240 bytes, to naming the resolved `gate.command`, to a Task
   Router row that points at the catalogue where there is one, and to every path the Task Router
   points at existing. It holds `CLAUDE.md` at the root to a symbolic link to the map by its path
@@ -264,6 +266,27 @@ Check that passes, and a run script that does not pass prints its last 50 lines.
 
 `dw-sdlc primitives --paths <files>` answers from the same catalogue: for each path, the Primitives
 whose `code` names it nearest, with their summaries and the documents to read, or that none does.
+
+`dw-sdlc primitives --diff <base>` answers from it too, for the committed change from the merge-base of
+`<base>` and `HEAD` to `HEAD`. A script decides from paths and the catalogue alone, read at both ends,
+the Primitives the change **removes** (an id gone), **adds** (a new id, every one when the base has no
+catalogue) and **extends** (a changed file in the `code` of a Primitive that was there). It owns a path
+as `--paths` does, the nearest entry, a file with several owners listing each. By default it prints
+a markdown block between `<!-- primitives:start -->` and `<!-- primitives:end -->`: a sentence counting
+each class and the changed files outside every Primitive, then a table of Primitive, Class and Files;
+`No Primitive changes.` when it touches none. `--json` carries, per Primitive, its id, name, class, file
+count, summary and `docs`, each with `touched` set when the change edits that file, whatever its anchor.
+It exits 2 with a remedy for a base that does not resolve, `--paths` beside it, an invalid catalogue at
+the base, or none or an invalid one at `HEAD`; that is never "no Primitive changes".
+
+No agent reads the catalogue whole, about 8 to 10 thousand tokens. Three readers take the slice this
+command prints, each once: `/sdlc-pr-open` puts the block in the pull request body, in the template's
+Primitives section or after the description of the change, and every rewrite runs it again; the `light`
+Review hands `sdlc-reviewer` each touched Primitive's id, class and summary with the docs the change
+leaves untouched, so a summary or doc the change makes false is a Finding and a doc that only leaves
+new behaviour unmentioned is none; `dw-sdlc recap --json` carries the ids and classes of the session's
+branch, from its merge-base with `origin/<default>`, none on the default branch, and `/sdlc-recap` writes
+them as one line. The `full` Review is unchanged.
 
 ## Why this way
 
@@ -365,7 +388,8 @@ leaves](#how-a-sweep-removes-what-finished-work-leaves)).
 
 `/sdlc-pr-ship` reads a head at one of three depths, set by the dev's `--review` for a call, else by
 `pr.review`, whose default `auto` routes a depth from the size of the change. `full` runs the slash command
-`pr.reviewCommand` names, `/code-review` by default. `light` spawns one `sdlc-reviewer` subagent. `off`
+`pr.reviewCommand` names, `/code-review` by default. `light` spawns one `sdlc-reviewer` subagent, with the
+Primitives the change touches. `off`
 reads nothing, and the Ship script marks the head reviewed itself. The rules are in
 [How the Ship script merges a pull request](#how-the-ship-script-merges-a-pull-request). A Worker commits
 before it runs `/code-review`, which reads `HEAD`, so the Review reads its change and `/sdlc-pr-ship` skips a
@@ -544,7 +568,7 @@ How closely a head is read is its Review depth: the dev's `--review full|light|o
 else `pr.review`, and `details` names it under `depth` and where it came from under `source`, `flag`,
 `config` or `auto`. Under `full` the agent reviews the head with the slash command `pr.reviewCommand`
 names, which `details.reviewCommand` carries. Under `light` one `sdlc-reviewer` subagent the plugin
-ships reads the diff at medium effort. Under `off` no one reads it: the script posts the
+ships reads the diff, and the summaries and untouched docs of the Primitives it touches, at medium effort. Under `off` no one reads it: the script posts the
 `dw-sdlc/review` success itself as `mark-reviewed`, its description `off: --review off` or
 `off: pr.review`, so a green pull request merges with no agent turn. Every other row holds at every
 depth: conflicts, failing CI, threads and who merges.
