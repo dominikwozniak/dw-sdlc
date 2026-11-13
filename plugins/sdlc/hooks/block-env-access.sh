@@ -1,7 +1,7 @@
 #!/bin/bash
 # Refuses reading, editing or writing an env file the config does not vouch for, by the order, globs
 # and defaults in README.md#guards. A file tool is judged on its path, a Grep of a directory on what
-# its glob reaches, a Bash command on its words: README.md#paths-in-a-command. Not a security boundary.
+# its glob reaches, a Bash command on its words: docs/contributing/bash-guard.md#paths-in-a-command. Not a security boundary.
 set -uo pipefail
 source "${BASH_SOURCE[0]%/*}/lib.sh"
 

@@ -1,21 +1,36 @@
 # sdlc-sessions
 
-The skills that run a Claude Code session, beside the [`sdlc`](../sdlc/README.md) plugin that keeps it
-safe. It carries `/sdlc-recap`, which tells a dev who did not follow a session where it stands,
-`/sdlc-brief`, which writes the start of a Worker session, and `/sdlc-delegate`, which makes a session a
-Lead that runs Workers in herdr. The decision to ship it apart is
+The session skills of [dw-sdlc](../../README.md), beside the [`sdlc`](../sdlc/README.md) plugin that
+guards a session. They tell you where a session stands, write the start of the next one, and let one
+session hand tickets to others running in parallel:
+
+- `/sdlc-recap` writes a Recap: where a session stands, in one fixed shape, and whether it can close.
+- `/sdlc-brief` writes a Brief: the fixed-shape first message of a Worker, a Claude Code session that
+  works on one ticket in a worktree of its own.
+- `/sdlc-delegate` makes the session a Lead, a session that starts Workers in herdr terminals and gathers
+  their Recaps. herdr is a terminal manager whose `hc` command starts and reads terminals.
+
+A Brief starts its Worker with `/implement`, and a Lead reads the tickets `/to-tickets` cuts: both are
+[Engineering skills](https://github.com/mattpocock/skills), which this plugin runs beside and does not
+ship. The decision to ship it apart from `sdlc` is
 [ADR 0014](../../docs/adr/0014-session-helpers-ship-as-sdlc-sessions-beside-sdlc.md).
 
 ## Install
 
-```bash
-claude plugin install sdlc-sessions@dw-sdlc --scope user
-```
+The [root README](../../README.md#install) installs it. It lists `sdlc` under `dependencies`, so it brings
+the guards too. `/sdlc-recap` and `/sdlc-brief` run anywhere; `dw-sdlc recap` needs an authenticated `gh`
+for the pull request and the next session, and `/sdlc-delegate` needs herdr's `hc` on the agent's PATH.
+`/sdlc-doctor` reports the plugin on its `sessions` line, a drift between its copy of the `dw-sdlc`
+package and the one `sdlc` runs included, and herdr on its `hc` line.
 
-It comes from the same marketplace as `sdlc` and lists `sdlc` under `dependencies`, so installing it
-brings the guards too. `/sdlc-doctor` reports it on its `sessions` line, along with a drift between its
-copy of the `dw-sdlc` package and the one `sdlc` runs, and on its `hc` line whether herdr's `hc` is on the
-agent's PATH, which `/sdlc-delegate` needs: a WARN when it is not and this plugin is enabled.
+## What it carries
+
+| part             | kind     | runs                                                                        | section                 |
+| ---------------- | -------- | --------------------------------------------------------------------------- | ----------------------- |
+| `/sdlc-recap`    | skill    | you type it, or a Brief tells a Worker to end with it                       | [The Recap](#the-recap) |
+| `/sdlc-brief`    | skill    | you type it                                                                 | [The Brief](#the-brief) |
+| `/sdlc-delegate` | skill    | you type it or ask in your words; offered in one line after tickets are cut | [The Lead](#the-lead)   |
+| `brief.md`       | template | read by every skill that writes a Brief                                     | [The Brief](#the-brief) |
 
 ## Layout
 
@@ -29,8 +44,9 @@ agent's PATH, which `/sdlc-delegate` needs: a WARN when it is not and this plugi
 ## The Recap
 
 `/sdlc-recap` works in any session. Where `dw-sdlc recap` cannot run, the Recap leaves out the close line
-and says the state is unverified. Its first line is a verdict in the Action words,
-`done`, `act`, `wait` or `park`, and one sentence. Then come these sections, each only when it has
+and says the state is unverified. Its first line is a verdict in the words of the Ship script's
+Actions, the one thing a pull request needs next: `done`, `act` (the agent's turn), `wait` or `park` (the
+dev's), and one sentence. Then come these sections, each only when it has
 content: what happened, as a table of outcomes with links; the decisions taken without the dev; numbered
 questions, each with a recommendation; what waits on whom; the close line; and the follow-ups.
 
@@ -66,7 +82,8 @@ The facts a Recap rests on, tested like the Ship script. Read-only: `dw-sdlc rec
 - whether the session sits in a linked worktree;
 - in herdr, the live Workers the session started as a Lead, each with its status and the folder it works in;
 - under `next`, the candidates for the next session: the open issues labelled `ready-for-agent` with no
-  assignee and no open blocker, of the 100 opened first. The open sub-issues of an issue the branch's pull
+  assignee and no open blocker, of the 100 opened first. A repository without that label gets no
+  candidate. The open sub-issues of an issue the branch's pull
   request closes come first, then the rest, each in issue order, and no issue it closes is a candidate. One GraphQL
   request reads them and what the pull request closes. `next` is null where `gh` is not asked, and when
   the read fails: a warning names why, and the close verdict stands, since no candidate keeps a session open.
@@ -165,12 +182,14 @@ over both.
 
 A Brief comes with three ways out, the lightest that fits recommended. The start line holds `worker.command`
 with `--worktree`, `--model` and `--effort`, and the Brief as the first message, for the dev to paste into a
-new terminal. A new issue takes the Brief as its body and starts later with `/implement #N`. A Lead, in herdr,
+new terminal. A new issue takes the Brief as its body and starts later with `/implement #N`, the
+Engineering skills' implement skill. A Lead, in herdr,
 starts the Worker. A Brief for a Lead names the Lead's terminal in its Questions and Report lines, because a
 Worker that ends its turn looks finished to its Lead.
 
-A Worker carries its pull request through `/sdlc-pr-ship`, which it may start because a Brief tells it to;
-`pr.merge` decides whether it ends at merged or parked for the dev.
+A Worker carries its pull request through [`/sdlc-pr-ship`](../sdlc/README.md#shipping-a-pull-request),
+which it may start because a Brief tells it to; `pr.merge` decides whether it ends at merged or parked for
+the dev.
 
 ## The Lead
 
@@ -215,17 +234,13 @@ Recap carries the Sweep follow-up, so the dev's "go" runs `/sdlc-sweep`, which r
 terminals and worktrees and lets the Lead close. On the dev's ask it renames its herdr tab to
 `lead-<topic>`, through `herdr-app`, and labels its terminal `role=lead` and `name=lead-<topic>`.
 
-## Evals
+## Config keys it reads
 
-Each skill's evals run through `/skill-creator`, outside `pnpm test` and the Gate, when the skill changes.
-The evals of `sdlc-recap` hold the Recap's shape, a follow-up going out as a Brief and the next session
-named but not started, and `evals/trigger.json`
-its trigger: it fires on `/sdlc-recap` and on a Brief's instruction, not on "co dalej?". Run the trigger set
-with the plugin loaded through `--plugin-dir`, since a typed `/sdlc-recap` resolves only to the real skill.
-The evals of `sdlc-brief` hold the Brief's shape and its routing of model and effort; only the dev invokes
-it, so it has no trigger set. Those of `sdlc-delegate` hold the Lead's rules: it starts the first Worker
-alone and the rest after it, queues a blocked ticket and starts it once a Worker's end frees it, ends its
-turn after starting Workers, asks in plain text, refuses a split whose pieces must merge into one diff,
-never merges, and refuses outside herdr, in a Worker and in a linked worktree. Its `evals/trigger.json`
-fires on `/sdlc-delegate` and on the dev's words handing work to Workers, not on "implement #N" or a Worker's
-own work.
+| key                             | read by                                                               |
+| ------------------------------- | --------------------------------------------------------------------- |
+| `worker.command`                | a Brief's start line, `dw-sdlc worker start` and `dw-sdlc lead start` |
+| `worker.model`, `worker.effort` | the model and effort a Brief routes a clear spec to                   |
+| `guardrails.protectedBranches`  | `dw-sdlc recap`, for a branch that needs no pull request of its own   |
+| `pr.merge`                      | whether a Worker's pull request ends merged or parked for the dev     |
+
+Each skill's evals, outside `pnpm test` and the Gate, are in [Evals](../../docs/contributing/evals.md).

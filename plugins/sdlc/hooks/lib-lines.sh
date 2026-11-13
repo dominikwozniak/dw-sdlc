@@ -5,7 +5,7 @@
 
 # An opener is a `<<` the shell reads as one, outside quotes and before a comment. What follows it: 1
 # the `-` that strips a body's leading tabs, 2 the blanks, 3 the delimiter as typed, one shell word as
-# README.md#the-quote-walker reads it, `E"O"F` and `'END-OF-TEXT'` whole.
+# docs/contributing/bash-guard.md#the-quote-walker reads it, `E"O"F` and `'END-OF-TEXT'` whole.
 GUARD_HD_QUOTED="'[^'"$'\n'"]*'|\"[^\""$'\n'"]*\"|\\\\."
 GUARD_HEREDOC_DELIM="^(-?)([[:space:]]*)(([A-Za-z_]|$GUARD_HD_QUOTED)([^[:space:];&|()<>\`'\"\\\\]|$GUARD_HD_QUOTED)*)"
 

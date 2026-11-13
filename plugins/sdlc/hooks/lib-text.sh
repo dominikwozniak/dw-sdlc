@@ -5,7 +5,7 @@
 
 # guard_quote_walk <text> [<live>] [<state>] [<from>] [<stop>] — the one reader of shell quoting: the
 # text cut into pieces, GUARD_QW_KIND[i] and GUARD_QW_TEXT[i], whose texts joined are the text again.
-# Its kinds, contexts, arguments and costs are in README.md#the-quote-walker.
+# Its kinds, contexts, arguments and costs are in docs/contributing/bash-guard.md#the-quote-walker.
 GUARD_QW_KIND=()
 GUARD_QW_TEXT=()
 GUARD_QW_STATE=""
@@ -218,7 +218,7 @@ guard_replace_set() {
 # --- the text -----------------------------------------------------------------------------------
 
 # guard_strip_quoted <command> — the words a path check scans, prose and heredoc bodies off, by the
-# rules in README.md#paths-in-a-command: the first line the command's own words, each line after it
+# rules in docs/contributing/bash-guard.md#paths-in-a-command: the first line the command's own words, each line after it
 # those of one substitution or one quote that holds a command.
 GUARD_SEARCH_WORD='(^|[^A-Za-z0-9_.-])(rg|ag|ack)([[:space:]]|$)'
 guard_strip_quoted() {
@@ -322,7 +322,7 @@ guard_search_segment() {
 }
 
 # guard_plain_words <text> — the text's shell words, quotes off, joined by a space, each word holding
-# whitespace dropped as prose; its costs are in README.md#paths-in-a-command. An unterminated quote
+# whitespace dropped as prose; its costs are in docs/contributing/bash-guard.md#paths-in-a-command. An unterminated quote
 # hands back the text as typed: fail closed.
 guard_plain_words() {
   local word plain=""

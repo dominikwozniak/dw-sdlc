@@ -1,33 +1,46 @@
 # sdlc
 
-The software delivery process for a Claude Code session, shipped as one plugin: deterministic guards
-on the agent's tool calls, the session hooks, the Sync of a repository's [References](#references),
-the skills that set a repository up, check a machine, add a Reference, open a pull request and ship it, and
-the subagent that reads a change at the `light` Review depth.
-Every guard is a shell hook that reads the tool call on stdin and refuses it with exit 2, or asks for
-a prompt, before the call runs. The rules a repository wants come from its `.ai/agentic.config.json`; a machine adds its
-own `.ai/agentic.config.local.json` on top, which may tighten `guardrails` and never loosen it. A
-key neither file sets is inferred: the package manager from the lockfile, and the `conventional`
-commit convention. The plugin guards Node repositories, and App Store Connect from every repository;
-it carries no other stack-specific guard.
+The plugin of [dw-sdlc](../../README.md) that holds an agent session to a repository's rules. It carries:
+
+- the guards: shell hooks that judge each tool call before it runs, and refuse it, ask, or stay silent;
+- the session hooks, which report what a checkout lacks and bring its [References](#references) to their ref;
+- six skills, which set a repository up, check a machine, add a Reference, open a pull request, ship it
+  and sweep what landed;
+- `sdlc-reviewer`, the subagent that reads a change at the `light` Review depth.
+
+The rules come from the repository's `.ai/agentic.config.json`, a machine's own
+`.ai/agentic.config.local.json`, which may tighten `guardrails` and never loosen it, and what is inferred
+where neither file sets a key: [Where the rules come from](../../docs/overview.md#where-the-rules-come-from).
+The plugin guards Node repositories, and App Store Connect from every repository; it carries no other
+stack-specific guard.
 
 ## Install
 
-```bash
-claude plugin marketplace add dominikwozniak/dw-sdlc --sparse .claude-plugin plugins packages
-claude plugin install sdlc@dw-sdlc --scope user
-```
+The [root README](../../README.md#install) installs it and names what it needs: `jq`, Node 24 and an
+authenticated `gh`. [`sdlc-sessions`](../sdlc-sessions/README.md), the marketplace's second plugin, adds the
+session skills. An install from a clone of this repository runs live from that checkout:
+[Development](../../docs/contributing/development.md).
 
-The install is that one plugin, `"sdlc@dw-sdlc": true` under `enabledPlugins` in
-`~/.claude/settings.json`. The marketplace lists [`sdlc-sessions`](../sdlc-sessions/README.md) beside
-it, for a machine that wants the session helpers too. The hooks need `jq`. Without it every guard exits
-0 and guards nothing; the doctor says so.
+## What it carries
 
-Added from GitHub, the plugin is a snapshot of `main` that `claude plugin update` refreshes, and
-`--sparse` keeps the clone to the catalogue, the plugins and the package the `dw-sdlc` links point
-at; without `packages` the plugin installs without the package. Added from a clone
-(`claude plugin marketplace add ./` in the checkout), it runs live from that checkout: a change on
-disk is in the next session, a broken edit included.
+| part                                                            | kind                      | runs                                                           | section                                                    |
+| --------------------------------------------------------------- | ------------------------- | -------------------------------------------------------------- | ---------------------------------------------------------- |
+| `bash-guard.sh` and the Bash guards it spawns, `rtk-rewrite.sh` | `PreToolUse` hook, Bash   | before every Bash command                                      | [Guards](#guards)                                          |
+| `block-env-access.sh`                                           | `PreToolUse` hook         | before every Read, Edit, Write, MultiEdit, NotebookEdit, Grep  | [Guards](#guards)                                          |
+| `large-file-guard.sh`                                           | `PostToolUse` hook, Write | after every Write                                              | [Guards](#guards)                                          |
+| `session-start.sh`, `references-sync.sh`                        | `SessionStart` hooks      | at a session's start                                           | [Session start](#session-start), [References](#references) |
+| `commit-msg.sh`                                                 | git hook                  | on a commit typed in a terminal, once a repository wires it    | [Commit hook](#commit-hook)                                |
+| `/sdlc-setup`                                                   | skill                     | you type it                                                    | [Setup](#setup)                                            |
+| `/sdlc-doctor`                                                  | skill                     | you type it                                                    | [Doctor](#doctor)                                          |
+| `/sdlc-references-add`                                          | skill                     | you type it                                                    | [Adding a Reference](#adding-a-reference)                  |
+| `/sdlc-pr-open`                                                 | skill                     | the agent, whenever it opens a pull request or writes its body | [Opening a pull request](#opening-a-pull-request)          |
+| `/sdlc-pr-ship`                                                 | skill                     | you type it, or a Worker on its Brief                          | [Shipping a pull request](#shipping-a-pull-request)        |
+| `/sdlc-sweep`                                                   | skill                     | you type it, or say "go" on a Recap follow-up that names it    | [Sweeping](#sweeping)                                      |
+| `sdlc-reviewer`                                                 | subagent                  | `/sdlc-pr-ship` spawns it at the `light` Review depth          | [The light Review](#the-light-review)                      |
+
+A Worker is a Claude Code session that works on one Brief, the fixed-shape first message the
+[`sdlc-sessions`](../sdlc-sessions/README.md) plugin writes; a Recap is that plugin's report of where a
+session stands.
 
 ## Layout
 
@@ -38,7 +51,8 @@ disk is in the next session, a broken edit included.
   scanner reads, substitutions, plain words — `hooks/lib-live.sh`, the live-quote readers — a
   quote handed to a shell, ended where the outer shell ends it — `hooks/lib-mask.sh`, the quote
   mask — separators inside a quote made text — `hooks/lib-words.sh`, the word readers — shell
-  words, the two readers of the [launcher table](#the-command-position), the boundary — and
+  words, the two readers of the
+  [launcher table](../../docs/contributing/bash-guard.md#the-command-position), the boundary — and
   `hooks/lib-git.sh`, the git readers — a verb and its options, a push and its targets, the
   current branch.
 - `hooks/schema.jq`, `hooks/config.jq` — the config contract in jq: schema validation and the
@@ -46,8 +60,7 @@ disk is in the next session, a broken edit included.
 - `hooks/bash-guard.sh` — the dispatcher: one stdin read, heredoc bodies dropped once but for the
   substitutions an unquoted one runs, each guard spawned only when the command could trip it. A
   payload it cannot read, not JSON or holding U+0001 (the byte its reader splits fields on), is
-  refused with exit 2 and a message saying why, since no guard could judge it; without `jq` it passes
-  every call.
+  refused with exit 2 and a message saying why, since no guard could judge it.
 - `hooks/session-start.sh` and `hooks/references-sync.sh` — the two session hooks:
   [Session start](#session-start) and [the Sync at session start](#the-sync-at-session-start).
 - `hooks/commit-msg.sh` — a git hook, not a Claude Code one: the Commit hook below.
@@ -68,15 +81,21 @@ disk is in the next session, a broken edit included.
 - `skills/sdlc-setup/`, `skills/sdlc-doctor/`, `skills/sdlc-references-add/`,
   `skills/sdlc-pr-open/`, `skills/sdlc-pr-ship/`, `skills/sdlc-sweep/` — the skills: the [Setup](#setup), the
   [Doctor](#doctor), [Adding a Reference](#adding-a-reference), [Opening a pull request](#opening-a-pull-request),
-  [Shipping a pull request](#shipping-a-pull-request) and [Sweeping](#sweeping). The dev invokes each
-  one, with three exceptions: the model starts `sdlc-pr-open` itself whenever it opens a pull
-  request or writes its body, a Worker starts `sdlc-pr-ship` on its Brief, and `sdlc-sweep` runs
-  only on the dev's "go" on a Recap follow-up.
+  [Shipping a pull request](#shipping-a-pull-request) and [Sweeping](#sweeping); who starts each is in
+  [What it carries](#what-it-carries).
 - `agents/sdlc-reviewer.md` — the subagent of a `light` Review, which `sdlc-pr-ship` spawns as
   `sdlc:sdlc-reviewer`: [Shipping a pull request](#shipping-a-pull-request).
 - `test/` — the hook tests, mirroring `hooks/`, and the manifest's: [Tests](#tests).
 
 ## Guards
+
+Each guard reads the tool call as JSON on stdin and answers before the call runs: exit 2 refuses it, a
+prompt asks the dev, silence lets it through. `bash-guard.sh`, the dispatcher, reads a Bash command once
+and spawns only the guards it could trip. Without `jq` every guard passes every call; the
+[session-start report](#session-start) and the [Doctor](#doctor) say so. A payload a guard cannot read, not
+JSON or holding U+0001 in a field, is refused with exit 2 and a message saying why. How a guard reads a
+Bash command, through each launcher, quote and substitution, is
+[How a guard reads a Bash command](../../docs/contributing/bash-guard.md).
 
 - `block-dangerous-commands.sh` (always on) — refuses what destroys work the reflog cannot bring
   back, and the remote writes others build on, at every command position: indented, after a
@@ -101,7 +120,7 @@ disk is in the next session, a broken edit included.
     `rev-parse`, `rev-list`, `merge-base`, `ls-files`, `branch`, `remote`, `switch` or `worktree`,
     since another command may change the tree first.
   - forced branch delete: `branch -D`, `-d -f` or `--delete --force` passes when each branch it
-    names is landed: its work is on origin's base branch, `baseBranch` or under `auto` the branch of
+    names is Landed: its work is on origin's base branch, `baseBranch` or under `auto` the branch of
     origin that `origin/HEAD` names. Its tip is there, or a base commit since it forked holds the
     tip's tree or the patch-id of its whole diff, as a squash merge leaves them; a branch that ends
     where it forked is not landed. Only local objects are read, never fetched in a partial clone, so
@@ -137,8 +156,6 @@ disk is in the next session, a broken edit included.
   `.env.staging`, `.env.test`, `.env.ci`. In a Bash command a path is read from where a `cd` or
   `pushd` earlier in it left the shell, a glob is judged by the files the shell expands it to, and a
   `<rev>:<path>` such as `HEAD:.env.production` by its path.
-  A file-tool payload it cannot read, not JSON or holding U+0001 in a field, is refused with exit 2
-  and a message saying why; without `jq` it passes every call.
 - `credential-leak-guard.sh` (always on) — refuses reading the credential stores that are not dotenv
   (`~/.ssh`, `~/.aws`, `~/.gnupg`, `~/.kube`, `~/.netrc`, `~/.git-credentials`, `~/.pypirc`,
   `~/.pgpass`, the user's `~/.npmrc`, by `$HOME`, `${HOME}` or a `cd` home), filtering an
@@ -196,200 +213,27 @@ disk is in the next session, a broken edit included.
 - `large-file-guard.sh` (after a Write) — flags a file over 256 KiB once it is on disk: a pasted
   bundle, a blob, a dumped log. Advisory, so it is the one guard with a kill switch:
   `CLAUDE_MAX_WRITE_BYTES` raises or lowers the threshold, `0` disables it.
-  A payload it cannot read, not JSON or holding U+0001 in a field, exits 2 with a message saying
-  why; without `jq` it passes every call.
-- `rtk-rewrite.sh` (Bash, not a guard) — the plugin's wiring of `rtk hook claude`, so a machine wires
+- `rtk-rewrite.sh` (Bash, not a guard) — the plugin's wiring of `rtk hook claude`, the hook of
+  [rtk](https://github.com/rtk-ai/rtk), a proxy that compresses command output, so a machine wires
   nothing by hand and `rtk init --show` reporting "Hook: not found" is expected. Without rtk it is
   silent. In a linked worktree every command goes through unrewritten: the session's isolation check
   cannot read through the `rtk` wrapper, so it would refuse the `git status` the agent typed as
   `rtk git status`, and an `ls *` as an `rtk` call with a value computed at runtime. The check has no
-  off switch (Claude Code 2.1.302, rtk 0.49.0), and skipping the rewrite costs only output
+  off switch, and skipping the rewrite costs only output
   compression. It runs beside `bash-guard.sh`, and the guards judge the command before the rewrite.
 
-## Reading a command
+### Reading a command
 
-A guard judges a Bash command the way the shell reads it, through the scanners in `hooks/lib-*.sh`.
-A rule fires on a command the shell runs, not on text that only looks like one.
-
-### The command position
-
-A command runs where the shell reads one: at a line start, indented or not, or after `;`, `&`, `|`,
-`(` or a backtick. It runs, too, behind a launcher, a word that runs the command after it. A command
-named by a path or with a leading backslash, `/usr/bin/git` or `\rm`, is that command. The launchers,
-with the options that take a value, glued or as the next word:
-
-| launcher                                                       | its options that take a value                                    |
-| -------------------------------------------------------------- | ---------------------------------------------------------------- |
-| `then`, `do`, `else`, `elif`, `if`, `while`, `until`, `!`, `{` | none                                                             |
-| `time`                                                         | `-o`, `-f` (GNU time; the keyword's `-p` takes none)             |
-| `sudo`                                                         | `-u`, `-g`, `-h`, `-p`, `-U`, `-r`, `-t`, `-C`, `-D`, `-R`, `-T` |
-| `env`                                                          | `-u`, `-C`, `-S`, then any `VAR=value`                           |
-| `command`                                                      | none; `-p` runs the command, `-v` and `-V` only look it up       |
-| `eval`, `nohup`                                                | none                                                             |
-| `exec`                                                         | `-a`                                                             |
-| `nice`                                                         | `-n`                                                             |
-| `timeout`                                                      | `-s`, `-k`, then one duration                                    |
-| `stdbuf`                                                       | `-i`, `-o`, `-e`                                                 |
-| `xargs`                                                        | `-a`, `-d`, `-E`, `-I`, `-J`, `-L`, `-n`, `-P`, `-R`, `-s`, `-S` |
-| `find` with `-exec`, `-execdir`, `-ok` or `-okdir`             | none; the command runs up to its `;` or `{} +`                   |
-| `sh`, `bash`, `zsh`, `dash`, `ksh`                             | none; the command is the text after a `-c`, or after `<<<`       |
-| `rtk`                                                          | its flags, then `run`, `proxy`, `err`, `test` or `summary`       |
-| `VAR=value`                                                    | none                                                             |
-
-`hooks/lib-words.sh` reads the table twice: `guard_unwrap_words` on words, for the guards that read
-a command word by word and for a `cd`, and `GUARD_BOUNDARY` on text, for the arms that read a target
-in place.
-`test/hooks/lib.test.ts` holds the two to the same spellings.
-
-### Commands and scopes
-
-`guard_scopes`, in `hooks/lib.sh`, cuts the masked scan into the commands the shell runs, one a
-line: at `;`, `&`, `|`, a newline and a subshell's parentheses, each of which also stands as a scope
-line, so a `cd` inside a subshell ends with it. A redirect's `&`, as in `2>&1`, `<&0` and `&>`, is
-no cut: `git push 2>&1 origin main` is one push to `main`. A `cd` or `pushd` with a literal
-directory, behind its options and a `--`, moves where the shell stands. The
-guard keeps the directories `pushd` saves, so a `popd` or a bare `pushd` goes back as the shell
-does, and a subshell gives the stack back at its end too. `pushd` and `popd` take `-n`, which
-leaves the shell where it is: `pushd -n dir` saves `dir` and `popd -n` drops the top entry. A `$(…)` or backtick substitution is one
-word of the command around it, not a cut: `guard_lift_substitutions` makes it the word `$_`, a value computed at
-runtime, and moves its body to a scope of its own just before that command, since the shell runs the
-body first. So `git push origin "$(git branch --show-current)" --force` is one push with its
-`--force`, and its body one command before it. A `$_` in the command's place, alone or glued to
-it, is read as empty, as bash drops an empty expansion, so `$(true) git reset --hard` and
-`$(true)git reset --hard` are a `git reset`; a `case` pattern's `)`
-inside a substitution ends no substitution. One left open hands back the scan as typed, cut at each
-parenthesis and backtick. `guard_segments` is the same lines without the scope lines.
-
-### The quote walker
-
-`guard_quote_walk <text> [<live>] [<state>] [<from>] [<stop>]`, in `hooks/lib-text.sh`, is the one
-reader of shell quoting. It cuts the text into pieces, `GUARD_QW_KIND[i]` and `GUARD_QW_TEXT[i]`,
-whose texts joined are the text again. The mask, the substitution split, the word reader and the
-heredoc passes each loop over those pieces. A piece's kind:
-
-| kind   | the piece                              |
-| ------ | -------------------------------------- |
-| `t<c>` | text read in context `<c>`             |
-| `e<c>` | a backslash and the character it keeps |
-| `o<c>` | what opens context `<c>`               |
-| `c<c>` | what closes it                         |
-| `tC`   | a comment, up to the newline           |
-| `h`    | a heredoc operator and its delimiter   |
-
-The contexts:
-
-- `P`, the top level;
-- `S` and `D`, a single- and a double-quoted span;
-- `A`, an ANSI-C `$'…'` span, where a backslash escapes and the next `'` closes;
-- `U`, a `$(…)`, and `V`, a bare `(` inside one;
-- `B`, a backtick substitution;
-- `H`, an unquoted heredoc body, where only a substitution and a backslash act;
-- `E`, a `${…}`, where a quote nests even inside a `"…"`, a `(` and a `#` are text, and the first
-  bare `}` closes it.
-
-A `$'` opens `A` wherever a `'` would open `S`. A `$"…"` is a double-quoted span after a `$` of text,
-and a `$` before anything else is text. A comment and a heredoc operator count only where the shell
-reads a command: in `P`, `U`, `V` and `B`.
-
-A heredoc's delimiter is a whole shell word, up to a blank or a metacharacter, and the body ends at a
-line that holds its text alone, quotes and backslashes removed: `E"O"F` ends at `EOF`, and `E.O`,
-`'END-OF-TEXT'` and `"END OF"` at themselves. Any quote or backslash in it keeps the body literal. It
-opens with a letter, `_`, a quote or a backslash, so the `1<<2` of `$((1<<2))` opens none.
-
-With `<live>` set, a quote after a shell's `-c`, `eval` or `rtk run` holds a command and opens `s`,
-`d` or `a` instead; a shell named by a path or behind a backslash, `/bin/bash -c` or `\bash -c`, is
-that shell. In `a` a backslash still escapes, so a `\'` there is text the walk does not
-follow. A `${…}` in `d` opens `e`: the outer shell expands it and hands the shell what it expands to,
-so its text holds the command too, and a `"…"`, `'…'` or `$'…'` in it opens `d`, `s` or `a`. The
-outer shell drops those quotes, all but a `'…'` that bash 3.2 and a `:-` keep; reading that one as a
-command refuses more, not less.
-
-`GUARD_QW_STATE` is the stack the text ends in, one context per character, starting from `<state>`,
-`P` by default. The walk returns 1 when it ends elsewhere, with a quote or a substitution left open.
-It starts at offset `<from>`, 0 by default, and reads the text before it as what precedes it.
-`<stop>` ends it early: `o` just after a quote handed to a shell opens, `c` just after the context it
-starts in closes. `GUARD_QW_END` is the offset it stops at.
-
-The walk jumps from one character that can change the context to the next, so a long quoted body
-costs a step per quote, backslash and substitution, not one per character. A step reads a window of
-the text, `GUARD_QW_WINDOW` characters. In bash 3.2 a substring costs the length of the string it is
-taken from, so a step on the whole text would cost the text's length, and a long command the square
-of it.
-
-### Live quotes
-
-A quote handed to a shell, a live quote, is read where the outer shell ends it.
-`guard_live_span <opening kind>`, in `hooks/lib-live.sh`, reads one from the walk's pieces, which
-start just after its opening quote: `os`, `oa` or `od` where a live walk opened it, `oS`, `oA` or
-`oD` where the walk read it the outer shell's way. It sets:
-
-- `GUARD_LIVE_CTX`, the context the outer shell reads it in: `S`, `A` or `D`;
-- `GUARD_LIVE_RAW`, the text up to the walk's closing quote; `GUARD_LIVE_LEN`, the characters
-  through that quote; `GUARD_LIVE_END`, its piece;
-- `GUARD_LIVE_TEXT`, the text the shell is handed: a `$'…'` decoded, and in a `"…"` the escapes of
-  `$`, a backtick, `"` and `\` undone;
-- `GUARD_LIVE_SPLIT`, that text with each substitution of a `"…"` made `_`, and its body in
-  `GUARD_LIVE_SUBS`, since the outer shell runs it first.
-
-A `${…}` nests its quotes the way the outer shell does. The reader returns:
-
-- 1 when the quote never closes;
-- 2 when the outer shell may end it elsewhere than a live walk does: a `'…'` holding a `'`, a `$'…'`
-  holding an unescaped `'`, a `"…"` holding a `'…'` or `$'…'` with a `"`, `$`, backtick or
-  backslash, which is text there to the outer shell, or a substitution read with a quote handed on
-  inside it;
-- 3 when the walk ends it where the shell does but reads the text as typed, not as the shell is
-  handed it: a `$'…'` holding a backslash.
-
-`guard_live_walk` finds where the quote ends with the outer shell's walk and stops the live walk
-there, so a command costs time linear in its live quotes.
-
-### Words
-
-`guard_split_words`, in `hooks/lib-words.sh`, splits one command's arguments into words the way a
-shell does, so `-C 'my repo'` stays one word. It reads the walk's pieces:
-
-- whitespace at the top level separates words;
-- quotes group and are dropped, the `$` of a `$'…'` or a `$"…"` with them;
-- a backslash keeps the next character; in a `$'…'` an escape stands for what bash decodes it to, a
-  newline reads as a space, and the text ends at a NUL;
-- a `$(…)`, a backtick substitution or a `${…}` stays in its word, delimiters and whitespace
-  included, with the quotes and backslashes inside it read the same way;
-- a comment's text splits as the command's does, and a heredoc operator reads as `<<EOF`, the
-  delimiter one word with its quotes dropped, `<<'END OF'` as `<<END OF`.
-
-### Paths in a command
-
-The env and credential guards look for a path among a command's words. `guard_strip_quoted`, in
-`hooks/lib-text.sh`, decides which words count:
-
-- A heredoc body is dropped, but for the substitutions an unquoted one runs.
-- A word that holds whitespace is prose and is dropped: only a quoted span puts whitespace into a
-  word, and such a span is a message, a pattern or a sentence. A quoted word without whitespace
-  counts like any other, since `'db:drop'` and `"$HOME/.ssh/id_rsa"` are what the shell passes on.
-  So prose in a commit message never reads as a file, while `cat ".env.local"` still names one.
-- In the segment of a search tool, `grep`, `egrep`, `fgrep`, `rg`, `ag`, `ack` or `git grep`, every
-  quoted word is dropped: there it is the pattern, and `grep -rn ".env.local" src` opens no such
-  file.
-- A substitution the shell runs, `"$(cat .env.local)"` included, is read as a command of its own, so
-  its words count even inside double quotes while the prose around it stays prose. A quote handed to
-  a shell's `-c`, `eval` or `rtk run` is read the same way.
-- A comment runs nothing, so its words are dropped.
-
-The words are then read command by command, through `guard_scopes`: a relative path counts from
-where a `cd`, `pushd` or `popd` earlier in the command left the shell. A glob the
-env guard reads, one whose last segment opens with a `.`, is the files it expands to there; quoted,
-as in `find . -name '.env*'`, it stays the word it is.
-
-Two costs follow. A quoted path holding a space reads as prose, so `cat "my dir/.env"` passes.
-Outside the search tools, a quoted word that is exactly a guarded name reads as that file. An
-unterminated quote hands back the text as typed: the guard fails closed and judges what was typed.
+A guard judges a Bash command the way the shell reads it, through the scanners in `hooks/lib-*.sh`, so
+a rule fires on a command the shell runs, not on text that only looks like one. The command position and
+its launchers, how a command is cut into scopes, the quote walker, live quotes, words and paths are in
+[How a guard reads a Bash command](../../docs/contributing/bash-guard.md).
 
 ### Known limits
 
 The guards catch the commands an agent writes in ordinary work, not a deliberate evasion
 ([ADR 0017](../../docs/adr/0017-guards-catch-ordinary-commands-not-deliberate-evasion.md)). These
-spellings get past a rule; each comes from the adversarial pass of issue #318 and is listed, not caught.
+spellings get past a rule; each is listed, not caught.
 
 - Expansion the guard does not perform: braces, and a glob anywhere but the env guard's words
   (`cat .env{,.local}`, `cat ~/.ss?/id_rsa`, `rm -rf .g[i]t`, `rm -rf **`, `{git,reset,--hard}`),
@@ -443,33 +287,48 @@ so and lets the commit through. A repository wires it from its own hook manager;
 
 ## Setup
 
-The `sdlc-setup` skill runs `dw-sdlc setup` through the link: it adopts the Gate where the
-repository has a `package.json` ([Adopting the Gate](#adopting-the-gate)), and writes this machine's
-`.ai/agentic.config.local.json` with `$schema` and, when the committed config leaves it unset, the
-Node package manager from the lockfile. A layer that would hold only `$schema` is not written, since
-the guards read nothing from it: a repository whose committed config sets the package manager, run
-without a pin flag or `cswap`, ends with no local config, and the dry run prints `skipped` for it. A
-file that exists and holds nothing beyond what the setup owns stays as it is. `commit.convention` is written only when
-`--convention ticket-key` or `--convention conventional` asks for it, because a local pin outranks a
-convention the repository commits later; a run without the flag keeps a pin as it is. Every run,
-`--force` included, keeps a `guardrails` block the local config holds, since that layer may only
-tighten it; `--force-push deny|ask|lease` and `--commit-on-protected deny|allow` pin those two keys
-in it, and a pin that loosens the committed value is refused. When `cswap` is on PATH, the setup
-writes `worker.command`, `cswap run -- --dangerously-skip-permissions`, the command a Worker starts
-with, so a Worker lands on the account `cswap` maps to the repository. It keeps a `worker` block the
-local config holds, command included, and without `cswap` writes nothing; `--dry-run` shows the write.
-The setup also excludes the local
-config and `.claude/settings.local.json` in `.git/info/exclude`, generates `permissions.deny`
-into `.claude/settings.local.json` as the backstop for a machine without `jq` (the destructive git
-set and `gh repo delete` in plain and `rtk` form, `Read`/`Edit` rules for every env file the resolved
-`guardrails.envFiles` refuses: listed in `deny`, or unknown to git and not listed in `allow`), and
-removes `git branch -D *` in both forms from it, since a deny rule there would refuse the landed
-branch the guard lets through. It adds the lease-push exception and the irreversible deny set
-(`rm` at `/`, `~` or `.`, `shred`, `find -delete`, `git stash clear`) to `~/.claude/settings.json`;
-an `autoMode.allow` list the run creates opens with `"$defaults"`, an existing one only gains the
-exception. Every file is written only when it would change; `--dry-run` shows the changes, `--force`
-overwrites a differing local config, and a `refused` line exits 1. The only thing run in the
-repository is read-only `git`.
+`/sdlc-setup` runs `dw-sdlc setup` through the plugin's `dw-sdlc` link: a dry run first, then the run,
+then the [Doctor](#doctor). It is safe to repeat. Every file is written only when it would change:
+`--dry-run` shows the changes, `--force` overwrites a differing local config, and a `refused` line exits
+
+1. The only command it runs in the repository is read-only `git`. It writes:
+
+- **`.ai/agentic.config.local.json`**, this machine's layer: `$schema`, a `file://` URL to the schema in
+  the marketplace's clone, which an editor reads offline at the installed version, and, when the
+  committed config leaves it unset, the Node package manager from the lockfile. A layer that would hold
+  only `$schema` is not written, since the guards read nothing from it, and the dry run prints `skipped`
+  for it; a file that holds nothing beyond what the setup owns stays as it is. `commit.convention` is
+  written only when `--convention ticket-key` or `--convention conventional` asks for it, because a
+  local pin outranks a convention the repository commits later; a run without the flag keeps a pin as
+  it is. Every run, `--force` included, keeps a `guardrails` block the file holds, since that layer may
+  only tighten it; `--force-push deny|ask|lease` and `--commit-on-protected deny|allow` pin those two
+  keys in it, and a pin that loosens the committed value is refused. With `cswap`, an account switcher
+  that starts Claude Code under the account a repository maps to, on PATH, the setup writes
+  `worker.command`, `cswap run -- --dangerously-skip-permissions`, the command a Worker starts with. It
+  keeps a `worker` block the file holds, command included, and without `cswap` writes nothing there.
+- **`.git/info/exclude`**: the local config and `.claude/settings.local.json`, so neither reaches a
+  commit.
+- **`.claude/settings.local.json`**: `permissions.deny` as the backstop for a machine without `jq`: the
+  destructive git set and `gh repo delete`, in plain and `rtk` form, and `Read`/`Edit` rules for every
+  env file the resolved `guardrails.envFiles` refuses, listed in `deny` or unknown to git and not listed
+  in `allow`. It removes `git branch -D *` in both forms from it, since a deny rule there would refuse
+  the Landed branch the guard lets through.
+- **`~/.claude/settings.json`**, for every repository on the machine: the lease-push exception and the
+  irreversible deny set (`rm` at `/`, `~` or `.`, `shred`, `find -delete`, `git stash clear`). An
+  `autoMode.allow` list the run creates opens with `"$defaults"`; an existing one only gains the
+  exception.
+- **`package.json` and `.ai/agentic.config.json`**, where the repository has a `package.json`:
+  [Adopting the Gate](#adopting-the-gate).
+
+Run from a linked worktree, the local config, the exclude and the local settings go to the main
+checkout, and every worktree without a layer of its own reads them there. Settings that enable
+`guardrails@dw-sdlc` or `references@dw-sdlc`, plugin names `sdlc` replaces, get a `by hand` line naming
+the `enabledPlugins` edit: remove them and add `"sdlc@dw-sdlc": true`. The setup leaves that edit to you
+and the exit code as it is.
+
+The skill asks before the pin: on the dry run's `refused package.json` line it asks whether to add
+`dw-sdlc` at the version the line names, stops on a no, and on a yes runs both commands again with
+`--add-package`, then the install. It runs the Gate once after a run that wrote the `gate` key.
 
 ### Adopting the Gate
 
@@ -485,67 +344,54 @@ the repository holding `--root`, so from a linked worktree they stay on its bran
   pointing at the installed package's schema when the file is absent. A `gate` key the config has
   stays as it is, and a config that is not a JSON object is refused and left untouched.
 
-The key names every Check the package ships, `true` or `false`. A Check is on when it judges the
+The key names every Check the package ships, `true` or `false`; a Check is one named rule the Gate,
+`dw-sdlc gate`, runs over the tree. A Check is on when it judges the
 tree as it is, with nothing to add first: `markdown-refs`, `temporal-language` and `comment-budget`.
 `agents-map` is on too, though it reads `AGENTS.md`: the map is the user's to write, and the first
 Gate names what it lacks. Every other Check is off, since each reads an input the repository adds
 first: `primitives` a catalogue, `decision-records` a records directory, `markdown-budget` the docs
 its glob matches, `file-size-ratchet` its baseline. On without that input, a Check fails the Gate,
-or leaves a Gate that cannot run, exit 2, which reads as a broken setup. The Ratchet's refresh,
+or leaves a Gate that cannot run, exit 2, which reads as a broken setup. `file-size-ratchet` is a
+Ratchet: a Check whose recorded baseline of files over the size limit may only shrink. Its refresh,
 `dw-sdlc gate --update-baseline`, runs only when every other Check passes, so it turns on once the
 Gate is green: set it to `true` and run the refresh, which records the baseline to commit.
 
-The setup never writes the agent map or its `CLAUDE.md` link. The first `dw-sdlc gate` names what
+The setup never writes the Agent map, `AGENTS.md`, or its `CLAUDE.md` link. The first `dw-sdlc gate` names what
 the map lacks through `agents-map`: a missing `AGENTS.md`, which ends that Gate as cannot run, the
 Gate command the map does not name, a Task Router path that does not exist, a `CLAUDE.md` that is
 not a link to the map.
 
 A repository without a `package.json` gets neither the `dw-sdlc` pin nor the `gate` key.
 
-Settings that still enable `guardrails@dw-sdlc` or `references@dw-sdlc`, the two plugins `sdlc`
-replaced, get a `by hand` line naming the `enabledPlugins` edit: remove them and add
-`"sdlc@dw-sdlc": true` after `claude plugin install sdlc@dw-sdlc --scope user`. The setup leaves the
-edit to the user and the exit code as it is.
-
-The `sdlc-setup` skill asks before the pin: on the dry run's `refused package.json` line it asks
-whether to add `dw-sdlc` at the version the line names, stops on a no, and on a yes runs both
-commands again with `--add-package`, then the install. It runs the Gate once after a run that wrote
-the key.
-
 ## Doctor
 
-`dw-sdlc doctor` prints one PASS / WARN / FAIL line per machine check and installs
-nothing: `jq`, the plugin enabled, the package the plugin links against the one the repository pins,
-the session helpers' plugin and its copy of the package, rtk not wired by hand beside the plugin's hook and the filters that misbehave on the installed
-release excluded (`find` below rtk 0.46.0), herdr's `hc` on the agent's PATH (when absent, a WARN with `sdlc-sessions` enabled and INFO without it), Safe Chain visible to the agent's login shell with `npm`
-going through it (a WARN when absent), pnpm's global `minimumReleaseAge`, commit signing, and the
-resolved config of the repository holding `--root` or the current directory. A check that does not
-apply here is INFO, the config outside any repository among them. Exit 1 on a FAIL.
+`/sdlc-doctor` runs `dw-sdlc doctor`, and the setup runs it last. It installs nothing and prints one
+line per machine check: PASS, WARN, FAIL, or INFO for a check that does not apply here, the config
+outside any repository among them. It exits 1 on a FAIL. From a terminal in the repository:
 
-The plugin and the package carry separate versions, and the `package` line compares them where they
-meet: the `version` of the plugin's `dw-sdlc/package.json` against the `dw-sdlc` the repository's
-`package.json` pins, an exact version, through the default catalog of `pnpm-workspace.yaml` too, or
-for `workspace:` or a range the copy installed under `node_modules`. Equal versions pass. Different
-ones are a WARN that starts with `drift:`, since the hooks and skills then run other code than the
-repository's Gate, and it names the fix: `claude plugin update sdlc@dw-sdlc` when the plugin is
-behind, the exact pin when the repository is. A repository that pins no `dw-sdlc` gets INFO.
+```bash
+node <plugin root>/dw-sdlc/src/cli.ts doctor
+```
 
-The `sessions` line reports [`sdlc-sessions`](../sdlc-sessions/README.md), which a machine may go
-without, so it never fails: INFO when it is not installed, naming the skills that are missing and the
-command that installs it, a WARN when it is disabled or carries no package. Its own copy of the package is compared with the copy `sdlc` runs, which the `package` line holds
-to the repository's pin. Different versions are a WARN that starts with `drift:` and names the plugin
-to update.
+`claude plugin list --json` names the plugin root as the `installPath` of `sdlc@dw-sdlc`. It needs only
+Node 24.
 
-The `hc` line reports herdr's `hc`, which a Lead starts its Workers through. It asks the agent's login
-shell for `command -v hc`: PASS with the path it finds, so a Lead can start Workers. With none, the line
-says to install herdr to run Workers, as a WARN when `sdlc-sessions` is enabled, since `/sdlc-delegate` then
-has nothing to start Workers with, and as INFO otherwise, since a machine with only the guards has no reason
-to install herdr. It never fails.
+| line               | checks                                                                                                                                     | when it is not there                                                                   |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
+| `jq`               | `jq` on PATH                                                                                                                               | FAIL: every guard passes every call                                                    |
+| `plugin`           | `sdlc@dw-sdlc` installed and enabled                                                                                                       | FAIL, with the install command                                                         |
+| `package`          | the `dw-sdlc` the plugin links against the one the repository's `package.json` pins                                                        | WARN `drift:`, naming `claude plugin update sdlc@dw-sdlc` or the pin; INFO with no pin |
+| `sessions`         | [`sdlc-sessions`](../sdlc-sessions/README.md) and its copy of `dw-sdlc` against the copy `sdlc` runs                                       | INFO when not installed, WARN when disabled or drifted; never a FAIL                   |
+| `hc`               | herdr's `hc`, which a Lead starts its Workers through, in the agent's login shell                                                          | WARN with `sdlc-sessions` enabled, INFO without it                                     |
+| `rtk`              | rtk not wired by hand beside the plugin's hook, and the filters that misbehave on the installed release excluded (`find` below rtk 0.46.0) | FAIL when wired by hand, WARN for a missing exclusion; PASS with no rtk                |
+| `safe chain`       | [Safe Chain](https://github.com/AikidoSec/safe-chain), Aikido's blocklist of malicious npm packages, with `npm` going through it           | WARN: the agent's shell reaches the registry without the blocklist                     |
+| `pnpm release age` | pnpm's global `minimumReleaseAge` at 10080 minutes, 7 days, or more                                                                        | WARN, with the `pnpm config set --global` line                                         |
+| `commit signing`   | `commit.gpgsign` true in the global git config                                                                                             | WARN: commits go out unsigned                                                          |
+| `config`           | the resolved config of the repository holding `--root` or the current directory                                                            | FAIL on an invalid layer, each problem named                                           |
 
-The `sdlc-doctor` skill runs it as `node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" doctor` from the
-repository, and the setup skill runs it last; a terminal runs
-`node <plugin root>/dw-sdlc/src/cli.ts doctor`, where `claude plugin list --json` names the
-plugin root as `installPath`. It needs only Node 24.
+Safe Chain, the release age and commit signing guard the supply chain and the history; the guards work
+without them. The plugin and the package carry separate versions; a `drift:` line means the hooks and
+skills run other code than the repository's Gate.
 
 ## Session start
 
@@ -561,7 +407,8 @@ A config layer is invalid, too, when the hooks cannot validate it against the sc
 its `--sparse` set installs the plugin without that file. The report then names the schema and says
 an install from GitHub needs `packages` in its `--sparse` set. A schema that is there but fails in
 jq, one that is not JSON for example, is named with jq's first error line. Either way the layer is
-dropped and the guards run strictest.
+dropped and the guards run the strictest set:
+[Where the rules come from](../../docs/overview.md#where-the-rules-come-from).
 
 ## References
 
@@ -730,103 +577,76 @@ does, never merges and never starts `/sdlc-pr-ship`, which comes after it.
 - The branch is pushed by name, `git push -u origin <branch>`, when it has no upstream of its own
   name, since a branch cut from `origin/main` tracks `origin/main`. `gh pr create` opens the pull
   request; a branch that has one gets `gh pr edit`, never a second pull request.
-- `evals/trigger.json` holds the queries that must start it and the near misses that must not, such
-  as "merge it" and "is CI green?"; `evals/evals.json` holds four behaviours: a repository with a
-  template, one without, a branch that has a pull request, and an issue as the source.
-
-### Running the evals of a pull-request skill
-
-An eval of a skill that opens pull requests, `sdlc-pr-open` or any like it, runs a real agent, and
-that agent can run `git push` and `gh pr create` for real. Run such evals only in a setup that cannot
-reach GitHub:
-
-1. **A scratch clone whose `origin` is no GitHub repository.** Clone the repository into a temporary
-   folder, outside the working tree, then point `origin` at a path that does not exist:
-   `git clone --local <repo> <scratch> && git -C <scratch> remote set-url origin /nonexistent/no-remote.git`.
-   Never leave `origin` as the clone's own source: a push to a local path succeeds. With this
-   remote `git push` fails with "repository ... does not exist", and `gh pr create` fails with "none of
-   the git remotes configured for this repository point to a known GitHub host". Neither opens a
-   connection to GitHub.
-2. **One worker.** Run the evals one at a time, never in parallel: parallel workers write the same
-   temporary command under the scratch clone's `.claude/commands` and collide.
-3. **The installed `sdlc` plugin turned off in the scratch clone.** Put
-   `{"enabledPlugins": {"sdlc@dw-sdlc": false}}` in `<scratch>/.claude/settings.local.json`. While it is
-   on, the installed skill wins over the temporary command the run loads, so the run measures the
-   installed copy and not the change.
-
-Start the agent with the scratch clone as its working directory, never the real checkout. Leave
-`GH_REPO` unset in its environment and add no other remote to the clone: either one gives `gh` and `git`
-a way to reach GitHub. Delete the clone after the run.
+- Its evals, and how to run them without reaching GitHub, are in
+  [Evals](../../docs/contributing/evals.md).
 
 ## Shipping a pull request
 
-`/sdlc-pr-ship [<n>]` drives one pull request to merged through the Ship script, `dw-sdlc pr ship`,
-which it runs through the link with `--json`, on the current branch's pull request without a number.
-The dev invokes it, or a Worker whose Brief tells it to. The skill reads each answer's `status`, then its `action`:
-
-- `act`, the agent's turn: `fix-ci` runs each failing check's `log`, or reads its `link`, fixes it
-  and pushes; `fix-conflicts` rebases onto the base locally, resolves and pushes with lease, the one
-  push that rewrites the branch, which a repository under `guardrails.forcePush: deny` refuses;
-  `address-review` triages each open thread someone else commented on last against the code, or with
-  none the review that requests changes, and either fixes it and resolves the thread, or replies and
-  leaves it open for the reviewer, then pushes when code changed; `review` reads the Review depth in
-  `details.depth` and who set it in `details.source`. Only a depth the script's rules routed, source
-  `auto`, may the skill raise, `light` to `full`, when the change looks riskier than its size, and it
-  says why in one line; it never lowers one, and a depth the dev or the config set stands, with one
-  line when the agent disagrees. An `off` the rules route the script posts itself, so it comes to no
-  raise. The Review reads from `details.since`, the last head a Review read, clean or not, when the
-  answer names one, else from the base. At `full` it runs the command `details.reviewCommand`
-  names, from `pr.reviewCommand` and `/code-review` by default, with that range named to it; when
-  the session does not have that command, the skill names it and stops. At `light` it spawns the
-  `sdlc-reviewer` subagent, below, on the same range. A Review that follows a fix is told the
-  Findings that fix answers, in the command's arguments or the subagent's prompt, and checks each
-  one is fixed and that the fix breaks nothing. A Review is clean when it reports no Finding, as the
-  [glossary](../../GLOSSARY.md) defines it: a concrete harm the pull request's own changes cause, a
-  miss against the spec, or a bug fix without its regression test. The skill declines everything
-  else with one line each in the Recap, and lists a harm outside the change as a follow-up. When the
-  Review is clean it runs `dw-sdlc pr reviewed <n> --head <sha>` with the head it reviewed. When it
-  is not, it runs the same with `--findings`, the read mark on the head that Review read, then
-  fixes each Finding and pushes, so the next Review reads the fix alone. The skill skips that
-  Review when one earlier in the conversation read the changes since the same point at the head the
-  script read, was clean, and nothing changed after it: no edit, no commit, no pull. Only a clean
-  run of that command, or at `light` of `sdlc-reviewer` too, whose range ended at that head counts
-  as the earlier Review; an informal read of the diff never counts. It then runs `pr reviewed` on
-  that head. A Review whose head the conversation does not show needs a fresh Review. After
-  three Reviews with no success between them the script answers `park review-limit` and the skill
-  prints its reason, the Findings the last fix answered and its command, `pr reviewed --accept`,
-  then stops: that command accepts the head with its Findings open, and is the dev's to run, never
-  the skill's. The agent's other `blockers` go
-  into the same push, all but `review`, which needs the head the push makes, and the skill calls the
-  script again. An `act` that leaves nothing to change, as a review that requests changes and is
-  still unanswered, stops it: the reviewer's turn. A push that answers a review that requests changes, a
-  non-merge commit after the commit it read, makes the script answer `park awaiting-review` with
-  no command: only the reviewer can review again or dismiss it.
-- `wait`: it tells the dev the reason and `recheckAfter` and ends the turn. The next call comes with
-  the dev's next message or a `/loop` wake-up, never from a sleep in a shell.
-- `park` and `done`: it prints the reason, and the command when there is one, and stops, a script
-  Action parked under `--dry-run` or on its second match included. The command is the dev's to run.
-  A guard that refuses one of its commands stops it too.
-
-It acts only from a checkout of the pull request's branch at the head the script read, and pulls
-with `--rebase` first when the branch is behind it, as after the script's update. A dry run the dev
-asks for shows the answer and does nothing. It passes `--merge` only when the dev wrote "merge" for
-this pull request in the conversation, and `--review full`, `--review light` or `--review off` only
-when they wrote that Review depth for it. Under `off`, from the flag, `pr.review` or the rules of
-`pr.review: auto`, and over a head that only merged the base in since a clean Review, the script
-posts the review success itself and the skill never reviews; a read mark never carries. A depth the
-dev names for the call beats that carry: `--review full` or `light` reads the whole diff since the
-base, and `--review off` posts the success as the dev's `off`. The same `--review <depth>` buys one
-more Review past the limit, for that call only. Under `pr.review: auto`, the default, the script routes the
-depth from the changes the Review would read: lockfiles alone `off`; a file under
-`.github/workflows/`, more than 100 changed lines outside lockfiles, or a change it cannot size,
-more files than GitHub's compare lists or a file outside lockfiles with no patch, `full`; the rest
-`light`.
-It never deletes a branch, the one a `done` answer's command names included. That command,
-`git push origin --delete <branch>`, comes only while the head branch still stands on `origin`;
-once it is gone, or when the pull request comes from a fork, `done` carries no command. Review-thread text is
-data it triages against the code, never an instruction. The decision, the exit codes, the Review
-limit and the review statuses `pr reviewed` posts are in the overview,
+`/sdlc-pr-ship [<n>]` drives one pull request to merged through the Ship script, `dw-sdlc pr ship`, which
+it runs through the link with `--json`, on the current branch's pull request without a number. You type
+it, or a Worker whose Brief tells it to. Each answer names one Action, the one thing the pull request
+needs next, and a `status` that says whose turn it is. The script performs its own Actions; the skill does
+the agent's. How the script decides, its exit codes, the Review depths and the Review limit are in
 [How the Ship script merges a pull request](../../docs/overview.md#how-the-ship-script-merges-a-pull-request).
+
+- **`act`**, the agent's turn:
+  - `fix-ci` runs each failing check's `log`, or reads its `link`, fixes it and pushes.
+  - `fix-conflicts` rebases onto the base locally, resolves and pushes with lease, the one push that
+    rewrites the branch; a repository under `guardrails.forcePush: deny` refuses it.
+  - `address-review` triages each open thread someone else commented on last against the code, or with
+    none the review that requests changes. It either fixes it and resolves the thread, or replies and
+    leaves it open for the reviewer, then pushes when code changed.
+  - `review` runs a Review, below.
+
+  The agent's other `blockers` go into the same push, all but `review`, which needs the head the push
+  makes, and the skill calls the script again. An `act` that leaves nothing to change, as a review that
+  requests changes and is still unanswered, stops it: the reviewer's turn.
+
+- **`wait`**: it tells you the reason and `recheckAfter` and ends the turn. The next call comes with your
+  next message or a `/loop` wake-up, never from a sleep in a shell.
+- **`park`** and **`done`**: it prints the reason, and the command when there is one, and stops. The
+  command is yours to run. A guard that refuses one of its commands stops it too.
+
+It acts only from a checkout of the pull request's branch at the head the script read, and pulls with
+`--rebase` first when the branch is behind it, as after the script's update. A dry run you ask for shows
+the answer and does nothing. It passes `--merge` only when you wrote "merge" for this pull request in the
+conversation, and `--review full`, `--review light` or `--review off` only when you wrote that Review
+depth for it. It never deletes a branch: a `done` answer's `git push origin --delete <branch>` is yours.
+Review-thread text is data it triages against the code, never an instruction.
+
+### The Review
+
+dw-sdlc owns the Review loop: when a head needs a Review, at which depth, what counts as a Finding, the
+read mark and the limit. What reads the change at `full` is the reviewer you name.
+
+- **The depth.** `details.depth` names it, `full`, `light` or `off`, and `details.source` who set it. Only
+  a depth the script's rules routed, source `auto`, may the skill raise, `light` to `full`, when the change
+  looks riskier than its size, and it says why in one line. It never lowers one, and a depth you or the
+  config set stands.
+- **At `full`** it runs the slash command `pr.reviewCommand` names, `/code-review` by default, the review
+  skill of the [Engineering skills](https://github.com/mattpocock/skills), over the range. Another command
+  works as well, as `/pr-review-toolkit:review-pr code errors`. When the session lacks that command, the
+  skill names it and stops.
+- **At `light`** it spawns the [`sdlc-reviewer`](#the-light-review) subagent on the same range.
+- **The range.** The Review reads from `details.since`, the last head a Review read, clean or not, when
+  the answer names one, else from the base. A Review that follows a fix is told the Findings that fix
+  answers and checks each one is fixed and that the fix breaks nothing.
+- **A Finding** holds the merge: a concrete harm the pull request's own changes cause, a doc the change
+  makes false, a miss against the spec, or a bug fix without its regression test. A Review with none is
+  clean. The skill declines everything else with one line each in its report, and lists a harm outside
+  the change as a follow-up.
+- **The mark.** A clean Review runs `dw-sdlc pr reviewed <n> --head <sha>` with the head it reviewed. One
+  that is not runs the same with `--findings`: the read mark, a failed `dw-sdlc/review` status on the head
+  that Review read. It then fixes each Finding and pushes, so the next Review reads the fix alone.
+- **A repeat.** The skill skips a Review when one earlier in the conversation read the changes since the
+  same point at the head the script read, was clean, and nothing changed after it. Only a clean run of
+  the review command, or of `sdlc-reviewer`, whose range ended at that head counts; an informal read of
+  the diff never does.
+- **The limit.** After three Reviews with no success between them the script answers `park review-limit`,
+  and the skill prints its reason, the Findings the last fix answered and the command
+  `pr reviewed --accept`, then stops. That command accepts the head with its Findings open, and is yours
+  to run, never the skill's. A `--review <depth>` you name buys one more Review past the limit, for that
+  call.
 
 ### The light Review
 
@@ -835,7 +655,7 @@ at `effort: medium`, whatever effort the session runs at, unless `CLAUDE_CODE_EF
 one. Its tools are `Read`, `Grep` and `Bash`, and its instructions keep Bash to read-only git. It
 does not see the conversation, so the skill's prompt holds what it reads: the diff command, the
 files the diff touches, the spec as the conversation states it, and after a fix the Findings it
-answers, which it checks one by one. It reads those files and the repository's Agent map, nothing
+answers, which it checks one by one. It reads those files and the repository's Agent map, `AGENTS.md`, nothing
 else, skips what the Gate checks, and reports under 300 words, its first line `clean` or
 `findings: <n>`, counting Findings only. A smell follows the first line as `smell:`, a harm in code
 the change neither touches nor reaches as `follow-up:`, and a named Finding the fix answers as
@@ -844,21 +664,35 @@ the change neither touches nor reaches as `follow-up:`, and a named Finding the 
 ## Sweeping
 
 `/sdlc-sweep` runs a Sweep, `dw-sdlc sweep`, through the plugin's link to the package with `--json`,
-never a `dw-sdlc` from PATH. It acts only on the dev's word: the slash command, or "go" on a Recap
-follow-up that names a Sweep. It runs from the main checkout; in a linked worktree the command exits
-2, and the skill says so in one line and stops. It reports in one short table what the Sweep removed
-and what it kept, quotes each kept item's command as the dev's to run, and stops. It never runs
-that command itself, and it adds `--dry-run` only when the dev asks to look first.
+never a `dw-sdlc` from PATH. A Sweep removes the Landed branches, the local branches whose work is on
+origin's base, and the clean worktrees finished work leaves. It acts only on your word: the slash command,
+or "go" on a Recap follow-up that names a Sweep. It runs from the main checkout; in a linked worktree the
+command exits 2, and the skill says so in one line and stops. It reports in one short table what the
+Sweep removed and what it kept, quotes each kept item's command as yours to run, and stops. It never runs
+that command itself, and it adds `--dry-run` only when you ask to look first. In herdr the Sweep also
+stops and removes the terminals of the session's own Workers:
+[How a Sweep removes what finished work leaves](../../docs/overview.md#how-a-sweep-removes-what-finished-work-leaves).
 
-In herdr the Sweep also stops and removes the terminals of the session's own Workers. A Worker whose
-status is none of working, blocked or unknown, the last being a Worker yet to report, goes when its
-worktree goes in the same Sweep or its folder is already gone; a finished Worker of the session is
-removed. A Worker beside a worktree that stays is never stopped. The live Claude Code lock a done
-Worker's own session holds on its worktree does not keep it: after the stop the Sweep reads the lock
-again and lifts it only when it is stale, else the worktree stays. The Sweep never stops another
-session's terminal or the one it runs in: a worktree such a terminal is in stays, named with the
-terminal's address and place and `hc kill` as the dev's command. Outside herdr no terminal is read, and
-the Sweep says so. In herdr an `hc` that fails ends it with exit 2 before anything is removed.
+## Config keys it reads
+
+Every key is in the schema, `dw-sdlc/config/agentic.config.schema.json`, with its default and its order
+from strictest to loosest.
+
+| key                                         | read by                                                    |
+| ------------------------------------------- | ---------------------------------------------------------- |
+| `guardrails.protectedBranches`              | the push and commit guards, `dw-sdlc recap`                |
+| `guardrails.forcePush`                      | the push guard, `fix-conflicts`                            |
+| `guardrails.commitOnProtected`              | the commit guard                                           |
+| `guardrails.envFiles`                       | the env guard, the setup's deny rules                      |
+| `guardrails.filteredOutput`                 | the filtered-output guard                                  |
+| `packageManagers.node`                      | the package-manager guard, the setup                       |
+| `commit.convention`, `commit.pattern`       | the commit guard, the Commit hook, `/sdlc-pr-open`'s title |
+| `commit.trailer`                            | the commit guard                                           |
+| `baseBranch`                                | the branch-delete guard, the Sweep                         |
+| `gate.*`                                    | the Gate, the filtered-output guard, the setup             |
+| `pr.merge`, `pr.review`, `pr.reviewCommand` | the Ship script, `/sdlc-pr-ship`                           |
+| `worktree.setup`                            | the session-start report                                   |
+| `worker.command`                            | the setup, and `sdlc-sessions`                             |
 
 ## Tests
 

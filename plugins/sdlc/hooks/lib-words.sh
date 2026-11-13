@@ -8,7 +8,7 @@ guard_tokens() {
   printf '%s\n' "$1" | tr -s "[:space:];|&()<>=\`\"'" '\n' | sed '/^$/d'
 }
 
-# guard_split_words <segment> — GUARD_WORDS, the segment's words as README.md#words splits them; a
+# guard_split_words <segment> — GUARD_WORDS, the segment's words as docs/contributing/bash-guard.md#words splits them; a
 # segment holds no newline. Returns 1 when a quote or substitution is left open, with what it read.
 # Runs in the caller's shell, so a segment costs no fork, and overwrites the walk's pieces.
 GUARD_WORDS=()
@@ -217,7 +217,7 @@ guard_ansi_decode() {
   GUARD_ANSI_TEXT+=$rest
 }
 
-# The command position and its launchers, the table in README.md#the-command-position, have two
+# The command position and its launchers, the table in docs/contributing/bash-guard.md#the-command-position, have two
 # readers: guard_unwrap_words on words and GUARD_BOUNDARY on text, for the arms that read a target in
 # place. test/hooks/lib.test.ts holds them to the same spellings.
 
