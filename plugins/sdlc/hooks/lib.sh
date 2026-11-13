@@ -113,7 +113,7 @@ guard_pipelines() {
 }
 
 # guard_scopes <scan> — the masked scan one command a line, a line of \001 and `(` or `)` where a
-# scope opens or closes, each substitution lifted first: README.md#commands-and-scopes. A redirect's
+# scope opens or closes, each substitution lifted first: docs/contributing/bash-guard.md#commands-and-scopes. A redirect's
 # `&` becomes \003 and cuts nothing. Split by sed, as guard_pipelines is.
 guard_scopes() {
   local scan="$1" bt='`'
@@ -274,7 +274,7 @@ GUARD_DIR_STACK=""
 
 # guard_scope_step <line> — one line of guard_scopes against GUARD_SHELL_DIR and GUARD_DIR_STACK: a
 # subshell opening saves them, its end restores them, a `cd`, `pushd` or `popd` (words in WORDS) moves
-# them: README.md#commands-and-scopes. Returns 1 for a scope line, which holds no command.
+# them: docs/contributing/bash-guard.md#commands-and-scopes. Returns 1 for a scope line, which holds no command.
 guard_scope_step() {
   local word verb entry i=1 keep=0 bt_line=$'\001`'
   case "$1" in

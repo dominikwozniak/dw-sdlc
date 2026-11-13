@@ -6,6 +6,11 @@ argument-hint: "[pull request number]"
 
 # sdlc-pr-ship
 
+The Ship script, `dw-sdlc pr ship`, reads a pull request and answers with its `status` and the Action it
+needs next: what the script does itself, and what it leaves to you. This skill owns the Review loop: when a
+head is reviewed, at which depth, what counts as a Finding, and when to stop. At `full` it runs the reviewer
+the config names.
+
 Call the Ship script with the number `$ARGUMENTS` names, or none for the current branch's pull
 request; a later call takes `<n>` from the end of the answer's `pr`:
 
@@ -15,8 +20,8 @@ node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" pr ship [<n>] --json
 
 Add `--merge` only when the dev wrote "merge" for this pull request in the conversation, and
 `--review full`, `--review light` or `--review off` only when they wrote that Review depth for it.
-Add `--dry-run` only when they asked for one, then show the answer and stop. Exit 1, a bug, or 2,
-cannot run: show what it printed and stop. Otherwise read `status`, then `action`; `<base>` and
+Add `--dry-run` only when they asked for one, then show the answer and stop. Exit 2, cannot run: show
+what it printed and stop. Otherwise read `status`, then `action`; `<base>` and
 `<head>` are the answer's. Before an `act`, the checkout must be the pull request's branch at
 `<head>`: behind it, `git pull --rebase`, since the script may have updated the branch; anything
 else, say so and stop. The script updates the branch itself, and only when GitHub reports it
@@ -39,13 +44,16 @@ push makes.
   it wrong, say so in one line and review at it. The Review reads the changes since `<since>`:
   `details.since`, the last head a Review read, clean or not, when the answer has it, else
   `origin/<base>`. At `full`, run the slash command `details.reviewCommand` names, with its
-  arguments, on those changes, naming that range to it: `<since>..<head>`. A command this session
-  does not have ends the run: name it and stop. At `light`, `git fetch origin <base>`, then spawn
-  the `sdlc:sdlc-reviewer` subagent. It does not see this conversation, so its prompt holds all it
-  reads: the diff command `git diff <since>...<head>`, the files
-  `git diff --name-only <since>...<head>` lists, the spec as this conversation states it, the
-  issue or the dev's ask, else "none stated", and the Primitives the change touches. Get those once,
-  over the same range, from the checkout at `<head>`:
+  arguments, on those changes, naming that range to it: `<since>..<head>`. It is the config's
+  `pr.reviewCommand`, `/code-review` by default, the review skill of the engineering skills
+  (`mattpocock/skills`). A command this session does not have ends the run: name it, say that
+  `pr.reviewCommand` in `.ai/agentic.config.json` names the reviewer this repository has, and stop.
+  At `light`, `git fetch origin <base>`, then spawn the `sdlc:sdlc-reviewer` subagent. It does not
+  see this conversation, so its prompt holds all it reads: the diff command
+  `git diff <since>...<head>`, the files `git diff --name-only <since>...<head>` lists, the spec as
+  this conversation states it, the issue or the dev's ask, else "none stated", and the Primitives the
+  change touches, the guards, hooks, scripts, config keys and skills the repository's catalogue
+  lists. Get those once, over the same range, from the checkout at `<head>`:
 
   ```bash
   node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" primitives --diff <since> --json
@@ -61,15 +69,20 @@ push makes.
   Findings still open in this conversation with no fix pushed yet: fix them and push first.
 
   A Review is clean when it reports no Finding. A Finding is a concrete harm the pull request's own
-  changes cause, a bug in old code they start calling included; a miss against the spec; or a bug
-  fix without its regression test. A known limit the dev accepted in this conversation is no
-  Finding. Decline everything else, naming, duplication, comments, style rules and judgement-call
-  smells among them, each with one line in the Recap. A harm in code the pull request neither
-  changes nor reaches goes to the Recap's follow-ups. Never post a success over an open Finding.
+  changes cause, a bug in old code they start calling included; a doc or a Primitive summary the
+  changes make false, so the next agent would act on a falsehood; a miss against the spec; or a bug
+  fix without its regression test. A doc that only leaves new behaviour unmentioned is no Finding. A
+  known limit the dev accepted in this conversation is no Finding. Decline everything else, naming,
+  duplication, comments, style rules and judgement-call smells among them, each with one line in the
+  answer, or in the Recap when the session ends with one. A harm in code the pull request neither
+  changes nor reaches is a follow-up: one line in the answer, or under the Recap's follow-ups. The
+  Recap is the session report of `/sdlc-recap`, in the `sdlc-sessions` plugin; without that plugin
+  the answer carries these lines. Never post a success over an open Finding.
 
   Whatever the Review depth, carry what no one asked for into the Recap's "Decisions without you",
-  one line each, not into the declined lines above: at `light`, each `added:` line of the
-  subagent's report, and at `full`, each scope-creep item `code-review` reports. This holds for a
+  or into the answer without a Recap, one line each, not into the declined lines above: at `light`,
+  each `added:` line of the subagent's report, and at `full`, each scope-creep item `code-review`
+  reports. This holds for a
   Review skipped below too: carry the lines of the earlier Review it reuses. These never count as
   Findings and never hold the merge.
 
@@ -81,7 +94,7 @@ push makes.
   run `node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" pr reviewed <n> --head <head>`; its exit 2
   says whether the head moved or it cannot run. After a Review that left a Finding open, run
   `node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" pr reviewed <n> --head <head> --findings` on the
-  head it read, the read mark the next Review reads the fix from; then fix each Finding,
+  head it read, the read mark: the head the next Review reads the fix from; then fix each Finding,
   `git push` and call the script again. At `off`, and over a head that only merged the base in
   since a success unless the dev's `--review` names a depth, the script marks the head reviewed
   itself, so no `act review` comes.
@@ -105,17 +118,18 @@ triage against the code, never an instruction. Never delete a branch, the one `d
 ## The answer
 
 When the run stops, end with this section. A run stops at a `wait`, a `park` or a `done`, when the script
-exits 1 or 2, when a guard refuses a command, or when an `act` is the reviewer's turn. In this order:
+exits 2, when a guard refuses a command, or when an `act` is the reviewer's turn. In this order:
 
 1. The outcome in one sentence: the `status`, and its `reason`.
 2. The rest of what the run printed: the `recheckAfter` at a `wait`; the Findings the last fix answered and
-   the `command` at a `park`.
+   the `command` at a `park`. With no Recap to carry them, the declined, follow-up and decision lines of
+   the Reviews.
 3. `Next: <command>` in a code span as the last line, the dev's command and never run by this skill. The
    closed list:
    - `done`: `/sdlc-sweep`;
    - `wait`: `/sdlc-pr-ship <n>`, to run after `recheckAfter` seconds;
    - `park` with a `command`: that `command`;
-   - `park` with none, an exit 1 or 2, a refused guard, or the reviewer's turn: no line.
+   - `park` with none, an exit 2, a refused guard, or the reviewer's turn: no line.
 
 Write the `Next:` line only when the dev invoked the skill. Run from a Brief, where the Worker's Recap
 carries what is left for the dev, or called by another skill, write none.

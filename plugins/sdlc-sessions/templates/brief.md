@@ -24,7 +24,10 @@ Model and effort: `<model>`, `<effort>`: <the reason, one clause>.
 ```
 
 - **Kickoff line.** `/implement #<n>` when the source is an issue, `/implement <path>` when it is a spec in
-  a file, and for anything else `/implement` alone, the Goal being its work.
+  a file, and for anything else `/implement` alone, the Goal being its work. `/implement` and `code-review`
+  are skills of the engineering skills, `mattpocock/skills`, which a Brief runs beside. When this session
+  lists no `implement` skill, the kickoff line is `Implement #<n>.`, `Implement <path>.` or nothing, and
+  with no `code-review` skill the Commit line drops `/code-review` and keeps the commit.
 - **Goal.** What the work achieves, never how. It holds no acceptance criteria, design or background.
 - **Source.** A Brief points at its source and never retells it, so the Worker reads the source itself and
   the Brief stays short. What only this conversation holds is no source, because a Worker cannot read it,

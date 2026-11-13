@@ -26,83 +26,59 @@ config already holds stays without one:
   `--force-push lease`;
 - no commit on a protected branch: `--commit-on-protected deny`, or `allow`.
 
-Where `cswap` is on PATH, the run also writes `worker.command`, the command a Worker starts with, into
-the local config and shows it on the dry run's `would write` line; a `worker` block the file holds stays.
-Without `cswap` nothing is written. No flag asks for it.
+Where `cswap` is on PATH, the run also writes `worker.command`, the command a Worker session starts
+with, into the local config and shows it on the dry run's `would write` line. No flag asks for it.
 
-A repository where every change goes through a pull request and lease pushes need a prompt, as an
-AirHelp one, is `--convention ticket-key --force-push ask --commit-on-protected deny`. A pin that
-loosens what the committed config sets is refused.
+A repository where every change goes through a pull request and a lease push needs a prompt is
+`--convention ticket-key --force-push ask --commit-on-protected deny`. A pin that loosens what the
+committed config sets is refused.
 
 Node 24 or later is needed for the TypeScript to run natively; the hooks themselves need only bash
 and jq.
 
 ## The package and the Gate
 
-A repository with a `package.json` that names no `dw-sdlc` gets this line from the dry run:
+The Gate is the package's `dw-sdlc gate`: the repository's own Steps, then the Checks, named rules over
+the tree, its config turns on. A repository with a `package.json` that names no `dw-sdlc` gets this line
+from the dry run:
 
 ```text
 refused     package.json — no dw-sdlc devDependency, and a new one needs your yes: --add-package pins dw-sdlc <version>
 ```
 
 Before anything is written, ask the user whether to add `dw-sdlc` as a devDependency pinned at the
-version the line names, and say that a yes also adds the `gate` key below, which this dry run does
-not show yet. On no, stop: run nothing more. On yes, add `--add-package` to both commands,
-run the dry run again and show its lines, then run for real. When the real run wrote
+version the line names, and say that a yes also adds the `gate` key to `.ai/agentic.config.json`, which
+this dry run does not show yet. On no, stop: run nothing more. On yes, add `--add-package` to both
+commands, run the dry run again and show its lines, then run for real. When the real run wrote
 `package.json`, run the install its line names, `pnpm install` in a pnpm repository, so the lockfile
 and `node_modules` hold the package. An install the release-age gate refuses is shown and ends the
 run; an exclusion for it is the owner's call, not this skill's.
 
-With the package there, the run adds the `gate` key to the committed `.ai/agentic.config.json` when
-the config has none, and creates the file when it is absent. A `gate` key the config has stays as it
-is. A repository without a `package.json` gets neither line, and its run is the guards' files alone.
+The `gate` key turns on the four Checks that judge the tree as it is: `agents-map`, which reads the
+`AGENTS.md` the user writes, `markdown-refs`, `temporal-language` and `comment-budget`. Every other
+Check, `routed-docs` among them, is `false` until the repository adds what it reads or opts into its
+rule. A repository without a `package.json` gets neither line, and its run is the guards' files alone.
 
-The key names every Check the package ships. `markdown-refs`, `temporal-language` and
-`comment-budget` are on: each judges the tree as it is. `agents-map` is on too: it reads `AGENTS.md`,
-which the user writes, and the first Gate names what the map lacks. Every other Check is `false`.
-Four read an input the repository adds first: `primitives` a catalogue, `decision-records` a records
-directory, `markdown-budget` the docs its glob matches, `file-size-ratchet` its baseline.
-`disable-directives` fails every Disable directive without a reason, so a repository turns it on once
-its directives give one. `skill-sections` fails a skill whose part differs from the README section it copies, so a
-repository turns it on once a skill holds a part.
+## What the run writes
 
-## What each file is
+`setup --help` names every file and the rule of each. Say these to the user from the lines the run
+shows, never from memory:
 
-- `package.json` — `dw-sdlc` in `devDependencies` at the version this setup runs, so the doctor finds
-  the plugin and the repository on the same code. Written only with `--add-package`; a pin the file
-  holds, at any version, stays.
-- `.ai/agentic.config.json` — the `gate` key above. This file and `package.json` are committed, so
-  from a linked worktree they go to the worktree, on its branch.
-- `.ai/agentic.config.local.json` — the machine's layer over the committed `.ai/agentic.config.json`:
-  the Node package manager from the lockfile, only where the committed file leaves it unset, because
-  the local layer outranks it. `commit.convention` is pinned by `--convention` and kept by a run
-  without it, so the flag is passed once; a local pin outranks a convention the repository commits
-  later, and a repository that commits its convention needs none. The file is written only when it
-  holds something besides `$schema`: a pin flag, the package manager, `worker.command` or a block
-  it already has. Otherwise the run reports `skipped` and writes nothing, and a file that holds
-  nothing beyond what the setup owns stays as it is. `$schema` is a `file://` URL to the schema in
-  the marketplace's clone, since the `$id` sits in a private repository an editor cannot fetch. A `guardrails` block the file holds is kept on every run, and `--force-push` and
-  `--commit-on-protected` pin those two keys in it. An existing file with other content than
-  `$schema`, the pins and that block is refused; `--force` overwrites it and keeps the pins and the
-  block. Run from a linked worktree, it goes to the main checkout with the two
-  files below, and every worktree without a layer of its own reads it there. Edited by hand, the
-  file may tighten `guardrails` and never loosen it.
-- `.git/info/exclude` — that file and `.claude/settings.local.json`, so neither reaches a commit and
-  the tracked `.gitignore` stays the repository's.
-- `.claude/settings.local.json` — `permissions.deny` as the backstop for a machine without `jq`: the
-  destructive git commands and `gh repo delete` in plain and `rtk` form, and `Read`/`Edit` rules for every `.env`,
-  `.env.*` or `.envrc` git ignores here, `.env.example`, `.env.sample` and `.env.template` aside.
-  A tracked env file stays readable. The run removes `Bash(git branch -D *)` and its `rtk` form:
-  the guard lets a forced delete of a landed branch through, and the rule would refuse it anyway.
-- `~/.claude/settings.json`, or `$CLAUDE_CONFIG_DIR/settings.json` when Claude Code runs from
-  another config dir — `autoMode.allow` gains the lease-push exception; a list the run
-  creates opens with `"$defaults"`, so the classifier's built-in rules stay, and an existing list
-  only gains the exception. `permissions.deny` gains the irreversible set: `rm` at `/`, `~` or `.`,
-  `shred`, `find -delete`, `git stash clear` in plain and `rtk` form. Existing entries stay.
+- the machine's layer `.ai/agentic.config.local.json`, excluded through `.git/info/exclude`; its
+  `$schema` is a `file://` URL to the schema in the marketplace's clone, which an editor reads offline
+  at the installed version;
+- `.claude/settings.local.json`, the deny rules that back the guards up on a machine without `jq`;
+- `~/.claude/settings.json`, or `$CLAUDE_CONFIG_DIR/settings.json`: the lease-push exception and the
+  irreversible deny set, existing entries kept;
+- with `--add-package`, `package.json` and the `gate` key in `.ai/agentic.config.json`, both committed.
 
-A `by hand` line names an edit the setup leaves to the user. While the settings still enable
-`guardrails@dw-sdlc` or `references@dw-sdlc`, the two plugins `sdlc` replaced, the line names the
-`enabledPlugins` change. Show it; never edit `enabledPlugins` yourself.
+Run from a linked worktree, the local layer and the two settings files go to the main checkout, and
+every worktree reads them there; the committed files go to the worktree, on its branch. Edited by
+hand, the local layer may tighten `guardrails` and never loosen it.
+
+A `by hand` line names an edit the setup leaves to the user, such as an `enabledPlugins` entry that
+still names `guardrails@dw-sdlc` or `references@dw-sdlc` and needs `sdlc@dw-sdlc` instead. Show it;
+never edit `enabledPlugins` yourself.
 
 The setup never writes the agent map, `AGENTS.md`.
 
@@ -113,8 +89,8 @@ from the repository; from a worktree it names the main checkout as the layer's s
 repository covers its worktrees, wherever they sit, so `.worktreeinclude` needs no entry for the
 local config.
 
-Then run the doctor from the repository and show its lines, one PASS / WARN / FAIL per machine
-check. It installs nothing; run a fix a line names only when the user asks.
+Then run the doctor from the repository and show its lines, one per check: PASS, WARN, FAIL or
+INFO. It installs nothing; run a fix a line names only when the user asks.
 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" doctor
@@ -128,7 +104,8 @@ agent map lacks, such as the Gate command or a `CLAUDE.md` link to it; edit `AGE
 pnpm exec dw-sdlc gate
 ```
 
-To turn `file-size-ratchet` on once the Gate is green, set it to `true` and run
+To turn `file-size-ratchet` on, the Check that lets a file over the size limit stay but never grow, once
+the Gate is green, set it to `true` and run
 `pnpm exec dw-sdlc gate --update-baseline`: it records `.ai/file-size-ratchet.baseline.json`, which
 the repository commits. The refresh runs only when every other Check passes.
 

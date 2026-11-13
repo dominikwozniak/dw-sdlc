@@ -35,7 +35,8 @@ Worker, its model and effort with the reason, then the three ways out. Recommend
 1. **Start line.** The block the template describes, at the left margin, since an indent would enter the
    Brief. The Brief is inside it, printed once, so the dev pastes one block and reads the Brief there. A
    Brief in the Lead form reports through herdr, so say that its start line runs in a herdr terminal.
-2. **Issue.** A new issue whose body is the Brief, startable later with `/implement #N`. When the source is
+2. **Issue.** A new issue whose body is the Brief, startable later with `/implement #N`, the kickoff line
+   the template names. When the source is
    already an issue, the new one points at it.
 3. **Lead.** The dev pastes the Brief, the text between the quotes, into a Lead's session, in herdr, and the
    Lead starts the Worker. A Brief that names no Lead yet would have its Worker report to no one, so this way

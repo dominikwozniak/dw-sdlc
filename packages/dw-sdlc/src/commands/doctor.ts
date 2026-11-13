@@ -91,7 +91,11 @@ function checkJq(probe: Probe): Check {
   if (status === 0) {
     return { name: "jq", level: "PASS", detail: stdout.trim() }
   }
-  return { name: "jq", level: "FAIL", detail: "missing: every guard is silent without it. brew install jq" }
+  return {
+    name: "jq",
+    level: "FAIL",
+    detail: "missing: every guard is silent without it. https://jqlang.org/download/"
+  }
 }
 
 /** Every hook command string in a settings file, whatever the event and matcher. */

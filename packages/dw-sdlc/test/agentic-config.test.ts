@@ -784,3 +784,14 @@ describe("a linked worktree", () => {
     assert.deepEqual(resolveConfig(worktree).sources, { committed: undefined, local: undefined })
   })
 })
+
+describe("the schemas' $id", () => {
+  const RAW_MAIN = "https://raw.githubusercontent.com/dominikwozniak/dw-sdlc/main/"
+
+  for (const file of ["agentic.config.schema.json", "references.schema.json"]) {
+    it(`names the path ${file} holds on main, so a written $schema resolves`, () => {
+      const id: unknown = JSON.parse(readFileSync(join(REPO_ROOT, "packages/dw-sdlc/config", file), "utf8")).$id
+      assert.equal(id, `${RAW_MAIN}packages/dw-sdlc/config/${file}`)
+    })
+  }
+})

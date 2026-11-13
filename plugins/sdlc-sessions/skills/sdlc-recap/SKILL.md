@@ -52,7 +52,7 @@ what changed for the dev, never the tool calls or the files: links carry the det
 | `dw-sdlc recap` answers the close | #222 |
 
 Under the table, one line from `primitives` of the document, which names the Primitives the session's
-branch changed, one `<class> <id>` each as the document prints them, such as
+branch changed, the guards, hooks, scripts, config keys and skills the repository's catalogue lists, one `<class> <id>` each as the document prints them, such as
 `Primitives: extends gate.runner, adds gate.cache`. The ids and classes stay as printed. Write no line
 when `primitives` is empty, as it is on the default branch and in a repository with no catalogue.
 
@@ -76,7 +76,8 @@ one recommended disposition, the lightest that closes it:
 - `worker`: a session of its own, with a short description here and a Brief when it goes out.
 - `drop`: not worth doing, and say why.
 
-In the main checkout, when `worktree.linked` is false, read a Sweep's dry run too, and add the follow-up
+In the main checkout, when `worktree.linked` is false, read a dry run of the Sweep too, the command that
+removes landed branches, clean worktrees, stale locks and finished Workers' terminals, and add the follow-up
 below. In a linked worktree, list none: the Sweep refuses there, so a Worker never offers it.
 
 ```bash

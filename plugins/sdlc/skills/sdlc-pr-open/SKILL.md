@@ -21,8 +21,9 @@ merges nothing and does not start `/sdlc-pr-ship`, which comes after.
 - `GLOSSARY.md`, when there is one: its words go in the body.
 - The base: the repository's default branch (`gh repo view --json defaultBranchRef --jq .defaultBranchRef.name`),
   unless the dev or the Brief names another.
-- The Primitives block, when the repository has a catalogue, the file `gate.checks.primitives.file` of
-  the config names, `.ai/primitives.json` by default. Run `git fetch origin <base>`, then:
+- The Primitives block, when the repository has a catalogue of its Primitives, the guards, hooks,
+  scripts, config keys and skills it exposes to an agent: the file `gate.checks.primitives.file` of the
+  config names, `.ai/primitives.json` by default. Run `git fetch origin <base>`, then:
 
   ```bash
   node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" primitives --diff origin/<base>
@@ -47,7 +48,8 @@ system prompt names one, else under `mktemp -d`. `gh` reads it with `--body-file
 the command is never the way.
 
 **The `Closes` line.** `Closes #<n>` goes first when the work has an issue, and `<n>` is the issue the
-kickoff line of a Brief names: `/implement #<n>`. Never take it from a `Source:` line, which may point
+kickoff line of a Brief names: `/implement #<n>`, or `Implement #<n>.` where the repository has no
+`/implement`. Never take it from a `Source:` line, which may point
 at a parent issue, a spec or another issue the work only reads. With no Brief, `<n>` is the issue the
 dev names. A kickoff line that names no issue, and no issue named, leave the body without the line. A
 rewrite keeps the `Closes` line of the body it replaces.

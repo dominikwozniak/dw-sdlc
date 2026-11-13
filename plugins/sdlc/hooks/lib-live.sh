@@ -5,7 +5,7 @@
 
 # guard_live_span <opening kind> — a quote handed to a shell, read from the walk's pieces just after
 # its opening quote into the GUARD_LIVE_* fields. Returns 1 when it never closes, 2 when the outer
-# shell may end it elsewhere, 3 when read as typed: each field and case in README.md#live-quotes.
+# shell may end it elsewhere, 3 when read as typed: each field and case in docs/contributing/bash-guard.md#live-quotes.
 GUARD_LIVE_CTX=""
 GUARD_LIVE_RAW=""
 GUARD_LIVE_TEXT=""

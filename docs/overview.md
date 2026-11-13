@@ -1,16 +1,20 @@
 # How dw-sdlc works
 
-The repository holds the software delivery process Dominik works by and the Claude Code tooling that
-carries it: a plugin marketplace and the code behind it. Its plugin `sdlc` carries a set of
-deterministic hooks that stop an agent session from doing the damage a human would not: rewriting
-history, reading a secret, installing through the wrong package manager, committing sloppily. Beside
-them it carries the Sync of a repository's References and the skills that set a repository up,
-check a machine and ship a pull request. The plugin
-[`sdlc-sessions`](../plugins/sdlc-sessions/README.md) depends on it and carries the skills that run a
-session. This page is the long version of the README: how a guard
-judges a call, where its rules come from, how the Gate runs, why the design is shaped this way, where it sits beside the
-engineering skills, how the plugin is adopted and released, and how the Ship script merges a pull request. Every guard in full is in the
-[plugin README](../plugins/sdlc/README.md).
+dw-sdlc is Claude Code tooling that holds my agentic workflow where the engineering skills leave it
+loose: guards on every tool call, a Gate that proves a change, and the road from a pull request to
+merged. It extends those skills and replaces none. Its plugin `sdlc` carries a set of deterministic
+hooks that stop an agent session from doing the damage a human would not: rewriting history, reading
+a secret, installing through the wrong package manager, committing sloppily. Beside them it carries
+the Sync of a repository's References and the skills that set a repository up, check a machine and
+ship a pull request. The plugin [`sdlc-sessions`](../plugins/sdlc-sessions/README.md) depends on it
+and carries the skills that run a session.
+
+This page is the long version of the README, for someone who uses the plugins: how a guard judges a
+call, where its rules come from, how the Gate runs, why the design is shaped this way, where it sits
+beside the engineering skills, how to adopt it, how the Ship script merges a pull request, how a Lead
+runs Workers and how a Sweep cleans up. Every guard in full is in the
+[plugin README](../plugins/sdlc/README.md); how this repository is built and released is under
+[`contributing/`](contributing/development.md).
 
 ## How a guard judges a call
 
@@ -66,8 +70,9 @@ whole store account from any directory. It carries no other stack-specific guard
 ## How the Gate runs
 
 `pnpm check` is the Gate, the one command a change must pass, in a terminal and in CI. CI
-runs the whole Gate on every push and on every pull request but one that changes only content,
-where `pnpm test:content` stands in for `pnpm test` ([how CI runs it](#how-a-change-lands)). Its
+runs the whole Gate on a pull request once it is out of draft and on a push to `main` that is not a
+squash merge. On a pull request that changes only content, `pnpm test:content` stands in for
+`pnpm test` ([how CI runs it](contributing/how-a-change-lands.md)). Its
 script is `dw-sdlc gate`, the bin of the `dw-sdlc` package, which reads the `gate` key of the
 resolved config. The Steps under `gate.steps` run in order from the repository root through `sh -c`,
 and the first that fails ends the Gate. Then every Check under `gate.checks` runs, and a failed Check
@@ -310,6 +315,9 @@ them as one line.
 
 Each choice below is a one-paragraph decision record in `adr/`.
 
+- **It extends the engineering skills and replaces none.** They plan, build and review; dw-sdlc adds
+  the guards, the Gate and the delivery around them, and today carries no planner, implementer or
+  `full` reviewer of its own. [ADR 0019](adr/0019-dw-sdlc-extends-the-engineering-skills.md)
 - **One plugin, not hooks copied into every repository.** Copies drift; a plugin gives one shared
   library and one line to enable. [ADR 0001](adr/0001-guards-ship-from-this-marketplace.md)
 - **The guards, the Sync and the `sdlc` skills are that one plugin.** One `enabledPlugins` line and one
@@ -328,20 +336,26 @@ Each choice below is a one-paragraph decision record in `adr/`.
 - **Env access is a list in the config, git as the fallback.** Some repositories track `.env` on
   purpose; a guard refusing every `.env*` by name blocks real work.
   [ADR 0005](adr/0005-env-access-is-a-list-in-the-config.md)
+- **A Review's depth follows the change.** A `full` Review costs as much on a dependency bump as on a
+  feature, so built-in rules route the depth and the dev's word overrides them.
+  [ADR 0013](adr/0013-review-depth-follows-the-change-the-devs-word-overrides.md)
 
-The repository's own supply chain follows the same idea: `pnpm-workspace.yaml` refuses any dependency
-version younger than 7 days, exotic transitive sources and unlisted install scripts. The research
-behind that and the plugin is in
-[`research/agentic-guardrails/`](research/agentic-guardrails/agentic-guardrails.md).
+Every other decision record is in [`adr/`](adr/).
 
 ## Where dw-sdlc sits beside the engineering skills
 
-The engineering skills in `.agents/skills/` are mattpocock's: `wayfinder`, `grilling`, `research`,
-`to-spec`, `to-tickets`, `triage`, `implement`, `implement-spec`, `tdd`, `code-review` and `handoff`. They
-plan, build and review the work, and each one stops where it asks the dev. `dw-sdlc` complements them and
-replaces none: it adds what they lack, the guards, the Gate, and the delivery from a Brief through the pull
-request, the Review, the merge and the Sweep. The guards still judge a skill's tool calls, and a skill
-still stops where it asks the dev.
+The engineering skills are [`mattpocock/skills`](https://github.com/mattpocock/skills), which this
+repository installs under `.agents/skills/`: `wayfinder`, `grilling`, `research`, `to-spec`,
+`to-tickets`, `triage`, `implement`, `implement-spec`, `tdd`, `code-review` and `handoff`. They plan,
+build and review the work, and each one stops where it asks the dev. dw-sdlc extends them and replaces
+none ([ADR 0019](adr/0019-dw-sdlc-extends-the-engineering-skills.md)): it holds them where they are
+loose, with the guards, the Gate, and the delivery from a Brief through the pull request, the Review
+loop, the merge and the Sweep. The guards still judge a skill's tool calls, and a skill still stops
+where it asks the dev.
+
+A repository without the engineering skills still runs every part of dw-sdlc but three: a Brief's
+start line names `/implement`, a `full` Review runs `/code-review` unless `pr.reviewCommand` names
+another command, and `/sdlc-delegate` reads the sub-issues a `/to-tickets` cut leaves.
 
 | stage                                | carried by                                  | invoked by                                              | whose      |
 | ------------------------------------ | ------------------------------------------- | ------------------------------------------------------- | ---------- |
@@ -370,8 +384,9 @@ Four things run with no one asking, each from a file in this repository:
   `references-sync.sh` brings each Reference to its ref.
 - **The git hooks.** `.vite-hooks/commit-msg` runs `hooks/commit-msg.sh` on a commit typed in a terminal,
   and `.vite-hooks/pre-commit` runs `vp staged` on the staged files.
-- **The Gate in CI.** `quality-gate.yaml` runs `pnpm check` on a pull request once it is ready, and on a
-  direct push to `main`, as [How a change lands](#how-a-change-lands) says.
+- **The Gate in CI.** In this repository `quality-gate.yaml` runs `pnpm check` on a pull request once it
+  is ready, and on a direct push to `main`, as [How a change lands](contributing/how-a-change-lands.md)
+  says.
 
 ### What runs on the dev's word
 
@@ -402,13 +417,15 @@ Claude Code creates a Worker's worktree, from the `--worktree <name>` flag of it
 removes it once the Worker's work has landed ([How a Sweep removes what finished work
 leaves](#how-a-sweep-removes-what-finished-work-leaves)).
 
-### The Review depths
+### The Review loop
 
+dw-sdlc owns the Review loop: when a head is reviewed, how deep, what counts as a Finding, the read
+mark a Review leaves and the limit of three unclean Reviews. At `full` it runs the reviewer you name,
+`/code-review` of the engineering skills by default; at `light` it runs its own `sdlc-reviewer`.
 `/sdlc-pr-ship` reads a head at one of three depths, set by the dev's `--review` for a call, else by
-`pr.review`, whose default `auto` routes a depth from the size of the change. `full` runs the slash command
-`pr.reviewCommand` names, `/code-review` by default. `light` spawns one `sdlc-reviewer` subagent, with the
-Primitives the change touches. `off`
-reads nothing, and the Ship script marks the head reviewed itself. The rules are in
+`pr.review`, whose default `auto` routes a depth from the size of the change. `light` hands
+`sdlc-reviewer` the Primitives the change touches. `off` reads nothing, and the Ship script marks the
+head reviewed itself. The rules are in
 [How the Ship script merges a pull request](#how-the-ship-script-merges-a-pull-request). A Worker commits
 before it runs `/code-review`, which reads `HEAD`, so the Review reads its change and `/sdlc-pr-ship` skips a
 second `full` Review of a clean, unchanged head.
@@ -448,12 +465,11 @@ and runs from the installed plugin: `/sdlc-doctor` in a session, or
 
 The rules a repository wants beyond the Gate go in the same `.ai/agentic.config.json`; validate it
 with `node <plugin root>/dw-sdlc/src/cli.ts config <file>`, where the plugin root is the
-`installPath` that `claude plugin list --json` names. This repository's own file is the smallest
-useful example:
+`installPath` that `claude plugin list --json` names. A small useful file:
 
 ```json
 {
-  "$schema": "https://raw.githubusercontent.com/dominikwozniak/dw-sdlc/main/plugins/guardrails/config/agentic.config.schema.json",
+  "$schema": "https://raw.githubusercontent.com/dominikwozniak/dw-sdlc/main/packages/dw-sdlc/config/agentic.config.schema.json",
   "version": 1,
   "packageManagers": { "node": "pnpm" },
   "guardrails": {
@@ -471,38 +487,14 @@ useful example:
 }
 ```
 
-A repository with nothing declared still gets the inferred defaults, so the file is optional. Each
-key and its inferred value is described in the
+A repository with nothing declared still gets the inferred defaults, so the file is optional. A
+repository whose subjects start with a ticket key sets `"commit": { "convention": "ticket-key" }`; on
+one machine only, `/sdlc-setup ticket-key` pins it in the local layer instead. A repository where
+every change starts on a branch sets `"guardrails": { "commitOnProtected": "deny" }`; on one machine
+only, `/sdlc-setup` with `--commit-on-protected deny` pins it, and `--force-push ask` asks before each
+lease push. Each key and its inferred value is described in the
 [schema](../packages/dw-sdlc/config/agentic.config.schema.json). The `$schema` URL is an annotation
 for editors; the guards always validate against the schema the plugin ships.
-
-## From GitHub or from a clone
-
-Added from GitHub with `--sparse .claude-plugin plugins packages`, the plugin is a snapshot of `main`
-that `claude plugin update` refreshes, and the clone holds only the catalogue, the plugins and the
-`dw-sdlc` package. The plugin reaches the package through its `dw-sdlc` link, which
-`claude plugin install` copies as a real directory, so a hook and a skill run the package's
-`dw-sdlc` bin. A clone without `packages` installs the plugin without it: the guards then drop
-every config layer and run strictest, and no command of the package starts. Added from a clone with
-`claude plugin marketplace add ./`, it runs live from that checkout, a broken edit included.
-The daily install is the GitHub one; a guard is developed through `pnpm test`, which runs every hook on
-a real payload.
-
-## How a change lands
-
-`main` is protected in `.ai/agentic.config.json`, so a change reaches it through a pull request, and
-`quality-gate.yaml` runs `pnpm check` on it first, once it is ready: a draft skips the run. A squash
-merge, with `(#NN)` in its subject, skips the run on `main`; any other push to `main` gets it. A pull
-request whose every file is content, such as docs, skills and the catalogues under `.ai/`, runs
-`pnpm test:content` in place of `pnpm test`: the tests that read the plugins' manifests and skills.
-Every other test reads only code and tooling, so a content change cannot break it; a plugin's
-release changes its manifest and runs them all. The run is one job of the Shared workflow,
-`quality-gate` in the public `byarcadia-app/gh-actions-public`, pinned by its release tag's SHA,
-which Dependabot moves. For a small fix the agent commits on `main` and the push comes from
-Dominik's own terminal: the guards judge only the agent's tool calls. On GitHub the `main` ruleset
-asks for a pull request and a green `Check`, squash merges only, refuses a force push and a deletion,
-and lets the admin bypass it: that bypass lets the terminal's push through, and merges the version
-pull request, on which CI never runs.
 
 ## How the Ship script merges a pull request
 
@@ -554,8 +546,8 @@ the merge when it is not the script's.
 Who merges follows `pr.merge`: the script under `auto`, the dev under `ask`, and the script for one
 call under `--merge`. A pull request another author opened needs no Review, since the dev merges it.
 Once nothing else holds it back, it parks for the dev under all three. A Review is clean when it
-reports no Finding: a concrete harm the pull request's own changes cause, a miss against the spec,
-or a bug fix without its regression test. The agent declines the rest with a line each in the
+reports no Finding: a concrete harm the pull request's own changes cause, a doc or Primitive summary
+they make false, a miss against the spec, or a bug fix without its regression test. The agent declines the rest with a line each in the
 Recap, and lists a harm outside the change as a follow-up. A clean review is a commit status:
 `dw-sdlc pr reviewed <n> --head <sha>` posts `dw-sdlc/review` in state `success` on the head the
 review read and refuses once a push moved it, so a new head needs a fresh review. A Review that
@@ -754,63 +746,3 @@ sets its bounds: it never forces, and it never writes to a remote.
   a kept one, the dev's command. `--dry-run` removes and stops nothing and answers the same items. Exit 0 when nothing is kept but the default, the base or a protected
   branch, which are never the dev's to decide and are still listed; 1 when something else is; 2 when it
   cannot run.
-
-## Releasing the plugin
-
-`plugins/sdlc/.claude-plugin/plugin.json` and its entry in `.claude-plugin/marketplace.json` carry
-one version, and `claude plugin update` refreshes an installed copy by that version only. A change
-to any part of the plugin ships when both files are bumped in one `chore: release sdlc x.y.z` commit
-that lands on `main`. Installs from a clone see the change in the next session without a bump.
-
-The plugin's version is its own, apart from the package's: a release of one never bumps the other.
-Where the two meet, the doctor's `package` line names a drift between the `dw-sdlc` the plugin links
-and the one a repository pins.
-
-`sdlc-sessions` releases the same way, on a version of its own, in a `chore: release sdlc-sessions x.y.z`
-commit. The doctor's `sessions` line names a drift between its copy of `dw-sdlc` and the copy `sdlc` runs.
-
-## Releasing the package
-
-The `dw-sdlc` package goes to npm as JavaScript. Its source is TypeScript, and Node refuses to strip
-types from a file under `node_modules`, so `pnpm pack` runs the package's `prepack`: `tsc` emits
-`dist/` from `packages/dw-sdlc/tsconfig.build.json`. The manifest's `bin` and `exports` name the
-source, so this repository's workspace link runs it as written; their twins under `publishConfig`
-name `dist/`, and pnpm writes those into the packed manifest. `files` ships `dist/`, `config/` with the
-schemas, and `templates/` with the Router the setup writes; pnpm adds the package's `README.md` and its MIT
-`LICENSE` unasked, and the package has no runtime dependency. `test/pack.test.ts` packs it, installs
-the tarball into a throwaway repository and runs `dw-sdlc gate` from that repository's `node_modules`.
-
-A change to the package carries a changeset: `pnpm changeset` writes one under `.changeset/`, with
-the bump and the line the changelog gets. On a push to `main` that touches `.changeset/` or the
-package's `package.json`, `.github/workflows/release.yaml` picks one of two modes:
-
-- **version**, while a changeset is pending: it opens or updates the
-  `chore(release): version packages` pull request. `pnpm release:version` bumps the version, writes
-  and formats `CHANGELOG.md` and deletes the changesets. GitHub opens it only when Settings → Actions →
-  General allows GitHub Actions to create pull requests.
-- **publish**, when npm lacks the version on `main`, which is what merging the version pull request
-  makes true: one job runs `pnpm check` and packs the tarball with no secret in reach; the next
-  publishes it, pushes the `dw-sdlc@x.y.z` tag and creates the GitHub release.
-
-A publish that fails runs again by hand, `gh workflow run release.yaml`, and only from `main`.
-
-Merging the version pull request is the decision to release. The publish job signs in to npm by
-trusted publishing alone: no secret and no `.npmrc` exist, and pnpm exchanges the job's OIDC token,
-from its `id-token: write`, for a token scoped to the package. npm accepts the exchange because the
-package's settings on npmjs.com hold a saved trusted publisher: `dominikwozniak/dw-sdlc`, the
-workflow `release.yaml`, no environment, and `npm publish` allowed beside `npm stage publish`.
-`pnpm publish`, which `changeset publish` runs, names `npm publish` in its request. The version goes
-live on the registry about a minute later, with no approval, and its `_npmUser` names GitHub Actions
-as the trusted publisher. A publish with no trusted publisher saved fails with `E404: 404 Not Found`
-and no reason in the log: pnpm warns why it skipped OIDC, and changesets drops that warning. What the
-releases showed is in the [research notes](research/gate/toolchain.md#npm-publishing).
-
-npm attests provenance only for a build from a public repository. The workflow leaves pnpm's
-`provenance` setting unset and trusted publishing decides, so a version published from here carries
-provenance; the versions up to 0.17.0 were built while the repository was private and carry none.
-Trust evidence only grows from one version to the next. A consumer on `trustPolicy: no-downgrade` refuses a
-version that carries less trust evidence than an earlier one, so a version after 0.1.0 never goes
-out on an access token. A consumer takes a release through Dependabot after the seven days of
-`minimumReleaseAge`; one that cannot wait names `dw-sdlc` in `minimumReleaseAgeExclude` under its own
-rule for exclusions, as [ADR 0008](adr/0008-gate-runs-from-a-pinned-package-plugin-adapts.md)
-records.
