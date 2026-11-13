@@ -8,6 +8,22 @@ commands is [ADR 0017](../adr/0017-guards-catch-ordinary-commands-not-deliberate
 [ADR 0018](../adr/0018-bash-guards-keep-the-word-walker-not-a-shell-parser.md). Paths below are under
 `plugins/sdlc/`.
 
+## In one pass
+
+1. **The scan.** `hooks/bash-guard.sh` reads the payload once, drops each heredoc body but the
+   substitutions an unquoted one runs (`guard_strip_heredocs`) and joins continuation lines
+   (`guard_join_continuations`). Every guard it spawns reads that scan.
+2. **Quotes.** `guard_quote_walk` cuts the text into quoted and unquoted pieces, and the mask makes a
+   separator inside a quote plain text, so a quoted `;` cuts nothing.
+3. **Scopes.** `guard_scopes` cuts the masked scan into the commands the shell runs, one a line, with
+   each substitution's body lifted to a scope of its own before its command.
+4. **Words.** At each command position the word readers unwrap the launchers (`sudo`, `xargs`,
+   `bash -c` …) down to the command and read its words, as the shell splits them.
+5. **Paths.** A guard that judges a file reads its path from where a `cd` or `pushd` earlier in the
+   command left the shell.
+
+The sections below take each pass in turn.
+
 ## The command position
 
 A command runs where the shell reads one: at a line start, indented or not, or after `;`, `&`, `|`,
@@ -40,22 +56,27 @@ in place.
 
 ## Commands and scopes
 
-`guard_scopes`, in `hooks/lib.sh`, cuts the masked scan into the commands the shell runs, one a
-line: at `;`, `&`, `|`, a newline and a subshell's parentheses, each of which also stands as a scope
-line, so a `cd` inside a subshell ends with it. A redirect's `&`, as in `2>&1`, `<&0` and `&>`, is
-no cut: `git push 2>&1 origin main` is one push to `main`. A `cd` or `pushd` with a literal
-directory, behind its options and a `--`, moves where the shell stands. The
-guard keeps the directories `pushd` saves, so a `popd` or a bare `pushd` goes back as the shell
-does, and a subshell gives the stack back at its end too. `pushd` and `popd` take `-n`, which
-leaves the shell where it is: `pushd -n dir` saves `dir` and `popd -n` drops the top entry. A `$(…)` or backtick substitution is one
-word of the command around it, not a cut: `guard_lift_substitutions` makes it the word `$_`, a value computed at
-runtime, and moves its body to a scope of its own just before that command, since the shell runs the
-body first. So `git push origin "$(git branch --show-current)" --force` is one push with its
-`--force`, and its body one command before it. A `$_` in the command's place, alone or glued to
-it, is read as empty, as bash drops an empty expansion, so `$(true) git reset --hard` and
-`$(true)git reset --hard` are a `git reset`; a `case` pattern's `)`
-inside a substitution ends no substitution. One left open hands back the scan as typed, cut at each
-parenthesis and backtick. `guard_segments` is the same lines without the scope lines.
+`guard_scopes`, in `hooks/lib.sh`, cuts the masked scan into the commands the shell runs, one a line.
+`guard_segments` is the same lines without the scope lines.
+
+- **Cuts.** At `;`, `&`, `|`, a newline and a subshell's parentheses. A parenthesis also stands as a
+  scope line, so a `cd` inside a subshell ends with it.
+- **No cut at a redirect's `&`.** `2>&1`, `<&0` and `&>` cut nothing: `git push 2>&1 origin main` is
+  one push to `main`.
+- **`cd` and `pushd`.** One with a literal directory, behind its options and a `--`, moves where the
+  shell stands. The guard keeps the directories `pushd` saves, so a `popd` or a bare `pushd` goes back
+  as the shell does, and a subshell gives the stack back at its end. `-n` leaves the shell where it
+  is: `pushd -n dir` saves `dir`, and `popd -n` drops the top entry.
+- **Substitutions.** A `$(…)` or backtick substitution is one word of the command around it, not a
+  cut. `guard_lift_substitutions` makes it the word `$_`, a value computed at runtime, and moves its
+  body to a scope of its own just before that command, since the shell runs the body first. So
+  `git push origin "$(git branch --show-current)" --force` is one push with its `--force`, and its
+  body one command before it.
+- **An empty command word.** A `$_` in the command's place, alone or glued to it, reads as empty, as
+  bash drops an empty expansion: `$(true) git reset --hard` and `$(true)git reset --hard` are a
+  `git reset`.
+- **Edges.** A `case` pattern's `)` inside a substitution ends no substitution. A substitution left
+  open hands back the scan as typed, cut at each parenthesis and backtick.
 
 ## The quote walker
 
