@@ -181,7 +181,10 @@ describe("dw-sdlc primitives --diff", () => {
     })
     const together = runBin(["primitives", "--diff", "main", "--paths", "x"], dir)
     assert.equal(together.status, 2)
-    assert.match(together.stderr, /^dw-sdlc primitives: --diff and --paths exclude each other; ask one question\n/)
+    assert.match(
+      together.stderr,
+      /^dw-sdlc primitives: --diff and --paths exclude each other — ask one question at a time\n/
+    )
     const unresolved = runBin(["primitives", "--diff", "nope"], dir)
     assert.equal(unresolved.status, 2)
     assert.deepEqual(lines(unresolved.stderr), [

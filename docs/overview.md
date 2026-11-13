@@ -286,7 +286,7 @@ Review hands `sdlc-reviewer` each touched Primitive's id, class and summary with
 leaves untouched, so a summary or doc the change makes false is a Finding and a doc that only leaves
 new behaviour unmentioned is none; `dw-sdlc recap --json` carries the ids and classes of the session's
 branch, from its merge-base with `origin/<default>`, none on the default branch, and `/sdlc-recap` writes
-them as one line. The `full` Review is unchanged.
+them as one line.
 
 ## Why this way
 

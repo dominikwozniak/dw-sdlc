@@ -71,7 +71,7 @@ function parseCli(argv: string[]): Cli | { error: string } {
       return cli
     }
     if (cli.diff !== undefined && (cli.paths || cli.files.length > 0)) {
-      return { error: "--diff and --paths exclude each other; ask one question" }
+      return { error: "--diff and --paths exclude each other — ask one question at a time" }
     }
     return cli.paths || cli.diff !== undefined ? cli : { error: "name the paths with --paths, or a base with --diff" }
   } catch (error) {

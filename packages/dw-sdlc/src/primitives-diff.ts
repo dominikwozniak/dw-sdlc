@@ -22,8 +22,8 @@ export type Change = {
 
 export type PrimitivesDiff = { base: string; primitives: Change[]; outside: number }
 
-/** Why a diff cannot be answered: `none` when the repository has no catalogue at `HEAD`, else `problems`. */
-export type Refusal = { none: boolean; problems: string[] }
+/** Why a diff cannot be answered: each problem with its remedy. */
+export type Refusal = { problems: string[] }
 
 const CLASSES: PrimitiveClass[] = ["removes", "adds", "extends"]
 
@@ -34,8 +34,8 @@ const REMEDIES = {
   git: "check the repository with git status"
 }
 
-function refuse(problem: string, remedy: string, none = false): Refusal {
-  return { none, problems: [`${problem} — ${remedy}`] }
+function refuse(problem: string, remedy: string): Refusal {
+  return { problems: [`${problem} — ${remedy}`] }
 }
 
 /** The catalogue `file` holds at `rev`, `missing` when `rev` has no such file. */
@@ -83,10 +83,10 @@ export function primitivesDiff(root: string, base: string): PrimitivesDiff | Ref
   const file = catalogueFile(resolveConfig(root).config.gate.checks)
   const head = readAt(root, "HEAD", file)
   if (head.state === "missing") {
-    return refuse(`${file}: the catalogue does not exist at HEAD`, REMEDIES.missing, true)
+    return refuse(`${file}: the catalogue does not exist at HEAD`, REMEDIES.missing)
   }
   if (head.state === "invalid") {
-    return { none: false, problems: head.problems.map((problem) => `${file}: ${problem} — ${REMEDIES.invalid}`) }
+    return { problems: head.problems.map((problem) => `${file}: ${problem} — ${REMEDIES.invalid}`) }
   }
   const since = changeSince(root, base)
   if ("problems" in since) {
@@ -96,24 +96,26 @@ export function primitivesDiff(root: string, base: string): PrimitivesDiff | Ref
   const before = readAt(root, mergeBase, file)
   if (before.state === "invalid") {
     const at = `${file} at ${JSON.stringify(base)}`
-    return { none: false, problems: before.problems.map((problem) => `${at}: ${problem} — ${REMEDIES.invalid}`) }
+    return { problems: before.problems.map((problem) => `${at}: ${problem} — ${REMEDIES.invalid}`) }
   }
-  const then: Catalogue = before.state === "valid" ? before.catalogue : { version: 1, groups: [], primitives: [] }
-  const now = head.catalogue
+  const atBase: Catalogue = before.state === "valid" ? before.catalogue : { version: 1, groups: [], primitives: [] }
+  const atHead = head.catalogue
   const changed = new Set(files)
-  const had = new Set(then.primitives.map(({ id }) => id))
-  const has = new Set(now.primitives.map(({ id }) => id))
+  const inBase = new Set(atBase.primitives.map(({ id }) => id))
+  const inHead = new Set(atHead.primitives.map(({ id }) => id))
   const changes: Change[] = [
-    ...then.primitives
-      .filter(({ id }) => !has.has(id))
-      .map((primitive) => describe(primitive, "removes", owned(then, files, primitive.id), changed)),
-    ...now.primitives.flatMap((primitive): Change[] => {
-      const kind: PrimitiveClass = had.has(primitive.id) ? "extends" : "adds"
-      const count = owned(now, files, primitive.id)
+    ...atBase.primitives
+      .filter(({ id }) => !inHead.has(id))
+      .map((primitive) => describe(primitive, "removes", owned(atBase, files, primitive.id), changed)),
+    ...atHead.primitives.flatMap((primitive): Change[] => {
+      const kind: PrimitiveClass = inBase.has(primitive.id) ? "extends" : "adds"
+      const count = owned(atHead, files, primitive.id)
       return kind === "adds" || count > 0 ? [describe(primitive, kind, count, changed)] : []
     })
   ]
-  const outside = files.filter((path) => primitivesNaming(now, path).length + primitivesNaming(then, path).length === 0)
+  const outside = files.filter(
+    (path) => primitivesNaming(atHead, path).length + primitivesNaming(atBase, path).length === 0
+  )
   const rank = ({ class: kind }: Change) => CLASSES.indexOf(kind)
   changes.sort((a, b) => rank(a) - rank(b) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
   return { base, primitives: changes, outside: outside.length }
