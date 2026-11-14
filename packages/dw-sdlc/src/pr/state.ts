@@ -1,5 +1,6 @@
 // One pull request as the Ship script reads it: the one GraphQL query, and its reply parsed into the
-// state the decision reads. Every field the state needs is checked; a reply that fails names the field.
+// state the decision reads, the review history the Review's standing is read from beside it. Every field
+// the state needs is checked; a reply that fails names the field.
 
 import {
   boolean,
@@ -19,6 +20,7 @@ import {
   time,
   timeOrNull
 } from "./reply.ts"
+import type { Commit, History, Posted, Standing } from "./standing.ts"
 
 /** The commit status a clean review of the head leaves on it. */
 export const REVIEW = "dw-sdlc/review"
@@ -93,7 +95,8 @@ const REVIEW_DECISIONS = ["APPROVED", "CHANGES_REQUESTED", "REVIEW_REQUIRED"] as
 /** A reviewer whose latest review requests changes, and whether a push has answered it. */
 export type ChangeRequest = { reviewer: string; answered: boolean }
 
-export type PrState = {
+/** The pull request as the reply holds it, before the Review's standing is read. */
+export type PullRequest = {
   url: string
   repo: string
   number: number
@@ -129,58 +132,10 @@ export type PrState = {
   cutOff: string[]
   /** The oids of the pull request's last 100 commits, oldest first, the head last. */
   commits: string[]
-  /**
-   * The last commit before the head a Review read, of the last 100: a review success not posted under
-   * off, or a read mark. With none there, a commit force pushes left behind that a Review read.
-   */
-  lastRead: LastRead | null
-  /**
-   * A read mark whose Findings no later commit answers: the head's own, or one a merge of the base or a
-   * rebase came after with no fix showing. Then `lastRead` is null, the Review reads the whole pull
-   * request, and nothing carries (ADR 0023).
-   */
-  open: string | null
-  /**
-   * The read marks since the last review success of any kind, of the last 100 commits, then, when they
-   * hold no success, of the commits force pushes left behind.
-   */
-  marks: ReadMarks
-  /** Whether the head carries the success of `lastRead`: the read decides it from two compares. */
-  carried: boolean
-  /**
-   * The files a Review would read, from `lastRead` or the base to the head, read only for `pr.review:
-   * auto` to route on: `unsized` when the compare cannot list them all, null when not read.
-   */
-  changed: ChangedFile[] | "unsized" | null
-  /**
-   * The files whose own change moved since `lastRead`, when a merge of the base came after it: the files
-   * a fix touched, the base's own left out. Null with no such merge, or when a compare cannot show them.
-   */
-  scope: string[] | null
 }
 
-/**
- * A file a Review would read: its name, its name before a rename, and the lines it adds and removes,
- * null when the compare shows no patch for it, as for a binary file.
- */
-export type ChangedFile = { path: string; previous: string | null; lines: number | null }
-
-/** A commit a Review read; `clean` when that Review left a success on it, not a read mark. */
-export type Read = { commit: string; clean: boolean }
-
-/**
- * A commit a Review read; `baseOnly` when every change after it is the base's, the head included: only
- * merges of the base, or a rebase past no other read; `baseMoved` when a merge of the base or a rebase
- * came after it.
- */
-export type LastRead = Read & { baseOnly: boolean; baseMoved: boolean }
-
-/**
- * The Reviews that left a Finding open since the last review success, a success under off and the dev's
- * acceptance included: `count` their read marks, the head's own among them, and `since` that success's
- * commit, null when none of the last 100 holds one.
- */
-export type ReadMarks = { count: number; since: string | null }
+/** The pull request and the Review's standing at its head. */
+export type PrState = PullRequest & Standing
 
 const FAIL = new Set(["ERROR", "FAILURE", "TIMED_OUT", "ACTION_REQUIRED", "CANCELLED", "STARTUP_FAILURE"])
 const SKIPPING = new Set(["SKIPPED", "NEUTRAL"])
@@ -270,7 +225,7 @@ export function awaitsReview(pr: Pick<PrState, "viewerDidAuthor" | "checks">): b
  * What a commit's review status says: `clean` a success, `findings` the read mark, `off` a success
  * posted under off, which says no one read the commit, null no status of the Review.
  */
-function postedOn(commit: Node): "clean" | "findings" | "off" | null {
+function postedOn(commit: Node): Posted {
   const status = childOrNull(commit, "status")
   const context = status === null ? null : childOrNull(status, "context")
   if (context === null) {
@@ -284,12 +239,8 @@ function postedOn(commit: Node): "clean" | "findings" | "off" | null {
   return state === MARK_STATE.toUpperCase() && description === READ_MARK ? "findings" : null
 }
 
-/** A commit and the review status it carries. */
-type Marked = { oid: string; posted: ReturnType<typeof postedOn> }
-type Posted = Marked & { merge: boolean }
-
 /** The pull request's last 100 commits, oldest first, each with the review status it carries. */
-function historyOf(pr: Node): Posted[] {
+function historyOf(pr: Node): Commit[] {
   return nodes(pr, "history").map((node) => {
     const commit = child(node, "commit")
     return {
@@ -301,43 +252,12 @@ function historyOf(pr: Node): Posted[] {
 }
 
 /**
- * The last commit before `head` a Review read, the history oldest first, or `open`: a read mark on the
- * head, or with only merges after it. No fix answers its Findings, so no read stands in (ADR 0023).
- */
-function lastReadOf(history: Posted[], head: string): Pick<Parsed, "lastRead" | "open"> {
-  if (history.some(({ oid, posted }) => oid === head && posted === "findings")) {
-    return { lastRead: null, open: head }
-  }
-  const index = history.findLastIndex(
-    ({ oid, posted }) => oid !== head && (posted === "clean" || posted === "findings")
-  )
-  const last = history[index]
-  if (last === undefined) {
-    return { lastRead: null, open: null }
-  }
-  const after = history.slice(index + 1)
-  const baseOnly = after.every(({ merge }) => merge)
-  if (last.posted === "findings" && baseOnly) {
-    return { lastRead: null, open: last.oid }
-  }
-  return {
-    lastRead: {
-      commit: last.oid,
-      clean: last.posted === "clean",
-      baseOnly,
-      baseMoved: after.some(({ merge }) => merge)
-    },
-    open: null
-  }
-}
-
-/**
  * The commits a force push left behind: the head, then down its first parents within the history the
  * read holds of it. A merge's first parent is the branch, so the walk stays off the base's side.
  */
-function lineOf(left: Node): Marked[] {
+function lineOf(left: Node): History["leftBehind"] {
   const held = new Map(nodes(left, "history").map((commit) => [string(commit, "oid"), commit]))
-  const line: Marked[] = []
+  const line: History["leftBehind"] = []
   let commit = held.get(string(left, "oid"))
   while (commit !== undefined && line.length < held.size) {
     line.push({ oid: string(commit, "oid"), posted: postedOn(commit) })
@@ -351,9 +271,9 @@ function lineOf(left: Node): Marked[] {
  * The commits the force pushes left behind, newest push first, each once and none the history still
  * holds: a line stops where it meets the history, as under an amend, or a newer push's line.
  */
-function forcePushedOf(pr: Node, history: Posted[]): Marked[] {
+function leftBehindOf(pr: Node, history: Commit[]): History["leftBehind"] {
   const seen = new Set(history.map(({ oid }) => oid))
-  const left: Marked[] = []
+  const left: History["leftBehind"] = []
   for (const event of nodes(pr, "rewritten").toReversed()) {
     const head = childOrNull(event, "beforeCommit")
     for (const commit of head === null ? [] : lineOf(head)) {
@@ -367,24 +287,17 @@ function forcePushedOf(pr: Node, history: Posted[]): Marked[] {
   return left
 }
 
-/** The commits of `forcePushed` a Review read; a success under off says no one read its commit. */
-function rewrittenOf(forcePushed: Marked[]): Read[] {
-  return forcePushed.flatMap(({ oid, posted }) =>
-    posted === "clean" || posted === "findings" ? [{ commit: oid, clean: posted === "clean" }] : []
-  )
-}
-
 /**
- * Whether a non-merge commit follows `commit` in the history, oldest first, as `lastReadOf` judges a read
+ * Whether a non-merge commit follows `commit` in the history, oldest first, as the standing judges a read
  * mark. A commit outside the history, after a force-push or past the last 100, is not answered.
  */
-function answeredAfter(history: Posted[], commit: string | null): boolean {
+function answeredAfter(history: Commit[], commit: string | null): boolean {
   const index = history.findIndex(({ oid }) => oid === commit)
   return index >= 0 && history.slice(index + 1).some(({ merge }) => !merge)
 }
 
 /** The reviewers whose latest review requests changes, each judged against the history. */
-function changeRequestsOf(pr: Node, history: Posted[]): ChangeRequest[] {
+function changeRequestsOf(pr: Node, history: Commit[]): ChangeRequest[] {
   return nodes(pr, "latestReviews")
     .filter((review) => string(review, "state") === "CHANGES_REQUESTED")
     .map((review) => {
@@ -395,24 +308,6 @@ function changeRequestsOf(pr: Node, history: Posted[]): ChangeRequest[] {
         answered: answeredAfter(history, commit === null ? null : string(commit, "oid"))
       }
     })
-}
-
-/**
- * The read marks since the last success, the history's first; with no success there, the marks on the
- * commits force pushes left behind go on the count, newest first, up to the first success among them.
- */
-function readMarksOf(history: Posted[], forcePushed: Marked[]): ReadMarks {
-  const isSuccess = ({ posted }: Marked): boolean => posted === "clean" || posted === "off"
-  const findings = (commits: Marked[]): number => commits.filter(({ posted }) => posted === "findings").length
-  const success = history.findLastIndex(isSuccess)
-  const count = findings(history.slice(success + 1))
-  const lastSuccess = history[success]
-  if (lastSuccess !== undefined) {
-    return { count, since: lastSuccess.oid }
-  }
-  const pushedSuccess = forcePushed.findIndex(isSuccess)
-  const sincePushed = pushedSuccess < 0 ? forcePushed : forcePushed.slice(0, pushedSuccess)
-  return { count: count + findings(sincePushed), since: forcePushed[pushedSuccess]?.oid ?? null }
 }
 
 /** The repository and number of the pull request whose URL `gh pr view --json url` printed. */
@@ -430,24 +325,20 @@ export function parseDefaultBranch(reply: string): string {
   return string(child(rootOf(reply, "the reply of gh repo view"), "defaultBranchRef"), "name")
 }
 
-/** The state as the reply holds it, before the compares decide what the head carries and a Review reads. */
-export type Parsed = Omit<PrState, "carried" | "changed" | "scope">
-
 /**
- * The state of the pull request in `reply`, the text `gh api graphql` printed for QUERY on `repo`, and
- * `rewritten`: the commits the last 20 force pushes left behind that a Review read, newest first, none the
- * history still holds, where a Review's read stands once a rebase rewrote every commit it read.
+ * The pull request in `reply`, the text `gh api graphql` printed for QUERY on `repo`, and the history the
+ * Review's standing at its head is read from.
  */
-export function parsePr(reply: string, repo: string): { pr: Parsed; rewritten: Read[] } {
+export function parsePr(reply: string, repo: string): { pr: PullRequest; history: History } {
   const pr = child(child(child(rootOf(reply, "the reply"), "data"), "repository"), "pullRequest")
   const commit = child(firstNode(pr, "commits"), "commit")
   const rollup = childOrNull(commit, "statusCheckRollup")
   const mergeCommit = childOrNull(pr, "mergeCommit")
   const head = string(pr, "headRefOid")
   const baseRef = childOrNull(pr, "baseRef")
-  const history = historyOf(pr)
+  const commits = historyOf(pr)
   const [ready] = nodes(pr, "ready")
-  const state = {
+  const parsed: PullRequest = {
     url: string(pr, "url"),
     repo,
     number: integer(pr, "number"),
@@ -470,14 +361,13 @@ export function parsePr(reply: string, repo: string): { pr: Parsed; rewritten: R
     unresolvedThreads: nodes(pr, "reviewThreads")
       .filter((thread) => !boolean(thread, "isResolved") && !boolean(thread, "isOutdated"))
       .map(threadOf),
-    changeRequests: changeRequestsOf(pr, history),
+    changeRequests: changeRequestsOf(pr, commits),
     cutOff: [
       ...(rollup !== null && hasMore(rollup, "contexts") ? [`the first ${CHECKS_READ} checks`] : []),
       ...(hasMore(pr, "reviewThreads") ? [`the first ${THREADS_READ} threads`] : [])
     ],
-    commits: history.map(({ oid }) => oid),
-    ...lastReadOf(history, head)
+    commits: commits.map(({ oid }) => oid)
   }
-  const forcePushed = forcePushedOf(pr, history)
-  return { pr: { ...state, marks: readMarksOf(history, forcePushed) }, rewritten: rewrittenOf(forcePushed) }
+  const history = { commits, leftBehind: leftBehindOf(pr, commits), head, base: parsed.baseOid }
+  return { pr: parsed, history }
 }

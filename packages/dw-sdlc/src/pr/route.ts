@@ -3,7 +3,12 @@
 // lockfiles, or a change the compare cannot size is full; the rest is light. No config key moves them.
 
 import type { ReviewDepth } from "../agentic-config.ts"
-import type { ChangedFile } from "./state.ts"
+
+/**
+ * A file a Review would read: its name, its name before a rename, and the lines it adds and removes,
+ * null when the compare shows no patch for it, as for a binary file.
+ */
+export type ChangedFile = { path: string; previous: string | null; lines: number | null }
 
 /** The lockfiles a package manager writes, by file name in any directory. */
 const LOCKFILES = new Set([

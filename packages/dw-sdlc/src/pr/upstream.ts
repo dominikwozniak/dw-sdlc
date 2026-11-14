@@ -20,7 +20,7 @@ export function upstreamName(root: string, branch: string): string | undefined {
 }
 
 /** Whether `pr`'s commits hold `head`, so the head is on GitHub whatever became of the upstream. */
-export function holds(pr: PrState, head: string | null): boolean {
+export function holds(pr: Pick<PrState, "commits">, head: string | null): boolean {
   return head !== null && pr.commits.includes(head)
 }
 

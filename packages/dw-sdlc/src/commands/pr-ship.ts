@@ -18,7 +18,7 @@ import {
   type ScriptAction,
   type Status
 } from "../pr/decide.ts"
-import { carriesBase, gh, namedProblem, nameItRemedy, now, read, readAgain, readBranch, said } from "../pr/read.ts"
+import { gh, ghReads, namedProblem, nameItRemedy, now, type Reads, said } from "../pr/read.ts"
 import type { PrState } from "../pr/state.ts"
 import { holds, renamedUpstream } from "../pr/upstream.ts"
 import { shellLine } from "../shell-line.ts"
@@ -160,9 +160,9 @@ const NAMED: Record<ScriptAction, { would: string; act: string; still: string }>
  * Whether the read after a script Action shows it took effect. gh's exit status cannot tell: a reply
  * lost on the way back exits non-zero after GitHub applied the Action.
  */
-const TOOK: Record<ScriptAction, (before: PrState, after: PrState) => boolean> = {
+const TOOK: Record<ScriptAction, (before: PrState, after: PrState, reads: Reads) => boolean> = {
   // A moved head alone may be a push: the update took effect when the head carries the base it read.
-  "update-branch": (before, after) => after.head !== before.head && carriesBase(before, after),
+  "update-branch": (before, after, reads) => after.head !== before.head && reads.carriesBase(before, after),
   "mark-ready": (_, after) => !after.draft,
   // The post names the head it read: a head moved since carries none of it.
   "mark-reviewed": (before, after) =>
@@ -204,13 +204,13 @@ function handedOver(pr: PrState, policy: Policy, answer: Answer, action: ScriptA
  * none for a branch whose upstream has another name, the one of that name, taken only when its commits
  * hold the local head: a branch started from another tracks that branch until its first push.
  */
-function readTarget(cli: Cli, root: string, sized: boolean): PrState {
+function readTarget(cli: Cli, root: string, reads: Reads): PrState {
   const renamed = cli.number === undefined && cli.repo === undefined ? renamedUpstream(root) : undefined
   if (renamed === undefined) {
-    return read(cli, "pr ship", sized)
+    return reads.named(cli, "pr ship")
   }
   const { branch, head, upstream } = renamed
-  const found = readBranch(sized, upstream)
+  const found = reads.branch(upstream)
   const upstreamNamed = `${upstream}, the name its upstream gives`
   if (found === null) {
     throw new CannotRun(
@@ -231,8 +231,8 @@ function readTarget(cli: Cli, root: string, sized: boolean): PrState {
  */
 function ship(cli: Cli, root: string, policy: Policy): { pr: PrState; answer: Answer; performed: Performed[] } {
   // Only pr.review auto routes the depth from the changes, so only it reads them.
-  const sized = policy.review.depth === "auto"
-  let pr = readTarget(cli, root, sized)
+  const reads = ghReads(policy.review.depth === "auto")
+  let pr = readTarget(cli, root, reads)
   const performed: Performed[] = []
   // The head each Action ran on.
   const postedOn = new Map<ScriptAction, string>()
@@ -266,8 +266,8 @@ function ship(cli: Cli, root: string, policy: Policy): { pr: PrState; answer: An
     const record = { action, command, exit: status, ...(message === "" ? {} : { stderr: message }) }
     postedOn.set(action, before.head)
     try {
-      pr = readAgain(pr, sized)
-      performed.push({ ...record, ok: TOOK[action](before, pr) })
+      pr = reads.again(pr)
+      performed.push({ ...record, ok: TOOK[action](before, pr, reads) })
     } catch (error) {
       if (error instanceof CannotRun) {
         // The Action may have landed: the caller must not run it blind again.

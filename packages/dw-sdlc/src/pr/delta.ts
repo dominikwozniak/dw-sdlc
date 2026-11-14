@@ -1,9 +1,10 @@
-// GitHub's compare of two commits, read two ways: whether a head carries the Review of an earlier commit,
-// the pull request's own changes from the base the same at both, since a merge of the base in adds none
-// of its own; and the files a Review would read, with their changed lines, for `pr.review: auto`.
+// GitHub's compare of two commits as gh prints it, read three ways: the pull request's own changes at a
+// commit, from the base; the files a Review would read, with their changed lines, for `pr.review: auto`;
+// and how far a head is behind a base, which says whether an update merged it in.
 
 import { fieldOf, integer, type Node, object, ReplyError, rootOf, shown, string } from "./reply.ts"
-import type { ChangedFile } from "./state.ts"
+import type { ChangedFile } from "./route.ts"
+import type { OwnChange } from "./standing.ts"
 
 /** GitHub's compare lists at most this many files; one that lists as many may hold back the rest. */
 const FILE_LIMIT = 300
@@ -32,12 +33,6 @@ function optional(file: Node, key: string): string | null {
   return file.value[key] === undefined || file.value[key] === null ? null : string(file, key)
 }
 
-/**
- * A file's own change: its name, its status, its name before a rename, and the lines its patch adds and
- * removes, in order, without the hunk headers and context a moved base shifts.
- */
-export type OwnChange = { path: string; status: string; previous: string | null; lines: string[] }
-
 /** A file's own change; null when the compare shows no patch for it. */
 function changeOf(file: Node): OwnChange | null {
   const path = string(file, "filename")
@@ -64,29 +59,4 @@ export function changedOf(reply: string): ChangedFile[] | "unsized" {
     lines: optional(file, "patch") === null ? null : integer(file, "additions") + integer(file, "deletions")
   }))
   return files.length >= FILE_LIMIT ? "unsized" : files
-}
-
-/** A change as a key, equal exactly when the two changes are. */
-function keyOf({ path, status, previous, lines }: OwnChange): string {
-  return JSON.stringify([path, status, previous, lines])
-}
-
-/** Whether the own changes at the head are those at the reviewed commit; unknown changes never are. */
-export function sameChanges(then: OwnChange[] | null, now: OwnChange[] | null): boolean {
-  if (then === null || now === null) {
-    return false
-  }
-  return JSON.stringify(then.map(keyOf).toSorted()) === JSON.stringify(now.map(keyOf).toSorted())
-}
-
-/** The files whose own change differs between `before` and `after`, a rename under both names. */
-export function movedFiles(before: OwnChange[], after: OwnChange[]): string[] {
-  const was = new Set(before.map(keyOf))
-  const is = new Set(after.map(keyOf))
-  const moved = [
-    ...after.filter((change) => !was.has(keyOf(change))),
-    ...before.filter((change) => !is.has(keyOf(change)))
-  ]
-  const names = moved.flatMap(({ path, previous }) => (previous === null ? [path] : [path, previous]))
-  return [...new Set(names)].toSorted()
 }

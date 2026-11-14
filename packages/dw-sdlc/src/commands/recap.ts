@@ -8,7 +8,7 @@ import { findRepository, mainCheckout, resolveConfig } from "../agentic-config.t
 import { CannotRun, readArgs, usageError } from "../cannot-run.ts"
 import { asked, must } from "../git.ts"
 import { type Answer, decide, declaredPolicy, labelOf, lineOf } from "../pr/decide.ts"
-import { defaultBranch, now, readBranch } from "../pr/read.ts"
+import { defaultBranch, ghReads, now } from "../pr/read.ts"
 import type { PrState } from "../pr/state.ts"
 import { holds, upstreamName } from "../pr/upstream.ts"
 import { type Candidate, type Next, READY_LABEL, readNext } from "../recap-next.ts"
@@ -174,7 +174,8 @@ function workersText(workers: Worker[]): string {
 function readShipped(root: string, branch: string, head: string | null): Shipped | null {
   // An invalid config layer resolves to ask and full, as in the Ship script.
   const policy = declaredPolicy(resolveConfig(root).config.pr)
-  const found = readBranch(policy.review.depth === "auto", head === null ? undefined : upstreamName(root, branch))
+  const reads = ghReads(policy.review.depth === "auto")
+  const found = reads.branch(head === null ? undefined : upstreamName(root, branch))
   if (found === null || (found.byUpstream && !holds(found.pr, head))) {
     return null
   }
