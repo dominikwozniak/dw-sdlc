@@ -40,9 +40,9 @@ ${REVIEW} success gets the Review depth --review names for this call, else pr.re
 the agent reviews it with the command pr.reviewCommand names, /code-review by default; under light
 one sdlc-reviewer subagent reads the diff; under off the script posts the success itself, its
 description saying why. Under auto, the default, the script routes the depth from the changes the
-Review would read: lockfiles alone off; a file under .github/workflows/, more than 100 changed
-lines outside lockfiles, or a change it cannot size, more files than GitHub's compare lists or a
-file outside lockfiles with no patch, full; the rest light. After a push it names
+Review would read: lockfiles alone off, unless a Finding is open; a file under .github/workflows/,
+more than 100 changed lines outside lockfiles, or a change it cannot size, more files than GitHub's
+compare lists or a file outside lockfiles with no patch, full; the rest light. After a push it names
 the last commit a Review read under details.since, where the Review reads from and auto routes from:
 one with a ${REVIEW} success not posted under off, or the read mark pr reviewed --findings
 posts. It carries a success over a head whose only commits since are merges of the base, unless

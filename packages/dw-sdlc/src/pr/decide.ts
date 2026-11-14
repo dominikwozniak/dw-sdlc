@@ -175,6 +175,14 @@ type Depth =
   | { depth: Exclude<ReviewDepth, "off">; source: DepthSource }
   | { depth: "off"; source: DepthSource; why: string }
 
+/**
+ * Whether a Finding stands: a read mark since the last success, one as the last read, or one left open.
+ * The Review after a fix checks each one is fixed (ADR 0016), so the rules never route it off.
+ */
+function findingsOpen({ marks, lastRead, open }: PrState): boolean {
+  return marks.count > 0 || lastRead?.clean === false || open !== null
+}
+
 /** The depth a Review reads the head at: the dev's or the one `pr.review` sets, else the one the rules route. */
 function depthOf(pr: PrState, { review }: Policy): Depth {
   const { depth, source } = review
@@ -184,7 +192,7 @@ function depthOf(pr: PrState, { review }: Policy): Depth {
   if (depth !== "auto") {
     return { depth, source }
   }
-  return { ...route(pr.changed), source: "auto" }
+  return { ...route(pr.changed, findingsOpen(pr)), source: "auto" }
 }
 
 /** Why the head carries the success the script posts: the Review it carries, else why its depth is off. */
@@ -327,9 +335,9 @@ const ROWS: Row[] = [
       }
       const { depth, source } = depthOf(pr, policy)
       // The dev's own depth buys one Review past the limit, and only one: the flag rides on every
-      // later call. A Review under off needs none.
+      // later call. Their --review off posts past it: no one reads, by their word.
       const limit = source === "flag" ? REVIEW_LIMIT + 1 : REVIEW_LIMIT
-      if (depth !== "off" && pr.marks.count >= limit) {
+      if (!(source === "flag" && depth === "off") && pr.marks.count >= limit) {
         return reviewLimit(pr)
       }
       const byScript = depth === "off"

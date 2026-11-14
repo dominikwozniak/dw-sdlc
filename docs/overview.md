@@ -342,7 +342,7 @@ default. At `light` it runs its own `sdlc-reviewer`.
 Under `pr.review: auto`, the default, built-in rules route the depth from the change, first match
 winning:
 
-- `off`: every changed file is a lockfile;
+- `off`: every changed file is a lockfile, and no Finding is open;
 - `full`: a file under `.github/workflows/`, more than 100 changed lines outside lockfiles, or a change
   the script cannot size;
 - `light`: the rest.
@@ -361,7 +361,7 @@ the same depth.
   `details.since`, and checks each Finding that fix answers.
 - **A merge of the base carries a success.** Two tests must both pass: every commit since the reviewed
   one is a merge, and the pull request's own changes are the same at both commits, compared through
-  GitHub. A read mark never carries, since its Findings still stand.
+  GitHub. A read mark never carries.
 - **A read mark no commit answers stays open.** A read mark on the head, or one a merge of the base or
   a rebase came after with the own changes as it read them, is named in `details.open`. The
   Review reads the whole pull request, and nothing carries. A session that holds the mark's Findings

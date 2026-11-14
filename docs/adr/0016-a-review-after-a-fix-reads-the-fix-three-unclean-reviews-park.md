@@ -22,7 +22,8 @@ with only merges of the base after it has no fix to read: the Review reads the w
 (ADR 0023). Three Reviews without a success between them
 park the pull request for the dev. The park's command, the dev's to run, posts success as "accepted by
 the dev, findings open"; the dev's `--review <depth>` buys one Review past the limit. A success starts
-the count again. The rule holds at `full` and at `light` alike.
+the count again. The rule holds at every depth: while a Finding is open, `auto` never routes `off` from the
+changed files alone, and only the dev's `--review off` posts a success past the limit.
 
 ## Consequences
 

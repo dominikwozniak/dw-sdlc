@@ -180,6 +180,29 @@ describe("dw-sdlc pr ship under pr.review auto", () => {
     assert.deepEqual(run.calls, [AUTH, READ, compare(REVIEWED)])
   })
 
+  it("routes lockfiles alone light while a Finding is open, and off once the last Review was clean", () => {
+    const cases: [string, Commit, string, object][] = [
+      [
+        "a read mark",
+        { oid: REVIEWED, review: "FAILURE", described: "read, findings open" },
+        "review",
+        { depth: "light", source: "auto", reviewCommand: "/code-review", since: REVIEWED }
+      ],
+      [
+        "a clean Review",
+        { oid: REVIEWED, review: "SUCCESS" },
+        "mark-reviewed",
+        { depth: "off", source: "auto", reviewCommand: "/code-review", since: REVIEWED }
+      ]
+    ]
+    for (const [name, read, action, details] of cases) {
+      const history: Commit[] = [read, { oid: PUSHED, review: null }]
+      const run = ship(["--json", "--dry-run"], [{ ...UNREVIEWED, history }], compared(REVIEWED, LOCKFILES))
+      assert.deepEqual(documentOf(run.stdout, ["action", "details"]), { action, details }, name)
+      assert.deepEqual(run.calls, [AUTH, READ, compare(REVIEWED)], name)
+    }
+  })
+
   it("routes on the whole diff since the base over a rewritten history that holds no reviewed commit", () => {
     const rebased: Pr = { ...UNREVIEWED, history: [{ oid: PUSHED, review: null }] }
     const run = ship(["--json"], [rebased], compared(BASE_OID, [file("src/a.ts", 101)]))
