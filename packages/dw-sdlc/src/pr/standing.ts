@@ -151,6 +151,18 @@ function leftBehindRead({ leftBehind }: History): LastRead | null {
 }
 
 /**
+ * A read mark a force push left behind and posted after every read of the history: the Review the head
+ * needs reads from it, not from the history's last read, whose clean status no longer stands.
+ */
+function leftBehindMark(history: History): LastRead | null {
+  const newest = inPostedOrder(history).findLast(({ posted }) => posted === "clean" || posted === "findings")
+  if (newest?.posted !== "findings" || history.commits.some(({ oid }) => oid === newest.oid)) {
+    return null
+  }
+  return { commit: newest.oid, clean: false, baseOnly: true, baseMoved: true }
+}
+
+/**
  * The read mark `read` left open, no fix showing after it (ADR 0023): no change since it after the branch's
  * own commits alone, else the same own changes at both commits or a compare that cannot show them whole.
  * Null for any other read.
@@ -212,7 +224,8 @@ export function standingOf(
 ): Standing {
   const marks = readMarksOf(history)
   const inHistory = lastReadOf(history)
-  const read = inHistory.lastRead ?? (inHistory.open === null ? leftBehindRead(history) : null)
+  const read =
+    inHistory.open === null ? (leftBehindMark(history) ?? inHistory.lastRead ?? leftBehindRead(history)) : null
   if (!awaits) {
     return { lastRead: read, open: inHistory.open, marks, carried: false, changed: null, scope: null }
   }

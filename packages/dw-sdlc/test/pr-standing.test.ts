@@ -264,6 +264,30 @@ describe("the Review's standing at a pull request's head", () => {
     assert.deepEqual(reviewCall(carried, FULL), { kind: "carry", from: CLEAN })
   })
 
+  it("reads from a read mark a force push left behind after the last clean read, and carries nothing past it", () => {
+    const leftBehind: History["leftBehind"] = [{ oid: SECOND, posted: "findings", forksAt: 0 }]
+    const history = upTo([clean(READ), pushed(PUSHED, true)], { headMerge: true, leftBehind })
+    const unanswered = standingOf(history, inMemory({ [SECOND]: [PAYWALL], [HEAD]: [PAYWALL] }), AWAITS)
+    assert.equal(unanswered.carried, false)
+    assert.deepEqual(reviewCall(unanswered, FULL), {
+      kind: "review",
+      depth: "full",
+      source: "config",
+      since: null,
+      paths: null,
+      open: SECOND
+    })
+    const answered = standingOf(history, inMemory({ [SECOND]: [PAYWALL], [HEAD]: [ADDED] }), AWAITS)
+    assert.deepEqual(reviewCall(answered, FULL), {
+      kind: "review",
+      depth: "full",
+      source: "config",
+      since: SECOND,
+      paths: ["src/paywall.tsx", "src/retry.ts"],
+      open: null
+    })
+  })
+
   it("counts the marks posted after the newest success, a line an amend left behind after the commit it was pushed on", () => {
     const amended: History["leftBehind"] = [
       { oid: THIRD, posted: "findings", forksAt: 1 },

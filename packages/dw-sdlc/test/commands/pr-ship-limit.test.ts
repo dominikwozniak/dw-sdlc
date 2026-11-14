@@ -6,7 +6,7 @@ import { describe, it } from "node:test"
 
 import { COMMITTED_FILE } from "../../src/agentic-config.ts"
 import { repo, runBin } from "../harness.ts"
-import { type Commit, fakeGh, GREEN, HEAD, type Pr, type Response, RUN, served } from "../pr-harness.ts"
+import { BASE_OID, type Commit, fakeGh, GREEN, HEAD, type Pr, type Response, RUN, served } from "../pr-harness.ts"
 
 const TARGET = ["40", "-R", "byarcadia-app/foundation"]
 const AUTH = ["auth", "status", "--active", "--hostname", "github.com"]
@@ -70,9 +70,21 @@ const FIXED: Record<string, Response> = Object.fromEntries(
   [FIRST, SECOND, THIRD, FOURTH, PUSHED].map((oid) => [compare(oid), FIX])
 )
 
+/** The own changes at `commit` from the base: one file, changed as `patch` says. */
+function ownAt(commit: string, patch: string): Record<string, Response> {
+  const files = [{ filename: "src/paywall.tsx", status: "modified", additions: 1, deletions: 1, patch }]
+  const call = `api repos/byarcadia-app/foundation/compare/${BASE_OID}...${commit}?per_page=1`
+  return { [call]: { stdout: JSON.stringify({ status: "ahead", behind_by: 0, files }) } }
+}
+
 /** `dw-sdlc pr ship` on the one `pr` read; `pr.review` is full unless `files` say otherwise. */
-function ship(args: string[], pr: Pr, files: Record<string, string | object> = FULL) {
-  const gh = fakeGh({ graphql: [served(pr)], commands: FIXED })
+function ship(
+  args: string[],
+  pr: Pr,
+  files: Record<string, string | object> = FULL,
+  more: Record<string, Response> = {}
+) {
+  const gh = fakeGh({ graphql: [served(pr)], commands: { ...FIXED, ...more } })
   const run = runBin(["pr", "ship", ...TARGET, "--json", ...args], repo({ files }), gh.env)
   return {
     ...run,
@@ -200,7 +212,9 @@ describe("dw-sdlc pr ship after three Reviews with no success between them", () 
   it("counts the read marks of heads an amend left behind on the success, and none left behind before it", () => {
     const success: Commit = { oid: CLEAN, review: "SUCCESS" }
     const amended: Commit[] = [FIRST, SECOND, THIRD].map((oid) => ({ oid, ...MARK, under: [success] }))
-    const run = ship([], pushed([success], { rewritten: amended }))
+    // The newest left-behind mark is the read the head's Review starts from, its own changes compared.
+    const own = { ...ownAt(THIRD, "@@ -1 +1 @@\n-a\n+b"), ...ownAt(HEAD, "@@ -1 +1 @@\n-a\n+c") }
+    const run = ship([], pushed([success], { rewritten: amended }), FULL, own)
     assert.equal(run.status, 30, run.stderr)
     assert.deepEqual(answered(run.answer, ["action", "reason"]), {
       action: "review-limit",
