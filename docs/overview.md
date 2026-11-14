@@ -394,7 +394,8 @@ runs on the dev's word, from the main checkout. It never forces and never writes
 | a stale lock   | Claude Code's, its process gone, just before its worktree goes | a live lock, named by its pid                                                  |
 
 It always keeps the default branch, the base branch, a protected branch and a branch a kept worktree
-has checked out. It fetches origin first, so a branch squash-merged since the last fetch counts.
+has checked out. When the main checkout sits on a Landed branch, clean and with nothing paused,
+the Sweep names `git switch <base> && git pull --rebase` for it; the next Sweep then removes the branch. It fetches origin first, so a branch squash-merged since the last fetch counts.
 
 In herdr it also cleans up the session's own Workers. It never stops a terminal next to work that
 could still be committed.
