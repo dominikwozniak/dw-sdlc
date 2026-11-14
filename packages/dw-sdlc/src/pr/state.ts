@@ -134,8 +134,8 @@ export type PrState = {
    */
   lastRead: LastRead | null
   /**
-   * A read mark whose Findings no later commit answers: a merge of the base or a rebase came after it,
-   * and the own changes are as it read them. Then `lastRead` is null, the Review reads the whole pull
+   * A read mark whose Findings no later commit answers: the head's own, or one a merge of the base or a
+   * rebase came after with no fix showing. Then `lastRead` is null, the Review reads the whole pull
    * request, and nothing carries (ADR 0023).
    */
   open: string | null
@@ -282,10 +282,13 @@ function historyOf(pr: Node): Posted[] {
 }
 
 /**
- * The last commit before `head` a Review read, the history oldest first, or `open`: a read mark with
- * only merges after it. No fix answers its Findings, so no read before it stands in (ADR 0023).
+ * The last commit before `head` a Review read, the history oldest first, or `open`: a read mark on the
+ * head, or with only merges after it. No fix answers its Findings, so no read stands in (ADR 0023).
  */
 function lastReadOf(history: Posted[], head: string): Pick<Parsed, "lastRead" | "open"> {
+  if (history.some(({ oid, posted }) => oid === head && posted === "findings")) {
+    return { lastRead: null, open: head }
+  }
   const index = history.findLastIndex(
     ({ oid, posted }) => oid !== head && (posted === "clean" || posted === "findings")
   )

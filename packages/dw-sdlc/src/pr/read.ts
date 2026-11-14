@@ -241,8 +241,8 @@ function withRewritten(pr: Parsed, rewritten: Read[]): Parsed {
 }
 
 /**
- * `pr` with its last read mark `open` when a merge of the base or a rebase came after it and the own
- * changes are as it read them: no fix answers its Findings, so no read stands in (ADR 0023). The
+ * `pr` with its last read mark `open` when a merge of the base or a rebase came after it and no fix
+ * shows: the own changes are as it read them, or a compare cannot show them whole (ADR 0023). The
  * compares run only when a Review awaits the head.
  */
 function withOpen(pr: Parsed): Parsed {
@@ -250,7 +250,9 @@ function withOpen(pr: Parsed): Parsed {
   if (last === null || last.clean || !last.baseMoved || pr.state !== "OPEN" || !awaitsReview(pr)) {
     return pr
   }
-  if (!sameChanges(ownChanges(pr, last.commit), ownChanges(pr, pr.head))) {
+  const atRead = ownChanges(pr, last.commit)
+  const atHead = ownChanges(pr, pr.head)
+  if (atRead !== null && atHead !== null && !sameChanges(atRead, atHead)) {
     return pr
   }
   return { ...pr, lastRead: null, open: last.commit }

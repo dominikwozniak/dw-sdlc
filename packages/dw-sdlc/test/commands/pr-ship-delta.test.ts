@@ -436,6 +436,39 @@ describe("dw-sdlc pr ship after a Review that left a Finding open", () => {
     assert.deepEqual(run.calls, [AUTH, READ, compare(REVIEWED), compare(HEAD)])
   })
 
+  it("names open a read mark when a compare cannot show the own changes whole, as with a binary file", () => {
+    const binary: File = { filename: "assets/logo.png", status: "modified" }
+    const history: Commit[] = [
+      { oid: EARLIER, review: "SUCCESS" },
+      { oid: REVIEWED, ...MARK },
+      { oid: "c0ffee00c0ffee0ddba11c0de5ca1ab1e0ddba11" },
+      { oid: PUSHED, review: null, parents: 2 }
+    ]
+    const run = ship(["--json"], [{ ...MERGED_IN, history }], {
+      ...compared(REVIEWED, [READ_THEN, binary]),
+      ...compared(HEAD, [SHIFTED, binary])
+    })
+    assert.equal(run.status, 10, run.stderr)
+    assert.deepEqual(documentOf(run.stdout, ["action", "details"]), {
+      action: "review",
+      details: { depth: "full", source: "config", reviewCommand: "/code-review", open: REVIEWED }
+    })
+  })
+
+  it("carries no success over the read mark the head itself carries, and names it open", () => {
+    const run = ship(["--json"], [{ ...MERGED_IN, headReview: MARK }], {
+      ...compared(REVIEWED, [READ_THEN]),
+      ...compared(HEAD, [SHIFTED])
+    })
+    assert.equal(run.status, 10, run.stderr)
+    assert.deepEqual(documentOf(run.stdout, ["action", "details", "performed"]), {
+      action: "review",
+      details: { depth: "full", source: "config", reviewCommand: "/code-review", open: HEAD },
+      performed: []
+    })
+    assert.deepEqual(run.calls, [AUTH, READ])
+  })
+
   it("names no since over a rewritten history that no longer holds a marked commit", () => {
     const rebased: Commit[] = [{ oid: EARLIER }, { oid: PUSHED, review: null }, { oid: REVIEWED, review: "PENDING" }]
     const run = ship(["--json"], [{ ...PUSHED_ON, history: rebased }])

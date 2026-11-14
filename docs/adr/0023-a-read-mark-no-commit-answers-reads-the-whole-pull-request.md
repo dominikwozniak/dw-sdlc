@@ -4,8 +4,10 @@ status: accepted
 
 # A read mark no commit answers makes the Review read the whole pull request
 
-A read mark stays open when a merge of the base or a rebase comes after it and the own changes are as it
-read them, compared through GitHub against the base. No fix answers its Findings. The Findings live only
+A read mark stays open when no fix shows after it. That is a read mark on the head itself, or one a merge
+of the base or a rebase came after with the own changes as it read them, compared through GitHub against
+the base. A compare that cannot show the own changes whole, as with a binary file, shows no fix either.
+No fix answers its Findings. The Findings live only
 in the conversation of the session that reviewed. Take a clean read, then a read mark on the same own
 changes, then a merge or a rebase. A Review from the clean read has nothing to read, so a fresh session
 would post a success over Findings that still stand. A carry of the clean read's success would post one
@@ -31,13 +33,13 @@ the whole diff, and a Review from the clean read then reads nothing. Naming the 
 field outside `details` keeps the range out of the place the agent reads it. The whole read costs one
 full Review for a session that lost the Findings. A session that kept them pays nothing.
 
-A compare that cannot show the own changes whole leaves the mark as the read, as a carry is never made on
-unknown changes either. Taking it as open would send every pull request with a binary file to a whole
-Review after each merge. Under `off`, the dev's word, the script still posts its success over an open
+A pull request with a file the compare shows no patch for, as a binary file, gets a whole Review after
+each merge or rebase that follows a read mark, the fix or not. A fix GitHub cannot show is no fix the
+script can see. Under `off`, the dev's word, the script still posts its success over an open
 mark: its description says no one read the head.
 
 The first-parent walk stays on the branch: the first parent of a merge of the base is the branch. Past
 the fork point it reaches the base's own line, where no commit carries a review status, because the
 script squash-merges. GitHub's history of a head holds the base's commits a merge brought in too, so a
 busy base shortens the walk. A read mark past it leaves the count, as one past the 100 commits of the
-history does. A read mark on the head itself is not open: the Review reads from the read before it.
+history does.

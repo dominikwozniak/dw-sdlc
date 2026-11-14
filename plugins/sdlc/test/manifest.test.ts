@@ -142,6 +142,7 @@ describe("the sdlc plugin", () => {
     assert.match(text, /When\s+the\s+answer\s+has\s+`details\.open`/)
     assert.match(text, /Review\s+reads\s+the\s+whole\s+pull\s+request\s+from\s+`origin\/<base>`/)
     assert.match(text, /its\s+Findings\s+stand\s+in\s+for\s+the\s+mark's/)
+    assert.match(text, /`references\/review\.md`\s+has\s+you\s+fix\s+them/)
   })
 
   it("has sdlc-pr-ship fetch a <since> a rebase left behind and diff it with two dots", () => {
