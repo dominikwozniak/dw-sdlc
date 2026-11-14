@@ -1,5 +1,6 @@
 // What a Sweep reads of a repository's branches and worktrees: where each worktree lies, what it has checked
-// out, its lock, the files that hold it and the operation paused in it, and the way off the main checkout's.
+// out, its lock, the files that hold it and the operation paused in it, and the way off the main checkout's;
+// beside them, the commands the dev runs for what the Sweep keeps.
 
 import { existsSync } from "node:fs"
 import { join } from "node:path"
@@ -7,6 +8,21 @@ import { join } from "node:path"
 import { asked, git, must } from "./git.ts"
 import { isLanded } from "./landed.ts"
 import { shellLine } from "./pr/decide.ts"
+
+/** The forced delete of `branch`, the dev's to run. */
+export function forcedDelete(branch: string): string {
+  return shellLine(["git", "branch", "-D", branch])
+}
+
+/** The forced removal of the worktree at `path`, the dev's to run; git wants --force twice for one still locked. */
+export function forcedRemoval(path: string, locked = false): string {
+  return shellLine(["git", "worktree", "remove", "--force", ...(locked ? ["--force"] : []), path])
+}
+
+/** The unlock of the worktree at `path`, the dev's to run. */
+export function unlockCommand(path: string): string {
+  return shellLine(["git", "worktree", "unlock", path])
+}
 
 /** The local branches of the repository at `root`. */
 export function branchesOf(root: string): string[] {
