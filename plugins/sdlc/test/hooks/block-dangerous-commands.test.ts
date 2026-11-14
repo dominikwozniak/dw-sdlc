@@ -69,6 +69,19 @@ const SIBLING = join(TMP, "on-main-topic")
 git(ON_MAIN, "worktree", "add", "-q", SIBLING, "-b", "topic")
 const RELEASE = initRepo(join(TMP, "release"), { branch: "feat" })
 writeJson(join(RELEASE, ".ai", "agentic.config.json"), { guardrails: { protectedBranches: ["release"] } })
+// A branch on feat whose main is on origin alone, where `git checkout main` guesses origin's; and one
+// whose main two remotes have, where git refuses to guess.
+function remoteMain(name: string, remotes: string[]): string {
+  const dir = initRepo(join(TMP, name), { branch: "feat" })
+  change(dir, "a.txt", "a\n")
+  for (const remote of remotes) {
+    git(dir, "remote", "add", remote, `https://example.com/${remote}.git`)
+    git(dir, "update-ref", `refs/remotes/${remote}/main`, "HEAD")
+  }
+  return dir
+}
+const REMOTE_MAIN = remoteMain("remote-main", ["origin"])
+const TWO_REMOTE_MAINS = remoteMain("two-remote-mains", ["origin", "upstream"])
 // Repositories that take no commit on a protected branch: one on main, one on a feature branch, and
 // one whose local layer is invalid, so the strictest set applies.
 function commitDeny(name: string, branch: string, config: object): string {
@@ -255,6 +268,15 @@ describe("a literal cd or git -C moves a push to that repository, its branch and
   blocked("dash-C-reads-that-config", `git -C ${RELEASE} push origin release`)
   blocked("cd-reads-that-config", `cd ${RELEASE} && git push origin release`)
   allowed("dash-C-protects-only-what-that-config-lists", `git -C ${RELEASE} push origin main`)
+})
+
+describe("a checkout of a branch one remote alone has switches to it, as git guesses", () => {
+  blocked("checkout-remote-only-main-then-push-head", "git checkout main && git push origin HEAD", REMOTE_MAIN)
+  blocked("checkout-remote-only-main-then-bare-push", "git checkout main && git push", REMOTE_MAIN)
+  blocked("switch-remote-only-main-then-push-head", "git switch main && git push origin HEAD", REMOTE_MAIN)
+  allowed("checkout-no-guess-stays-put", "git checkout --no-guess main && git push origin HEAD", REMOTE_MAIN)
+  allowed("checkout-of-a-name-two-remotes-have", "git checkout main && git push origin HEAD", TWO_REMOTE_MAINS)
+  allowed("checkout-of-a-path-stays-put", "git checkout main -- a.txt && git push origin HEAD", REMOTE_MAIN)
 })
 
 describe("reset --hard — passes when no tracked file has a change, since nothing is lost", () => {

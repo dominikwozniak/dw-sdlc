@@ -130,8 +130,9 @@ baseBranch in .ai/agentic.config.json.
 | `guardrails.protectedBranches` | branch names           | `master`, `main`, `production` |
 | `guardrails.forcePush`         | `deny`, `ask`, `lease` | `lease`; `ask` prompts first   |
 
-`--all` and a wildcard refspec count every local branch. A `switch -c` or `checkout -b` earlier in the
-same command moves the branch the push is judged on.
+`--all` and a wildcard refspec count every local branch. A `switch` or `checkout` earlier in the same
+command moves the branch the push is judged on: `-c` and `-b` name it, and a checkout of a branch only
+one remote has switches to it, as git's guess creates it.
 
 ```text
 BLOCKED: 'git push --force origin feat' force-pushes without a lease. Use --force-with-lease

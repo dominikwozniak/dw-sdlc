@@ -177,10 +177,10 @@ guard_current_branch() {
 GUARD_SWITCHED=""
 
 # guard_note_switch — records the branch the `git switch` or `git checkout` in WORDS leaves its
-# location on, `-` for --detach. A checkout's operand counts only alone and naming a local branch:
-# `git checkout main -- a.txt` copies a path and stays put.
+# location on, `-` for --detach. A checkout's operand counts only alone and naming a branch, local or
+# guessed: `git checkout main -- a.txt` copies a path and stays put.
 guard_note_switch() {
-  local i=$WORD_INDEX n=${#WORDS[@]} word target="" operand="" operands=0
+  local i=$WORD_INDEX n=${#WORDS[@]} word target="" operand="" operands=0 guess=1
   while ((i < n)); do
     word=${WORDS[i]}
     case "$word" in
@@ -195,6 +195,8 @@ guard_note_switch() {
       --create=* | --force-create=* | --orphan=*) target=${word#*=} ;;
       -d | --detach) target="-" ;;
       -[cCbB]?*) target=${word:2} ;;
+      --no-guess) guess=0 ;;
+      --guess) guess=1 ;;
       -*) ;;
       *)
         [[ -z "$operand" ]] && operand=$word
@@ -204,13 +206,24 @@ guard_note_switch() {
     i=$((i + 1))
   done
   if [[ -z "$target" && -n "$operand" && "$operand" != "-" ]]; then
-    if [[ "$GUARD_GIT_VERB" == switch ]] || { ((operands == 1)) &&
-      git -C "$GUARD_PUSH_LOC" show-ref --verify -q "refs/heads/$operand" 2>/dev/null; }; then
+    if [[ "$GUARD_GIT_VERB" == switch ]] || { ((operands == 1)) && guard_checkout_branch "$operand" "$guess"; }; then
       target=$operand
     fi
   fi
   [[ -n "$target" ]] && GUARD_SWITCHED+="$GUARD_PUSH_LOC"$'\t'"$target"$'\n'
   return 0
+}
+
+# guard_checkout_branch <name> <guess> — 0 when `git checkout <name>` switches to a branch: a local one
+# of that name, else, with <guess> 1, the branch git creates from the one remote that has <name>.
+guard_checkout_branch() {
+  local remote found=0
+  git -C "$GUARD_PUSH_LOC" show-ref --verify -q "refs/heads/$1" 2>/dev/null && return 0
+  (($2)) || return 1
+  while IFS= read -r remote; do
+    git -C "$GUARD_PUSH_LOC" show-ref --verify -q "refs/remotes/$remote/$1" 2>/dev/null && found=$((found + 1))
+  done < <(git -C "$GUARD_PUSH_LOC" remote 2>/dev/null)
+  ((found == 1))
 }
 
 # guard_head_branch <dir> — the branch HEAD is on at <dir> once the switches earlier in this command
