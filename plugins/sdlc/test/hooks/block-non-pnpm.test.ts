@@ -146,6 +146,41 @@ describe("a pnpm repository — bun runs any word that is not its own command", 
   allowed("bun dev in an npm repository", "bun dev", NPM)
 })
 
+// bun's which() (src/runtime/cli/mod.rs) skips every leading word that starts with a `-` and reads the
+// next word as the command, an option's value included: `bun --cwd app outdated` is `app`, which runs
+// `outdated` as a script, a bin or a file. `-e`, `--eval`, `-p` and `--print` run their code.
+describe("a pnpm repository — an option before bun's first word does not hide it", () => {
+  blocked("--watch before a script", "bun --watch dev")
+  blocked("--hot before a file", "bun --hot ./x.ts")
+  blocked("--bun before a script", "bun --bun dev")
+  blocked("-b before a script", "bun -b dev")
+  blocked("--cwd before a script", "bun --cwd app dev")
+  blocked("--silent before install", "bun --silent install")
+  blocked("two options before install", "bun --silent --no-install install")
+  blocked("--filter runs the script in each workspace", "bun --filter '*' build")
+  blocked("an option's value is bun's command word", "bun --cwd app outdated")
+  blocked("a redirect before a script", "bun > log.txt dev")
+  blocked("a glued redirect before install", "bun 2>&1 install")
+  blocked("-e runs code", "bun -e 'console.log(1)'")
+  blocked("--eval runs code", 'bun --eval "console.log(1)"')
+  blocked("--eval= runs code", "bun --eval='console.log(1)'")
+  blocked("-p prints code it runs", "bun -p 1+1")
+  blocked("--print prints code it runs", "bun --print 1+1")
+  blocked("-e behind a flag of no value", "bun -be 'console.log(1)'")
+  blocked("-e whose code is a word of bun's own", "bun -e build")
+  blocked("-e after another option", "bun --silent -e 'console.log(1)'")
+  blocked("an option before a script after a chain", "pnpm build && bun --watch dev")
+  allowed("--cwd= keeps the command word", "bun --cwd=app outdated")
+  allowed("--silent before pm ls", "bun --silent pm ls")
+  allowed("an option before a read", "bun --no-install outdated")
+  allowed("a redirect before a read", "bun 2>/dev/null outdated")
+  allowed("bun --version", "bun --version")
+  allowed("bun -v", "bun -v")
+  allowed("bun --help", "bun --help")
+  allowed("an option before a script in prose", 'git commit -m "docs: bun --watch dev is banned"')
+  allowed("an option before a script in an npm repository", "bun --watch dev", NPM)
+})
+
 describe("a pnpm repository — wrappers seen through", () => {
   blocked("rtk-npm-install", "rtk npm install")
   blocked("rtk-proxy-npm", "rtk proxy npm ci")

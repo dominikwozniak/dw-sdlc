@@ -216,6 +216,10 @@ or a redirect before the verb does not hide it, and a `cd` moves the repository 
 - bun runs any word that is not one of its own commands as a script, a bin or a file, so
   `bun dev` and `bun ./x.ts` are refused. So are `bun check`, `lint`, `fmt` and `compile`, which run
   the project's script of that name when it has one.
+- bun takes the first word past those that start with a `-` for its command, an option's value too. So
+  `bun --watch dev` and `bun --silent install` are refused, and so is `bun --cwd app outdated`, where
+  `app` is the command and `outdated` runs as a script; `bun --cwd=app outdated` passes. `-e`,
+  `--eval`, `-p` and `--print` run code, and are refused.
 - A read passes: `npm view`, `npm ls`, `npm audit`, and bun's `bun build`, `bun outdated`, `bun info`,
   `bun why`, `bun audit` and `bun pm ls`.
 

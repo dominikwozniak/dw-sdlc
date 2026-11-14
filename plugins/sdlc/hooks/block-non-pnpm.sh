@@ -41,12 +41,20 @@ BLOCKED_PATTERNS=(
 # script, a bin or a file, as `bun dev`. `publish`, `pm pack` and `pm version` run lifecycle scripts, as
 # npm's do. `check`, `lint`, `fmt` and `compile` stay off: bun runs a project script of that name.
 BUN_OWN=' build bun outdated audit info why publish whoami list pm repl upgrade help completions getcompletes discord '
-BUN_FIRST="${GUARD_BOUNDARY}bun[[:space:]]+[^-[:space:];&|()<>][^[:space:];&|()<>]*"
+# bun's which() takes the first word that does not start with a `-` for the command, an option's value
+# too: `bun --cwd app outdated` runs `outdated` as a script, a bin or a file. A redirect is the shell's.
+BUN_OPT='-([^[:space:];&|()<>"'"'"']|"[^"]*"|'"'"'[^'"'"']*'"'"')*'
+BUN_LEAD="([[:space:]]+(${BUN_OPT}|${NPM_REDIRECT}))*"
+BUN_FIRST="${GUARD_BOUNDARY}bun${BUN_LEAD}[[:space:]]+[^-[:space:];&|()<>][^[:space:];&|()<>]*"
+# `-e`, `--eval`, `-p` and `--print` run their code, alone or after a short flag that takes no value.
+BUN_EVAL="${GUARD_BOUNDARY}bun${BUN_LEAD}"'[[:space:]]+(--(eval|print)([=[:space:];&|()<>]|$)|-[bhv]*[ep])'
 
-# bun_runs <text> — 0 when a bun command of the text leads with a word not on BUN_OWN, its quotes off.
+# bun_runs <text> — 0 when a bun command of the text runs code, or leads with a word not on BUN_OWN once
+# its quotes are off.
 bun_runs() {
   local match word
   [[ "$1" == *bun* ]] || return 1
+  printf '%s\n' "$1" | grep -qE "$BUN_EVAL" && return 0
   while IFS= read -r match; do
     word=${match##*[[:space:]]}
     word=${word//[\"\']/}
