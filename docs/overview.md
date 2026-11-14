@@ -251,7 +251,7 @@ defaults, an options object, or `false`. Its options and defaults are in its sch
 | `agents-map`         | `AGENTS.md` to 10240 bytes, its Gate command, its Task Router paths, `CLAUDE.md` a link | on                       |
 | `routed-docs`        | every document under `docs/` reached by a Task Router row or a Primitive                | off: needs the routes    |
 | `markdown-budget`    | each file a glob matches to its byte budget                                             | off: needs the globs     |
-| `markdown-refs`      | every relative link and heading anchor resolving                                        | on                       |
+| `markdown-refs`      | every relative link, URL into the repository and heading anchor resolving               | on                       |
 | `temporal-language`  | durable docs free of changelog phrases such as `we now` or `no longer supports`         | on                       |
 | `decision-records`   | the records under `docs/adr` numbered, titled and given a status                        | off: needs the records   |
 | `file-size-ratchet`  | each code file under its line limit, or within its recorded baseline                    | off: needs a green Gate  |

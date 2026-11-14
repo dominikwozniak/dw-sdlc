@@ -633,7 +633,7 @@
       "id": "gate.markdown-refs",
       "name": "markdown-refs Check",
       "group": "gate",
-      "summary": "Fails a relative link or image in markdown whose path or heading anchor does not resolve in the files git sees.",
+      "summary": "Fails a relative link, image or URL into the repository in markdown whose path or anchor does not resolve in the tree.",
       "code": ["packages/dw-sdlc/src/checks/markdown-refs.ts"],
       "docs": ["docs/overview.md#the-checks-the-package-ships"]
     },

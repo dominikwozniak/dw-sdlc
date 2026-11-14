@@ -4,7 +4,7 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 
-import { lines, repo, runBin } from "../harness.ts"
+import { git, lines, repo, runBin } from "../harness.ts"
 
 const CONFIG = ".ai/agentic.config.json"
 
@@ -35,9 +35,9 @@ const TREE = {
 }
 
 /** A repository with `markdown-refs` set to `setting` under gate.checks, `TREE` with `files` over it. */
-function withDocs(files: Record<string, string | object> = {}, setting: unknown = true): string {
+function withDocs(files: Record<string, string | object> = {}, setting: unknown = true, remote?: string): string {
   const config = { version: 1, gate: { checks: { "markdown-refs": setting } } }
-  return repo({ files: { [CONFIG]: config, ...TREE, ...files } })
+  return repo({ files: { [CONFIG]: config, ...TREE, ...files }, ...(remote === undefined ? {} : { remote }) })
 }
 
 /** The failure lines of a Gate run that ran the one Check, its own `gate: check` line and the verdict cut. */
@@ -85,6 +85,53 @@ describe("the markdown-refs Check", () => {
       'docs/agents/domain.md:3: markdown-refs: links to "../../../outside.md", which is outside the repository — point it at a file of the repository',
       'docs/agents/domain.md:3: markdown-refs: links to "../notes.md", which does not exist — fix the path or drop the link',
       'docs/agents/domain.md:3: markdown-refs: links to "../Guide.md", which does not exist — fix the path or drop the link'
+    ])
+  })
+})
+
+/** A doc of absolute URLs into `demo/site`, one per line, the last inside a code fence. */
+const URLS = `# URLs
+
+[The guide](https://github.com/demo/site/blob/main/docs/guide.md#install-it), [the docs](https://github.com/Demo/Site/tree/main/docs).
+![The logo](https://raw.githubusercontent.com/demo/site/main/docs/logo%20file.svg) and <https://github.com/demo/site/blob/main/README.md>.
+[An old file](https://github.com/demo/site/blob/v0.1.0/old.md) and [another repository](https://github.com/other/site/blob/main/gone.md).
+[Gone](https://github.com/demo/site/blob/main/gone.md) and [no heading](https://github.com/demo/site/blob/main/docs/guide.md#nope).
+
+\`\`\`json
+{ "$schema": "https://raw.githubusercontent.com/demo/site/main/config/gone.json" }
+\`\`\`
+`
+
+describe("the markdown-refs Check on absolute URLs into the repository", () => {
+  it("leaves them alone in a repository with no origin, where no URL is its own", () => {
+    const run = runBin(["gate"], withDocs({ "docs/urls.md": URLS }))
+    assert.equal(run.status, 0, run.stdout)
+  })
+
+  it("fails a URL at the default branch to a path or a heading the tree lacks, inside a code fence too", () => {
+    for (const remote of [
+      "git@github.com:demo/site.git",
+      "https://github.com/demo/site.git",
+      "https://github.com/demo/site"
+    ]) {
+      const run = runBin(["gate"], withDocs({ "docs/urls.md": URLS }, true, remote))
+      assert.equal(run.status, 1, remote)
+      assert.deepEqual(failures(run.stdout), [
+        'docs/urls.md:6: markdown-refs: links to "https://github.com/demo/site/blob/main/gone.md", which does not exist — fix the path or drop the link',
+        'docs/urls.md:6: markdown-refs: links to "https://github.com/demo/site/blob/main/docs/guide.md#nope", but docs/guide.md has no heading with that anchor — point it at a heading the file has',
+        'docs/urls.md:9: markdown-refs: links to "https://raw.githubusercontent.com/demo/site/main/config/gone.json", which does not exist — fix the path or drop the link'
+      ])
+    }
+  })
+
+  it("reads the default branch from origin/HEAD, and judges no URL at another branch", () => {
+    const trunk = "[Gone](https://github.com/demo/site/blob/trunk/gone.md)\n"
+    const root = withDocs({ "docs/urls.md": URLS, "docs/trunk.md": trunk }, true, "git@github.com:demo/site.git")
+    git(root, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/trunk")
+    const run = runBin(["gate"], root)
+    assert.equal(run.status, 1)
+    assert.deepEqual(failures(run.stdout), [
+      'docs/trunk.md:1: markdown-refs: links to "https://github.com/demo/site/blob/trunk/gone.md", which does not exist — fix the path or drop the link'
     ])
   })
 })
