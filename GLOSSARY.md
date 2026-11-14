@@ -1,8 +1,7 @@
 # dw-sdlc
 
 Claude Code tooling that holds my agentic workflow where the engineering skills leave it loose:
-guards on every tool call, a Gate that proves a change, and the road from a pull request to merged. It
-extends those skills and replaces none.
+guards on every tool call, a Gate that proves a change, and the road from a pull request to merged.
 
 ## Language
 
@@ -13,7 +12,7 @@ One hook that judges a tool call and answers with a verdict, before the call run
 _Avoid_: rule
 
 **Dispatcher**:
-The guard that reads a shell command once and runs only the guards it could trip; the first deny ends it, and an ask waits for the rest, since a later deny wins.
+The guard that reads a shell command once and runs only the guards it could trip; the first deny ends it, and a deny wins over an ask.
 
 **Verdict**:
 A guard's answer to a tool call: deny, ask or pass.
@@ -71,8 +70,7 @@ A branch the agent never pushes to, forced or not, nor commits on if the repo sa
 
 **Landed branch**:
 A local branch whose work is on origin's base: its tip is there, or it changes something and a base commit since it
-forked holds its tree or its whole diff's patch-id, as a squash merge leaves them. The one a forced delete or a
-Sweep may remove.
+forked holds its tree or its whole diff's patch-id, as a squash merge leaves them.
 _Avoid_: merged branch, which git's `--merged` keeps for a tip the base contains
 
 **Sweep**:
@@ -126,10 +124,17 @@ What a Worker starts from: the goal, a pointer to its source rather than a retel
 what it must not do, the proof it is done, where it reports, and the model and effort it runs on.
 _Avoid_: prompt, task, handoff (carries the conversation; a Brief points at a source)
 
+**Start line**:
+One shell command the dev pastes into a new terminal to start a Worker or a Lead, its Brief or first message quoted.
+_Avoid_: kickoff line, launch command
+
+**Way out**:
+One of the three ways a session that kicks off new work hands its Brief on: a new Lead, an issue, a start line.
+_Avoid_: option, exit
+
 **Recap**:
 What a session tells a dev who did not follow it: where its work stands in Action words, what happened, what
-it decided alone, whether it can close, its questions, follow-ups and next session. Any session can end
-with one, alone or under a Lead; a Worker reports to its Lead with one.
+it decided alone, whether it can close, its questions, follow-ups and next session. A Worker reports to its Lead with one.
 _Avoid_: status report, summary, handoff (context for the next agent)
 
 ### Gate
@@ -160,7 +165,7 @@ A file a Step creates, changes or deletes while the Gate runs, such as a stale g
 
 **Shared workflow**:
 The one CI job that runs a repository's Gate, kept in a public repository so a private one of any owner
-can call it, and pinned by a release tag's commit SHA.
+can call it.
 _Avoid_: reusable workflow (GitHub's mechanism for it), template, Action (the Ship script's next step)
 
 **Ratchet**:
@@ -169,7 +174,7 @@ _Avoid_: threshold, budget (a fixed limit with no baseline)
 
 **Primitive**:
 The smallest unit of meaning a repository exposes to an agent: a module, a hook, a script, a config key,
-a skill. The catalogue names where its code lives and which document explains it.
+a skill.
 _Avoid_: component, feature, building block
 
 **Agent map**:
@@ -196,8 +201,8 @@ A repository cloned on one machine so an agent reads how a problem was solved be
 _Avoid_: vendored repo, subtree
 
 **Router**:
-The file an agent reads first under a repository's References: the rules for reading them, where
-their list is declared, and a table of each one's `dir` and `when` that the setup writes from that list.
+The file an agent reads first under a repository's References: the rules for reading them and a
+table of each one's `dir` and `when` that the setup writes from their list.
 _Avoid_: manifest, index, Task Router (the Agent map's table)
 
 **Sync**:
