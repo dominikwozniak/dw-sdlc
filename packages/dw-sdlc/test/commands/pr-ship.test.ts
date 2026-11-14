@@ -537,6 +537,21 @@ describe("dw-sdlc pr ship while no check has answered", () => {
     }
   })
 
+  it("counts a check not yet started from the head's ready when it left draft after its commit", () => {
+    const queued: Context = { kind: "run", name: "Check", state: "QUEUED", startedAt: null }
+    const readied: Pr = { ...PENDING, readyAt: READY_AT, checks: [queued, REVIEWED] }
+    const cases: [number, number, string][] = [
+      [30, 20, "ci-pending"],
+      [41 * 60, 30, "1 check(s) pending for 41 min, past the 40 min budget"]
+    ]
+    for (const [seconds, status, reason] of cases) {
+      const run = json(readied, [], clockAt(READY_AT, seconds))
+      assert.equal(run.status, status, run.stdout)
+      assert.ok(typeof run.document === "object" && run.document !== null && "reason" in run.document)
+      assert.equal(run.document.reason, reason)
+    }
+  })
+
   it("reads the system clock when DW_SDLC_NOW is not set", () => {
     const cases: [string, number][] = [
       ["2000-01-01T00:00:00Z", 30],

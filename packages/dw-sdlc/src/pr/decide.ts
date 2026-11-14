@@ -73,7 +73,7 @@ type Row = {
   merging?: true
 }
 
-/** How long a head may carry no check before it parks as unverified, from its commit. */
+/** How long a head may carry no check before it parks as unverified, from when its CI could start. */
 const GRACE_SECONDS = 120
 /** How long CI may stay pending before it parks as stuck, from the first start among the pending checks. */
 const BUDGET_MINUTES = 40
@@ -90,6 +90,11 @@ const OWN_PREFIX = "dw-sdlc/"
  * head the fix then leaves behind. A pending status would turn the pull request unstable.
  */
 export const REVIEW_STATE = "success"
+
+/** When the head's CI could start: its commit, or its ready when it left draft later, since a draft runs nothing. */
+function ciStartOf(pr: PrState): number {
+  return Math.max(Date.parse(pr.headCommittedAt), Date.parse(pr.readyAt ?? pr.headCommittedAt))
+}
 
 function ciOf(pr: PrState): CiCheck[] {
   return pr.checks.filter((check) => !check.name.startsWith(OWN_PREFIX))
@@ -349,8 +354,7 @@ const ROWS: Row[] = [
     // never start until `ready` starts the run, so a draft is no case of it: `mark-ready` is its row.
     when: (pr) => !pr.draft && (ciOf(pr).length === 0 || ciOf(pr).every((check) => check.bucket === "skipping")),
     answer: (pr, now, policy) =>
-      now - Math.max(Date.parse(pr.headCommittedAt), Date.parse(pr.readyAt ?? pr.headCommittedAt)) <=
-      GRACE_SECONDS * 1000
+      now - ciStartOf(pr) <= GRACE_SECONDS * 1000
         ? { status: "wait", action: "wait", actor: "script", reason: "unverified", recheckAfter: 15 }
         : {
             status: "park",
@@ -367,8 +371,9 @@ const ROWS: Row[] = [
     when: (pr) => pendingOf(pr).length > 0,
     answer: (pr, now) => {
       const pending = pendingOf(pr)
-      // A check queued and not yet started counts from the head's commit.
-      const start = Math.min(...pending.map((check) => Date.parse(check.startedAt ?? pr.headCommittedAt)))
+      const start = Math.min(
+        ...pending.map((check) => (check.startedAt === null ? ciStartOf(pr) : Date.parse(check.startedAt)))
+      )
       const minutes = Math.floor((now - start) / 60_000)
       return now - start <= BUDGET_MINUTES * 60_000
         ? { status: "wait", action: "wait", actor: "script", reason: "ci-pending", recheckAfter: 60 }
