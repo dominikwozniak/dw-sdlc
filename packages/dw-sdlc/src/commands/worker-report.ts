@@ -5,8 +5,7 @@ import { resolve } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
 import { CannotRun, messageOf, readArgs, usageError } from "../cannot-run.ts"
-import { whyFailed } from "../exec.ts"
-import { call, lead, wholeNumber } from "../worker/herdr.ts"
+import { lead, sendTo, wholeNumber } from "../worker/herdr.ts"
 
 export const summary = "deliver a Recap to the Lead, retrying while it is blocked"
 
@@ -24,8 +23,6 @@ Needs a terminal herdr started ($HC_TERMINAL_ID) and hc on PATH.
 
 Exit 0 delivered, 1 not delivered, 2 when it cannot run.`
 
-/** `hc send` exits with this when the target is blocked on a permission or a question. */
-const BLOCKED = 9
 const DEFAULT_ATTEMPTS = 30
 const DEFAULT_INTERVAL = 60
 /** The longest Recap that goes as itself, in characters; a longer one goes as a path. */
@@ -87,13 +84,13 @@ async function report({ to, recap, attempts, interval }: Cli): Promise<number> {
   lead()
   const { message, path } = messageFor(recap)
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
-    const sent = call("hc", ["send", to, message])
-    if (sent.status === 0) {
+    const sent = sendTo(to, message)
+    if (sent === "sent") {
       process.stdout.write(`reported to ${to}\n`)
       return 0
     }
-    if (sent.status !== BLOCKED) {
-      process.stderr.write(`dw-sdlc worker report: hc send failed: ${whyFailed(sent)} — the Recap stays at ${path}\n`)
+    if (sent !== "blocked") {
+      process.stderr.write(`dw-sdlc worker report: ${sent.refused} — the Recap stays at ${path}\n`)
       return 1
     }
     if (attempt === attempts) {

@@ -1,5 +1,6 @@
-// The Worker commands' seam: a fake `hc` and a fake `herdr-app` first on PATH, answering from a scenario and
-// logging every call, as the fake `gh` of the Ship script does, and the builders for the JSON herdr prints.
+// The herdr module's second adapter: a fake `hc` and a fake `herdr-app` first on PATH, answering from a
+// scenario and logging every call, as the fake `gh` of the Ship script does, for the bin spawned or for the
+// module called in this process; and the builders for the JSON herdr prints.
 
 import { chmodSync, existsSync, readFileSync } from "node:fs"
 import { delimiter, join } from "node:path"
@@ -42,6 +43,17 @@ export function fakeHerdr(scenario: Scenario, caller = "t1"): FakeHerdr {
     env: { PATH: `${dir}${delimiter}${process.env.PATH ?? ""}`, HC_TERMINAL_ID: caller },
     hcCalls: () => calls("hc"),
     appCalls: () => calls("herdr-app")
+  }
+}
+
+/** `body` in this process with `herdr`'s tools first on PATH; the swap of process.env holds while a file's tests run serially. */
+export function inHerdr<T>(herdr: FakeHerdr, body: () => T): T {
+  const before = process.env
+  process.env = { ...before, ...herdr.env }
+  try {
+    return body()
+  } finally {
+    process.env = before
   }
 }
 

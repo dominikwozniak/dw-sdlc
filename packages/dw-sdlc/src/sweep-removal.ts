@@ -3,7 +3,7 @@
 
 import { SLOW_LIMIT_MS, TimedOut } from "./exec.ts"
 import { git, type GitAnswer } from "./git.ts"
-import { byHand, lockAfterStop, removeTerminal } from "./sweep-terminals.ts"
+import { byHand, lockAfterStop, takeDown } from "./sweep-terminals.ts"
 import { forcedDelete, forcedRemoval, tipOf, unlockCommand, whyUnclean, worktreesOf } from "./sweep-trees.ts"
 import type { StaleLock } from "./worktree-lock.ts"
 
@@ -54,7 +54,7 @@ function byHandOf(item: Planned): string {
 
 /** Stops, if it asks, and removes the terminal of `item`; why it stays, in hc's words, or undefined once it is gone. */
 function removeTerminalOf(item: Planned, unstopped: Map<string, string>): Why | undefined {
-  const failed = removeTerminal(item)
+  const failed = takeDown(item)
   if (failed === undefined) {
     return undefined
   }
