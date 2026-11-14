@@ -56,7 +56,7 @@ It reads each worktree again just before it goes, its Worker stopped: one whose 
 since it was judged, or that holds a file or a paused operation by then, stays. A branch goes only while it
 points at the commit judged Landed; one that moved since stays.
 It never changes anything on a remote: the fetch only writes remote-tracking refs. A removal git refuses is
-kept with git's words, and the sweep goes on.
+kept with git's words, one that outlives its time limit with the limit it hit, and the sweep goes on.
 
 In herdr ($HC_TERMINAL_ID set) it reads, with hc, the Workers of this session, the terminals whose parent is
 this one, and every other live terminal. A Worker whose status is none of working, blocked or yet to report

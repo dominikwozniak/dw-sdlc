@@ -216,6 +216,33 @@ describe("a worktree that stays", () => {
   })
 })
 
+describe("a removal that outlives its time limit", () => {
+  it("keeps that worktree and its branch with the limit it hit, and removes and reports the rest", () => {
+    const root = clone()
+    const slow = addTree(root, join(scratch("slow"), "tree"), "slow")
+    const fine = addTree(root, join(scratch("fine"), "tree"), "fine")
+    git(root, "branch", "plain")
+    const real = runCommand("sh", ["-c", "command -v git"], root).stdout.trim()
+    const shim = join(scratch("git-slow"), "git")
+    write(shim, `#!/bin/sh\ncase " $* " in *" worktree remove -- ${slow} "*) exec sleep 60;; esac\nexec ${real} "$@"\n`)
+    chmodSync(shim, 0o755)
+    const run = runBin(["sweep", "--json"], root, {
+      PATH: `${dirname(shim)}:${process.env.PATH ?? ""}`,
+      DW_SDLC_LIMIT_MS: "4000"
+    })
+    assert.equal(run.status, 1, run.stderr)
+    const { removed, kept } = documentOf(run.stdout)
+    assert.deepEqual(namesOf(removed, "worktree"), [fine])
+    assert.deepEqual(namesOf(removed, "branch").toSorted(), ["fine", "plain"])
+    const item = kept.find(({ kind }) => kind === "worktree")
+    assert.equal(item?.name, slow)
+    assert.match(item?.reason ?? "", /did not answer within 4 s/)
+    assert.equal(item?.command, `git worktree remove --force ${slow}`)
+    assert.equal(kept.find(({ name }) => name === "slow")?.reason, `checked out in the worktree at ${slow}`)
+    assert.deepEqual(branches(root).toSorted(), ["main", "slow"])
+  })
+})
+
 describe("the exit code", () => {
   it("is 0 when a worktree goes and only the default branch stays", () => {
     const root = clone()

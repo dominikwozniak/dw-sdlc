@@ -426,7 +426,8 @@ It always keeps the default branch, the base branch, a protected branch and a br
 has checked out. When the main checkout sits on a Landed branch, clean and with nothing paused,
 the Sweep names `git switch <base> && git pull --rebase` for it; the next Sweep then removes the branch. It fetches origin first, so a branch squash-merged since the last fetch counts.
 It reads each worktree again just before it removes it, and keeps one whose HEAD moved since it was
-judged. A branch goes only while it points at the commit judged Landed.
+judged. A branch goes only while it points at the commit judged Landed. A removal that git refuses, or
+that outlives its time limit, keeps that item and the Sweep goes on.
 
 In herdr it also cleans up the session's own Workers. It never stops a terminal next to work that
 could still be committed.
