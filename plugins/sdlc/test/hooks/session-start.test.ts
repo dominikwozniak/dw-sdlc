@@ -183,6 +183,7 @@ describe("a schema the plugin cannot read is a config problem, never a pass", ()
   const strictest = {
     forcePush: "deny",
     commitOnProtected: "deny",
+    filteredOutput: "deny",
     envFiles: { policy: "deny", allow: [], deny: [] },
     protectedBranches: ["master", "main", "production"]
   }

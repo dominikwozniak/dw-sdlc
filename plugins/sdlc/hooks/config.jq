@@ -7,6 +7,7 @@ def local_file: ".ai/agentic.config.local.json";
 def strictness: {
   forcePush: ["deny", "ask", "lease"],
   commitOnProtected: ["deny", "allow"],
+  filteredOutput: ["deny", "allow"],
   envFiles: ["deny", "git"],
   merge: ["ask", "auto"],
   review: ["full", "auto", "light", "off"]
@@ -15,6 +16,7 @@ def strictness: {
 def strictest: {
   forcePush: "deny",
   commitOnProtected: "deny",
+  filteredOutput: "deny",
   envFiles: {policy: "deny", allow: [], deny: []},
   protectedBranches: ["master", "main", "production"]
 };
@@ -41,6 +43,7 @@ def defaults($inferred): {
   guardrails: {
     forcePush: "lease",
     commitOnProtected: "allow",
+    filteredOutput: "deny",
     envFiles: {policy: "git", allow: ["**/.env.example", "**/.env.sample", "**/.env.template"], deny: []},
     protectedBranches: ["master", "main", "production"]
   },
@@ -73,18 +76,15 @@ def _rank($key; $value): strictness[$key] | index($value);
 def _problem($path; $message): {file: local_file, path: $path, message: $message};
 
 # Every guardrail the local layer sets less strictly than what it would override: a lower-ranked
-# forcePush, commitOnProtected or envFiles.policy, a dropped protected branch, an added
-# envFiles.allow entry, a dropped envFiles.deny entry.
+# forcePush, commitOnProtected, filteredOutput or envFiles.policy, a dropped protected branch, an
+# added envFiles.allow entry, a dropped envFiles.deny entry.
 def loosenings($base; $local):
   if $local == null then []
   else [
-    (select($local.forcePush != null and _rank("forcePush"; $local.forcePush) > _rank("forcePush"; $base.forcePush))
-      | _problem("guardrails.forcePush";
-          "\($local.forcePush | tojson) loosens \($base.forcePush | tojson); the local file may tighten guardrails, never loosen them")),
-    (select($local.commitOnProtected != null
-        and _rank("commitOnProtected"; $local.commitOnProtected) > _rank("commitOnProtected"; $base.commitOnProtected))
-      | _problem("guardrails.commitOnProtected";
-          "\($local.commitOnProtected | tojson) loosens \($base.commitOnProtected | tojson); the local file may tighten guardrails, never loosen them")),
+    (("forcePush", "commitOnProtected", "filteredOutput") as $key
+      | select($local[$key] != null and _rank($key; $local[$key]) > _rank($key; $base[$key]))
+      | _problem("guardrails.\($key)";
+          "\($local[$key] | tojson) loosens \($base[$key] | tojson); the local file may tighten guardrails, never loosen them")),
     (select($local.envFiles.policy != null
         and _rank("envFiles"; $local.envFiles.policy) > _rank("envFiles"; $base.envFiles.policy))
       | _problem("guardrails.envFiles.policy";

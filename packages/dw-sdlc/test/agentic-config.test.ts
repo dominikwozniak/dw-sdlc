@@ -48,6 +48,7 @@ describe("inference, with no config file", () => {
     assert.deepEqual(config.guardrails, {
       forcePush: "lease",
       commitOnProtected: "allow",
+      filteredOutput: "deny",
       envFiles: DEFAULT_ENV_FILES,
       protectedBranches: ["master", "main", "production"]
     })
@@ -114,6 +115,7 @@ describe("the committed file", () => {
     assert.deepEqual(config.guardrails, {
       forcePush: "deny",
       commitOnProtected: "allow",
+      filteredOutput: "deny",
       envFiles: DEFAULT_ENV_FILES,
       protectedBranches: ["master"]
     })
@@ -168,6 +170,7 @@ describe("the committed file", () => {
     assert.deepEqual(config.guardrails, {
       forcePush: "lease",
       commitOnProtected: "allow",
+      filteredOutput: "deny",
       envFiles: DEFAULT_ENV_FILES,
       protectedBranches: ["main"]
     })
@@ -207,6 +210,7 @@ describe("the local file", () => {
     assert.deepEqual(config.guardrails, {
       forcePush: "deny",
       commitOnProtected: "allow",
+      filteredOutput: "deny",
       envFiles: { ...DEFAULT_ENV_FILES, policy: "deny", deny: [".env.staging"] },
       protectedBranches: ["master", "staging"]
     })
@@ -263,6 +267,37 @@ describe("the local file", () => {
       "deny",
       "the strictest set refuses a commit on a protected branch"
     )
+  })
+
+  it("ranks filteredOutput deny before allow, the default", () => {
+    const committed = repo({ files: { [COMMITTED_FILE]: { guardrails: { filteredOutput: "allow" } } } })
+    assert.deepEqual(resolveConfig(committed).problems, [])
+    assert.equal(resolveConfig(committed).config.guardrails.filteredOutput, "allow")
+
+    const tighter = repo({
+      files: {
+        [COMMITTED_FILE]: { guardrails: { filteredOutput: "allow" } },
+        [LOCAL_FILE]: { guardrails: { filteredOutput: "deny" } }
+      }
+    })
+    assert.deepEqual(resolveConfig(tighter).problems, [])
+    assert.equal(resolveConfig(tighter).config.guardrails.filteredOutput, "deny")
+
+    for (const committedLayer of [{ guardrails: { filteredOutput: "deny" } }, {}]) {
+      const looser = repo({
+        files: { [COMMITTED_FILE]: committedLayer, [LOCAL_FILE]: { guardrails: { filteredOutput: "allow" } } }
+      })
+      const { config, problems, layers } = resolveConfig(looser)
+      assert.deepEqual(problems, [
+        {
+          file: LOCAL_FILE,
+          path: "guardrails.filteredOutput",
+          message: '"allow" loosens "deny"; the local file may tighten guardrails, never loosen them'
+        }
+      ])
+      assert.equal(layers.local, "invalid")
+      assert.equal(config.guardrails.filteredOutput, "deny", "the strictest set refuses a filtered check")
+    }
   })
 
   it("ranks forcePush ask between deny and lease", () => {
