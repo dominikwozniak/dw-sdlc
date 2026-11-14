@@ -1,5 +1,6 @@
-// The Worker commands' seam: a fake `hc` and a fake `herdr-app` first on PATH, answering from a scenario and
-// logging every call, as the fake `gh` of the Ship script does, and the builders for the JSON herdr prints.
+// The herdr module's second adapter: a fake `hc` and a fake `herdr-app` first on PATH, answering from a
+// scenario and logging every call, as the fake `gh` of the Ship script does, for the bin spawned or for the
+// module called in this process; and the builders for the JSON herdr prints.
 
 import { chmodSync, existsSync, readFileSync } from "node:fs"
 import { delimiter, join } from "node:path"
@@ -8,8 +9,11 @@ import { lines, scratch, write, writeJson } from "./harness.ts"
 
 const FAKE = join(import.meta.dirname, "fake-hc.ts")
 
-/** What one call prints and exits with; an empty one prints nothing and exits 0. `kill` is a process the call ends first. */
-export type Reply = { stdout?: string; stderr?: string; exit?: number; kill?: number }
+/**
+ * What one call prints and exits with; an empty one prints nothing and exits 0. `kill` is a process the call
+ * ends first; `run` a command it runs before it answers, as a Worker that commits while it is stopped.
+ */
+export type Reply = { stdout?: string; stderr?: string; exit?: number; kill?: number; run?: string[] }
 /** A tool's table: a call's first two words, else its first, to one reply or to the replies served in order. */
 export type Table = Record<string, Reply | Reply[]>
 export type Scenario = { hc?: Table; "herdr-app"?: Table }
@@ -39,6 +43,17 @@ export function fakeHerdr(scenario: Scenario, caller = "t1"): FakeHerdr {
     env: { PATH: `${dir}${delimiter}${process.env.PATH ?? ""}`, HC_TERMINAL_ID: caller },
     hcCalls: () => calls("hc"),
     appCalls: () => calls("herdr-app")
+  }
+}
+
+/** `body` in this process with `herdr`'s tools first on PATH; the swap of process.env holds while a file's tests run serially. */
+export function inHerdr<T>(herdr: FakeHerdr, body: () => T): T {
+  const before = process.env
+  process.env = { ...before, ...herdr.env }
+  try {
+    return body()
+  } finally {
+    process.env = before
   }
 }
 

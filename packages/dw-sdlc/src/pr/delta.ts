@@ -1,9 +1,10 @@
-// GitHub's compare of two commits, read two ways: whether a head carries the Review of an earlier commit,
-// the pull request's own changes from the base the same at both, since a merge of the base in adds none
-// of its own; and the files a Review would read, with their changed lines, for `pr.review: auto`.
+// GitHub's compare of two commits as gh prints it, read three ways: the pull request's own changes at a
+// commit, from the base; the files a Review would read, with their changed lines, for `pr.review: auto`;
+// and how far a head is behind a base, which says whether an update merged it in.
 
 import { fieldOf, integer, type Node, object, ReplyError, rootOf, shown, string } from "./reply.ts"
-import type { ChangedFile } from "./state.ts"
+import type { ChangedFile } from "./route.ts"
+import type { OwnChange } from "./standing.ts"
 
 /** GitHub's compare lists at most this many files; one that lists as many may hold back the rest. */
 const FILE_LIMIT = 300
@@ -32,21 +33,19 @@ function optional(file: Node, key: string): string | null {
   return file.value[key] === undefined || file.value[key] === null ? null : string(file, key)
 }
 
-/**
- * A file's own change: its status, its names and the lines its patch adds and removes, in order,
- * without the hunk headers and context a moved base shifts; null when the compare shows no patch.
- */
-function changeOf(file: Node): string | null {
-  const names = [string(file, "filename"), string(file, "status"), optional(file, "previous_filename")]
+/** A file's own change; null when the compare shows no patch for it. */
+function changeOf(file: Node): OwnChange | null {
+  const path = string(file, "filename")
+  const status = string(file, "status")
+  const previous = optional(file, "previous_filename")
   const patch = optional(file, "patch")
-  if (patch === null) {
-    return null
-  }
-  return JSON.stringify([...names, patch.split("\n").filter((line) => /^[-+\\]/.test(line))])
+  return patch === null
+    ? null
+    : { path, status, previous, lines: patch.split("\n").filter((line) => /^[-+\\]/.test(line)) }
 }
 
 /** The own changes a compare reply lists, file by file; null when it cannot show them whole. */
-export function changesOf(reply: string): string[] | null {
+export function changesOf(reply: string): OwnChange[] | null {
   const changes = filesOf(reply).map(changeOf)
   const whole = changes.filter((change) => change !== null)
   return changes.length >= FILE_LIMIT || whole.length < changes.length ? null : whole
@@ -60,12 +59,4 @@ export function changedOf(reply: string): ChangedFile[] | "unsized" {
     lines: optional(file, "patch") === null ? null : integer(file, "additions") + integer(file, "deletions")
   }))
   return files.length >= FILE_LIMIT ? "unsized" : files
-}
-
-/** Whether the own changes at the head are those at the reviewed commit; unknown changes never are. */
-export function sameChanges(then: string[] | null, now: string[] | null): boolean {
-  if (then === null || now === null) {
-    return false
-  }
-  return JSON.stringify(then.toSorted()) === JSON.stringify(now.toSorted())
 }

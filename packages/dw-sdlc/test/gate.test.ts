@@ -60,8 +60,8 @@ function runs(root: string): number {
 }
 
 /**
- * Runs `dw-sdlc <args>` on `root` and sends `signal` once a command touched `started`: to the bin and
- * its commands together, as Ctrl-C does, or to the bin alone.
+ * Runs `dw-sdlc <args>` on `root` and sends `signal` once a command touched `started`: to the bin's
+ * process group, as Ctrl-C does, or to the bin alone.
  */
 async function interrupted(
   root: string,
@@ -76,6 +76,59 @@ async function interrupted(
     return await gate.done
   } finally {
     killGroup(gate.group)
+  }
+}
+
+function running(pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** Whether the process `pid` is gone, waiting up to two seconds for it to go. */
+async function gone(pid: number): Promise<boolean> {
+  for (let waited = 0; waited < 2000 && running(pid); waited += 20) {
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  }
+  return !running(pid)
+}
+
+/** Kills the process `pid` where a test left it running; 0 names none. */
+function stopProcess(pid: number): void {
+  if (pid > 0 && running(pid)) {
+    process.kill(pid, "SIGKILL")
+  }
+}
+
+/**
+ * A Step whose shell starts another that records its pid in `nested` and runs about five seconds,
+ * then touches `after` once that one ends.
+ */
+const NESTED =
+  "sh -c 'echo $$ > nested; touch started; i=0; while [ $i -lt 50 ]; do sleep 0.1; i=$((i + 1)); done'; touch after"
+
+/**
+ * Runs the Gate of `root`, whose Step is `NESTED`, sends `signal` to the bin alone once the nested
+ * shell started, and answers the Gate's run and whether the nested shell is gone within two seconds.
+ */
+async function signalledAlone(
+  root: string,
+  signal: NodeJS.Signals
+): Promise<{ run: Awaited<Started["done"]>; nestedGone: boolean }> {
+  const gate = startBin(["gate"], root)
+  let nested = 0
+  try {
+    await until(() => existsSync(join(root, "started")))
+    nested = Number(readFileSync(join(root, "nested"), "utf8"))
+    process.kill(gate.group, signal)
+    const run = await gate.done
+    return { run, nestedGone: await gone(nested) }
+  } finally {
+    killGroup(gate.group)
+    stopProcess(nested)
   }
 }
 
@@ -304,6 +357,27 @@ describe("dw-sdlc gate, stopped by a signal", () => {
     })
   }
 
+  for (const signal of ["SIGINT", "SIGTERM"] as const) {
+    it(`passes ${signal} that reaches the Gate alone to every process its Step started`, async () => {
+      const root = withGate({ steps: [NESTED] })
+      const { run, nestedGone } = await signalledAlone(root, signal)
+      assert.equal(run.status, 1, run.stdout)
+      assert.ok(nestedGone, "a process the Step started outlived the Gate")
+      assert.ok(!existsSync(join(root, "after")), "the Step went on past the signal")
+      assert.equal(
+        timed(run.stdout)[0],
+        `gate: step ${NESTED} — failed, stopped by ${signal} (N s); it printed nothing`
+      )
+    })
+  }
+
+  it("passes SIGHUP to every process its Step started and ends as SIGHUP ends it", async () => {
+    const root = withGate({ steps: [NESTED] })
+    const { run, nestedGone } = await signalledAlone(root, "SIGHUP")
+    assert.equal(run.signal, "SIGHUP", run.stdout)
+    assert.ok(nestedGone, "a process the Step started outlived the Gate")
+  })
+
   it("reports the Step stopped when SIGTERM reaches the Gate alone", async () => {
     const root = withGate({ steps: [WAITING, "touch second-ran"] })
     const run = await interrupted(root, ["gate"], "SIGTERM", "bin")
@@ -386,23 +460,27 @@ describe("dw-sdlc gate, stopped by a signal", () => {
     assert.ok(!second.stdout.includes("cached"), second.stdout)
   })
 
-  it("stops at once on a second signal when the first does not stop the Step", async () => {
-    const root = withGate({ steps: ["trap '' INT; touch started; sleep 30"] })
+  it("stops at once on a second signal when the first does not stop the Step, and the Step with it", async () => {
+    const root = withGate({ steps: ["trap '' INT; echo $$ > step; touch started; sleep 30"] })
     const gate = startBin(["gate"], root)
     let ended = false
     void gate.done.then(() => {
       ended = true
     })
+    let step = 0
     try {
       await until(() => existsSync(join(root, "started")))
+      step = Number(readFileSync(join(root, "step"), "utf8"))
       process.kill(-gate.group, "SIGINT")
       await new Promise((resolve) => setTimeout(resolve, 200))
       assert.ok(!ended, "the Gate ended on the first signal, which the Step ignored")
       process.kill(-gate.group, "SIGINT")
       const run = await gate.done
       assert.equal(run.signal, "SIGINT", run.stdout)
+      assert.ok(await gone(step), "the Step outlived the Gate")
     } finally {
       killGroup(gate.group)
+      stopProcess(step)
     }
   })
 })

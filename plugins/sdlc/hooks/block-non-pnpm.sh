@@ -21,14 +21,47 @@ NPM_VALUE='("[^"]*"|'"'"'[^'"'"']*'"'"'|[^[:space:]]+)'
 # \003 once guard_scopes has read the line, so both spell it.
 NPM_REDIRECT=$'[0-9]*[&\003]?[<>][^[:space:]]+|[0-9]*(>>?|<)[[:space:]]+'"${NPM_VALUE}"
 NPM_OPTS="([[:space:]]+(--?[A-Za-z][-A-Za-z0-9]*=${NPM_VALUE}|--?(${NPM_VALUE_OPTS})[[:space:]]+${NPM_VALUE}|--?[A-Za-z][-A-Za-z0-9]*|${NPM_REDIRECT}))*"
-# Bare `npx` and bare `yarn` have no subcommand list: every form of them is the wrong package
+# The npm verbs that install, remove, update, link or rebuild a dependency, or run a script or a
+# package, under every alias npm 11's lib/utils/cmd-list.js gives them. A read passes: `npm view`,
+# `npm ls`, an `npm audit` without `fix`.
+NPM_INSTALL='install|add|i|in|ins|inst|insta|instal|isnt|isnta|isntal|isntall|ci|clean-install|ic|install-clean|isntall-clean|install-test|it|install-ci-test|cit|clean-install-test|sit'
+NPM_CHANGE='uninstall|unlink|remove|rm|r|un|update|u|up|upgrade|udpate|dedupe|ddp|prune|link|ln|rebuild|rb|audit'"$NPM_OPTS"'[[:space:]]+fix'
+NPM_RUN='run|run-script|rum|urn|test|tst|t|start|stop|restart|exec|x|init|create|innit|explore'
+# Bare `npx`, `bunx` and `yarn` have no subcommand list: every form of them is the wrong package
 # manager. `pnpm dlx` does not match — the boundary fires on a whole word, and `dlx` is not `npx`.
 BLOCKED_PATTERNS=(
-  'npm'"$NPM_OPTS"'[[:space:]]+(install|i|add|ci|update|upgrade|exec|run)'"$END"
+  'npm'"$NPM_OPTS"'[[:space:]]+('"$NPM_INSTALL|$NPM_CHANGE|$NPM_RUN"')'"$END"
   'yarn([[:space:]]|$)'
   'npx([[:space:]]|$)'
-  'bun[[:space:]]+(install|i|add|remove|update|run|x)'"$END"
+  'bunx([[:space:]]|$)'
+  'bun[[:space:]]+pm[[:space:]]+trust'"$END"
 )
+
+# bun's own first words, which install no dependency (its src/runtime/cli/mod.rs); any other runs a
+# script, a bin or a file, as `bun dev`. `publish`, `pm pack` and `pm version` run lifecycle scripts, as
+# npm's do. `check`, `lint`, `fmt` and `compile` stay off: bun runs a project script of that name.
+BUN_OWN=' build bun outdated audit info why publish whoami list pm repl upgrade help completions getcompletes discord '
+# bun's which() takes the first word that does not start with a `-` for the command, an option's value
+# too: `bun --cwd app outdated` runs `outdated` as a script, a bin or a file. A redirect is the shell's.
+BUN_OPT='-([^[:space:];&|()<>"'"'"']|"[^"]*"|'"'"'[^'"'"']*'"'"')*'
+BUN_LEAD="([[:space:]]+(${BUN_OPT}|${NPM_REDIRECT}))*"
+BUN_FIRST="${GUARD_BOUNDARY}bun${BUN_LEAD}[[:space:]]+[^-[:space:];&|()<>][^[:space:];&|()<>]*"
+# `-e`, `--eval`, `-p` and `--print` run their code, alone, after a short flag that takes no value, or `repl`.
+BUN_EVAL="${GUARD_BOUNDARY}bun${BUN_LEAD}([[:space:]]+repl${BUN_LEAD})?"'[[:space:]]+(--(eval|print)([=[:space:];&|()<>]|$)|-[bhv]*[ep])'
+
+# bun_runs <text> — 0 when a bun command of the text runs code, or leads with a word not on BUN_OWN once
+# its quotes are off.
+bun_runs() {
+  local match word
+  [[ "$1" == *bun* ]] || return 1
+  printf '%s\n' "$1" | grep -qE "$BUN_EVAL" && return 0
+  while IFS= read -r match; do
+    word=${match##*[[:space:]]}
+    word=${word//[\"\']/}
+    [[ "$BUN_OWN" == *" $word "* ]] || return 0
+  done < <(printf '%s\n' "$1" | grep -oE "$BUN_FIRST")
+  return 1
+}
 
 # blocked_in <text> — 0 when one command of the text is a blocked one.
 blocked_in() {
@@ -36,7 +69,7 @@ blocked_in() {
   for pattern in "${BLOCKED_PATTERNS[@]}"; do
     printf '%s\n' "$1" | grep -qE "${GUARD_BOUNDARY}${pattern}" && return 0
   done
-  return 1
+  bun_runs "$1"
 }
 
 # Separators inside quotes are text: `git commit -m "ci: replace | yarn with pnpm"` names the thing,

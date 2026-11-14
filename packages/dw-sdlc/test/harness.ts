@@ -8,6 +8,8 @@ import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { after } from "node:test"
 
+import { dispatch } from "../src/cli.ts"
+
 /** The checkout of dw-sdlc holding this package. */
 export const REPO_ROOT = join(import.meta.dirname, "..", "..", "..")
 /** This package's directory, the one `pnpm pack` packs. */
@@ -69,15 +71,11 @@ const capture = (append: (text: string) => void) =>
   }) as typeof process.stdout.write
 
 /**
- * A command's `run` in this process, under the environment and cwd `runBin` gives it. It swaps
- * process.env, the cwd and the two write methods, so it holds only while a file's tests run serially.
+ * `dw-sdlc <args>` in this process, under the environment and cwd `runBin` gives it, for a command that
+ * answers synchronously. It swaps process.env, the cwd and the two write methods, so it holds only while
+ * a file's tests run serially.
  */
-export function runInProcess(
-  run: (argv: string[]) => number,
-  argv: string[],
-  cwd: string,
-  env: NodeJS.ProcessEnv = {}
-): Run {
+export function runInProcess(args: string[], cwd: string, env: NodeJS.ProcessEnv = {}): Run {
   const before = {
     cwd: process.cwd(),
     env: process.env,
@@ -95,7 +93,11 @@ export function runInProcess(
     stderr += text
   })
   try {
-    return { status: run(argv), stdout, stderr }
+    const status = dispatch(args)
+    if (typeof status !== "number") {
+      throw new Error(`dw-sdlc ${args.join(" ")} answers asynchronously: spawn it with runBin`)
+    }
+    return { status, stdout, stderr }
   } finally {
     process.stdout.write = before.out
     process.stderr.write = before.err
@@ -109,7 +111,7 @@ export type Started = { group: number; done: Promise<Run & { signal: NodeJS.Sign
 
 /**
  * Starts `dw-sdlc <args>` from `cwd` as the leader of a process group of its own, so a test signals the
- * bin and the commands it runs together, as Ctrl-C in a terminal does.
+ * bin's group as Ctrl-C in a terminal does; each command the bin runs leads a group of its own.
  */
 export function startBin(args: string[], cwd: string): Started {
   const child = spawn(process.execPath, [BIN, ...args], { cwd, env: scratchEnv({}), detached: true })

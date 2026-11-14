@@ -4,8 +4,9 @@
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs"
 import { dirname, join, matchesGlob } from "node:path"
 
-import { exec } from "../exec.ts"
-import { CannotRun, type Check, type Finding } from "./check.ts"
+import { CannotRun, messageOf } from "../cannot-run.ts"
+import { asked } from "../git.ts"
+import { type Check, type Finding } from "./check.ts"
 import { matching, treeFiles } from "./tree.ts"
 
 export type Group = { name: string; maxLines: number; files: string[] }
@@ -23,10 +24,10 @@ const REMEDIES = {
 }
 
 /** A committed baseline gone from the tree: recording a new one would let every grown file back in. */
-const DELETED: Finding = {
-  file: BASELINE,
-  message: "the baseline is committed but gone from the tree",
-  remedy: `restore it with git restore ${BASELINE}`
+function deleted(): CannotRun {
+  return new CannotRun("the baseline is committed but gone from the tree", `restore it with git restore ${BASELINE}`, {
+    file: BASELINE
+  })
 }
 
 /** Each file a group holds, by path: the group and the file's lines. */
@@ -88,7 +89,7 @@ function keyLines(text: string, path: string): number[] {
 function readBaseline(root: string): BaselineRead {
   const path = join(root, BASELINE)
   if (!existsSync(path)) {
-    const committed = exec("git", ["-C", root, "cat-file", "-e", `HEAD:${BASELINE}`]).status === 0
+    const committed = asked(root, ["cat-file", "-e", `HEAD:${BASELINE}`]) !== undefined
     return { state: "missing", committed }
   }
   const text = readFileSync(path, "utf8")
@@ -96,7 +97,7 @@ function readBaseline(root: string): BaselineRead {
   try {
     parsed = JSON.parse(text)
   } catch (error) {
-    const message = `not JSON: ${error instanceof Error ? error.message : String(error)}`
+    const message = `not JSON: ${messageOf(error)}`
     return { state: "invalid", findings: [{ file: BASELINE, message, remedy: REMEDIES.shape }] }
   }
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
@@ -139,8 +140,7 @@ function contradictions(entries: Map<string, Entry>, groups: Group[]): Finding[]
 function run(root: string, { groups }: FileSizeRatchetOptions): Finding[] {
   const read = readBaseline(root)
   if (read.state === "missing") {
-    const missing = { file: BASELINE, message: "the baseline does not exist", remedy: REMEDIES.record }
-    throw new CannotRun(read.committed ? DELETED : missing)
+    throw read.committed ? deleted() : new CannotRun("the baseline does not exist", REMEDIES.record, { file: BASELINE })
   }
   if (read.state === "invalid") {
     return read.findings
@@ -172,14 +172,10 @@ function write(root: string, entries: [string, number][]): void {
 function refresh(root: string, { groups }: FileSizeRatchetOptions): string {
   const read = readBaseline(root)
   if (read.state === "invalid") {
-    throw new CannotRun({
-      file: BASELINE,
-      message: "it is not a baseline the Ratchet can read",
-      remedy: REMEDIES.unreadable
-    })
+    throw new CannotRun("it is not a baseline the Ratchet can read", REMEDIES.unreadable, { file: BASELINE })
   }
   if (read.state === "missing" && read.committed) {
-    throw new CannotRun(DELETED)
+    throw deleted()
   }
   const measured = measure(root, groups)
   if (read.state === "missing") {

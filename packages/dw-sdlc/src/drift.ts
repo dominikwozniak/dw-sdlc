@@ -3,9 +3,10 @@
 // file never drifts and an edit made before the run sits in both records.
 
 import type { Gate } from "./agentic-config.ts"
+import { git } from "./git.ts"
 import type { Failure } from "./report.ts"
 import { type Status, stoppedBy } from "./run-command.ts"
-import { git, workingTree } from "./working-tree.ts"
+import { workingTree } from "./working-tree.ts"
 
 const REMEDIES = {
   drift: "commit the change, or make the Step only read",

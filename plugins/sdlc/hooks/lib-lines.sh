@@ -185,6 +185,52 @@ guard_strip_heredocs() {
   return 0
 }
 
+# guard_split_heredocs <text> — GUARD_HD_SPLIT, the text with every body dropped and each opener made
+# `<` and the delimiter `HD__HD<n>`, quoted when it was; GUARD_HD_BODIES[n] its body and GUARD_HD_LITERAL[n]
+# 1 for a quoted one. A `-m "$(cat <<'EOF' …)"` names its own body, whatever delimiter came before.
+GUARD_HD_SPLIT=""
+GUARD_HD_BODIES=()
+GUARD_HD_LITERAL=()
+guard_split_heredocs() {
+  local line delim="" dash="" literal=0 body="" lines=0 inbody=0 state=""
+  GUARD_HD_SPLIT=""
+  GUARD_HD_BODIES=()
+  GUARD_HD_LITERAL=()
+  while IFS= read -r line; do
+    if ((inbody)); then
+      if guard_heredoc_closes "$line" "$delim"; then
+        # `$( )` and git's own cleanup both drop the trailing blank lines.
+        while [[ "$body" == *$'\n' ]]; do body="${body%$'\n'}"; done
+        GUARD_HD_BODIES+=("$body")
+        GUARD_HD_LITERAL+=("$literal")
+        inbody=0
+        continue
+      fi
+      [[ -n "$dash" ]] && line="${line#"${line%%[!$'\t']*}"}"
+      if ((lines)); then
+        body+=$'\n'"$line"
+      else
+        body="$line"
+      fi
+      lines=$((lines + 1))
+      continue
+    fi
+    if guard_heredoc_opener "$line" "$state"; then
+      dash="$GUARD_HD_DASH"
+      literal=0
+      [[ -n "$GUARD_HD_QUOTE" ]] && literal=1
+      delim="$GUARD_HD_DELIM"
+      line="${GUARD_HD_HEAD}<${GUARD_HD_QUOTE}HD__HD${#GUARD_HD_BODIES[@]}${GUARD_HD_QUOTE}${GUARD_HD_TAIL}"
+      body=""
+      lines=0
+      inbody=1
+    fi
+    state="$GUARD_HD_STATE"
+    GUARD_HD_SPLIT+="$line"$'\n'
+  done <<<"$1"
+  return 0
+}
+
 # guard_join_continuations — stdin to stdout, a line ending in an odd run of backslashes joined to the
 # next, as the shell runs them; after the heredoc pass, so no body swallows its terminator. A known
 # gap: a `\⏎` inside single quotes joins too. A line ending in a comment continues nothing.

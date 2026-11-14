@@ -586,6 +586,18 @@ describe("diagnose", () => {
     assert.equal(check.level, "FAIL")
     assert.match(check.detail, /forcePush/)
   })
+
+  it("config: says the commit rules are off while an invalid layer leaves none", () => {
+    const problem = '.ai/agentic.config.json: guardrails.forcePush: "allow" is not one of "deny", "ask", "lease"'
+    const config = { config: { commit: {} }, problems: [problem] }
+    const check = line(diagnose({ root: ROOT, home: HOME, probe: fake(HEALTHY), config }), "config")
+    assert.equal(check.level, "FAIL")
+    assert.equal(check.detail, `the guards run on the strictest defaults and the commit rules are off: ${problem}`)
+
+    const kept = { config: { commit: { pattern: "^x: .+", trailer: "Co-Authored-By" } }, problems: [problem] }
+    const held = line(diagnose({ root: ROOT, home: HOME, probe: fake(HEALTHY), config: kept }), "config")
+    assert.equal(held.detail, `the guards run on the strictest defaults: ${problem}`)
+  })
 })
 
 describe("render", () => {

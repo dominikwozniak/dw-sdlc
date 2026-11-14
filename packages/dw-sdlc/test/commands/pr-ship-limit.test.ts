@@ -6,7 +6,7 @@ import { describe, it } from "node:test"
 
 import { COMMITTED_FILE } from "../../src/agentic-config.ts"
 import { repo, runBin } from "../harness.ts"
-import { type Commit, fakeGh, GREEN, HEAD, type Pr, RUN, served } from "../pr-harness.ts"
+import { BASE_OID, type Commit, fakeGh, GREEN, HEAD, type Pr, type Response, RUN, served } from "../pr-harness.ts"
 
 const TARGET = ["40", "-R", "byarcadia-app/foundation"]
 const AUTH = ["auth", "status", "--active", "--hostname", "github.com"]
@@ -50,9 +50,41 @@ const THREE_MARKS: Commit[] = [
 
 const FULL = { [COMMITTED_FILE]: { pr: { review: "full" } } }
 
+/** The compare from `from` to the head, the call that reads the changes a Review would read. */
+function compare(from: string): string {
+  return `api repos/byarcadia-app/foundation/compare/${from}...${HEAD}?per_page=1`
+}
+
+/** What the compare from a read mark to the head answers once a fix is pushed: one file changed since. */
+const FIX: Response = {
+  stdout: JSON.stringify({
+    status: "ahead",
+    behind_by: 0,
+    files: [
+      { filename: "src/paywall.tsx", status: "modified", additions: 1, deletions: 1, patch: "@@ -1 +1 @@\n-a\n+b" }
+    ]
+  })
+}
+/** A fix since each commit a test marks, the head's own read mark aside. */
+const FIXED: Record<string, Response> = Object.fromEntries(
+  [FIRST, SECOND, THIRD, FOURTH, PUSHED].map((oid) => [compare(oid), FIX])
+)
+
+/** The own changes at `commit` from the base: one file, changed as `patch` says. */
+function ownAt(commit: string, patch: string): Record<string, Response> {
+  const files = [{ filename: "src/paywall.tsx", status: "modified", additions: 1, deletions: 1, patch }]
+  const call = `api repos/byarcadia-app/foundation/compare/${BASE_OID}...${commit}?per_page=1`
+  return { [call]: { stdout: JSON.stringify({ status: "ahead", behind_by: 0, files }) } }
+}
+
 /** `dw-sdlc pr ship` on the one `pr` read; `pr.review` is full unless `files` say otherwise. */
-function ship(args: string[], pr: Pr, files: Record<string, string | object> = FULL) {
-  const gh = fakeGh({ graphql: [served(pr)] })
+function ship(
+  args: string[],
+  pr: Pr,
+  files: Record<string, string | object> = FULL,
+  more: Record<string, Response> = {}
+) {
+  const gh = fakeGh({ graphql: [served(pr)], commands: { ...FIXED, ...more } })
   const run = runBin(["pr", "ship", ...TARGET, "--json", ...args], repo({ files }), gh.env)
   return {
     ...run,
@@ -82,7 +114,7 @@ describe("dw-sdlc pr ship after three Reviews with no success between them", () 
         },
         args.join(" ")
       )
-      assert.deepEqual(run.calls, [AUTH, READ])
+      assert.deepEqual(run.calls, [AUTH, READ, compare(THIRD).split(" ")])
     }
   })
 
@@ -133,10 +165,69 @@ describe("dw-sdlc pr ship after three Reviews with no success between them", () 
     assert.match(String(run.answer.reason), /^4 Reviews since the success on ad212a6 left a Finding open/)
   })
 
+  it("parks at the limit under pr.review off, and where auto would route lockfiles alone off", () => {
+    const lockfile = {
+      filename: "pnpm-lock.yaml",
+      status: "modified",
+      additions: 3,
+      deletions: 1,
+      patch: "@@ -1 +1 @@\n-a\n+b"
+    }
+    const reply = { stdout: JSON.stringify({ status: "ahead", behind_by: 0, files: [lockfile] }) }
+    const lockfiles = { [compare(THIRD)]: reply, [compare(PUSHED)]: reply }
+    const fifth: Commit[] = [...THREE_MARKS.slice(0, -1), { oid: FOURTH, ...MARK }, { oid: PUSHED, ...MARK }]
+    const cases: [string, Pr, Record<string, string | object>, Record<string, Response>][] = [
+      ["pr.review off", pushed(THREE_MARKS), { [COMMITTED_FILE]: { pr: { review: "off" } } }, {}],
+      ["auto over lockfiles alone", pushed(THREE_MARKS), {}, lockfiles],
+      ["auto past five marks", pushed(fifth), {}, lockfiles]
+    ]
+    for (const [name, pr, files, commands] of cases) {
+      const gh = fakeGh({ graphql: [served(pr)], commands: { ...FIXED, ...commands } })
+      const run = runBin(["pr", "ship", ...TARGET, "--json"], repo({ files }), gh.env)
+      assert.equal(run.status, 30, `${name}: ${run.stderr}`)
+      const answer = JSON.parse(run.stdout) as Record<string, unknown>
+      assert.deepEqual(answered(answer, ["action", "actor", "performed"]), {
+        action: "review-limit",
+        actor: "dev",
+        performed: []
+      })
+    }
+  })
+
+  it("posts the dev's --review off past the limit, their word over the Findings", () => {
+    const run = ship(["--review", "off", "--dry-run"], pushed(THREE_MARKS))
+    assert.equal(run.status, 30, run.stderr)
+    assert.deepEqual(answered(run.answer, ["action", "details"]), {
+      action: "mark-reviewed",
+      details: { depth: "off", source: "flag", since: THIRD }
+    })
+  })
+
   it("asks for a Review below the limit, at two read marks", () => {
     const run = ship([], pushed(THREE_MARKS.filter(({ oid }) => oid !== THIRD)))
     assert.equal(run.status, 10, run.stderr)
     assert.deepEqual(answered(run.answer, ["action", "actor"]), { action: "review", actor: "agent" })
+  })
+
+  it("counts the read marks of heads an amend left behind on the success, and none left behind before it", () => {
+    const success: Commit = { oid: CLEAN, review: "SUCCESS" }
+    const amended: Commit[] = [FIRST, SECOND, THIRD].map((oid) => ({ oid, ...MARK, under: [success] }))
+    // The newest left-behind mark is the read the head's Review starts from, its own changes compared.
+    const own = { ...ownAt(THIRD, "@@ -1 +1 @@\n-a\n+b"), ...ownAt(HEAD, "@@ -1 +1 @@\n-a\n+c") }
+    const run = ship([], pushed([success], { rewritten: amended }), FULL, own)
+    assert.equal(run.status, 30, run.stderr)
+    assert.deepEqual(answered(run.answer, ["action", "reason"]), {
+      action: "review-limit",
+      reason: `3 Reviews since the success on ${CLEAN.slice(0, 7)} left a Finding open: accepting the head is the dev's`
+    })
+    const before: Commit = { oid: PUSHED }
+    const history: Commit[] = [before, success, { oid: SECOND, ...MARK }, { oid: THIRD, ...MARK }]
+    const earlier = ship([], pushed(history, { rewritten: [{ oid: FIRST, ...MARK, under: [before] }] }))
+    assert.equal(earlier.status, 10, earlier.stderr)
+    assert.deepEqual(answered(earlier.answer, ["action", "details"]), {
+      action: "review",
+      details: { depth: "full", source: "config", reviewCommand: "/code-review", since: THIRD }
+    })
   })
 
   it("counts the read mark the head itself carries", () => {

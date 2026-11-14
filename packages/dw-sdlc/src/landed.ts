@@ -3,40 +3,26 @@
 // are two, and the shared table of scenarios, plugins/sdlc/test/landed-scenarios.ts, holds them to one meaning.
 
 import { exec, SLOW_LIMIT_MS } from "./exec.ts"
-import { repositoryFreeEnv } from "./git-env.ts"
+import { asked, type GitOptions, repositoryFreeEnv } from "./git.ts"
 
 /** The base commits read, newest first: a branch that forked further back is kept rather than read for seconds. */
 const SCAN = 5000
 
 /** Only local objects: a partial clone's missing blob is no reason to ask its remote. */
-function localEnv(): NodeJS.ProcessEnv {
-  return { ...repositoryFreeEnv(), GIT_NO_LAZY_FETCH: "1" }
-}
+const LOCAL_ONLY = { GIT_NO_LAZY_FETCH: "1" }
 
-type Ran = { status: number; stdout: string }
-
-function git(root: string, args: string[], input?: string, limitMs?: number): Ran {
-  const result = exec("git", ["-C", root, ...args], {
-    env: localEnv(),
-    ...(input === undefined ? {} : { input }),
-    ...(limitMs === undefined ? {} : { limitMs })
-  })
-  return { status: result.status ?? 1, stdout: result.stdout ?? "" }
-}
-
-/** What `git <args>` prints, or undefined when it exits non-zero. */
-function answer(root: string, args: string[], input?: string, limitMs?: number): string | undefined {
-  const ran = git(root, args, input, limitMs)
-  return ran.status === 0 ? ran.stdout.trim() : undefined
+/** What `git <args>` prints over local objects only, or undefined when it exits non-zero. */
+function answer(root: string, args: string[], options: Omit<GitOptions, "env"> = {}): string | undefined {
+  return asked(root, args, { ...options, env: LOCAL_ONLY })
 }
 
 /** The patch-id of the whole diff from `from` to `to`; undefined for an empty diff or one git could not finish. */
 function patchIdOf(root: string, from: string, to: string): string | undefined {
-  const diff = git(root, ["diff-tree", "-p", "--binary", "--no-renames", from, to])
-  if (diff.status !== 0) {
+  const diff = answer(root, ["diff-tree", "-p", "--binary", "--no-renames", from, to], { raw: true })
+  if (diff === undefined) {
     return undefined
   }
-  const id = answer(root, ["patch-id", "--verbatim"], diff.stdout)?.split(" ")[0]
+  const id = answer(root, ["patch-id", "--verbatim"], { input: diff })?.split(" ")[0]
   return id === undefined || id === "" ? undefined : id
 }
 
@@ -53,7 +39,7 @@ function baseHoldsPatch(root: string, range: string, patch: string): boolean {
     ].join(" | ")
   ].join("; ")
   const result = exec("bash", ["-c", pipeline, "bash", root, String(SCAN), range], {
-    env: localEnv(),
+    env: { ...repositoryFreeEnv(), ...LOCAL_ONLY },
     limitMs: SLOW_LIMIT_MS
   })
   if (result.status !== 0) {
@@ -77,7 +63,7 @@ export function isLanded(root: string, baseRef: string, branch: string): boolean
  * its tree or the verbatim patch-id of its whole diff, as a squash merge leaves them.
  */
 export function isCommitLanded(root: string, baseRef: string, tip: string): boolean {
-  if (git(root, ["merge-base", "--is-ancestor", tip, baseRef]).status === 0) {
+  if (answer(root, ["merge-base", "--is-ancestor", tip, baseRef]) !== undefined) {
     return true
   }
   const fork = answer(root, ["merge-base", tip, baseRef])
@@ -86,7 +72,7 @@ export function isCommitLanded(root: string, baseRef: string, tip: string): bool
     return false
   }
   const range = `${fork}..${baseRef}`
-  const trees = answer(root, ["log", "--format=%T", `--max-count=${SCAN}`, range], undefined, SLOW_LIMIT_MS) ?? ""
+  const trees = answer(root, ["log", "--format=%T", `--max-count=${SCAN}`, range], { limitMs: SLOW_LIMIT_MS }) ?? ""
   if (trees.split("\n").includes(tree)) {
     return true
   }

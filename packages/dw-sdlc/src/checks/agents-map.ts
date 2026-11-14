@@ -14,9 +14,10 @@ import {
 } from "node:fs"
 import { join, normalize } from "node:path"
 
-import { resolveConfig } from "../agentic-config.ts"
+import type { Gate } from "../agentic-config.ts"
+import { CannotRun, messageOf } from "../cannot-run.ts"
 import { codeSpans, tableRows } from "../markdown.ts"
-import { CannotRun, type Check, type Finding, optionsOf } from "./check.ts"
+import { type Check, type Finding, optionsOf } from "./check.ts"
 import { overBudget } from "./markdown-budget.ts"
 import { catalogueFile } from "./primitives.ts"
 
@@ -65,10 +66,9 @@ export function routes(text: string): { line: number; paths: string[] }[] {
 }
 
 /** The budget, the Gate command, the row to the catalogue and every path the Task Router points at. */
-function judgeMap(root: string, { file, ...budget }: AgentsMapOptions, text: string): Finding[] {
+function judgeMap(root: string, { file, ...budget }: AgentsMapOptions, text: string, gate: Gate): Finding[] {
   const findings: Finding[] = overBudget(text, budget).map((message) => ({ file, message, remedy: REMEDIES.budget }))
 
-  const { gate } = resolveConfig(root).config
   if (gate.command === undefined) {
     findings.push({ message: "the Gate has no command for the map to name", remedy: REMEDIES.noCommand })
   } else if (!new RegExp(`(^|[^\\w-])${escape(gate.command)}($|[^\\w-])`, "m").test(text)) {
@@ -133,7 +133,7 @@ function lockedSkills(root: string): string[] | { problem: string } {
   try {
     lock = JSON.parse(readFileSync(join(root, LOCK), "utf8"))
   } catch (error) {
-    return { problem: `not JSON: ${error instanceof Error ? error.message : String(error)}` }
+    return { problem: `not JSON: ${messageOf(error)}` }
   }
   if (typeof lock !== "object" || lock === null || !("skills" in lock)) {
     return { problem: "it has no skills object" }
@@ -205,14 +205,14 @@ function linksTo(link: string, target: string): boolean {
 export function readMap(root: string, file: string): string {
   const path = join(root, file)
   if (!existsSync(path)) {
-    throw new CannotRun({ file, message: "the map does not exist", remedy: REMEDIES.missing })
+    throw new CannotRun("the map does not exist", REMEDIES.missing, { file })
   }
   return readFileSync(path, "utf8")
 }
 
-function run(root: string, options: AgentsMapOptions): Finding[] {
+function run(root: string, options: AgentsMapOptions, gate: Gate): Finding[] {
   return [
-    ...judgeMap(root, options, readMap(root, options.file)),
+    ...judgeMap(root, options, readMap(root, options.file), gate),
     ...judgeLink(root, options.file),
     ...judgeSkills(root)
   ]

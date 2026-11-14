@@ -4,9 +4,12 @@ status: accepted
 
 # A read mark no commit answers makes the Review read the whole pull request
 
-A read mark stays open when no fix shows after it. That is a read mark on the head itself, or one a merge
-of the base or a rebase came after with the own changes as it read them, compared through GitHub against
-the base. A compare that cannot show the own changes whole, as with a binary file, shows no fix either.
+A read mark stays open when no fix shows after it. That is a read mark on the head itself, or one any
+commit came after with the own changes as it read them: a merge of the base, a rebase, or a commit of the
+branch's own, as an empty one that runs CI again. After the branch's own commits alone, the compare of the
+changes since the mark shows none. After a merge or a rebase, the own changes at both commits are the
+same, compared through GitHub against the base, and a compare that cannot show them whole, as with a
+binary file, shows no fix either.
 No fix answers its Findings. The Findings live only
 in the conversation of the session that reviewed. Take a clean read, then a read mark on the same own
 changes, then a merge or a rebase. A Review from the clean read has nothing to read, so a fresh session

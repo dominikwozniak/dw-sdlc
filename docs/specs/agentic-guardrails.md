@@ -99,7 +99,7 @@ refuses.
   read a target in place. Out of scope, as no accident spells them: a command assembled at runtime, a
   quoted verb, `env -S`, an abbreviated long option, an alias, a script on disk, `ssh` or
   `docker exec`, `python -c` or `node -e`, `echo … | bash`, operands that arrive on stdin
-  (`… | xargs git checkout --`), a commit's subject inside a substitution or another shell, an `rm`
+  (`… | xargs git checkout --`), a commit's subject inside another shell, an `rm`
   that `find -exec` hands its start directory, and a glob such as `.g*` that happens to reach `.git`.
   `rm` of `.`, `./*` or `*` reads the shell's directory: after a literal `cd` below the payload's
   cwd it cleans that directory and passes.

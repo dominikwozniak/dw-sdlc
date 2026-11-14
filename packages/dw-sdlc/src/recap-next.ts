@@ -1,8 +1,9 @@
 // The candidates for the session after this one, as `dw-sdlc recap` reads them: the open issues an agent may
 // start, from one GraphQL request that also asks which issues the branch's pull request closes.
 
-import { isObject, type JsonObject, parseObject } from "./json-text.ts"
-import { CannotRun, gh, said } from "./pr/read.ts"
+import { CannotRun } from "./cannot-run.ts"
+import { gh, said } from "./pr/read.ts"
+import { child, childOrNull, integer, type Node, nodes, ReplyError, rootOf, string } from "./pr/reply.ts"
 
 /** The label that marks an issue as ready for an agent to start. */
 export const READY_LABEL = "ready-for-agent"
@@ -23,54 +24,35 @@ const QUERY = `query Backlog($owner: String!, $name: String!, $number: Int!, $cl
 export type Candidate = { number: number; title: string; url: string; parent: number | null }
 
 const REMEDY = "check gh auth status and the network, then call again"
-
-function malformed(field: string): CannotRun {
-  return new CannotRun(
-    `the backlog reply does not parse: ${field}`,
-    "gh answered a shape dw-sdlc does not read; report it with the output of gh --version"
-  )
-}
-
-function nodesOf(value: unknown, field: string): unknown[] {
-  if (!isObject(value) || !Array.isArray(value.nodes)) {
-    throw malformed(field)
-  }
-  return value.nodes
-}
-
-function numberOf(value: unknown, field: string): number {
-  if (!isObject(value) || typeof value.number !== "number") {
-    throw malformed(field)
-  }
-  return value.number
-}
+const UNREAD_SHAPE = "gh answered a shape dw-sdlc does not read; report it with the output of gh --version"
 
 /** An issue node as a candidate, or null when it has an assignee or an open blocker. */
-function candidateOf(node: unknown): Candidate | null {
-  if (!isObject(node) || typeof node.title !== "string" || typeof node.url !== "string") {
-    throw malformed("issues.nodes")
-  }
-  const { assignees, issueDependenciesSummary: dependencies, parent } = node
-  if (!isObject(assignees) || typeof assignees.totalCount !== "number") {
-    throw malformed("issues.nodes.assignees")
-  }
-  if (!isObject(dependencies) || typeof dependencies.blockedBy !== "number") {
-    throw malformed("issues.nodes.issueDependenciesSummary")
-  }
-  if (assignees.totalCount > 0 || dependencies.blockedBy > 0) {
+function candidateOf(node: Node): Candidate | null {
+  const title = string(node, "title")
+  const url = string(node, "url")
+  const assignees = integer(child(node, "assignees"), "totalCount")
+  const blockedBy = integer(child(node, "issueDependenciesSummary"), "blockedBy")
+  if (assignees > 0 || blockedBy > 0) {
     return null
   }
-  const number = numberOf(node, "issues.nodes.number")
-  return { number, title: node.title, url: node.url, parent: parent === null ? null : numberOf(parent, "parent") }
+  const parent = childOrNull(node, "parent")
+  return { number: integer(node, "number"), title, url, parent: parent === null ? null : integer(parent, "number") }
 }
 
-function repositoryOf(stdout: string): JsonObject {
-  const data = parseObject(stdout)?.data
-  const repository = isObject(data) ? data.repository : undefined
-  if (!isObject(repository)) {
-    throw malformed("data.repository")
-  }
-  return repository
+/**
+ * The candidates the backlog `reply` holds, the sub-issues of an issue the pull request closes first, each
+ * part in issue order. The issues it closes are read only when the query asked for them, `closing`.
+ */
+function candidatesIn(reply: string, closing: boolean): Candidate[] {
+  const repository = child(child(rootOf(reply, "the backlog reply"), "data"), "repository")
+  const closed = closing ? nodes(child(repository, "pullRequest"), "closingIssuesReferences") : []
+  const closes = new Set(closed.map((node) => integer(node, "number")))
+  const candidates = nodes(repository, "issues")
+    .map(candidateOf)
+    .filter((candidate): candidate is Candidate => candidate !== null && !closes.has(candidate.number))
+    .toSorted((one, other) => one.number - other.number)
+  const underClosed = (candidate: Candidate): boolean => candidate.parent !== null && closes.has(candidate.parent)
+  return [...candidates.filter(underClosed), ...candidates.filter((candidate) => !underClosed(candidate))]
 }
 
 /**
@@ -97,21 +79,14 @@ function nextCandidates(pr: { repo: string; number: number } | null): Candidate[
   if (reply.status !== 0) {
     throw new CannotRun(`gh could not read the backlog: ${said(reply.stderr)}`, REMEDY)
   }
-  const repository = repositoryOf(reply.stdout)
-  const closes = new Set(
-    pr === null
-      ? []
-      : nodesOf(
-          isObject(repository.pullRequest) ? repository.pullRequest.closingIssuesReferences : undefined,
-          "pullRequest"
-        ).map((node) => numberOf(node, "closingIssuesReferences.nodes"))
-  )
-  const candidates = nodesOf(repository.issues, "issues")
-    .map(candidateOf)
-    .filter((candidate): candidate is Candidate => candidate !== null && !closes.has(candidate.number))
-    .toSorted((one, other) => one.number - other.number)
-  const underClosed = (candidate: Candidate): boolean => candidate.parent !== null && closes.has(candidate.parent)
-  return [...candidates.filter(underClosed), ...candidates.filter((candidate) => !underClosed(candidate))]
+  try {
+    return candidatesIn(reply.stdout, pr !== null)
+  } catch (error) {
+    if (error instanceof ReplyError) {
+      throw new CannotRun(`the backlog reply does not parse: ${error.message}`, UNREAD_SHAPE)
+    }
+    throw error
+  }
 }
 
 /** The candidates, or why the backlog could not be read: a Recap closes without them, so no failure stops it. */

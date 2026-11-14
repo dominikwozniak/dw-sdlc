@@ -1,32 +1,19 @@
 // The read the pr commands and recap make: gh as a child process, its auth, the pull request a command names,
-// its state from one GraphQL request with the compares that tell whether its head carries an earlier Review
-// and that size its changes, and beside them the default branch and the clock the decision reads.
+// its state from one GraphQL request and the Review's standing at its head from GitHub's compares, through
+// gh, and beside them the default branch and the clock the decision reads.
 
-import { exec, TimedOut } from "../exec.ts"
-import { behindOf, changedOf, changesOf, compareArgs, sameChanges } from "./delta.ts"
+import { CannotRun } from "../cannot-run.ts"
+import { type Called, firstLine, need } from "../exec.ts"
+import { behindOf, changedOf, changesOf, compareArgs } from "./delta.ts"
 import { ReplyError } from "./reply.ts"
-import {
-  awaitsReview,
-  parseDefaultBranch,
-  type Parsed,
-  parsePr,
-  parseView,
-  type PrState,
-  QUERY,
-  type Read
-} from "./state.ts"
-
-/** What stops a pr command or recap before it answers: exit 2, the problem and its remedy on one line. */
-export class CannotRun extends Error {
-  remedy: string
-  constructor(message: string, remedy: string) {
-    super(message)
-    this.remedy = remedy
-  }
-}
+import { type Compares, standingOf } from "./standing.ts"
+import { awaitsReview, parseDefaultBranch, parsePr, parseView, type PrState, type PullRequest, QUERY } from "./state.ts"
+import { holds, renamedUpstream } from "./upstream.ts"
 
 /** The pull request a command line names; what it leaves out, `gh pr view` resolves. */
 export type Named = { number: number | undefined; repo: string | undefined }
+/** A pull request by its repository and number. */
+type Target = { repo: string; number: number }
 
 const REMEDIES = {
   missing: "install the GitHub CLI from https://cli.github.com",
@@ -48,42 +35,20 @@ export function namedProblem(number: string | undefined, repo: string | undefine
   return undefined
 }
 
-function firstLine(text: string): string {
-  return text.trim().split("\n")[0] ?? ""
-}
-
 /** What gh said went wrong: the first line of its stderr, without its `gh: ` prefix or its `X` icon. */
 export function said(stderr: string): string {
-  return firstLine(stderr).replace(/^(?:gh: |X )/, "")
+  return (firstLine(stderr) ?? "").replace(/^(?:gh: |X )/, "")
 }
 
 /** The problem `gh auth status` reports: its line marked `X` under the host, else its first line. */
 function authProblem(stderr: string): string {
   const marked = stderr.split("\n").find((line) => line.trimStart().startsWith("X "))
-  return marked === undefined ? firstLine(stderr) : marked.trim().slice(2)
+  return marked === undefined ? (firstLine(stderr) ?? "") : marked.trim().slice(2)
 }
 
-/** `gh args` as a child process; past its limit it stops the command as any other failed read does. */
-function reachGh(args: string[]): ReturnType<typeof exec> {
-  try {
-    return exec("gh", args)
-  } catch (error) {
-    if (error instanceof TimedOut) {
-      throw new CannotRun(error.message, REMEDIES.read)
-    }
-    throw error
-  }
-}
-
-export function gh(args: string[]): { status: number; stdout: string; stderr: string } {
-  const result = reachGh(args)
-  if (result.error !== undefined) {
-    if ("code" in result.error && result.error.code === "ENOENT") {
-      throw new CannotRun("gh is not on PATH", REMEDIES.missing)
-    }
-    throw result.error
-  }
-  return { status: result.status ?? 1, stdout: result.stdout, stderr: result.stderr }
+/** `gh args` as a child process; not on PATH, or past its limit, it stops the command as any failed read does. */
+export function gh(args: string[]): Called {
+  return need("gh", args, { missing: REMEDIES.missing, stalled: REMEDIES.read })
 }
 
 /** What `parse` returns; a reply it cannot parse stops the command, naming the field. */
@@ -104,14 +69,14 @@ export function nameItRemedy(command: string): string {
 }
 
 /** The pull request named in full, or the one `gh pr view` resolves from what is given. */
-function targetOf({ number, repo }: Named, command: string): { repo: string; number: number } {
+function targetOf({ number, repo }: Named, command: string): Target {
   if (number !== undefined && repo !== undefined) {
     return { repo, number }
   }
   const named = [...(number === undefined ? [] : [String(number)]), ...(repo === undefined ? [] : ["-R", repo])]
   const view = gh(["pr", "view", ...named, "--json", "url"])
   if (view.status !== 0) {
-    throw new CannotRun(`gh pr view found no pull request: ${firstLine(view.stderr)}`, nameItRemedy(command))
+    throw new CannotRun(`gh pr view found no pull request: ${firstLine(view.stderr) ?? ""}`, nameItRemedy(command))
   }
   return parseOrCannotRun(() => parseView(view.stdout))
 }
@@ -125,46 +90,20 @@ function requireAuth(): void {
   }
 }
 
-/**
- * The state of the pull request `named`; `command`, as `pr ship`, names the call in a remedy. With
- * `sized`, as `pr.review: auto` needs, the read sizes the changes a Review would read.
- */
-export function read(named: Named, command: string, sized: boolean): PrState {
-  requireAuth()
-  return query(targetOf(named, command), sized)
-}
-
-/** The pull request `gh pr view` resolves for the head branch `branch`, else the current one; null when none. */
-function viewed(branch: string | undefined): { repo: string; number: number } | null {
+/** The pull request `gh pr view` resolves for the head branch `branch`, else the current one, or what gh said of none. */
+function viewed(branch: string | undefined): Target | { none: string } {
   const view = gh(["pr", "view", ...(branch === undefined ? [] : [branch]), "--json", "url"])
   if (view.status === 0) {
     return parseOrCannotRun(() => parseView(view.stdout))
   }
   if (said(view.stderr).startsWith("no pull requests found")) {
-    return null
+    return { none: said(view.stderr) }
   }
   throw new CannotRun(`gh pr view failed: ${said(view.stderr)}`, REMEDIES.read)
 }
 
-/**
- * The current branch's pull request, open or not, or null. gh tries `@{push}`, else the local name, which
- * misses a branch pushed under another name; then `upstreamName` is asked, and `byUpstream` says so.
- */
-export function readBranch(
-  sized: boolean,
-  upstreamName: string | undefined
-): { pr: PrState; byUpstream: boolean } | null {
-  requireAuth()
-  const own = viewed(undefined)
-  if (own !== null) {
-    return { pr: query(own, sized), byUpstream: false }
-  }
-  if (upstreamName === undefined) {
-    return null
-  }
-  const found = viewed(upstreamName)
-  return found === null ? null : { pr: query(found, sized), byUpstream: true }
-}
+/** Why this checkout names no pull request to read; `lacksHead` when the one its upstream's name finds lacks HEAD. */
+export type NoPr = { problem: string; lacksHead: boolean }
 
 /** The default branch of the repository gh resolves from the current directory. */
 export function defaultBranch(): string {
@@ -188,138 +127,112 @@ export function now(): number {
   return time
 }
 
-/** The state of `pr` once more, after an action the script performed on it: the same pull request. */
-export function readAgain(pr: PrState, sized: boolean): PrState {
-  return query(pr, sized)
+/** A commit as a reason names it: its first seven characters. */
+function short(commit: string): string {
+  return commit.slice(0, 7)
 }
+
+/** The gh adapter of the standing's compares on one pull request, and the compare an update is judged by. */
+type GhCompares = Compares & { behind: (base: string, head: string) => number }
 
 /**
- * The compares this process has read, by repository and the two commits, so reads that share one ask gh
- * once: a compare of two commits never changes.
+ * The gh adapter on `target`. A compare of two commits never changes, so it asks gh for each once, for its
+ * own life; a compare gh refuses stops the command, naming it.
  */
-const COMPARES = new Map<string, string>()
-
-/** For a test that runs the command in its own process: each case starts with no compare read. */
-export function forgetCompares(): void {
-  COMPARES.clear()
+function ghCompares(target: Target): GhCompares {
+  const replies = new Map<string, string>()
+  const replyOf = (from: string, to: string, what: string): string => {
+    const key = `${from}...${to}`
+    const known = replies.get(key)
+    if (known !== undefined) {
+      return known
+    }
+    const reply = gh(compareArgs(target.repo, from, to))
+    if (reply.status !== 0) {
+      throw new CannotRun(`${target.repo}#${target.number}: ${what}: ${said(reply.stderr)}`, REMEDIES.read)
+    }
+    replies.set(key, reply.stdout)
+    return reply.stdout
+  }
+  return {
+    ownChanges: (base, commit) =>
+      parseOrCannotRun(() => changesOf(replyOf(base, commit, `the compare with ${short(commit)}`))),
+    changed: (from, head) =>
+      parseOrCannotRun(() => changedOf(replyOf(from, head, `the compare of ${short(from)}...${short(head)}`))),
+    behind: (base, head) => parseOrCannotRun(() => behindOf(replyOf(base, head, `the compare with ${short(base)}`)))
+  }
 }
 
-/** The reply of the compare from `from` to `commit`, read once per process; `what` names it when gh refuses it. */
-function compared(pr: Pick<PrState, "repo" | "number">, from: string, commit: string, what: string): string {
-  const key = `${pr.repo} ${from}...${commit}`
-  const known = COMPARES.get(key)
-  if (known !== undefined) {
-    return known
-  }
-  const reply = gh(compareArgs(pr.repo, from, commit))
-  if (reply.status !== 0) {
-    throw new CannotRun(`${pr.repo}#${pr.number}: ${what}: ${said(reply.stderr)}`, REMEDIES.read)
-  }
-  COMPARES.set(key, reply.stdout)
-  return reply.stdout
+/** The pull request `named` from the one GraphQL request alone, without the compares the Review's standing reads. */
+export function pullRequestNamed(named: Named, command: string): PullRequest {
+  requireAuth()
+  const target = targetOf(named, command)
+  return parseOrCannotRun(() => parsePr(graphql(target), target.repo)).pr
 }
 
-/** Whether the head of `after` carries the base `before` read: the compare shows it behind by none. */
-export function carriesBase(before: PrState, after: PrState): boolean {
-  const reply = compared(after, before.baseOid, after.head, `the compare with ${before.baseOid.slice(0, 7)}`)
-  return parseOrCannotRun(() => behindOf(reply)) === 0
+/** The reads of pull requests one command makes through gh, each one's compares kept for the reads' life. */
+export type Reads = {
+  /** The state of the pull request `named`; `command`, as `pr ship`, names the call in a remedy. */
+  named: (named: Named, command: string) => PrState
+  /**
+   * The pull request of the branch checked out at `root`, open or not. gh tries `@{push}`, else the local
+   * name, which misses a branch pushed under another name: then it asks by the name the upstream gives.
+   */
+  checkout: (root: string) => PrState | NoPr
+  /** The state of `pr` once more, after an action the script performed on it. */
+  again: (pr: PrState) => PrState
+  /** Whether the head of `after` carries the base `before` read: the compare shows it behind by none. */
+  carriesBase: (before: PrState, after: PrState) => boolean
 }
 
-/** The own changes of `pr` at `commit`, from the compare with its base; null when it cannot show them whole. */
-function ownChanges(pr: Parsed, commit: string): string[] | null {
-  const reply = compared(pr, pr.baseOid, commit, `the compare with ${commit.slice(0, 7)}`)
-  return parseOrCannotRun(() => changesOf(reply))
+/** The reads of one command; with `sized`, as `pr.review: auto` needs, each sizes the changes a Review would read. */
+export function ghReads(sized: boolean): Reads {
+  const adapters = new Map<string, GhCompares>()
+  const comparesOn = (target: Target): GhCompares => {
+    const key = `${target.repo}#${target.number}`
+    const adapter = adapters.get(key) ?? ghCompares(target)
+    adapters.set(key, adapter)
+    return adapter
+  }
+  const query = (target: Target): PrState => {
+    const { pr, history } = parseOrCannotRun(() => parsePr(graphql(target), target.repo))
+    const awaits = pr.state === "OPEN" && awaitsReview(pr)
+    return { ...pr, ...standingOf(history, comparesOn(target), { awaits, sized }) }
+  }
+  return {
+    named: (named, command) => {
+      requireAuth()
+      return query(targetOf(named, command))
+    },
+    checkout: (root) => {
+      requireAuth()
+      const own = viewed(undefined)
+      if (!("none" in own)) {
+        return query(own)
+      }
+      const renamed = renamedUpstream(root)
+      if (renamed === undefined) {
+        return { problem: `gh pr view found no pull request: ${own.none}`, lacksHead: false }
+      }
+      const { branch, head, upstream } = renamed
+      const named = `${upstream}, the name its upstream gives`
+      const found = viewed(upstream)
+      if ("none" in found) {
+        return { problem: `gh pr view found no pull request for ${branch}, nor for ${named}`, lacksHead: false }
+      }
+      // A branch started from another tracks that branch until its first push: its pull request is not this one.
+      const pr = query(found)
+      return holds(pr, head)
+        ? pr
+        : { problem: `${pr.url}, found by ${named}, lacks HEAD ${short(head)}`, lacksHead: true }
+    },
+    again: query,
+    carriesBase: (before, after) => comparesOn(after).behind(before.baseOid, after.head) === 0
+  }
 }
 
-/** `pr` and, with no read in its history, the newest commit force pushes left behind that a Review read. */
-function withRewritten(pr: Parsed, rewritten: Read[]): Parsed {
-  const [newest] = rewritten
-  if (newest === undefined || pr.lastRead !== null || pr.open !== null) {
-    return pr
-  }
-  return { ...pr, lastRead: { ...newest, baseOnly: true, baseMoved: true } }
-}
-
-/**
- * `pr` with its last read mark `open` when a merge of the base or a rebase came after it and no fix
- * shows: the own changes are as it read them, or a compare cannot show them whole (ADR 0023). The
- * compares run only when a Review awaits the head.
- */
-function withOpen(pr: Parsed): Parsed {
-  const last = pr.lastRead
-  if (last === null || last.clean || !last.baseMoved || pr.state !== "OPEN" || !awaitsReview(pr)) {
-    return pr
-  }
-  const atRead = ownChanges(pr, last.commit)
-  const atHead = ownChanges(pr, pr.head)
-  if (atRead !== null && atHead !== null && !sameChanges(atRead, atHead)) {
-    return pr
-  }
-  return { ...pr, lastRead: null, open: last.commit }
-}
-
-/**
- * `pr` and whether its head carries the success of the last commit a Review read: a clean read, only
- * the base's changes since it, and the same own changes at both. A read mark never carries. The
- * compares run only when a Review awaits the head.
- */
-function withCarried(pr: Parsed): Omit<PrState, "changed" | "scope"> {
-  const last = pr.lastRead
-  if (last === null || !last.clean || !last.baseOnly || pr.state !== "OPEN" || !awaitsReview(pr)) {
-    return { ...pr, carried: false }
-  }
-  return { ...pr, carried: sameChanges(ownChanges(pr, last.commit), ownChanges(pr, pr.head)) }
-}
-
-/**
- * The files whose own change differs between `from` and the head of `pr`, a rename under both names:
- * what a fix touched, without the files a merge of the base brought in. Null when a compare cannot show
- * the own changes whole.
- */
-function ownScope(pr: Parsed, from: string): string[] | null {
-  const before = ownChanges(pr, from)
-  const after = ownChanges(pr, pr.head)
-  if (before === null || after === null) {
-    return null
-  }
-  const moved = [
-    ...after.filter((change) => !before.includes(change)),
-    ...before.filter((change) => !after.includes(change))
-  ]
-  const names = moved.flatMap((change) => {
-    const [path, , previous] = JSON.parse(change) as [string, string, string | null]
-    return previous === null ? [path] : [path, previous]
-  })
-  return [...new Set(names)].toSorted()
-}
-
-/**
- * `pr` and, when a Review awaits a head that carries none, its `scope` after a merge of the base or a
- * rebase, and when `sized`, the files the Review would read: the compare from the last commit a Review
- * read, else from the base, to the head, kept to the scope when there is one.
- */
-function withChanged(pr: Omit<PrState, "changed" | "scope">, sized: boolean): PrState {
-  if (pr.carried || pr.state !== "OPEN" || !awaitsReview(pr)) {
-    return { ...pr, changed: null, scope: null }
-  }
-  const scope = pr.lastRead?.baseMoved === true ? ownScope(pr, pr.lastRead.commit) : null
-  if (!sized) {
-    return { ...pr, changed: null, scope }
-  }
-  const from = pr.lastRead?.commit ?? pr.baseOid
-  const reply = compared(pr, from, pr.head, `the compare of ${from.slice(0, 7)}...${pr.head.slice(0, 7)}`)
-  const changed = parseOrCannotRun(() => changedOf(reply))
-  if (scope === null || changed === "unsized") {
-    return { ...pr, changed, scope }
-  }
-  const within = changed.filter(
-    ({ path, previous }) => scope.includes(path) || (previous !== null && scope.includes(previous))
-  )
-  return { ...pr, changed: within, scope }
-}
-
-/** The state of pull request `number` of `repo`, from one GraphQL request and the compares a Review needs. */
-function query({ repo, number }: { repo: string; number: number }, sized: boolean): PrState {
+/** The reply of the one GraphQL request for pull request `number` of `repo`. */
+function graphql({ repo, number }: Target): string {
   const [owner = "", name = ""] = repo.split("/")
   const reply = gh([
     "api",
@@ -338,6 +251,5 @@ function query({ repo, number }: { repo: string; number: number }, sized: boolea
     const remedy = problem.startsWith("Could not resolve to a") ? REMEDIES.target : REMEDIES.read
     throw new CannotRun(`${repo}#${number}: ${problem}`, remedy)
   }
-  const { pr, rewritten } = parseOrCannotRun(() => parsePr(reply.stdout, repo))
-  return withChanged(withCarried(withOpen(withRewritten(pr, rewritten))), sized)
+  return reply.stdout
 }

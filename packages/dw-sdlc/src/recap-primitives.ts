@@ -4,8 +4,8 @@
 
 import { resolveConfig } from "./agentic-config.ts"
 import { catalogueFile } from "./checks/primitives.ts"
+import { asked } from "./git.ts"
 import { type PrimitiveClass, primitivesDiff } from "./primitives-diff.ts"
-import { asked } from "./working-tree.ts"
 
 export type Rolled = { id: string; class: PrimitiveClass }
 

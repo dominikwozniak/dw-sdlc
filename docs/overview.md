@@ -124,7 +124,8 @@ The rules live in the repository, not in the plugin. Three layers set them, the 
 - `pr.reviewCommand` and `worker` have no strictness order, so any layer sets them.
 - A linked worktree with no layer of its own reads the main checkout's.
 - An invalid layer is dropped whole. Until it is fixed, the guards run the strictest set, with
-  `pr.merge: ask` and `pr.review: full`, and the session start names each problem.
+  `pr.merge: ask` and `pr.review: full`, and the session start names each problem. A commit rule only
+  that layer sets is off meanwhile, and the reports say so.
 
 | key               | what it decides                                                          |
 | ----------------- | ------------------------------------------------------------------------ |
@@ -305,8 +306,8 @@ code says whose turn it is:
 The script runs its own Actions in the same call, each at most once, then reads again.
 
 - **It updates a branch only when GitHub reports it `BEHIND`.** GitHub does so only under a rule that a
-  branch be up to date. A branch only behind its base merges as it is: CI already ran on its merge with
-  the base, and an update would spend GitHub Actions minutes on a rule no one set.
+  branch be up to date. A branch only behind its base merges as it is: CI ran on its merge with the
+  base, and an update would spend GitHub Actions minutes on a rule no one set.
 - **It squash merges with `--match-head-commit`**, so a push during the decision never merges blind.
   Who merges follows `pr.merge`: the script under `auto`, the dev under `ask`, the default. `--merge`
   lets the script merge for one call.
@@ -318,7 +319,7 @@ The script runs its own Actions in the same call, each at most once, then reads 
 It parks the pull request for the dev when:
 
 - it is closed;
-- no check reports within 120 s of the head's commit, or CI runs past 40 minutes;
+- no check reports within 120 s of the head's commit or its ready, or CI runs past 40 minutes;
 - a thread or a review that requests changes waits for its reviewer (`awaiting-reply`, `awaiting-review`);
 - it is another author's draft, or it needs an approval;
 - three Reviews in a row left Findings open (`review-limit`);
@@ -341,7 +342,7 @@ default. At `light` it runs its own `sdlc-reviewer`.
 Under `pr.review: auto`, the default, built-in rules route the depth from the change, first match
 winning:
 
-- `off`: every changed file is a lockfile;
+- `off`: every changed file is a lockfile, and no Finding is open;
 - `full`: a file under `.github/workflows/`, more than 100 changed lines outside lockfiles, or a change
   the script cannot size;
 - `light`: the rest.
@@ -360,9 +361,9 @@ the same depth.
   `details.since`, and checks each Finding that fix answers.
 - **A merge of the base carries a success.** Two tests must both pass: every commit since the reviewed
   one is a merge, and the pull request's own changes are the same at both commits, compared through
-  GitHub. A read mark never carries, since its Findings still stand.
-- **A read mark no commit answers stays open.** A read mark on the head, or one a merge of the base or
-  a rebase came after with the own changes as it read them, is named in `details.open`. The
+  GitHub. A read mark never carries.
+- **A read mark no commit answers stays open.** A read mark on the head, or one the commits since leave with
+  the own changes as it read them, merges and rebases too, is named in `details.open`. The
   Review reads the whole pull request, and nothing carries. A session that holds the mark's Findings
   fixes them first.
 - **A merge of the base keeps its other files out of a fix's Review.** When a merge came after the head
@@ -422,8 +423,11 @@ runs on the dev's word, from the main checkout. It never forces and never writes
 | a stale lock   | Claude Code's, its process gone, just before its worktree goes | a live lock, named by its pid                                                  |
 
 It always keeps the default branch, the base branch, a protected branch and a branch a kept worktree
-has checked out. When the main checkout sits on a Landed branch, clean and with nothing paused,
+has checked out or is rebasing. When the main checkout sits on a Landed branch, clean and with nothing paused,
 the Sweep names `git switch <base> && git pull --rebase` for it; the next Sweep then removes the branch. It fetches origin first, so a branch squash-merged since the last fetch counts.
+It reads each worktree again just before it removes it, and keeps one whose HEAD moved since it was
+judged. A branch goes only while it points at the commit judged Landed. A removal that git refuses, or
+that outlives its time limit, keeps that item and the Sweep goes on.
 
 In herdr it also cleans up the session's own Workers. It never stops a terminal next to work that
 could still be committed.
@@ -458,3 +462,4 @@ Each choice below is a one-paragraph decision record in `adr/`; every other reco
 | a Review's depth follows the change                            | a `full` Review costs as much on a dependency bump as on a feature                   | [0013](adr/0013-review-depth-follows-the-change-the-devs-word-overrides.md)     |
 | the Ship skill waits in the background                         | the dev should not retype the command while CI runs; the script still bounds it      | [0020](adr/0020-the-ship-skill-waits-in-the-background-the-script-bounds-it.md) |
 | a kickoff hands its work to a new Lead                         | the session that kicks work off is near its end; the Lead carries the work to merged | [0021](adr/0021-a-session-that-starts-work-hands-it-to-a-new-lead.md)           |
+| the package stays plain TypeScript, not Effect                 | the plugin runs the source with no `node_modules`; the package has no dependency     | [0024](adr/0024-the-package-stays-plain-typescript-not-effect.md)               |

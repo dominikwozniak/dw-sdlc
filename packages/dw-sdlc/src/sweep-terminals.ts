@@ -3,11 +3,18 @@
 
 import { existsSync, realpathSync } from "node:fs"
 
-import { isObject, parseObject } from "./json-text.ts"
-import { shellLine } from "./pr/decide.ts"
-import { CannotRun } from "./pr/read.ts"
+import { CannotRun } from "./cannot-run.ts"
+import { shellLine } from "./shell-line.ts"
 import { worktreesOf } from "./sweep-trees.ts"
-import { call, hcObject, isLive, Refusal, said, type Worker, workersOf } from "./worker/herdr.ts"
+import {
+  isLive,
+  listTerminals,
+  readTerminal,
+  removeTerminal,
+  stopTerminal,
+  type Worker,
+  workersOf
+} from "./worker/herdr.ts"
 import { type LockVerdict, lockVerdict } from "./worktree-lock.ts"
 
 /** A live terminal of another session, or the sweeping one's own, with the place herdr shows it at. */
@@ -40,57 +47,31 @@ export function sweepingTerminal(): string | undefined {
   return id === undefined || id === "" ? undefined : id
 }
 
-function word(value: unknown): string | undefined {
-  return typeof value === "string" && value !== "" ? value : undefined
-}
-
 /**
- * Each live terminal with the folder it works in, `hc get`'s foreground. An `hc get` that fails stops the
- * Sweep, since a terminal in a folder it cannot see must not count as absent; one gone since the listing is dropped.
+ * Each Worker with the folder it works in and its program's pid, as `hc get` reports them. One gone since the
+ * listing is dropped; an `hc get` that fails stops the Sweep, since a terminal in a folder it cannot see must
+ * not count as absent.
  */
-function foldersOf(list: Worker[]): Located[] {
-  return list.flatMap((worker) => {
+function located(workers: Worker[]): Located[] {
+  return workers.flatMap((worker) => {
     if (!isLive(worker)) {
       return [{ ...worker, pid: undefined }]
     }
-    const got = call("hc", ["get", worker.address, "--json"])
-    if (got.status === 3) {
-      return []
-    }
-    const parsed = got.status === 0 ? parseObject(got.stdout) : undefined
-    if (parsed === undefined) {
-      throw new Refusal(
-        `hc get ${worker.address} failed: ${got.status === 0 ? "its reply is no JSON object" : said(got)}`
-      )
-    }
-    const { cwd, pid } = isObject(parsed.foreground) ? parsed.foreground : { cwd: undefined, pid: undefined }
-    const there = typeof cwd === "string" && cwd !== "" ? { ...worker, folder: cwd } : worker
-    return [{ ...there, pid: typeof pid === "number" ? pid : undefined }]
+    const reading = readTerminal(worker.address)
+    return "gone" in reading ? [] : [{ ...worker, folder: reading.folder ?? worker.folder, pid: reading.pid }]
   })
 }
 
 /** The live terminals `hc ls` lists, each with the folder it works in. */
 function liveTerminals(): Seen[] {
-  const { terminals } = hcObject(["ls", "--json"])
-  if (!Array.isArray(terminals)) {
-    throw new Refusal("hc ls answered no list of terminals", "check hc --version")
-  }
-  const places = new Map<string, string | undefined>()
-  const listed = terminals.flatMap((entry: unknown): Worker[] => {
-    const address = isObject(entry) ? word(entry.address) : undefined
-    if (!isObject(entry) || address === undefined || typeof entry.cwd !== "string") {
-      throw new Refusal("hc ls answered a terminal without an address or a folder", "check hc --version")
+  return listTerminals().flatMap(({ address, name, folder, place }) => {
+    const reading = readTerminal(address)
+    if ("gone" in reading) {
+      return []
     }
-    places.set(address, word(entry.where))
-    const name = word(entry.name) ?? address
-    return [{ name, address, state: "live", status: word(entry.status) ?? "unknown", folder: entry.cwd }]
+    const working = reading.folder ?? folder
+    return [{ address, name, folder: working, place: place ?? working }]
   })
-  return foldersOf(listed).map(({ name, address, folder }) => ({
-    name,
-    address,
-    folder,
-    place: places.get(address) ?? folder
-  }))
 }
 
 /**
@@ -99,7 +80,7 @@ function liveTerminals(): Seen[] {
  */
 export function readTerminals(own: string): Terminals {
   try {
-    const workers = foldersOf(workersOf(own, true))
+    const workers = located(workersOf(own, true))
     const live = liveTerminals()
     const addresses = new Set(workers.map(({ address }) => address))
     return {
@@ -108,10 +89,7 @@ export function readTerminals(own: string): Terminals {
       others: live.filter(({ address }) => address !== own && !addresses.has(address))
     }
   } catch (error) {
-    if (error instanceof Refusal) {
-      throw new CannotRun(error.message, error.remedy ?? "check hc, then call again")
-    }
-    throw error
+    throw error instanceof CannotRun ? error.orRemedy("check hc, then call again") : error
   }
 }
 
@@ -212,20 +190,11 @@ export function stopsOf(holders: Holder[], tree: string): TerminalPlan[] {
 }
 
 /** Stops, if `item` asks, and removes its terminal; the words of the `hc` that refused, or undefined when it is gone. */
-export function removeTerminal(item: { name: string; stop?: boolean }): string | undefined {
+export function takeDown(item: { name: string; stop?: boolean }): string | undefined {
   try {
-    if (item.stop === true) {
-      const killed = call("hc", ["kill", item.name])
-      // 11: the terminal finished between the read and the stop.
-      if (killed.status !== 0 && killed.status !== 11) {
-        return `hc kill ${item.name} failed: ${said(killed)}`
-      }
-    }
-    const removed = call("hc", ["rm", item.name])
-    // 3: the terminal is gone already.
-    return removed.status === 0 || removed.status === 3 ? undefined : `hc rm ${item.name} failed: ${said(removed)}`
+    return (item.stop === true ? stopTerminal(item.name) : undefined) ?? removeTerminal(item.name)
   } catch (error) {
-    if (error instanceof Refusal) {
+    if (error instanceof CannotRun) {
       return error.message
     }
     throw error

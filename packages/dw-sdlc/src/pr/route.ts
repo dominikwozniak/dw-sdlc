@@ -1,9 +1,14 @@
 // The built-in rules `pr.review: auto` routes a Review depth by, from the files the Review would read:
-// lockfiles alone are off; a workflow file, more than 100 changed lines outside lockfiles, or a change
-// the compare cannot size is full; the rest is light. No config key moves them.
+// lockfiles alone are off while no Finding is open; a workflow file, more than 100 changed lines outside
+// lockfiles, or a change the compare cannot size is full; the rest is light. No config key moves them.
 
 import type { ReviewDepth } from "../agentic-config.ts"
-import type { ChangedFile } from "./state.ts"
+
+/**
+ * A file a Review would read: its name, its name before a rename, and the lines it adds and removes,
+ * null when the compare shows no patch for it, as for a binary file.
+ */
+export type ChangedFile = { path: string; previous: string | null; lines: number | null }
 
 /** The lockfiles a package manager writes, by file name in any directory. */
 const LOCKFILES = new Set([
@@ -43,14 +48,14 @@ function isWorkflow({ path, previous }: ChangedFile): boolean {
 
 /**
  * The depth the rules route `changed` to. A change not read or not sized reads in full, as does a file
- * outside lockfiles the compare shows no patch for.
+ * outside lockfiles the compare shows no patch for. With `findingsOpen` someone reads even lockfiles alone.
  */
-export function route(changed: ChangedFile[] | "unsized" | null): Routed {
+export function route(changed: ChangedFile[] | "unsized" | null, findingsOpen: boolean): Routed {
   if (changed === null || changed === "unsized") {
     return { depth: "full" }
   }
   const code = changed.filter((file) => !isLockfile(file.path))
-  if (changed.length > 0 && code.length === 0) {
+  if (!findingsOpen && changed.length > 0 && code.length === 0) {
     return { depth: "off", why: "lockfiles only" }
   }
   const lines = code.map((file) => file.lines)

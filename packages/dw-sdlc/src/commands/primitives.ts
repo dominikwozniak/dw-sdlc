@@ -4,9 +4,9 @@
 
 import { existsSync, realpathSync } from "node:fs"
 import { basename, dirname, join, relative, resolve } from "node:path"
-import { parseArgs } from "node:util"
 
 import { repositoryRoot, resolveConfig } from "../agentic-config.ts"
+import { CannotRun, readArgs, rootDir, usageError } from "../cannot-run.ts"
 import { type Primitive, primitivesNaming, readCatalogue } from "../catalogue.ts"
 import { catalogueFile } from "../checks/primitives.ts"
 import { blockOf, primitivesDiff } from "../primitives-diff.ts"
@@ -29,8 +29,8 @@ for a pull request body, which a later run replaces. --json prints instead, per 
 class, file count, summary and docs, each doc with whether the change touches its file, and the count of
 changed files outside every Primitive. It takes no --paths.
 
-Exit 0 with an answer, 2 when there is no catalogue to read or it is not one, and for --diff when <base>
-does not resolve.`
+Exit 0 with an answer, 2 when --root names no directory, when there is no catalogue to read or it is
+not one, and for --diff when <base> does not resolve.`
 
 const REMEDIES = {
   missing: "create it, or point gate.checks.primitives.file at the catalogue",
@@ -46,9 +46,9 @@ type Cli = {
   root: string | undefined
 }
 
-function parseCli(argv: string[]): Cli | { error: string } {
-  try {
-    const { values, positionals } = parseArgs({
+function parseCli(argv: string[]): Cli {
+  const { values, positionals } = readArgs(
+    {
       args: argv,
       allowPositionals: true,
       options: {
@@ -58,25 +58,27 @@ function parseCli(argv: string[]): Cli | { error: string } {
         diff: { type: "string" },
         root: { type: "string" }
       }
-    })
-    const cli = {
-      help: values.help === true,
-      json: values.json === true,
-      paths: values.paths === true,
-      diff: values.diff,
-      files: positionals,
-      root: values.root
-    }
-    if (cli.help) {
-      return cli
-    }
-    if (cli.diff !== undefined && (cli.paths || cli.files.length > 0)) {
-      return { error: "--diff and --paths exclude each other — ask one question at a time" }
-    }
-    return cli.paths || cli.diff !== undefined ? cli : { error: "name the paths with --paths, or a base with --diff" }
-  } catch (error) {
-    return { error: error instanceof Error ? error.message : String(error) }
+    },
+    USAGE
+  )
+  const cli = {
+    help: values.help === true,
+    json: values.json === true,
+    paths: values.paths === true,
+    diff: values.diff,
+    files: positionals,
+    root: values.root
   }
+  if (cli.help) {
+    return cli
+  }
+  if (cli.diff !== undefined && (cli.paths || cli.files.length > 0)) {
+    throw usageError("--diff and --paths exclude each other — ask one question at a time", USAGE)
+  }
+  if (!cli.paths && cli.diff === undefined) {
+    throw usageError("name the paths with --paths, or a base with --diff", USAGE)
+  }
+  return cli
 }
 
 /**
@@ -105,11 +107,17 @@ function plain(path: string, primitives: Primitive[]): string[] {
   ])
 }
 
+/** Stops the command on every one of `problems`, each on a line of its own, as the bin prints the first. */
+function stopOn(problems: string[]): never {
+  const [first = "the catalogue cannot be read", ...rest] = problems
+  const after = rest.map((problem) => `dw-sdlc primitives: ${problem}`).join("\n")
+  throw new CannotRun(first, undefined, rest.length === 0 ? {} : { after })
+}
+
 function runDiff(root: string, base: string, json: boolean): number {
   const answer = primitivesDiff(root, base)
   if ("problems" in answer) {
-    process.stderr.write(answer.problems.map((problem) => `dw-sdlc primitives: ${problem}\n`).join(""))
-    return 2
+    stopOn(answer.problems)
   }
   process.stdout.write(json ? `${JSON.stringify(answer, null, 2)}\n` : `${blockOf(answer)}\n`)
   return 0
@@ -117,16 +125,12 @@ function runDiff(root: string, base: string, json: boolean): number {
 
 export function run(argv: string[]): number {
   const cli = parseCli(argv)
-  if ("error" in cli) {
-    process.stderr.write(`dw-sdlc primitives: ${cli.error}\n\n${USAGE}\n`)
-    return 2
-  }
   if (cli.help) {
     process.stdout.write(`${USAGE}\n`)
     return 0
   }
 
-  const root = repositoryRoot(cli.root ?? process.cwd())
+  const root = repositoryRoot(rootDir(cli.root))
   if (cli.diff !== undefined) {
     return runDiff(root, cli.diff, cli.json)
   }
@@ -137,8 +141,7 @@ export function run(argv: string[]): number {
       read.state === "missing"
         ? [`the catalogue does not exist — ${REMEDIES.missing}`]
         : read.problems.map((problem) => `${problem} — ${REMEDIES.invalid}`)
-    process.stderr.write(problems.map((problem) => `dw-sdlc primitives: ${file}: ${problem}\n`).join(""))
-    return 2
+    stopOn(problems.map((problem) => `${file}: ${problem}`))
   }
 
   const answers = cli.files.map((path) => {

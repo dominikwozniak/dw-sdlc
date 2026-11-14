@@ -1,14 +1,14 @@
 #!/bin/bash
 # Enforces the commit conventions the resolved config carries: the subject, the trailer, a live
-# backtick and a `git add` of the whole tree, each in README.md#guards. A lexer of its own, as BSD
-# `xargs -n1` dies on a quoted newline; it keys off a `git` token, so launchers need no handling.
+# backtick and a `git add` of the whole tree, each in README.md#guards. It reads the command as typed
+# through the walker's words, and keys off a `git` word, so launchers need no handling.
 set -uo pipefail
 source "${BASH_SOURCE[0]%/*}/lib.sh"
 
 guard_read_payload "$@" || exit 0
 [[ -n "$GUARD_COMMAND" ]] || exit 0
 RAW="$GUARD_COMMAND"
-# Cheap bail-out before the per-character scans.
+# Cheap bail-out before the walk.
 [[ "$RAW" == *git* ]] || exit 0
 case "$RAW" in
   *commit* | *add*) ;;
@@ -31,181 +31,100 @@ policies() {
   TRAILER=$(guard_config_get '.commit.trailer')
 }
 
-# --- the lexer --------------------------------------------------------------------------------------
-# TOKENS, the command split as a shell would, and per token a live backtick (TOKEN_LIVE_BT) or a live
-# `$(`, `${` or `$name` (TOKEN_LIVE_DOLLAR), outside single quotes and unescaped; `;&|()` stand alone.
+# --- the words ----------------------------------------------------------------------------------
+# TOKENS, the command as typed read as docs/contributing/bash-guard.md#the-commit-guards-reading
+# says, each cut a token of its own, and TOKEN_LIVE each word's live marks.
 TOKENS=()
-TOKEN_LIVE_BT=()
-TOKEN_LIVE_DOLLAR=()
-lex() {
-  # Two statements, not one `local s="$1" n=${#s}`: every word of a `local` is expanded BEFORE the
-  # builtin runs, so `${#s}` would read an `s` that is not set yet — under `set -u` that aborts the
-  # hook at exit 1, which is a guard saying nothing.
-  local s="$1"
-  local n=${#s}
-  local i=0 ch cur="" have=0 live=0 dollar=0 state=plain
-  TOKENS=()
-  TOKEN_LIVE_BT=()
-  TOKEN_LIVE_DOLLAR=()
-  while ((i < n)); do
-    ch=${s:i:1}
-    case "$state" in
-      plain)
-        case "$ch" in
-          "'")
-            state=sq
-            have=1
-            ;;
-          '"')
-            state=dq
-            have=1
-            ;;
-          '\')
-            i=$((i + 1))
-            cur+=${s:i:1}
-            have=1
-            ;;
-          '`')
-            live=1
-            cur+=$ch
-            have=1
-            ;;
-          '$')
-            case "${s:i+1:1}" in [\(\{A-Za-z_]) dollar=1 ;; esac
-            cur+=$ch
-            have=1
-            ;;
-          ' ' | $'\t' | $'\n')
-            if ((have)); then
-              TOKENS+=("$cur")
-              TOKEN_LIVE_BT+=("$live")
-              TOKEN_LIVE_DOLLAR+=("$dollar")
-              cur=""
-              have=0
-              live=0
-              dollar=0
-            fi
-            ;;
-          ';' | '&' | '|' | '(' | ')')
-            if ((have)); then
-              TOKENS+=("$cur")
-              TOKEN_LIVE_BT+=("$live")
-              TOKEN_LIVE_DOLLAR+=("$dollar")
-              cur=""
-              have=0
-              live=0
-              dollar=0
-            fi
-            TOKENS+=("$ch")
-            TOKEN_LIVE_BT+=("0")
-            TOKEN_LIVE_DOLLAR+=("0")
-            ;;
-          *)
-            cur+=$ch
-            have=1
-            ;;
-        esac
-        ;;
-      sq)
-        # Inside single quotes NOTHING is special — not the backslash, not the `$`, and not the
-        # backtick, which is the whole reason this state is tracked apart.
-        case "$ch" in
-          "'") state=plain ;;
-          *) cur+=$ch ;;
-        esac
-        ;;
-      dq)
-        case "$ch" in
-          '"') state=plain ;;
-          '\')
-            i=$((i + 1))
-            cur+=${s:i:1}
-            ;;
-          '`')
-            live=1
-            cur+=$ch
-            ;;
-          '$')
-            case "${s:i+1:1}" in [\(\{A-Za-z_]) dollar=1 ;; esac
-            cur+=$ch
-            ;;
-          *) cur+=$ch ;;
-        esac
-        ;;
-    esac
-    i=$((i + 1))
-  done
-  if ((have)); then
-    TOKENS+=("$cur")
-    TOKEN_LIVE_BT+=("$live")
-    TOKEN_LIVE_DOLLAR+=("$dollar")
-  fi
-  return 0
+TOKEN_LIVE=()
+
+# heredoc_substitutions <index> — HD_SUBS, the `$(…)` and backtick spans that unquoted body runs, as
+# typed, each line of one kept, blank ones included.
+HD_SUBS=""
+heredoc_substitutions() {
+  local line state=H
+  HD_SUBS=""
+  while IFS= read -r line; do
+    guard_heredoc_substitutions "$line" "$state"
+    [[ "$state" != H || -n "$GUARD_HD_SUBS" ]] && HD_SUBS+="$GUARD_HD_SUBS"$'\n'
+    state="$GUARD_QW_STATE"
+  done <<<"${GUARD_HD_BODIES[$1]}"
 }
 
-# --- heredocs ---------------------------------------------------------------------------------------
-# Each body by index: HD_BODIES, and HD_LITERAL for a quoted delimiter. Parallel arrays: bash 3.2 has
-# no associative ones and errors on "${arr[@]}" for an empty one under `set -u`.
-HD_BODIES=()
-HD_LITERAL=()
-STRIPPED=""
-# split_heredocs — STRIPPED, every body dropped and each opener's `<<` made `<`, its delimiter the
-# name `HD` tagged with the body's index, `HD__HD0`, quoted when it was, so a `-m "$(cat <<'EOF' …)"`
-# names its own body even when an earlier `cat > file <<'EOF'` shares the delimiter.
-split_heredocs() {
-  local line delim="" dash="" literal=0 body="" lines=0 inbody=0 state=""
-  while IFS= read -r line; do
-    if ((inbody)); then
-      if guard_heredoc_closes "$line" "$delim"; then
-        # `$( )` and git's own cleanup both drop the trailing blank lines.
-        while [[ "$body" == *$'\n' ]]; do body="${body%$'\n'}"; done
-        HD_BODIES+=("$body")
-        HD_LITERAL+=("$literal")
-        inbody=0
-        continue
-      fi
-      [[ -n "$dash" ]] && line="${line#"${line%%[!$'\t']*}"}"
-      if ((lines)); then
-        body+=$'\n'"$line"
-      else
-        body="$line"
-      fi
-      lines=$((lines + 1))
+# read_commands <text> — the commands of the text onto TOKENS. The shell runs each `$(…)` and backtick
+# span in a subshell before the command that holds it, so its body goes first, between `(` and `)`, and
+# so do the spans of an unquoted heredoc body the command opens, each body read once.
+HD_READ=" "
+read_commands() {
+  local top i kind level body rest index
+  local -a tops bodies
+  guard_top_level "$1"
+  tops=("${GUARD_TOP[@]}")
+  for top in "${tops[@]}"; do
+    if [[ "$top" == "$GUARD_TOP_MARK"? ]]; then
+      TOKENS+=("${top:1}")
+      TOKEN_LIVE+=("")
       continue
     fi
-    if guard_heredoc_opener "$line" "$state"; then
-      dash="$GUARD_HD_DASH"
-      literal=0
-      [[ -n "$GUARD_HD_QUOTE" ]] && literal=1
-      delim="$GUARD_HD_DELIM"
-      line="${GUARD_HD_HEAD}<${GUARD_HD_QUOTE}HD__HD${#HD_BODIES[@]}${GUARD_HD_QUOTE}${GUARD_HD_TAIL}"
-      body=""
-      lines=0
-      inbody=1
+    bodies=()
+    if [[ "$top" == *'$('* || "$top" == *'`'* ]]; then
+      guard_quote_walk "$top"
+      level=0
+      for ((i = 0; i < ${#GUARD_QW_KIND[@]}; i++)); do
+        kind=${GUARD_QW_KIND[i]}
+        if ((level == 0)); then
+          [[ "$kind" == o[UB] ]] && level=1 body=""
+          continue
+        fi
+        case "$kind" in
+          o?) level=$((level + 1)) ;;
+          c?) level=$((level - 1)) ;;
+        esac
+        if ((level == 0)); then
+          bodies+=("$body")
+        else
+          body+=${GUARD_QW_TEXT[i]}
+        fi
+      done
     fi
-    state="$GUARD_HD_STATE"
-    STRIPPED+="$line"$'\n'
-  done <<<"$RAW"
-  return 0
+    rest=$top
+    while [[ "$rest" =~ HD__HD([0-9]+) ]]; do
+      index=${BASH_REMATCH[1]}
+      rest=${rest#*HD__HD"$index"}
+      [[ "${GUARD_HD_LITERAL[index]:-1}" == 0 && "$HD_READ" != *" $index "* ]] || continue
+      HD_READ+="$index "
+      heredoc_substitutions "$index"
+      [[ -n "$HD_SUBS" ]] && bodies+=("$HD_SUBS")
+    done
+    for body in "${bodies[@]+"${bodies[@]}"}"; do
+      TOKENS+=("(")
+      TOKEN_LIVE+=("")
+      read_commands "$body"
+      TOKENS+=(")")
+      TOKEN_LIVE+=("")
+    done
+    guard_split_words "$top"
+    TOKENS+=("${GUARD_WORDS[@]+"${GUARD_WORDS[@]}"}")
+    TOKEN_LIVE+=("${GUARD_WORD_LIVE[@]+"${GUARD_WORD_LIVE[@]}"}")
+  done
 }
-split_heredocs
-# The walk reads the command the way the shell runs it: heredoc bodies dropped, continuation lines joined.
-COMMAND=$(printf '%s' "$STRIPPED" | guard_join_continuations)
+
+guard_split_heredocs "$RAW"
+read_commands "$(printf '%s' "$GUARD_HD_SPLIT" | guard_join_continuations)"
 
 # heredoc_index <delimiter> — HD_INDEX becomes the body a tagged delimiter names; 1 when it names none.
 HD_INDEX=-1
 heredoc_index() {
   [[ "$1" =~ __HD([0-9]+)$ ]] || return 1
   HD_INDEX="${BASH_REMATCH[1]}"
-  ((HD_INDEX < ${#HD_BODIES[@]}))
+  ((HD_INDEX < ${#GUARD_HD_BODIES[@]}))
 }
 
-# What a `-m "$(cat <<'EOF' … EOF)"` leaves in the walk once its body is dropped: `$(cat <'EOF'`, a
-# newline and the closing parenthesis.
+# The word a `-m "$(cat <<'EOF' … EOF)"` leaves once its body is split out: `$(cat <HD__HD0`, a newline
+# and the closing parenthesis.
 SUBSTITUTED='^\$\(cat[[:space:]]+<[[:space:]]*["'"'"'\]?([A-Za-z_][A-Za-z0-9_]*)["'"'"']?[[:space:]]*\)$'
 
 # expands <text> — 1 when the shell would expand something in an unquoted heredoc body, else 0. A
-# `-m` value carries that knowledge from the lexer instead, where the quotes were still there to read.
+# `-m` value carries that knowledge in its live marks instead, read where the quotes still stood.
 expands() {
   if printf '%s' "$1" | grep -q '\$[({A-Za-z_]'; then echo 1; else echo 0; fi
 }
@@ -283,33 +202,38 @@ add_msg() {
 # heredoc_msg <index> — that body as a message: literal behind a quoted delimiter, expanded by the
 # shell otherwise, where a backtick is live.
 heredoc_msg() {
-  local body="${HD_BODIES[$1]}" live=0 shell=0
-  if [[ "${HD_LITERAL[$1]}" == 0 ]]; then
+  local body="${GUARD_HD_BODIES[$1]}" live=0 shell=0
+  if [[ "${GUARD_HD_LITERAL[$1]}" == 0 ]]; then
     [[ "$body" == *'`'* ]] && live=1
     shell=$(expands "$body")
   fi
   add_msg "$body" "$live" "$shell"
 }
 
-# message <token> <live-backtick> <live-dollar> — one -m value; a heredoc substitution stands for its body.
+# message <token> <live marks> — one -m value; a heredoc substitution stands for its body.
 message() {
+  local bt=0 dollar=0
   if [[ "$1" =~ $SUBSTITUTED ]] && heredoc_index "${BASH_REMATCH[1]}"; then
     heredoc_msg "$HD_INDEX"
     return 0
   fi
-  add_msg "$1" "$2" "$3"
+  [[ "$2" == *'`'* ]] && bt=1
+  [[ "$2" == *'$'* ]] && dollar=1
+  add_msg "$1" "$bt" "$dollar"
 }
 
-# has_trailer <key> <message> — a line whose start matches <key>, case-blind.
+# has_trailer <key> <message> — a line whose start, past its blanks, matches <key>, case-blind. One
+# `tr` for the whole message: a fork a line cost a 40-line message 140 ms.
 has_trailer() {
-  local key line
+  local key line lower
   key=$(printf '%s' "$1" | tr 'A-Z' 'a-z')
+  lower=$(printf '%s' "$2" | tr 'A-Z' 'a-z')
   while IFS= read -r line; do
-    line=$(printf '%s' "$line" | sed -e 's/^[[:space:]]*//' | tr 'A-Z' 'a-z')
+    line="${line#"${line%%[![:space:]]*}"}"
     case "$line" in
       "$key"*) return 0 ;;
     esac
-  done <<<"$2"
+  done <<<"$lower"
   return 1
 }
 
@@ -357,8 +281,6 @@ Add it as the last line of the message — with repeated -m, that is a final -m 
 }
 
 # --- the walk ---------------------------------------------------------------------------------------
-lex "$COMMAND"
-
 verb=""
 i=0
 count=${#TOKENS[@]}
@@ -470,13 +392,13 @@ while ((i < count)); do
           ;;
         --message)
           if ((i + 1 < count)); then
-            message "${TOKENS[i + 1]}" "${TOKEN_LIVE_BT[i + 1]}" "${TOKEN_LIVE_DOLLAR[i + 1]}"
+            message "${TOKENS[i + 1]}" "${TOKEN_LIVE[i + 1]}"
             i=$((i + 2))
             continue
           fi
           ;;
         --message=*)
-          message "${t#--message=}" "${TOKEN_LIVE_BT[i]}" "${TOKEN_LIVE_DOLLAR[i]}"
+          message "${t#--message=}" "${TOKEN_LIVE[i]}"
           ;;
         # git writes `token: value` (or `token=value`) as a trailer line that starts with the token.
         --trailer)
@@ -497,12 +419,12 @@ while ((i < count)); do
               tail="${rest#*m}"
               if [[ -z "$tail" ]]; then
                 if ((i + 1 < count)); then
-                  message "${TOKENS[i + 1]}" "${TOKEN_LIVE_BT[i + 1]}" "${TOKEN_LIVE_DOLLAR[i + 1]}"
+                  message "${TOKENS[i + 1]}" "${TOKEN_LIVE[i + 1]}"
                   i=$((i + 2))
                   continue
                 fi
               else
-                message "$tail" "${TOKEN_LIVE_BT[i]}" "${TOKEN_LIVE_DOLLAR[i]}"
+                message "$tail" "${TOKEN_LIVE[i]}"
               fi
               ;;
           esac

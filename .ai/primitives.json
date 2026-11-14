@@ -250,6 +250,7 @@
         "packages/dw-sdlc/src/commands/setup.ts",
         "packages/dw-sdlc/src/setup-gate.ts",
         "packages/dw-sdlc/src/setup-rules.ts",
+        "packages/dw-sdlc/src/setup-writer.ts",
         "packages/dw-sdlc/src/json-text.ts",
         "packages/dw-sdlc/src/package-version.ts"
       ],
@@ -271,7 +272,7 @@
       "code": [
         "packages/dw-sdlc/src/commands/references-sync.ts",
         "packages/dw-sdlc/src/pins.ts",
-        "packages/dw-sdlc/src/git-env.ts"
+        "packages/dw-sdlc/src/git.ts"
       ],
       "docs": ["plugins/sdlc/README.md#the-sync", "plugins/sdlc/README.md#failures", "GLOSSARY.md"]
     },
@@ -282,6 +283,7 @@
       "summary": "Makes a repository ready for References: the Router with its table from the file, the excludes, the ignore rules.",
       "code": [
         "packages/dw-sdlc/src/commands/references-setup.ts",
+        "packages/dw-sdlc/src/setup-writer.ts",
         "packages/dw-sdlc/src/json-text.ts",
         "packages/dw-sdlc/src/router-block.ts",
         "packages/dw-sdlc/templates/router.md"
@@ -304,7 +306,8 @@
       "code": [
         "packages/dw-sdlc/src/commands/pr-ship.ts",
         "packages/dw-sdlc/src/commands/pr-reviewed.ts",
-        "packages/dw-sdlc/src/pr/"
+        "packages/dw-sdlc/src/pr/",
+        "packages/dw-sdlc/src/shell-line.ts"
       ],
       "docs": ["docs/overview.md#how-the-ship-script-merges-a-pull-request", "GLOSSARY.md", "AGENTS.md#commands"]
     },
@@ -328,8 +331,10 @@
       "code": [
         "packages/dw-sdlc/src/commands/sweep.ts",
         "packages/dw-sdlc/src/landed.ts",
+        "packages/dw-sdlc/src/sweep-removal.ts",
         "packages/dw-sdlc/src/sweep-terminals.ts",
         "packages/dw-sdlc/src/sweep-trees.ts",
+        "packages/dw-sdlc/src/paused-operation.ts",
         "packages/dw-sdlc/src/worktree-lock.ts"
       ],
       "docs": [
@@ -533,8 +538,8 @@
       "id": "distribution.bin",
       "name": "dw-sdlc bin",
       "group": "distribution",
-      "summary": "The package's command line: one table of subcommands, each a module under src/commands/.",
-      "code": ["packages/dw-sdlc/src/cli.ts"],
+      "summary": "The package's command line: one table of subcommands, each a module under src/commands/; prints what stops one.",
+      "code": ["packages/dw-sdlc/src/cli.ts", "packages/dw-sdlc/src/cannot-run.ts"],
       "docs": [
         "AGENTS.md#commands",
         "docs/overview.md#how-the-gate-runs",
@@ -567,7 +572,7 @@
         "packages/dw-sdlc/src/gate-cache.ts",
         "packages/dw-sdlc/src/working-tree.ts",
         "packages/dw-sdlc/src/drift.ts",
-        "packages/dw-sdlc/src/git-env.ts",
+        "packages/dw-sdlc/src/git.ts",
         "packages/dw-sdlc/src/package-version.ts"
       ],
       "docs": ["docs/overview.md#how-the-gate-runs", "GLOSSARY.md"]

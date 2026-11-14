@@ -2,11 +2,10 @@
 // each written only when its content would change, so a run is safe to repeat. Existing content is
 // merged, never replaced: other keys stay, and a file that is not a JSON object is refused.
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
+import { existsSync, readFileSync } from "node:fs"
 import { homedir } from "node:os"
-import { dirname, join, relative } from "node:path"
+import { join, relative } from "node:path"
 import { pathToFileURL } from "node:url"
-import { parseArgs } from "node:util"
 
 import {
   type AgenticConfig,
@@ -20,20 +19,21 @@ import {
   SCHEMA_FILE,
   STRICTNESS,
   inferConfig,
+  mainCheckout,
   repositoryRoot,
   resolveConfig,
   schemaId,
   validateDocument
 } from "../agentic-config.ts"
-import { exec } from "../exec.ts"
+import { readArgs, rootDir, usageError } from "../cannot-run.ts"
+import { gitDirs } from "../git.ts"
 import { isObject, type JsonObject, parseObject, render } from "../json-text.ts"
-import { type Change, withGate, withPackage } from "../setup-gate.ts"
+import { withGate, withPackage } from "../setup-gate.ts"
 import { GLOBAL_DENY, LEASE_RULE, RETIRED_DENY, repositoryDeny } from "../setup-rules.ts"
 import { keptWorker, pinnedWorker } from "../setup-worker.ts"
+import { type Step, stepLines, Writer } from "../setup-writer.ts"
 
-/** `by hand` is an edit the setup names and leaves to the user; `skipped` is a file it has no reason to write. */
-export type Outcome = "wrote" | "unchanged" | "skipped" | "refused" | "by hand"
-export type Step = { file: string; outcome: Outcome; detail?: string }
+export type { Step }
 export type SetupOptions = {
   root: string
   home: string
@@ -100,12 +100,6 @@ const PLUGIN = "sdlc"
 const PACKAGE_LINK = "dw-sdlc"
 /** The two plugins the sdlc plugin replaced, which the marketplace does not list (ADR 0010). */
 const RETIRED_PLUGINS = ["guardrails", "references"].map((name) => `${name}@${MARKETPLACE}`)
-
-/** A read-only git command, the one thing the setup runs in the repository. */
-function git(root: string, args: string[]): string | undefined {
-  const result = exec("git", ["-C", root, ...args])
-  return result.status === 0 ? result.stdout.trim() : undefined
-}
 
 /** The committed layer when it is valid; an absent or invalid one sets nothing, as the resolver drops it. */
 function committedConfig(root: string): AgenticConfig {
@@ -262,47 +256,6 @@ function readJson(path: string): JsonObject | undefined | "invalid" {
   return existsSync(path) ? (parseObject(readFileSync(path, "utf8")) ?? "invalid") : undefined
 }
 
-class Writer {
-  readonly steps: Step[] = []
-  private readonly dryRun: boolean
-  constructor(dryRun: boolean) {
-    this.dryRun = dryRun
-  }
-
-  /** Writes when the text differs from what is on disk; records the outcome under `label`, with what the write does. */
-  put(label: string, path: string, text: string, detail?: string): void {
-    const current = existsSync(path) ? readFileSync(path, "utf8") : undefined
-    if (current === text) {
-      this.steps.push({ file: label, outcome: "unchanged" })
-      return
-    }
-    if (!this.dryRun) {
-      mkdirSync(dirname(path), { recursive: true })
-      writeFileSync(path, text)
-    }
-    this.steps.push(
-      detail === undefined ? { file: label, outcome: "wrote" } : { file: label, outcome: "wrote", detail }
-    )
-  }
-
-  refuse(label: string, detail: string): void {
-    this.steps.push({ file: label, outcome: "refused", detail })
-  }
-
-  /** The step's file as `change` leaves it: written, unchanged or refused. */
-  apply(label: string, path: string, change: Change): void {
-    if ("refusal" in change) {
-      this.refuse(label, change.refusal)
-    } else {
-      this.put(label, path, change.text, change.detail)
-    }
-  }
-
-  byHand(label: string, detail: string): void {
-    this.steps.push({ file: label, outcome: "by hand", detail })
-  }
-}
-
 /** The enabledPlugins edit settings that still enable a retired plugin need; none where they enable neither. */
 function enabledPluginsEdit(settings: JsonObject): string | undefined {
   const enabled = isObject(settings.enabledPlugins) ? settings.enabledPlugins : {}
@@ -319,20 +272,17 @@ function enabledPluginsEdit(settings: JsonObject): string | undefined {
 
 /**
  * Where the repository's files live: the main checkout for a linked worktree, since every worktree reads
- * the local config from there when it has none of its own, and Claude Code reads the local settings there.
+ * the local config from there when it has none of its own, and Claude Code reads the local settings there;
+ * the excludes go to the git dir every worktree shares.
  */
-function mainCheckout(root: string): { checkout: string; gitDir: string } {
-  const common = git(root, ["rev-parse", "--path-format=absolute", "--git-common-dir"])
-  if (common === undefined) {
-    return { checkout: root, gitDir: join(root, ".git") }
-  }
-  return { checkout: dirname(common), gitDir: common }
+function repositoryFiles(root: string): { checkout: string; gitDir: string } {
+  return { checkout: mainCheckout(root) ?? root, gitDir: gitDirs(root)?.commonDir ?? join(root, ".git") }
 }
 
 export function setup(options: SetupOptions): Step[] {
   const writer = new Writer(options.dryRun)
   const root = repositoryRoot(options.root)
-  const { checkout, gitDir } = mainCheckout(root)
+  const { checkout, gitDir } = repositoryFiles(root)
   const claudeDir = options.claudeDir ?? join(options.home, ".claude")
 
   // 1. The local config: inference, the convention (the flag's, else the file's pin), the guardrails block
@@ -348,11 +298,11 @@ export function setup(options: SetupOptions): Step[] {
     const { worker, detail } = pinnedWorker(keptWorker(existing), options.path ?? process.env.PATH)
     const local = localConfig(checkout, claudeDir, convention, pinned.guardrails, worker)
     if (Object.keys(local).length === 1 && (localCurrent === undefined || sameContent(existing, local))) {
-      writer.steps.push({ file: LOCAL_FILE, outcome: "skipped", detail: "the layer would hold only $schema" })
+      writer.skip(LOCAL_FILE, "the layer would hold only $schema")
     } else if (localCurrent !== undefined && !sameContent(existing, local) && !options.force) {
       writer.refuse(LOCAL_FILE, "exists with other content; pass --force to overwrite it")
     } else {
-      writer.put(LOCAL_FILE, localPath, render(local), detail)
+      writer.apply(LOCAL_FILE, localPath, { text: render(local), detail })
     }
   }
 
@@ -364,10 +314,10 @@ export function setup(options: SetupOptions): Step[] {
   const missing = [LOCAL_FILE, ".claude/settings.local.json"].filter((entry) => !lines.includes(entry))
   const excludeLabel = relative(checkout, excludePath).startsWith("..") ? excludePath : relative(checkout, excludePath)
   if (missing.length === 0) {
-    writer.steps.push({ file: excludeLabel, outcome: "unchanged" })
+    writer.apply(excludeLabel, excludePath, { text: excludeText })
   } else {
     const separator = excludeText === "" || excludeText.endsWith("\n") ? "" : "\n"
-    writer.put(excludeLabel, excludePath, excludeText + separator + missing.join("\n") + "\n")
+    writer.apply(excludeLabel, excludePath, { text: excludeText + separator + missing.join("\n") + "\n" })
   }
 
   // 3. The repository's deny rules, the backstop for the hooks where jq is missing, merged into the main
@@ -381,7 +331,7 @@ export function setup(options: SetupOptions): Step[] {
     const permissions = isObject(settings.permissions) ? settings.permissions : {}
     const deny = union(permissions.deny, repositoryDeny(root)).filter((rule) => !RETIRED_DENY.includes(rule))
     settings.permissions = { ...permissions, deny }
-    writer.put(".claude/settings.local.json", localSettingsPath, render(settings))
+    writer.apply(".claude/settings.local.json", localSettingsPath, { text: render(settings) })
   }
 
   // 4. The user file, under $CLAUDE_CONFIG_DIR when it is set: the lease exception, "$defaults" kept, and
@@ -400,7 +350,7 @@ export function setup(options: SetupOptions): Step[] {
     settings.autoMode = { ...autoMode, allow }
     const permissions = isObject(settings.permissions) ? settings.permissions : {}
     settings.permissions = { ...permissions, deny: union(permissions.deny, GLOBAL_DENY) }
-    writer.put(userLabel, userPath, render(settings))
+    writer.apply(userLabel, userPath, { text: render(settings) })
     const edit = enabledPluginsEdit(settings)
     if (edit !== undefined) {
       writer.byHand(userLabel, edit)
@@ -428,25 +378,9 @@ export function setup(options: SetupOptions): Step[] {
   return writer.steps
 }
 
-function fail(message: string, code: 1 | 2): never {
-  console.error(`guardrails:setup: ${message}`)
-  process.exit(code)
-}
-
 export function run(argv: string[]): number {
-  let values: {
-    help?: boolean
-    root?: string
-    home?: string
-    convention?: string
-    "force-push"?: string
-    "commit-on-protected"?: string
-    "add-package"?: boolean
-    force?: boolean
-    "dry-run"?: boolean
-  }
-  try {
-    values = parseArgs({
+  const { values } = readArgs(
+    {
       args: argv,
       options: {
         help: { type: "boolean", short: "h" },
@@ -459,30 +393,27 @@ export function run(argv: string[]): number {
         force: { type: "boolean" },
         "dry-run": { type: "boolean" }
       }
-    }).values
-  } catch (error) {
-    fail(`${error instanceof Error ? error.message : String(error)}\n\n${USAGE}`, 2)
-  }
+    },
+    USAGE
+  )
   if (values.help === true) {
     console.log(USAGE)
     return 0
   }
   if (values.convention !== undefined && !isConvention(values.convention)) {
-    fail(`--convention must be ${COMMIT_CONVENTIONS.join(" or ")}, not '${values.convention}'\n\n${USAGE}`, 2)
+    throw usageError(`--convention must be ${COMMIT_CONVENTIONS.join(" or ")}, not '${values.convention}'`, USAGE)
   }
   const forcePush = values["force-push"]
   if (forcePush !== undefined && !isForcePush(forcePush)) {
-    fail(`--force-push must be ${STRICTNESS.forcePush.join(", ")}, not '${forcePush}'\n\n${USAGE}`, 2)
+    throw usageError(`--force-push must be ${STRICTNESS.forcePush.join(", ")}, not '${forcePush}'`, USAGE)
   }
   const commitOnProtected = values["commit-on-protected"]
   if (commitOnProtected !== undefined && !isCommitOnProtected(commitOnProtected)) {
-    fail(
-      `--commit-on-protected must be ${STRICTNESS.commitOnProtected.join(" or ")}, not '${commitOnProtected}'\n\n${USAGE}`,
-      2
-    )
+    const allowed = STRICTNESS.commitOnProtected.join(" or ")
+    throw usageError(`--commit-on-protected must be ${allowed}, not '${commitOnProtected}'`, USAGE)
   }
   const steps = setup({
-    root: values.root ?? process.cwd(),
+    root: rootDir(values.root),
     home: values.home ?? homedir(),
     claudeDir: values.home === undefined ? process.env.CLAUDE_CONFIG_DIR : undefined,
     force: values.force === true,
@@ -492,9 +423,8 @@ export function run(argv: string[]): number {
     commitOnProtected,
     addPackage: values["add-package"] === true
   })
-  for (const step of steps) {
-    const verb = step.outcome === "wrote" && values["dry-run"] === true ? "would write" : step.outcome
-    console.log(`${verb.padEnd(11)} ${step.file}${step.detail === undefined ? "" : ` — ${step.detail}`}`)
+  for (const line of stepLines(steps, values["dry-run"] === true)) {
+    console.log(line)
   }
   return steps.some((step) => step.outcome === "refused") ? 1 : 0
 }

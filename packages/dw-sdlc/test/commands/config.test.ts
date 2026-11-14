@@ -83,6 +83,29 @@ describe("the agentic:check command", () => {
     assert.match(verdict.stderr, /the guards run on the strictest defaults/)
   })
 
+  it("says the commit rules are off while an invalid layer leaves none, and not while a valid layer sets them", () => {
+    const committedCommit = { commit: { convention: "conventional", trailer: "Co-Authored-By" } }
+    const dropped = repo({ files: { [COMMITTED_FILE]: { ...committedCommit, guardrails: { forcePush: "allow" } } } })
+    const off = runBin(["config", "--root", dropped], REPO_ROOT)
+    assert.equal(off.status, 1)
+    assert.match(off.stdout, /"commit": \{\}/)
+    assert.equal(
+      lines(off.stderr).at(-1),
+      "dw-sdlc config: 1 problem(s) above; the guards run on the strictest defaults and the commit rules are off until the file is fixed"
+    )
+
+    const kept = repo({
+      files: { [COMMITTED_FILE]: committedCommit, [LOCAL_FILE]: { guardrails: { forcePush: "allow" } } }
+    })
+    const on = runBin(["config", "--root", kept], REPO_ROOT)
+    assert.equal(on.status, 1)
+    assert.match(on.stdout, /"trailer": "Co-Authored-By"/)
+    assert.equal(
+      lines(on.stderr).at(-1),
+      "dw-sdlc config: 1 problem(s) above; the guards run on the strictest defaults until the file is fixed"
+    )
+  })
+
   it("reports a local pr.merge auto over a committed ask as loosening, and prints ask", () => {
     const root = repo({
       files: { [COMMITTED_FILE]: { pr: { merge: "ask" } }, [LOCAL_FILE]: { pr: { merge: "auto" } } }

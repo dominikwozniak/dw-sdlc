@@ -12,7 +12,7 @@ Paths are relative to `plugins/sdlc/`.
 | `.claude-plugin/plugin.json`                         | the manifest; its `hooks` key wires each hook to its event                                                                     |
 | `hooks/lib.sh`                                       | the library every guard sources: payload reader, git helpers, refusal, config lookup                                           |
 | `hooks/lib-lines.sh`                                 | the line scanners: heredoc openers and bodies, continuation lines                                                              |
-| `hooks/lib-text.sh`                                  | the text scanners: the one quote walker every scanner reads, substitutions, plain words                                        |
+| `hooks/lib-text.sh`                                  | the text scanners: the one quote walker every scanner reads, the top-level cut, substitutions, plain words                     |
 | `hooks/lib-live.sh`                                  | the live-quote readers: a quote handed to a shell, ended where the outer shell ends it                                         |
 | `hooks/lib-mask.sh`                                  | the quote mask: separators inside a quote made text                                                                            |
 | `hooks/lib-words.sh`                                 | the word readers: shell words, the two readers of the [launcher table](bash-guard.md#the-command-position), the boundary       |
@@ -35,7 +35,11 @@ why, since no guard could judge it. A refusal from one guard ends the chain; an 
 guard, so a later refusal still wins.
 
 Inside the `dw-sdlc` link, `src/cli.ts` is the bin and each subcommand is a module under
-`src/commands/`. `src/agentic-config.ts` resolves the layers, `src/json-schema.ts` is the
+`src/commands/`. A command that cannot run throws the `CannotRun` of `src/cannot-run.ts`, which the bin
+alone prints and turns into exit 2. The Gate reports a Check's `CannotRun`, an unknown Check and an invalid
+config as failures of its report instead, exit 2 as well. `src/git.ts` runs the package's git commands from the directory each names,
+never in the repository a git hook's `GIT_DIR` names, and words what went wrong in git's own line; only the
+doctor's `git config --global` and the patch-id pipeline of `src/landed.ts` run outside it. `src/agentic-config.ts` resolves the layers, `src/json-schema.ts` is the
 dependency-free schema validator, and `src/pr/` holds the read and the decision of the Ship script.
 For References, `src/references-key.ts` parses `.ai/references.json`, `src/pins.ts` resolves a ref's
 `{name}`, `src/router-block.ts` writes the Router's block, and `templates/router.md` is the Router the

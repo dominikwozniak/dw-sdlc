@@ -5,34 +5,15 @@ import { copyFileSync, existsSync, mkdtempSync, rmSync, statSync, utimesSync } f
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import { exec } from "./exec.ts"
-import { repositoryFreeEnv } from "./git-env.ts"
-
-/** `git <args>` in the repository at `root`, on `index` when given. */
-export function git(root: string, args: string[], index?: string): { out: string } | { error: string } {
-  const env = repositoryFreeEnv()
-  const result = exec("git", ["-C", root, ...args], {
-    env: index === undefined ? env : { ...env, GIT_INDEX_FILE: index }
-  })
-  if (result.status === 0) {
-    return { out: result.stdout.trim() }
-  }
-  const reason = result.error?.message ?? result.stderr.split("\n").find((line) => line.trim() !== "")
-  return { error: `git ${args[0] ?? ""}: ${reason?.trim() ?? `exited ${result.status ?? "on a signal"}`}` }
-}
-
-/** `git <args>` at `root`, or undefined when it exits non-zero as a question answered no. */
-export function asked(root: string, args: string[]): string | undefined {
-  const result = git(root, args)
-  return "out" in result ? result.out : undefined
-}
+import { messageOf } from "./cannot-run.ts"
+import { git, type GitAnswer } from "./git.ts"
 
 /**
  * The tree `git write-tree` hashes from a copy of the index after `git add -A` on it: the copy keeps the
  * stat cache, so only what changed is read again; identical content survives a commit, an amend or a
  * rebase, and a new untracked file changes it while an ignored one does not.
  */
-function treeOf(root: string, gitDir: string): { out: string } | { error: string } {
+function treeOf(root: string, gitDir: string): GitAnswer {
   const scratch = mkdtempSync(join(tmpdir(), "dw-sdlc-gate-"))
   const index = join(scratch, "index")
   const real = join(gitDir, "index")
@@ -44,8 +25,9 @@ function treeOf(root: string, gitDir: string): { out: string } | { error: string
       copyFileSync(real, index)
       utimesSync(index, atime, mtime)
     }
-    const added = git(root, ["add", "-A"], index)
-    return "error" in added ? added : git(root, ["write-tree"], index)
+    const scratchIndex = { env: { GIT_INDEX_FILE: index } }
+    const added = git(root, ["add", "-A"], scratchIndex)
+    return "error" in added ? added : git(root, ["write-tree"], scratchIndex)
   } finally {
     rmSync(scratch, { recursive: true, force: true })
   }
@@ -61,6 +43,6 @@ export function workingTree(root: string): { tree: string; gitDir: string } | { 
     const tree = treeOf(root, gitDir.out)
     return "error" in tree ? tree : { tree: tree.out, gitDir: gitDir.out }
   } catch (error) {
-    return { error: error instanceof Error ? error.message : String(error) }
+    return { error: messageOf(error) }
   }
 }

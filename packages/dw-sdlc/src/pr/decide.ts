@@ -2,8 +2,9 @@
 // the pull request answers its Action at the time given; every later row that holds rides in its
 // blockers. The last rows say who merges what no row before them holds back.
 
-import type { PrMerge, PrReview, ResolvedConfig, ReviewDepth } from "../agentic-config.ts"
-import { route } from "./route.ts"
+import type { PrMerge, ResolvedConfig } from "../agentic-config.ts"
+import { shellLine } from "../shell-line.ts"
+import { type ReadMarks, reviewCall, type ReviewPolicy } from "./standing.ts"
 import { awaitsReview, type CiCheck, OFF_PREFIX, type PrState, REVIEW, type Thread } from "./state.ts"
 
 export { REVIEW }
@@ -34,19 +35,10 @@ export type Action =
 /** The Actions the script performs itself, each one gh command. */
 export type ScriptAction = "update-branch" | "mark-ready" | "mark-reviewed" | "merge"
 /**
- * Where a Review depth comes from: the dev's `--review` for this call, a depth `pr.review` sets, or the
- * rules `pr.review: auto` routes it by.
- */
-export type DepthSource = "flag" | "config" | "auto"
-/**
  * What the decision reads beside the pull request: who merges it, how closely a Review reads it, the
  * dev's word or `pr.review`, and the slash command a `full` Review runs.
  */
-export type Policy = {
-  merge: PrMerge
-  review: { depth: ReviewDepth; source: "flag" } | { depth: PrReview; source: "config" }
-  reviewCommand: string
-}
+export type Policy = { merge: PrMerge; review: ReviewPolicy; reviewCommand: string }
 /** The policy a repository's `pr` key declares; a flag for one call goes over it. */
 export function declaredPolicy({ merge, review, reviewCommand }: ResolvedConfig["pr"]): Policy {
   return { merge, review: { depth: review, source: "config" }, reviewCommand }
@@ -72,16 +64,10 @@ type Row = {
   merging?: true
 }
 
-/** How long a head may carry no check before it parks as unverified, from its commit. */
+/** How long a head may carry no check before it parks as unverified, from when its CI could start. */
 const GRACE_SECONDS = 120
 /** How long CI may stay pending before it parks as stuck, from the first start among the pending checks. */
 const BUDGET_MINUTES = 40
-/**
- * How many Reviews that each left a Finding open, with no success between them, the script lets run: the
- * next call parks the pull request for the dev. A constant, like the depth rules, so no repository turns
- * the loop back on.
- */
-const REVIEW_LIMIT = 3
 /** The prefix of the contexts the script posts itself, as `dw-sdlc/review`: never CI. */
 const OWN_PREFIX = "dw-sdlc/"
 /**
@@ -90,9 +76,9 @@ const OWN_PREFIX = "dw-sdlc/"
  */
 export const REVIEW_STATE = "success"
 
-/** The words as one POSIX shell command line, each word that needs it single-quoted. */
-export function shellLine(words: string[]): string {
-  return words.map((word) => (/^[\w./:=@%+,-]+$/.test(word) ? word : `'${word.replaceAll("'", `'\\''`)}'`)).join(" ")
+/** When the head's CI could start: its commit, or its ready when it left draft later, since a draft runs nothing. */
+function ciStartOf(pr: PrState): number {
+  return Math.max(Date.parse(pr.headCommittedAt), Date.parse(pr.readyAt ?? pr.headCommittedAt))
 }
 
 function ciOf(pr: PrState): CiCheck[] {
@@ -144,64 +130,30 @@ function listed({ id, path, line, author, body }: Thread): Record<string, unknow
  * `description` saying how it was read. The path names the repository, so the call reads the same from
  * any checkout.
  */
-export function reviewStatusArgs(pr: PrState, description: string, state: string = REVIEW_STATE): string[] {
+export function reviewStatusArgs(
+  pr: Pick<PrState, "url" | "repo" | "head">,
+  description: string,
+  state: string = REVIEW_STATE
+): string[] {
   const fields = { state, context: REVIEW, target_url: pr.url, description }
   const flags = Object.entries(fields).flatMap(([key, value]) => ["-f", `${key}=${value}`])
   return ["api", `repos/${pr.repo}/statuses/${pr.head}`, "--method", "POST", "--silent", ...flags]
 }
 
-/** Whether the dev named a depth for a head that would carry the status: their word beats the carry. */
-function flagOverCarry(pr: PrState, { review }: Policy): boolean {
-  return pr.carried && review.source === "flag"
-}
-
-/** The reviewed commit whose success the head carries, if it does and the dev named no depth. */
-function carriedFrom(pr: PrState, policy: Policy): string | null {
-  return pr.carried && !flagOverCarry(pr, policy) ? (pr.lastRead?.commit ?? null) : null
-}
-
-/**
- * The commit the Review reads from: the last one a Review read, clean or not, so the Review after a fix
- * reads the fix. Over a carry the dev's depth reads the whole diff, since the changes after that commit
- * are only the base's.
- */
-function sinceOf(pr: PrState, policy: Policy): string | null {
-  return flagOverCarry(pr, policy) ? null : (pr.lastRead?.commit ?? null)
-}
-
-/** A depth as the answer names it, and under off why no one reads the head. */
-type Depth =
-  | { depth: Exclude<ReviewDepth, "off">; source: DepthSource }
-  | { depth: "off"; source: DepthSource; why: string }
-
-/** The depth a Review reads the head at: the dev's or the one `pr.review` sets, else the one the rules route. */
-function depthOf(pr: PrState, { review }: Policy): Depth {
-  const { depth, source } = review
-  if (depth === "off") {
-    return { depth, source, why: source === "flag" ? "--review off" : "pr.review" }
-  }
-  if (depth !== "auto") {
-    return { depth, source }
-  }
-  return { ...route(pr.changed), source: "auto" }
-}
-
 /** Why the head carries the success the script posts: the Review it carries, else why its depth is off. */
 function markedDescription(pr: PrState, policy: Policy): string {
-  const carried = carriedFrom(pr, policy)
-  if (carried !== null) {
-    return `carried from ${carried.slice(0, 7)}`
+  const call = reviewCall(pr, policy.review)
+  if (call.kind === "carry") {
+    return `carried from ${call.from.slice(0, 7)}`
   }
-  const depth = depthOf(pr, policy)
-  if (depth.depth !== "off") {
-    throw new Error(`the script marks ${pr.url} reviewed at ${depth.depth}, neither off nor a carry`)
+  if (call.kind !== "review" || call.depth !== "off") {
+    throw new Error(`the script marks ${pr.url} reviewed, neither off nor a carry`)
   }
-  return `${OFF_PREFIX} ${depth.why}`
+  return `${OFF_PREFIX} ${call.why}`
 }
 
 /** The park at the limit: the dev accepts the head as it stands, or names a depth for one more Review. */
-function reviewLimit(pr: PrState): Omit<Answer, "blockers"> {
-  const { count, since } = pr.marks
+function reviewLimit(pr: PrState, { count, since }: ReadMarks): Omit<Answer, "blockers"> {
   const from = since === null ? "the start of the pull request" : `the success on ${since.slice(0, 7)}`
   return {
     status: "park",
@@ -209,6 +161,37 @@ function reviewLimit(pr: PrState): Omit<Answer, "blockers"> {
     actor: "dev",
     reason: `${count} Reviews since ${from} left a Finding open: accepting the head is the dev's`,
     command: shellLine(["dw-sdlc", "pr", "reviewed", String(pr.number), "-R", pr.repo, "--head", pr.head, "--accept"])
+  }
+}
+
+/**
+ * The Review a head that awaits one gets: the script posts the success of a carry or under off, the agent
+ * reviews at the depth, else it parks at the limit. Auto names the command at any depth, since the agent
+ * may raise a routed one to full.
+ */
+function reviewAnswer(pr: PrState, policy: Policy): Omit<Answer, "blockers"> {
+  const head = { status: "act", reason: `no ${REVIEW} success on ${pr.head.slice(0, 7)}` } as const
+  const call = reviewCall(pr, policy.review)
+  if (call.kind === "carry") {
+    return { ...head, action: "mark-reviewed", actor: "script", details: { since: call.from } }
+  }
+  if (call.kind === "limit") {
+    return reviewLimit(pr, call)
+  }
+  const { depth, source, since, paths, open } = call
+  const byScript = depth === "off"
+  return {
+    ...head,
+    action: byScript ? "mark-reviewed" : "review",
+    actor: byScript ? "script" : "agent",
+    details: {
+      depth,
+      source,
+      ...(depth === "full" || source === "auto" ? { reviewCommand: policy.reviewCommand } : {}),
+      ...(since === null ? {} : { since }),
+      ...(paths === null ? {} : { paths }),
+      ...(open === null ? {} : { open })
+    }
   }
 }
 
@@ -314,47 +297,16 @@ const ROWS: Row[] = [
     answer: () => ({ status: "act", action: "address-review", actor: "agent", reason: "changes requested" })
   },
   {
-    // Another author's pull request needs no Review: the dev merges it. The script posts the success
-    // under off, and over a carry, which reads at no depth.
+    // Another author's pull request needs no Review: the dev merges it.
     when: awaitsReview,
-    answer: (pr, _, policy) => {
-      const since = sinceOf(pr, policy)
-      const head = { status: "act", reason: `no ${REVIEW} success on ${pr.head.slice(0, 7)}` } as const
-      const after = since === null ? {} : { since }
-      if (carriedFrom(pr, policy) !== null) {
-        return { ...head, action: "mark-reviewed", actor: "script", details: after }
-      }
-      const { depth, source } = depthOf(pr, policy)
-      // The dev's own depth buys one Review past the limit, and only one: the flag rides on every
-      // later call. A Review under off needs none.
-      const limit = source === "flag" ? REVIEW_LIMIT + 1 : REVIEW_LIMIT
-      if (depth !== "off" && pr.marks.count >= limit) {
-        return reviewLimit(pr)
-      }
-      const byScript = depth === "off"
-      return {
-        ...head,
-        action: byScript ? "mark-reviewed" : "review",
-        actor: byScript ? "script" : "agent",
-        details: {
-          depth,
-          source,
-          // The agent may raise a routed depth to full, so auto names the command at any depth.
-          ...(depth === "full" || source === "auto" ? { reviewCommand: policy.reviewCommand } : {}),
-          ...after,
-          ...(pr.scope === null ? {} : { paths: pr.scope }),
-          ...(pr.open === null ? {} : { open: pr.open })
-        }
-      }
-    }
+    answer: (pr, _, policy) => reviewAnswer(pr, policy)
   },
   {
     // A head whose every check was skipped, or that has none, has run nothing. A draft's runs skip or
     // never start until `ready` starts the run, so a draft is no case of it: `mark-ready` is its row.
     when: (pr) => !pr.draft && (ciOf(pr).length === 0 || ciOf(pr).every((check) => check.bucket === "skipping")),
     answer: (pr, now, policy) =>
-      now - Math.max(Date.parse(pr.headCommittedAt), Date.parse(pr.readyAt ?? pr.headCommittedAt)) <=
-      GRACE_SECONDS * 1000
+      now - ciStartOf(pr) <= GRACE_SECONDS * 1000
         ? { status: "wait", action: "wait", actor: "script", reason: "unverified", recheckAfter: 15 }
         : {
             status: "park",
@@ -362,7 +314,7 @@ const ROWS: Row[] = [
             actor: "dev",
             reason:
               ciOf(pr).length === 0
-                ? `no check reported on ${pr.head.slice(0, 7)} within ${GRACE_SECONDS} s of its commit`
+                ? `no check reported on ${pr.head.slice(0, 7)} within ${GRACE_SECONDS} s of its commit or its ready`
                 : `every check on ${pr.head.slice(0, 7)} was skipped, ${GRACE_SECONDS} s after its commit or its ready`,
             command: devCommand(pr, "merge", policy)
           }
@@ -371,8 +323,9 @@ const ROWS: Row[] = [
     when: (pr) => pendingOf(pr).length > 0,
     answer: (pr, now) => {
       const pending = pendingOf(pr)
-      // A check queued and not yet started counts from the head's commit.
-      const start = Math.min(...pending.map((check) => Date.parse(check.startedAt ?? pr.headCommittedAt)))
+      const start = Math.min(
+        ...pending.map((check) => (check.startedAt === null ? ciStartOf(pr) : Date.parse(check.startedAt)))
+      )
       const minutes = Math.floor((now - start) / 60_000)
       return now - start <= BUDGET_MINUTES * 60_000
         ? { status: "wait", action: "wait", actor: "script", reason: "ci-pending", recheckAfter: 60 }

@@ -2,9 +2,8 @@
 // needs next, performs it when it is the script's and reads again, then answers the first Action that
 // is not, as a line or one JSON document, with an exit code that names whose turn it is.
 
-import { parseArgs } from "node:util"
-
 import { repositoryRoot, resolveConfig, REVIEW_DEPTHS, type ReviewDepth } from "../agentic-config.ts"
+import { CannotRun, readArgs, usageError } from "../cannot-run.ts"
 import {
   type Answer,
   decide,
@@ -17,23 +16,11 @@ import {
   readyToMerge,
   REVIEW,
   type ScriptAction,
-  shellLine,
   type Status
 } from "../pr/decide.ts"
-import {
-  CannotRun,
-  carriesBase,
-  gh,
-  namedProblem,
-  nameItRemedy,
-  now,
-  read,
-  readAgain,
-  readBranch,
-  said
-} from "../pr/read.ts"
+import { gh, ghReads, namedProblem, nameItRemedy, now, type Reads, said } from "../pr/read.ts"
 import type { PrState } from "../pr/state.ts"
-import { holds, renamedUpstream } from "../pr/upstream.ts"
+import { shellLine } from "../shell-line.ts"
 
 export const summary = "decide the Action one pull request needs next, as a line or JSON"
 
@@ -52,16 +39,18 @@ ${REVIEW} success gets the Review depth --review names for this call, else pr.re
 the agent reviews it with the command pr.reviewCommand names, /code-review by default; under light
 one sdlc-reviewer subagent reads the diff; under off the script posts the success itself, its
 description saying why. Under auto, the default, the script routes the depth from the changes the
-Review would read: lockfiles alone off; a file under .github/workflows/, more than 100 changed
-lines outside lockfiles, or a change it cannot size, more files than GitHub's compare lists or a
-file outside lockfiles with no patch, full; the rest light. After a push it names
+Review would read: lockfiles alone off, unless a Finding is open; a file under .github/workflows/,
+more than 100 changed lines outside lockfiles, or a change it cannot size, more files than GitHub's
+compare lists or a file outside lockfiles with no patch, full; the rest light. After a push it names
 the last commit a Review read under details.since, where the Review reads from and auto routes from:
 one with a ${REVIEW} success not posted under off, or the read mark pr reviewed --findings
 posts. It carries a success over a head whose only commits since are merges of the base, unless
 --review names a depth for the call; a read mark never carries. A read mark no later commit answers,
-on the head or before only merges or a rebase, is named under details.open: the Review then reads
-the whole pull request, and nothing carries over it. After a merge or a rebase, details.paths names
-the files whose own change moved, the only ones the Review reads.
+on the head or before commits that leave the own changes as it read them, is named under
+details.open: the Review then reads the whole pull request, and nothing carries over it. After a merge or a rebase, details.paths names
+the files whose own change moved, the only ones the Review reads. Three Reviews that left a Finding
+open with no success between them park as review-limit at every depth, pr reviewed --accept the
+dev's command: the dev's --review <depth> buys one more Review, and their --review off posts past it.
 Each Action the call runs is listed under performed. Its ok says whether the read after it shows the
 Action took effect, whatever gh's exit status; gh's exit status and stderr stand beside it, so an ok
 false with exit 0 is an Action gh accepted that the read does not show yet. An update counts when
@@ -99,18 +88,22 @@ type Performed = { action: ScriptAction; command: string } & (
   | { ok: null; exit?: number; stderr?: string }
 )
 
-/** A call that stopped after it ran Actions: what it ran stands in `performed`, `ok` null where no read followed. */
+/**
+ * A call that stopped after it ran Actions: what it ran stands in `performed`, `ok` null where no read
+ * followed, and each Action is named with gh's exit under the problem.
+ */
 class Interrupted extends CannotRun {
-  performed: Performed[]
+  readonly performed: Performed[]
   constructor({ message, remedy }: CannotRun, performed: Performed[]) {
-    super(message, remedy)
+    const ran = performed.map(({ action, exit }) => `${action} ran (gh exit ${exit ?? "unknown"})`)
+    super(message, remedy, { after: ran.join("\n") })
     this.performed = performed
   }
 }
 
-function parseCli(argv: string[]): Cli | { error: string } {
-  try {
-    const { values, positionals } = parseArgs({
+function parseCli(argv: string[]): Cli {
+  const { values, positionals } = readArgs(
+    {
       args: argv,
       allowPositionals: true,
       options: {
@@ -122,34 +115,33 @@ function parseCli(argv: string[]): Cli | { error: string } {
         "dry-run": { type: "boolean" },
         repo: { type: "string", short: "R" }
       }
-    })
-    const [number, ...more] = positionals
-    const { repo } = values
-    const review = REVIEW_DEPTHS.find((depth) => depth === values.review)
-    if (values.help !== true) {
-      if (more.length > 0) {
-        return { error: `name one pull request, not ${positionals.length}` }
-      }
-      const problem = namedProblem(number, repo)
-      if (problem !== undefined) {
-        return { error: problem }
-      }
-      if (values.review !== undefined && review === undefined) {
-        return { error: `--review takes ${DEPTHS_SENTENCE}, not ${JSON.stringify(values.review)}` }
-      }
+    },
+    USAGE
+  )
+  const [number, ...more] = positionals
+  const { repo } = values
+  const review = REVIEW_DEPTHS.find((depth) => depth === values.review)
+  if (values.help !== true) {
+    if (more.length > 0) {
+      throw usageError(`name one pull request, not ${positionals.length}`, USAGE)
     }
-    return {
-      help: values.help === true,
-      json: values.json === true,
-      verbose: values.verbose === true,
-      merge: values.merge === true,
-      review,
-      dryRun: values["dry-run"] === true,
-      number: number === undefined ? undefined : Number(number),
-      repo
+    const problem = namedProblem(number, repo)
+    if (problem !== undefined) {
+      throw usageError(problem, USAGE)
     }
-  } catch (error) {
-    return { error: error instanceof Error ? error.message : String(error) }
+    if (values.review !== undefined && review === undefined) {
+      throw usageError(`--review takes ${DEPTHS_SENTENCE}, not ${JSON.stringify(values.review)}`, USAGE)
+    }
+  }
+  return {
+    help: values.help === true,
+    json: values.json === true,
+    verbose: values.verbose === true,
+    merge: values.merge === true,
+    review,
+    dryRun: values["dry-run"] === true,
+    number: number === undefined ? undefined : Number(number),
+    repo
   }
 }
 
@@ -169,9 +161,9 @@ const NAMED: Record<ScriptAction, { would: string; act: string; still: string }>
  * Whether the read after a script Action shows it took effect. gh's exit status cannot tell: a reply
  * lost on the way back exits non-zero after GitHub applied the Action.
  */
-const TOOK: Record<ScriptAction, (before: PrState, after: PrState) => boolean> = {
+const TOOK: Record<ScriptAction, (before: PrState, after: PrState, reads: Reads) => boolean> = {
   // A moved head alone may be a push: the update took effect when the head carries the base it read.
-  "update-branch": (before, after) => after.head !== before.head && carriesBase(before, after),
+  "update-branch": (before, after, reads) => after.head !== before.head && reads.carriesBase(before, after),
   "mark-ready": (_, after) => !after.draft,
   // The post names the head it read: a head moved since carries none of it.
   "mark-reviewed": (before, after) =>
@@ -208,30 +200,20 @@ function handedOver(pr: PrState, policy: Policy, answer: Answer, action: ScriptA
   return { ...answer, status: "park", actor: "dev", reason, command: devCommand(pr, action, policy) }
 }
 
-/**
- * The pull request the call names, else the current branch's as `gh pr view` resolves it. Where gh finds
- * none for a branch whose upstream has another name, the one of that name, taken only when its commits
- * hold the local head: a branch started from another tracks that branch until its first push.
- */
-function readTarget(cli: Cli, root: string, sized: boolean): PrState {
-  const renamed = cli.number === undefined && cli.repo === undefined ? renamedUpstream(root) : undefined
-  if (renamed === undefined) {
-    return read(cli, "pr ship", sized)
+/** The pull request the call names, else this checkout's; none found stops the call with what to name. */
+function readTarget(cli: Cli, root: string, reads: Reads): PrState {
+  if (cli.number !== undefined || cli.repo !== undefined) {
+    return reads.named(cli, "pr ship")
   }
-  const { branch, head, upstream } = renamed
-  const found = readBranch(sized, upstream)
-  const upstreamNamed = `${upstream}, the name its upstream gives`
-  if (found === null) {
+  const found = reads.checkout(root)
+  if ("problem" in found) {
+    const nameIt = nameItRemedy("pr ship")
     throw new CannotRun(
-      `gh pr view found no pull request for ${branch}, nor for ${upstreamNamed}`,
-      nameItRemedy("pr ship")
+      found.problem,
+      found.lacksHead ? `push HEAD if it is this branch's pull request, else ${nameIt}` : nameIt
     )
   }
-  if (found.byUpstream && !holds(found.pr, head)) {
-    const lacks = `${found.pr.url}, found by ${upstreamNamed}, lacks HEAD ${head.slice(0, 7)}`
-    throw new CannotRun(lacks, `push HEAD if it is this branch's pull request, else ${nameItRemedy("pr ship")}`)
-  }
-  return found.pr
+  return found
 }
 
 /**
@@ -240,8 +222,8 @@ function readTarget(cli: Cli, root: string, sized: boolean): PrState {
  */
 function ship(cli: Cli, root: string, policy: Policy): { pr: PrState; answer: Answer; performed: Performed[] } {
   // Only pr.review auto routes the depth from the changes, so only it reads them.
-  const sized = policy.review.depth === "auto"
-  let pr = readTarget(cli, root, sized)
+  const reads = ghReads(policy.review.depth === "auto")
+  let pr = readTarget(cli, root, reads)
   const performed: Performed[] = []
   // The head each Action ran on.
   const postedOn = new Map<ScriptAction, string>()
@@ -275,8 +257,8 @@ function ship(cli: Cli, root: string, policy: Policy): { pr: PrState; answer: An
     const record = { action, command, exit: status, ...(message === "" ? {} : { stderr: message }) }
     postedOn.set(action, before.head)
     try {
-      pr = readAgain(pr, sized)
-      performed.push({ ...record, ok: TOOK[action](before, pr) })
+      pr = reads.again(pr)
+      performed.push({ ...record, ok: TOOK[action](before, pr, reads) })
     } catch (error) {
       if (error instanceof CannotRun) {
         // The Action may have landed: the caller must not run it blind again.
@@ -294,10 +276,6 @@ function documentOf(pr: PrState, answer: Answer, performed: Performed[], verbose
 
 export function run(argv: string[]): number {
   const cli = parseCli(argv)
-  if ("error" in cli) {
-    process.stderr.write(`dw-sdlc pr ship: ${cli.error}\n\n${USAGE}\n`)
-    return 2
-  }
   if (cli.help) {
     process.stdout.write(`${USAGE}\n`)
     return 0
@@ -314,16 +292,9 @@ export function run(argv: string[]): number {
   try {
     shipped = ship(cli, root, policy)
   } catch (error) {
-    if (error instanceof CannotRun) {
-      const ran = error instanceof Interrupted ? error.performed : []
-      const named = ran.map(({ action, ...rest }) => `${action} ran (gh exit ${rest.exit ?? "unknown"})\n`)
-      process.stderr.write(`dw-sdlc pr ship: ${error.message} — ${error.remedy}\n${named.join("")}`)
-      if (cli.json && ran.length > 0) {
-        process.stdout.write(
-          `${JSON.stringify({ error: error.message, remedy: error.remedy, performed: ran }, null, 2)}\n`
-        )
-      }
-      return 2
+    if (cli.json && error instanceof Interrupted) {
+      const { message, remedy, performed } = error
+      process.stdout.write(`${JSON.stringify({ error: message, remedy, performed }, null, 2)}\n`)
     }
     throw error
   }

@@ -2,14 +2,14 @@
 // its pull request neither through `@{push}` nor by the local name, so `pr ship` and recap ask by the name
 // the upstream gives, and take that pull request only when its commits hold the local head.
 
-import { asked } from "../working-tree.ts"
+import { asked } from "../git.ts"
 import type { PrState } from "./state.ts"
 
 /**
  * The remote branch name `branch` tracks, when it differs from `branch`. Read from the config, so it holds
  * after the remote deleted the branch.
  */
-export function upstreamName(root: string, branch: string): string | undefined {
+function upstreamName(root: string, branch: string): string | undefined {
   const remote = asked(root, ["config", "--get", `branch.${branch}.remote`])
   const merge = asked(root, ["config", "--get", `branch.${branch}.merge`])
   if (remote === undefined || remote === "." || merge === undefined || !merge.startsWith("refs/heads/")) {
@@ -20,7 +20,7 @@ export function upstreamName(root: string, branch: string): string | undefined {
 }
 
 /** Whether `pr`'s commits hold `head`, so the head is on GitHub whatever became of the upstream. */
-export function holds(pr: PrState, head: string | null): boolean {
+export function holds(pr: Pick<PrState, "commits">, head: string | null): boolean {
   return head !== null && pr.commits.includes(head)
 }
 

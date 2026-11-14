@@ -5,6 +5,9 @@
 import { existsSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 
+import { messageOf } from "./cannot-run.ts"
+import { isObject } from "./json-text.ts"
+
 /** The committed file the References are read from; no local layer adds to it. */
 export const REFERENCES_FILE = ".ai/references.json"
 /** The committed agentic config: a `references` key in it is refused, so the file stays the one list. */
@@ -47,10 +50,6 @@ function kind(value: unknown): string {
     return "a list"
   }
   return typeof value === "object" ? "an object" : `a ${typeof value}`
-}
-
-export function isObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
 function nonEmpty(value: unknown, path: string): string {
@@ -197,7 +196,7 @@ function readObject(path: string, name: string): { value: Record<string, unknown
   try {
     value = JSON.parse(readFileSync(path, "utf8"))
   } catch (error) {
-    return { problem: `${name}: not JSON: ${error instanceof Error ? error.message : String(error)}` }
+    return { problem: `${name}: not JSON: ${messageOf(error)}` }
   }
   return isObject(value) ? { value } : { problem: `${name}: not a JSON object` }
 }

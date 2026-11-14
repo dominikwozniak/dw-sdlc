@@ -93,6 +93,49 @@ describe("wrappers and other repositories resolve to the same commit", () => {
   blocked("git-c-commit", 'git -c commit.gpgsign=false commit -m "nope, no type prefix"')
 })
 
+describe("a substitution runs its commands before the command holding it, and each is judged", () => {
+  blocked("commit in an assignment", "x=$(git commit -m bad)")
+  blocked("commit in an argument", "echo $(git commit -m bad)")
+  blocked("commit in a quoted argument", 'echo "$(git commit -m bad)"')
+  blocked("commit in backticks", "echo `git commit -m bad`")
+  blocked("commit in a nested substitution", 'echo "$(echo $(git commit -m bad))"')
+  blocked("add -A in a substitution", "x=$(git add -A)")
+  allowed("a good commit in a substitution", `x=$(git commit -m "${GOOD_MSG}")`)
+  allowed("a git read as the -m value commits nothing", 'git commit -m "$(git log -1 --format=%s)"')
+  allowed("a cd before the substitution moves its commit", `cd ${TICKETS} && x=$(git commit -m "[ABC-1] fix: x")`)
+  blocked("the moved commit is judged there", `cd ${TICKETS} && x=$(git commit -m "fix: x")`)
+  blocked("a cd inside a substitution ends with it", `x=$(cd ${TICKETS}); git commit -m "[ABC-1] fix: x"`)
+})
+
+describe("an unquoted heredoc body runs its substitutions, and each is judged", () => {
+  blocked("commit in a body", "cat <<EOF\n$(git commit -m bad)\nEOF")
+  blocked("commit in a backtick of a body", "cat <<EOF\n`git commit -m bad`\nEOF")
+  blocked("commit after text on a line of a body", "cat > notes.md <<EOF\nsee $(git commit -m bad) here\nEOF")
+  blocked("commit in a <<- body", "cat <<-EOF\n\t$(git commit -m bad)\n\tEOF")
+  blocked("add -A in a body", "cat > notes.md <<EOF\n$(git add -A)\nEOF")
+  blocked("commit in the body a -F - message reads", `git commit -F - <<EOF\n${GOOD_MSG}\n$(git commit -m bad)\nEOF`)
+  blocked(
+    "commit in the body of a -m heredoc substitution",
+    `git commit -m "$(cat <<EOF\n${GOOD_MSG}\n$(git commit -m bad)\nEOF\n)"`
+  )
+  allowed("a quoted body runs nothing", "cat <<'EOF'\n$(git commit -m bad)\nEOF")
+  allowed("a body quoted by a backslash runs nothing", "cat <<\\EOF\n$(git commit -m bad)\nEOF")
+  allowed("a good commit in a body", `cat <<EOF\n$(git commit -m "${GOOD_MSG}")\nEOF`)
+  allowed("a git read in a body commits nothing", "cat <<EOF\n$(git log -1 --format=%s)\nEOF")
+  allowed(
+    "a cd before the heredoc moves its commit",
+    `cd ${TICKETS} && cat <<EOF\n$(git commit -m "[ABC-1] fix: x")\nEOF`
+  )
+  blocked("the moved commit is judged there", `cd ${TICKETS} && cat <<EOF\n$(git commit -m "fix: x")\nEOF`)
+})
+
+describe("a newline ends a command, as bash reads it", () => {
+  allowed("a -m on the line after git commit is a command of its own", "git commit\n-m bad")
+  blocked("a backslash-newline goes on with the commit", "git commit \\\n-m bad")
+  allowed("a cd after a newline moves the commit", `git status\ncd ${TICKETS}\ngit commit -m "[ABC-1] fix: x"`)
+  blocked("the commit after it is judged there", `git status\ncd ${TICKETS}\ngit commit -m "fix: x"`)
+})
+
 describe("a message the guard cannot read passes", () => {
   allowed("editor-commit", "git commit")
   allowed("amend-no-edit", "git commit --amend --no-edit")
@@ -221,6 +264,7 @@ describe("git add — the other spellings of the whole tree", () => {
   blocked("add-pwd-unquoted", "git add $PWD")
   blocked("add-pwd-braces", 'git add "${PWD}"')
   blocked("add-subst-pwd", 'git add "$(pwd)"')
+  blocked("add-subst-pwd-unquoted", "git add $(pwd)")
   blocked("add-star-after-separator", "git add -- *")
   blocked("add-star-then-commit", `git add * && git commit -m "${GOOD_MSG}"`)
   blocked("add-star-with-a-name", "git add AGENTS.md *")

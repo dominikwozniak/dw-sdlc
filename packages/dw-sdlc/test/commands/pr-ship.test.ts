@@ -6,8 +6,6 @@ import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 
 import { COMMITTED_FILE, LOCAL_FILE } from "../../src/agentic-config.ts"
-import { run as runShip } from "../../src/commands/pr-ship.ts"
-import { forgetCompares } from "../../src/pr/read.ts"
 import { lines, repo, runBin, runInProcess, scratch } from "../harness.ts"
 import {
   BASE_OID,
@@ -128,8 +126,7 @@ const MIXED: Pr = {
  */
 function ship(args: string[], scenario: Scenario, env: NodeJS.ProcessEnv = {}, files: Files = FULL) {
   const gh = fakeGh(scenario)
-  forgetCompares()
-  const run = runInProcess(runShip, args, repo({ files }), { ...gh.env, ...env })
+  const run = runInProcess(["pr", "ship", ...args], repo({ files }), { ...gh.env, ...env })
   return { ...run, calls: gh.calls() }
 }
 
@@ -444,7 +441,27 @@ describe("dw-sdlc pr ship while no check has answered", () => {
       status: "park",
       action: "unverified",
       actor: "dev",
-      reason: "no check reported on e36732e within 120 s of its commit",
+      reason: "no check reported on e36732e within 120 s of its commit or its ready",
+      command: merge,
+      blockers: [],
+      performed: []
+    })
+  })
+
+  it("counts the grace of a head no check reported on from its ready, an hour after its commit", () => {
+    const readied = { ...UNCHECKED, readyAt: READY_AT }
+    const waiting = json(readied, [], clockAt(READY_AT, 60))
+    assert.equal(waiting.status, 20, waiting.stderr)
+    const parked = json(readied, [], clockAt(READY_AT, 121))
+    assert.equal(parked.status, 30, parked.stderr)
+    assert.deepEqual(parked.document, {
+      pr: URL,
+      head: HEAD,
+      base: "main",
+      status: "park",
+      action: "unverified",
+      actor: "dev",
+      reason: "no check reported on e36732e within 120 s of its commit or its ready",
       command: merge,
       blockers: [],
       performed: []
@@ -538,6 +555,21 @@ describe("dw-sdlc pr ship while no check has answered", () => {
     }
   })
 
+  it("counts a check not yet started from the head's ready when it left draft after its commit", () => {
+    const queued: Context = { kind: "run", name: "Check", state: "QUEUED", startedAt: null }
+    const readied: Pr = { ...PENDING, readyAt: READY_AT, checks: [queued, REVIEWED] }
+    const cases: [number, number, string][] = [
+      [30, 20, "ci-pending"],
+      [41 * 60, 30, "1 check(s) pending for 41 min, past the 40 min budget"]
+    ]
+    for (const [seconds, status, reason] of cases) {
+      const run = json(readied, [], clockAt(READY_AT, seconds))
+      assert.equal(run.status, status, run.stdout)
+      assert.ok(typeof run.document === "object" && run.document !== null && "reason" in run.document)
+      assert.equal(run.document.reason, reason)
+    }
+  })
+
   it("reads the system clock when DW_SDLC_NOW is not set", () => {
     const cases: [string, number][] = [
       ["2000-01-01T00:00:00Z", 30],
@@ -556,7 +588,7 @@ describe("dw-sdlc pr ship while no check has answered", () => {
         UNCHECKED,
         clockAt(GREEN.committedAt, 121),
         30,
-        `park unverified: no check reported on e36732e within 120 s of its commit — ${merge}`
+        `park unverified: no check reported on e36732e within 120 s of its commit or its ready — ${merge}`
       ],
       [PENDING, clockAt(STARTED, 10 * 60), 20, "wait: ci-pending, recheck in 60 s"],
       [PENDING, clockAt(STARTED, 41 * 60), 30, "park ci-stuck: 1 check(s) pending for 41 min, past the 40 min budget"]
@@ -861,6 +893,15 @@ describe("dw-sdlc pr ship when it cannot run", () => {
       ])
       assert.deepEqual(run.calls, [AUTH, resolve])
     }
+  })
+
+  it("exits 2 naming what gh said when gh pr view fails for any reason but no pull request, as recap does", () => {
+    const run = ship([], { commands: { "pr view": { exit: 1, stderr: "could not connect to api.github.com\n" } } })
+    assert.equal(run.status, 2)
+    assert.deepEqual(lines(run.stderr), [
+      "dw-sdlc pr ship: gh pr view failed: could not connect to api.github.com — check gh auth status and the network, then call again"
+    ])
+    assert.deepEqual(run.calls, [AUTH, ["pr", "view", "--json", "url"]])
   })
 
   it("exits 2 with the usage on a bad argument, before any gh call", () => {

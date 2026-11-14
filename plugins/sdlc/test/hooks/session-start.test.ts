@@ -164,8 +164,11 @@ describe("an invalid config is one loud line, in the main checkout too", () => {
     writeJson(join(MAIN, ".ai", "agentic.config.json"), { guardrails: { forcePush: "allow" } })
     R = report(MAIN)
   })
-  it("invalid, strictest", () => {
-    has(R, "agentic config: INVALID, the guards run on the strictest defaults until it is fixed")
+  it("invalid, strictest, the commit rules off", () => {
+    has(
+      R,
+      "agentic config: INVALID, the guards run on the strictest defaults and the commit rules are off until it is fixed:"
+    )
   })
   it("the problem named", () => {
     has(R, '.ai/agentic.config.json: guardrails.forcePush: "allow" is not one of "deny", "ask", "lease"')
@@ -176,6 +179,19 @@ describe("an invalid config is one loud line, in the main checkout too", () => {
   })
 })
 
+describe("an invalid local layer under committed commit rules keeps them", () => {
+  const repo = initRepo(join(TMP, "local-invalid"), { branch: "main" })
+  writeJson(join(repo, ".ai", "agentic.config.json"), { commit: { convention: "conventional" } })
+  writeJson(join(repo, ".ai", "agentic.config.local.json"), { guardrails: { forcePush: "allow" } })
+  let R = ""
+  before(() => {
+    R = report(repo)
+  })
+  it("invalid, strictest, the commit rules not named", () => {
+    has(R, "agentic config: INVALID, the guards run on the strictest defaults until it is fixed:")
+  })
+})
+
 describe("a schema the plugin cannot read is a config problem, never a pass", () => {
   // Valid against the schema and looser than the strictest set: only the unread schema drops it.
   const repo = initRepo(join(TMP, "unvalidated"), { branch: "main" })
@@ -183,6 +199,7 @@ describe("a schema the plugin cannot read is a config problem, never a pass", ()
   const strictest = {
     forcePush: "deny",
     commitOnProtected: "deny",
+    filteredOutput: "deny",
     envFiles: { policy: "deny", allow: [], deny: [] },
     protectedBranches: ["master", "main", "production"]
   }
@@ -213,8 +230,11 @@ describe("a schema the plugin cannot read is a config problem, never a pass", ()
         expectExit(verdict, 0)
         R = contextOf(verdict.stdout)
       })
-      it("invalid, strictest", () => {
-        has(R, "agentic config: INVALID, the guards run on the strictest defaults until it is fixed")
+      it("invalid, strictest, the commit rules off", () => {
+        has(
+          R,
+          "agentic config: INVALID, the guards run on the strictest defaults and the commit rules are off until it is fixed:"
+        )
       })
       it("the schema named", () => {
         has(R, problem(schemaPath))

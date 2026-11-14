@@ -2,10 +2,9 @@
 // `dw-sdlc/review`: success for a clean one, --findings the read mark of one that left a Finding open,
 // --accept the dev's acceptance of a head as it stands, which the review-limit park names.
 
-import { parseArgs } from "node:util"
-
+import { CannotRun, readArgs, usageError } from "../cannot-run.ts"
 import { REVIEW, REVIEW_STATE, reviewStatusArgs } from "../pr/decide.ts"
-import { CannotRun, gh, namedProblem, read, said } from "../pr/read.ts"
+import { gh, namedProblem, pullRequestNamed, said } from "../pr/read.ts"
 import { ACCEPTED, MARK_STATE, READ_MARK } from "../pr/state.ts"
 
 export const summary = "pin a Review to the head it read, as a commit status"
@@ -31,6 +30,7 @@ const STATUS = {
 } as const
 
 type Cli = {
+  help: false
   json: boolean
   number: number
   repo: string | undefined
@@ -38,9 +38,9 @@ type Cli = {
   status: (typeof STATUS)[keyof typeof STATUS]
 }
 
-function parseCli(argv: string[]): Cli | "help" | { error: string } {
-  try {
-    const { values, positionals } = parseArgs({
+function parseCli(argv: string[]): Cli | { help: true } {
+  const { values, positionals } = readArgs(
+    {
       args: argv,
       allowPositionals: true,
       options: {
@@ -51,42 +51,41 @@ function parseCli(argv: string[]): Cli | "help" | { error: string } {
         findings: { type: "boolean" },
         accept: { type: "boolean" }
       }
-    })
-    if (values.help === true) {
-      return "help"
-    }
-    const [number, ...more] = positionals
-    const { repo, head } = values
-    if (number === undefined) {
-      return { error: "name the pull request: dw-sdlc pr reviewed <n> --head <sha>" }
-    }
-    if (more.length > 0) {
-      return { error: `name one pull request, not ${positionals.length}` }
-    }
-    const problem = namedProblem(number, repo)
-    if (problem !== undefined) {
-      return { error: problem }
-    }
-    if (head === undefined) {
-      return { error: "name the head the review read: --head <sha>" }
-    }
-    if (!/^[0-9a-f]{40}$/.test(head)) {
-      return { error: `--head takes the full 40-character sha, not ${JSON.stringify(head)}` }
-    }
-    if (values.findings === true && values.accept === true) {
-      return { error: "--findings and --accept contradict: name one" }
-    }
-    const kind = values.findings === true ? "findings" : "clean"
-    const status = STATUS[values.accept === true ? "accept" : kind]
-    return { json: values.json === true, number: Number(number), repo, head, status }
-  } catch (error) {
-    return { error: error instanceof Error ? error.message : String(error) }
+    },
+    USAGE
+  )
+  if (values.help === true) {
+    return { help: true }
   }
+  const [number, ...more] = positionals
+  const { repo, head } = values
+  if (number === undefined) {
+    throw usageError("name the pull request: dw-sdlc pr reviewed <n> --head <sha>", USAGE)
+  }
+  if (more.length > 0) {
+    throw usageError(`name one pull request, not ${positionals.length}`, USAGE)
+  }
+  const problem = namedProblem(number, repo)
+  if (problem !== undefined) {
+    throw usageError(problem, USAGE)
+  }
+  if (head === undefined) {
+    throw usageError("name the head the review read: --head <sha>", USAGE)
+  }
+  if (!/^[0-9a-f]{40}$/.test(head)) {
+    throw usageError(`--head takes the full 40-character sha, not ${JSON.stringify(head)}`, USAGE)
+  }
+  if (values.findings === true && values.accept === true) {
+    throw usageError("--findings and --accept contradict: name one", USAGE)
+  }
+  const kind = values.findings === true ? "findings" : "clean"
+  const status = STATUS[values.accept === true ? "accept" : kind]
+  return { help: false, json: values.json === true, number: Number(number), repo, head, status }
 }
 
 /** Posts the review status on `head` once the read shows it is still the pull request's head. */
 function post({ number, repo, head, status }: Cli): void {
-  const pr = read({ number, repo }, "pr reviewed", false)
+  const pr = pullRequestNamed({ number, repo }, "pr reviewed")
   if (pr.head !== head) {
     throw new CannotRun(
       `${pr.repo}#${number}: the head is ${pr.head}, not ${head}: a push landed since the review`,
@@ -104,23 +103,11 @@ function post({ number, repo, head, status }: Cli): void {
 
 export function run(argv: string[]): number {
   const cli = parseCli(argv)
-  if (cli === "help") {
+  if (cli.help) {
     process.stdout.write(`${USAGE}\n`)
     return 0
   }
-  if ("error" in cli) {
-    process.stderr.write(`dw-sdlc pr reviewed: ${cli.error}\n\n${USAGE}\n`)
-    return 2
-  }
-  try {
-    post(cli)
-  } catch (error) {
-    if (error instanceof CannotRun) {
-      process.stderr.write(`dw-sdlc pr reviewed: ${error.message} — ${error.remedy}\n`)
-      return 2
-    }
-    throw error
-  }
+  post(cli)
   const { head } = cli
   const { state } = cli.status
   const answer = cli.json

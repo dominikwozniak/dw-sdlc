@@ -6,7 +6,14 @@ import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { describe, it } from "node:test"
 
-import { COMMITTED_FILE, LOCAL_FILE, type Problem, resolveConfig } from "../../dw-sdlc/src/agentic-config.ts"
+import {
+  COMMITTED_FILE,
+  LOCAL_FILE,
+  type Problem,
+  type Resolution,
+  resolveConfig,
+  SCHEMA_PATH
+} from "../../dw-sdlc/src/agentic-config.ts"
 import { commit, git, initRepo, REPO_ROOT, runBash, scratch, write } from "../harness.ts"
 
 const LIB = join(import.meta.dirname, "..", "..", "hooks", "lib.sh")
@@ -182,6 +189,30 @@ describe("hooks/lib.sh agrees with resolveConfig", () => {
         })
     ],
     [
+      "on a local filteredOutput allow under a committed deny",
+      () =>
+        repo({
+          files: {
+            [COMMITTED_FILE]: { guardrails: { filteredOutput: "deny" } },
+            [LOCAL_FILE]: { guardrails: { filteredOutput: "allow" } }
+          }
+        })
+    ],
+    [
+      "on a local filteredOutput allow over the default deny",
+      () => repo({ files: { [LOCAL_FILE]: { guardrails: { filteredOutput: "allow" } } } })
+    ],
+    [
+      "on a committed filteredOutput allow, and a local deny over it",
+      () =>
+        repo({
+          files: {
+            [COMMITTED_FILE]: { guardrails: { filteredOutput: "allow" } },
+            [LOCAL_FILE]: { guardrails: { filteredOutput: "deny" } }
+          }
+        })
+    ],
+    [
       "on a tightening local file",
       () =>
         repo({
@@ -326,6 +357,95 @@ describe("hooks/lib.sh agrees with resolveConfig", () => {
     assert.equal(actual.problems.length, 1)
     assert.match(actual.problems[0] ?? "", new RegExp(`^${COMMITTED_FILE}: not JSON: `))
   })
+})
+
+/** A leaf key under the schema's `guardrails`: its enum, strictest value first, a list, or neither. */
+type Guardrail = { path: string[]; order: string[] | "list" | "none" }
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
+function guardrailKeys(node: unknown, path: string[] = []): Guardrail[] {
+  if (!isRecord(node)) {
+    return [{ path, order: "none" }]
+  }
+  if (isRecord(node.properties)) {
+    return Object.entries(node.properties).flatMap(([key, child]) => guardrailKeys(child, [...path, key]))
+  }
+  const values = node.enum
+  if (Array.isArray(values) && values.every((value): value is string => typeof value === "string")) {
+    return [{ path, order: values }]
+  }
+  return [{ path, order: node.type === "array" ? "list" : "none" }]
+}
+
+const SCHEMA: unknown = JSON.parse(readFileSync(SCHEMA_PATH, "utf8"))
+const GUARDRAILS = isRecord(SCHEMA) && isRecord(SCHEMA.properties) ? guardrailKeys(SCHEMA.properties.guardrails) : []
+
+/** A layer setting the guardrail at `path` to `value`, and `extra` beside it. */
+function guardrailLayer(path: string[], value: unknown, extra: object = {}): object {
+  return { ...extra, guardrails: path.reduceRight<unknown>((inner, key) => ({ [key]: inner }), value) }
+}
+
+function valueAt(node: unknown, path: string[]): unknown {
+  return path.reduce<unknown>((inner, key) => (isRecord(inner) ? inner[key] : undefined), node)
+}
+
+/** Every pair of `order`, the stricter value first. */
+function pairs(order: string[]): [string, string][] {
+  return order.flatMap((stricter, index) =>
+    order.slice(index + 1).map((looser): [string, string] => [stricter, looser])
+  )
+}
+
+/** Both resolvers on the committed and local layers given, once they agree; the package's answer. */
+function agreed(committed: object, local: object | undefined): Resolution {
+  const root = repo({ files: { [COMMITTED_FILE]: committed, ...(local === undefined ? {} : { [LOCAL_FILE]: local }) } })
+  const expected = resolveConfig(root)
+  const actual = libResolve(root)
+  assert.deepEqual(actual.config, expected.config)
+  assert.deepEqual(actual.problems, reportLines(expected.problems))
+  return expected
+}
+
+describe("every guardrails key the schema names has a strictness order in both resolvers", () => {
+  it("reads the keys out of the schema", () => {
+    const names = GUARDRAILS.map(({ path }) => path.join("."))
+    assert.ok(names.includes("forcePush") && names.includes("envFiles.policy"), names.join(", "))
+  })
+
+  for (const { path, order } of GUARDRAILS) {
+    const key = `guardrails.${path.join(".")}`
+    it(`${key}: a local layer moves it only towards the strictest, and an invalid layer sets the strictest`, () => {
+      if (order === "none") {
+        assert.fail(`${key} is neither an enum nor a list, so no strictness order holds it`)
+      }
+      if (order === "list") {
+        const flagged = [[], ["kept", "added"]].filter((local) =>
+          agreed(guardrailLayer(path, ["kept"]), guardrailLayer(path, local)).problems.some(
+            (problem) => problem.path === key
+          )
+        )
+        assert.equal(flagged.length, 1, `${key}: dropping an entry or adding one loosens it, never both or neither`)
+        return
+      }
+      for (const [stricter, looser] of pairs(order)) {
+        const loosened = agreed(guardrailLayer(path, stricter), guardrailLayer(path, looser))
+        assert.deepEqual(
+          loosened.problems.map((problem) => problem.path),
+          [key],
+          `${JSON.stringify(looser)} over ${JSON.stringify(stricter)}`
+        )
+        assert.equal(loosened.layers.local, "invalid")
+        const tightened = agreed(guardrailLayer(path, looser), guardrailLayer(path, stricter))
+        assert.deepEqual(tightened.problems, [], `${JSON.stringify(stricter)} over ${JSON.stringify(looser)}`)
+        assert.equal(valueAt(tightened.config.guardrails, path), stricter)
+      }
+      const invalid = agreed(guardrailLayer(path, order.at(-1), { version: 2 }), undefined)
+      assert.equal(valueAt(invalid.config.guardrails, path), order[0], "the strictest set")
+    })
+  }
 })
 
 /**

@@ -423,6 +423,92 @@ describe("a stop that fails", () => {
   })
 })
 
+describe("work committed after the Sweep judged it", () => {
+  const IDENTITY = ["-c", "user.email=t@example.com", "-c", "user.name=t", "-c", "commit.gpgsign=false"]
+  /** A commit under a fixed identity, as a command a fake `hc` call runs. */
+  const late = (tree: string): string[] => [
+    "git",
+    "-C",
+    tree,
+    ...IDENTITY,
+    "commit",
+    "-q",
+    "--allow-empty",
+    "-m",
+    "late work"
+  ]
+
+  for (const detached of [false, true]) {
+    it(`keeps the worktree a Worker commits in while it is stopped${detached ? ", its HEAD detached" : ", and its branch"}`, () => {
+      const root = clone()
+      const tree = join(scratch("late"), "tree")
+      mkdirSync(dirname(tree), { recursive: true })
+      git(root, "worktree", "add", "-q", ...(detached ? ["--detach"] : ["-b", "topic"]), tree, "main")
+      const { run, hc } = sweep(root, ["--json"], {
+        terminals: [self(root), worker("t5", tree, "idle")],
+        kill: { run: late(tree) }
+      })
+      assert.deepEqual(hc, [
+        ["kill", "t5"],
+        ["rm", "t5"]
+      ])
+      const { removed, kept } = documentOf(run.stdout)
+      assert.deepEqual(
+        removed.map(({ kind, name }) => [kind, name]),
+        [["terminal", "t5"]]
+      )
+      const item = kept.find(({ kind }) => kind === "worktree")
+      assert.equal(item?.name, tree)
+      assert.match(item?.reason ?? "", /^its HEAD moved to [0-9a-f]{9} since the Sweep judged it$/)
+      assert.equal(item?.command, null)
+      assert.deepEqual(trees(root), [root, tree])
+      assert.equal(git(tree, "log", "-1", "--format=%s").trim(), "late work")
+      if (!detached) {
+        assert.equal(kept.find(({ name }) => name === "topic")?.reason, `checked out in the worktree at ${tree}`)
+        assert.equal(git(root, "rev-parse", "topic"), git(tree, "rev-parse", "HEAD"))
+      }
+      assert.equal(run.status, 1)
+    })
+  }
+
+  it("keeps a Landed branch that moved to new work before its turn to go", () => {
+    const root = clone()
+    const tree = addTree(root, join(scratch("moved"), "tree"), "topic")
+    git(root, "branch", "plain")
+    const work = git(
+      root,
+      "-c",
+      "user.email=t@example.com",
+      "-c",
+      "user.name=t",
+      "commit-tree",
+      "-p",
+      "main",
+      "-m",
+      "late",
+      "main^{tree}"
+    ).trim()
+    const { run } = sweep(root, ["--json"], {
+      terminals: [self(root), worker("t5", tree, "done")],
+      kill: { run: ["git", "-C", root, "branch", "-f", "plain", work] }
+    })
+    const { removed, kept } = documentOf(run.stdout)
+    assert.deepEqual(
+      removed.map(({ kind, name }) => [kind, name]),
+      [
+        ["terminal", "t5"],
+        ["worktree", tree],
+        ["branch", "topic"]
+      ]
+    )
+    const item = kept.find(({ name }) => name === "plain")
+    assert.equal(item?.reason, `it moved to ${work.slice(0, 9)} since the Sweep judged it`)
+    assert.equal(item?.command, null)
+    assert.equal(git(root, "rev-parse", "plain").trim(), work)
+    assert.equal(run.status, 1)
+  })
+})
+
 describe("--dry-run", () => {
   it("stops and removes nothing, and --json lists the terminals", () => {
     const root = clone()

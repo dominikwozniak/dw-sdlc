@@ -26,12 +26,29 @@ LEAD=$' \t\003'
 # the table are dropped.
 CORE_WORDS=()
 stage_words() {
-  local stage="$1" word
+  local stage="$1"
   stage=${stage#"${stage%%[!$LEAD]*}"}
-  WORDS=()
-  while IFS= read -r word; do WORDS+=("$word"); done < <(guard_words "$stage")
+  guard_split_words "$stage"
+  WORDS=("${GUARD_WORDS[@]+"${GUARD_WORDS[@]}"}")
   guard_unwrap_words
   CORE_WORDS=("${WORDS[@]+"${WORDS[@]}"}")
+  drop_run_verb
+}
+
+# drop_run_verb — CORE_WORDS without a package manager's `run` verb, past its options: `pnpm run
+# check` runs what `pnpm check` runs, so a check command written either way matches the other.
+drop_run_verb() {
+  local i=1
+  case "${CORE_WORDS[0]-}" in
+    pnpm | yarn | npm | bun) ;;
+    *) return 0 ;;
+  esac
+  while ((i < ${#CORE_WORDS[@]})) && [[ "${CORE_WORDS[i]}" == -?* ]]; do
+    [[ "$PNPM_VALUE_OPTIONS" == *" ${CORE_WORDS[i]} "* ]] && i=$((i + 1))
+    i=$((i + 1))
+  done
+  [[ "${CORE_WORDS[i]-}" == run ]] || return 0
+  CORE_WORDS=("${CORE_WORDS[@]:0:i}" "${CORE_WORDS[@]:i+1}")
 }
 
 # stage_text <stage> — the stage as typed, launchers and path included, without its redirects; a quoted

@@ -519,7 +519,7 @@ describe("how the Sync fails", () => {
     expectStatus(run, 2)
     assert.equal(run.stdout, "")
     assert.deepEqual(lines(run.stderr), [
-      'references:sync: .ai/references.json: references[1].skip[0]: "../x" must be relative to the clone and stay inside it; nothing synced'
+      'dw-sdlc references sync: .ai/references.json: references[1].skip[0]: "../x" must be relative to the clone and stay inside it; nothing synced'
     ])
     assert.equal(head(clone(root, "full")), before)
     assert.ok(!existsSync(clone(root, "new")))
@@ -542,7 +542,7 @@ describe("how the Sync fails", () => {
       const run = sync(root)
       expectStatus(run, 2)
       assert.equal(run.stdout, "")
-      assert.deepEqual(lines(run.stderr), [`references:sync: .ai/references.json: ${problem}; nothing synced`])
+      assert.deepEqual(lines(run.stderr), [`dw-sdlc references sync: .ai/references.json: ${problem}; nothing synced`])
       assert.ok(!existsSync(clone(root, "full")))
     }
   })
@@ -563,7 +563,7 @@ describe("how the Sync fails", () => {
     const root = consumer([entry("full", source.url)])
     const run = sync(root, "full", "nope")
     expectStatus(run, 2)
-    assert.match(run.stderr, /^references:sync: not in \.ai\/references\.json: nope$/m)
+    assert.match(run.stderr, /^dw-sdlc references sync: not in \.ai\/references\.json: nope$/m)
     assert.ok(!existsSync(clone(root, "full")))
   })
 
@@ -572,7 +572,7 @@ describe("how the Sync fails", () => {
     write(join(root, FILE), "{ not json")
     const run = sync(root)
     expectStatus(run, 2)
-    assert.match(run.stderr, /^references:sync: \.ai\/references\.json: not JSON: .*; nothing synced$/m)
+    assert.match(run.stderr, /^dw-sdlc references sync: \.ai\/references\.json: not JSON: .*; nothing synced$/m)
   })
 
   it("syncs as before on an agentic config that is not JSON, which is the guards' to report", () => {
@@ -593,7 +593,7 @@ describe("how the Sync fails", () => {
     assert.equal(run.stdout, "")
     assert.match(
       run.stderr,
-      /^references:sync: \.ai\/agentic\.config\.json: .*`dw-sdlc references setup`.*; nothing synced$/m
+      /^dw-sdlc references sync: \.ai\/agentic\.config\.json: .*`dw-sdlc references setup`.*; nothing synced$/m
     )
     assert.ok(!existsSync(clone(root, "full")))
   })
@@ -607,7 +607,7 @@ describe("how the Sync fails", () => {
     assert.equal(run.stdout, "")
     assert.equal(
       run.stderr,
-      "references:sync: .ai/agentic.config.json has a references key beside .ai/references.json; merge it into the file and remove the key by hand; nothing synced\n"
+      "dw-sdlc references sync: .ai/agentic.config.json has a references key beside .ai/references.json; merge it into the file and remove the key by hand; nothing synced\n"
     )
     assert.ok(!existsSync(clone(root, "full")))
   })
@@ -663,7 +663,7 @@ describe("two Syncs in one checkout", () => {
     expectStatus(run, 0)
     assert.equal(run.stdout, "")
     assert.deepEqual(lines(run.stderr), [
-      `references:sync: another Sync (pid ${process.pid}) still holds references/.sync.lock after 1 s; the clones are what it leaves`
+      `dw-sdlc references sync: another Sync (pid ${process.pid}) still holds references/.sync.lock after 1 s; the clones are what it leaves`
     ])
     assert.ok(!existsSync(clone(root, "full")))
     assert.equal(readFileSync(join(root, LOCK), "utf8"), `${process.pid}\n`, "the other Sync's lock stays")

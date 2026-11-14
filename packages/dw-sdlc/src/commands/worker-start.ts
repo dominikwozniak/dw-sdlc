@@ -3,10 +3,10 @@
 
 import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
-import { parseArgs } from "node:util"
 
 import { mainCheckout, repositoryRoot, resolveConfig, WORKER_EFFORTS } from "../agentic-config.ts"
-import { describe, isLive, lead, refuse, Refusal, wholeNumber, workersOf } from "../worker/herdr.ts"
+import { CannotRun, messageOf, readArgs, usageError } from "../cannot-run.ts"
+import { isLive, lead, wholeNumber, workersOf } from "../worker/herdr.ts"
 import { launch, NAME, spaceOf, TAB_WAIT, undelivered } from "../worker/launch.ts"
 import { freshenOrigin } from "../worker/origin.ts"
 
@@ -44,6 +44,7 @@ const DEFAULT_MAX_WORKERS = 3
 const DEFAULT_WAIT = 30
 
 type Cli = {
+  help: false
   brief: string
   name: string
   model: string | undefined
@@ -53,9 +54,9 @@ type Cli = {
   json: boolean
 }
 
-function parseCli(argv: string[]): Cli | "help" | { error: string } {
-  try {
-    const { values } = parseArgs({
+function parseCli(argv: string[]): Cli | { help: true } {
+  const { values } = readArgs(
+    {
       args: argv,
       options: {
         help: { type: "boolean", short: "h" },
@@ -67,35 +68,34 @@ function parseCli(argv: string[]): Cli | "help" | { error: string } {
         "max-workers": { type: "string" },
         wait: { type: "string" }
       }
-    })
-    if (values.help === true) {
-      return "help"
-    }
-    const { brief, name, model, effort } = values
-    if (brief === undefined) {
-      return { error: "name the Brief file: --brief <file>" }
-    }
-    if (name === undefined || !NAME.test(name)) {
-      return { error: `--name takes 1-32 of a-z, 0-9, - and _, not ${JSON.stringify(name ?? "")}` }
-    }
-    if (model !== undefined && (model.trim() === "" || model.startsWith("-"))) {
-      return { error: `--model takes a model name, not ${JSON.stringify(model)}` }
-    }
-    if (effort !== undefined && !(WORKER_EFFORTS as readonly string[]).includes(effort)) {
-      return { error: `--effort takes one of ${WORKER_EFFORTS.join(", ")}, not ${JSON.stringify(effort)}` }
-    }
-    const max = wholeNumber("--max-workers", values["max-workers"], DEFAULT_MAX_WORKERS, 1)
-    const wait = wholeNumber("--wait", values.wait, DEFAULT_WAIT, 0)
-    if (typeof max === "object") {
-      return max
-    }
-    if (typeof wait === "object") {
-      return wait
-    }
-    return { brief, name, model, effort, max, wait, json: values.json === true }
-  } catch (error) {
-    return { error: describe(error) }
+    },
+    USAGE
+  )
+  if (values.help === true) {
+    return { help: true }
   }
+  const { brief, name, model, effort } = values
+  if (brief === undefined) {
+    throw usageError("name the Brief file: --brief <file>", USAGE)
+  }
+  if (name === undefined || !NAME.test(name)) {
+    throw usageError(`--name takes 1-32 of a-z, 0-9, - and _, not ${JSON.stringify(name ?? "")}`, USAGE)
+  }
+  if (model !== undefined && (model.trim() === "" || model.startsWith("-"))) {
+    throw usageError(`--model takes a model name, not ${JSON.stringify(model)}`, USAGE)
+  }
+  if (effort !== undefined && !(WORKER_EFFORTS as readonly string[]).includes(effort)) {
+    throw usageError(`--effort takes one of ${WORKER_EFFORTS.join(", ")}, not ${JSON.stringify(effort)}`, USAGE)
+  }
+  const max = wholeNumber("--max-workers", values["max-workers"], DEFAULT_MAX_WORKERS, 1)
+  const wait = wholeNumber("--wait", values.wait, DEFAULT_WAIT, 0)
+  if (typeof max === "object") {
+    throw usageError(max.error, USAGE)
+  }
+  if (typeof wait === "object") {
+    throw usageError(wait.error, USAGE)
+  }
+  return { help: false, brief, name, model, effort, max, wait, json: values.json === true }
 }
 
 /** The Brief's text; a file that is missing or holds only whitespace stops the command. */
@@ -104,10 +104,10 @@ function readBrief(file: string): string {
   try {
     text = readFileSync(resolve(file), "utf8")
   } catch (error) {
-    throw new Refusal(`cannot read the Brief ${file}: ${describe(error)}`)
+    throw new CannotRun(`cannot read the Brief ${file}: ${messageOf(error)}`)
   }
   if (text.trim() === "") {
-    throw new Refusal(`the Brief ${file} is empty`)
+    throw new CannotRun(`the Brief ${file} is empty`)
   }
   return text
 }
@@ -121,14 +121,14 @@ async function start(cli: Cli): Promise<number> {
   const { baseBranch, worker } = resolveConfig(checkout).config
   const command = worker.command.split(/\s+/).filter(Boolean)
   if (command.length === 0) {
-    throw new Refusal("worker.command holds no command", "set it in .ai/agentic.config.local.json, or remove the key")
+    throw new CannotRun("worker.command holds no command", "set it in .ai/agentic.config.local.json, or remove the key")
   }
   const model = cli.model ?? worker.model
   const effort = cli.effort ?? worker.effort
 
   const live = workersOf(leadId, false).filter(isLive)
   if (live.length >= cli.max) {
-    throw new Refusal(
+    throw new CannotRun(
       `${leadId} already has ${live.length} live Workers (the limit is ${cli.max})`,
       `carry one through first, or raise the limit with --max-workers ${live.length + 1}`
     )
@@ -163,17 +163,9 @@ async function start(cli: Cli): Promise<number> {
 
 export async function run(argv: string[]): Promise<number> {
   const cli = parseCli(argv)
-  if (cli === "help") {
+  if (cli.help) {
     process.stdout.write(`${USAGE}\n`)
     return 0
   }
-  if ("error" in cli) {
-    process.stderr.write(`dw-sdlc worker start: ${cli.error}\n\n${USAGE}\n`)
-    return 2
-  }
-  try {
-    return await start(cli)
-  } catch (error) {
-    return refuse("worker start", error)
-  }
+  return start(cli)
 }

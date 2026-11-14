@@ -135,6 +135,15 @@ describe("dw-sdlc primitives --paths", () => {
     assert.deepEqual(lines(invalid.stderr), [
       `dw-sdlc primitives: ${CATALOGUE}: version: 2 is not 1 — fix the catalogue; dw-sdlc gate names each problem under the primitives Check`
     ])
+    const twice = runBin(
+      ["primitives", "--paths", "x"],
+      repo({ files: { [CATALOGUE]: { version: 2, groups: "x", primitives: [] } } })
+    )
+    assert.equal(twice.status, 2)
+    assert.deepEqual(lines(twice.stderr), [
+      `dw-sdlc primitives: ${CATALOGUE}: version: 2 is not 1 — fix the catalogue; dw-sdlc gate names each problem under the primitives Check`,
+      `dw-sdlc primitives: ${CATALOGUE}: groups: expected array, got "x" — fix the catalogue; dw-sdlc gate names each problem under the primitives Check`
+    ])
   })
 
   it("exits 2 with its usage without --paths", () => {

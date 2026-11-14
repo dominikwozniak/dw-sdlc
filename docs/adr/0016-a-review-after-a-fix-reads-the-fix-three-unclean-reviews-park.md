@@ -18,11 +18,12 @@ checks each one is fixed and that the fix breaks nothing. When a merge of the ba
 script names in `details.paths` the files whose own change moved, routes on those alone, and the
 Review reads only them, so the base's changes to any other file never pass for the fix. A file both
 changed still shows the base's lines beside the fix's, and they count toward its depth. A read mark
-with only merges of the base after it has no fix to read: the Review reads the whole pull request
-(ADR 0023). Three Reviews without a success between them
+the later commits leave with the own changes as it read them, merges of the base or not, has no fix to
+read: the Review reads the whole pull request (ADR 0023). Three Reviews without a success between them
 park the pull request for the dev. The park's command, the dev's to run, posts success as "accepted by
 the dev, findings open"; the dev's `--review <depth>` buys one Review past the limit. A success starts
-the count again. The rule holds at `full` and at `light` alike.
+the count again. The rule holds at every depth: while a Finding is open, `auto` never routes `off` from the
+changed files alone, and only the dev's `--review off` posts a success past the limit.
 
 ## Consequences
 

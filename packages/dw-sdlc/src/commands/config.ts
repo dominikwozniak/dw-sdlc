@@ -2,17 +2,18 @@
 // against the schema, and prints what the guards see.
 
 import { readFileSync } from "node:fs"
-import { parseArgs } from "node:util"
 
 import {
   COMMITTED_FILE,
   findRepository,
+  invalidLayerEffect,
   LOCAL_FILE,
   type Problem,
   repositoryRoot,
   resolveConfig,
   validateDocument
 } from "../agentic-config.ts"
+import { messageOf, readArgs, rootDir, usageError } from "../cannot-run.ts"
 
 export const summary = "resolve the repository's agentic config, or validate one file against the schema"
 
@@ -21,31 +22,28 @@ const USAGE = `Usage: dw-sdlc config [--root <dir>] [file]
 
 Without a file: resolves the agentic config of the repository holding --root (default: the current
 directory) — local over committed over inferred — and prints what the guards see. With a file:
-validates that one document against the schema. Exit 1 on any problem.`
+validates that one document against the schema. Exit 1 on any problem, 2 when --root names no
+directory.`
 
-function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
-}
-
-function fail(message: string, code: 1 | 2): never {
-  console.error(`agentic:check: ${message}`)
-  process.exit(code)
+/** A problem the check reports beside the config's own: exit 1, as for an invalid layer. */
+function failed(message: string): number {
+  console.error(`dw-sdlc config: ${message}`)
+  return 1
 }
 
 function parseCli(argv: string[]): { help: boolean; root: string | undefined; file: string | undefined } {
-  try {
-    const { values, positionals } = parseArgs({
+  const { values, positionals } = readArgs(
+    {
       args: argv,
       allowPositionals: true,
       options: { help: { type: "boolean", short: "h" }, root: { type: "string" } }
-    })
-    if (positionals.length > 1) {
-      throw new Error("at most one file")
-    }
-    return { help: values.help === true, root: values.root, file: positionals[0] }
-  } catch (error) {
-    fail(`${messageOf(error)}\n\n${USAGE}`, 2)
+    },
+    USAGE
+  )
+  if (positionals.length > 1) {
+    throw usageError("at most one file", USAGE)
   }
+  return { help: values.help === true, root: values.root, file: positionals[0] }
 }
 
 function report(problems: Problem[]): void {
@@ -66,7 +64,7 @@ export function run(argv: string[]): number {
     try {
       text = readFileSync(cli.file, "utf8")
     } catch (error) {
-      fail(messageOf(error), 1)
+      return failed(messageOf(error))
     }
     const result = validateDocument(cli.file, text)
     if ("problems" in result) {
@@ -77,10 +75,10 @@ export function run(argv: string[]): number {
     return 0
   }
 
-  const root =
-    cli.root === undefined
-      ? (findRepository(process.cwd()) ?? fail("not inside a git repository; pass --root <dir>", 1))
-      : repositoryRoot(cli.root)
+  const root = cli.root === undefined ? findRepository(process.cwd()) : repositoryRoot(rootDir(cli.root))
+  if (root === undefined) {
+    return failed("not inside a git repository; pass --root <dir>")
+  }
 
   const { config, problems, layers, sources } = resolveConfig(root)
   const from = (source: string | undefined): string =>
@@ -90,7 +88,7 @@ export function run(argv: string[]): number {
   console.log(JSON.stringify(config, null, 2))
   if (problems.length > 0) {
     report(problems)
-    fail(`${problems.length} problem(s) above; the guards run on the strictest defaults until the file is fixed`, 1)
+    return failed(`${problems.length} problem(s) above; ${invalidLayerEffect(config)} until the file is fixed`)
   }
   return 0
 }

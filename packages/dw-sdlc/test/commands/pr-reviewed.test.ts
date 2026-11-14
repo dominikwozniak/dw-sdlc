@@ -5,7 +5,7 @@ import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 
 import { lines, repo, runBin, scratch } from "../harness.ts"
-import { fakeGh, GREEN, HEAD, type Scenario, served } from "../pr-harness.ts"
+import { BASE_OID, fakeGh, GREEN, HEAD, RUN, type Scenario, served } from "../pr-harness.ts"
 
 const URL = "https://github.com/byarcadia-app/foundation/pull/40"
 const MOVED = "0123456789abcdef0123456789abcdef01234567"
@@ -58,6 +58,29 @@ describe("dw-sdlc pr reviewed", () => {
     const run = reviewed([...TARGET, "--head", HEAD], { graphql: [served(GREEN)] })
     assert.equal(run.status, 0, run.stderr)
     assert.equal(run.stdout, `posted dw-sdlc/review success on ${HEAD}\n`)
+    assert.deepEqual(run.calls, [AUTH, READ, POST])
+  })
+
+  it("posts without the compares a Review's standing reads, so GitHub refusing them stops nothing", () => {
+    const earlier = "ad212a6aa5e5c0ffee0ddba11c0de5ca1ab1e0dd"
+    const check = {
+      kind: "run",
+      name: "Check",
+      state: "SUCCESS",
+      link: RUN,
+      startedAt: "2026-10-31T11:01:00Z"
+    } as const
+    // A clean Review read `earlier`; the head merged the base in, so pr ship compares the own changes at both.
+    const merged = { ...GREEN, checks: [check], history: [{ oid: earlier, review: "SUCCESS" }], headParents: 2 }
+    const refused = { stderr: "gh: Server Error (HTTP 502)", exit: 1 }
+    const compares = Object.fromEntries(
+      [earlier, HEAD].map((oid) => [
+        `api repos/byarcadia-app/foundation/compare/${BASE_OID}...${oid}?per_page=1`,
+        refused
+      ])
+    )
+    const run = reviewed([...TARGET, "--head", HEAD], { graphql: [served(merged)], commands: compares })
+    assert.equal(run.status, 0, run.stderr)
     assert.deepEqual(run.calls, [AUTH, READ, POST])
   })
 

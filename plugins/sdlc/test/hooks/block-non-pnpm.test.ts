@@ -78,6 +78,112 @@ describe("a pnpm repository — yarn, bun and npx refused", () => {
   blocked("npx-chained", "cd sub && npx tsc --noEmit")
 })
 
+// Each verb that installs, removes, updates, links or rebuilds a dependency, or runs a script or a
+// package, under every alias npm 11's lib/utils/cmd-list.js gives it and bun documents.
+const NPM_INSTALL = ["install", "add", "i", "in", "ins", "inst", "insta", "instal", "isnt", "isnta", "isntal"]
+const NPM_CI = ["isntall", "ci", "clean-install", "ic", "install-clean", "isntall-clean"]
+const NPM_INSTALL_TEST = ["install-test", "it", "install-ci-test", "cit", "clean-install-test", "sit"]
+const NPM_CHANGE = ["uninstall", "unlink", "remove", "rm", "r", "un", "update", "u", "up", "upgrade", "udpate"]
+const NPM_TREE = ["dedupe", "ddp", "prune", "link", "ln", "rebuild", "rb"]
+const NPM_RUN = ["run", "run-script", "rum", "urn", "test", "tst", "t", "start", "stop", "restart"]
+const NPM_EXEC = ["exec", "x", "init", "create", "innit", "explore"]
+const NPM_VERBS = [NPM_INSTALL, NPM_CI, NPM_INSTALL_TEST, NPM_CHANGE, NPM_TREE, NPM_RUN, NPM_EXEC].flat()
+// bun's own commands, as its root command matcher (src/runtime/cli/mod.rs) reads the first word. Any
+// other word runs a package.json script, a bin or a file, and `check`, `lint`, `fmt` and `compile` run
+// the project's script of that name when it has one.
+const BUN_INSTALL = ["install", "i", "ci", "add", "a", "remove", "rm", "uninstall", "r", "update", "up"]
+const BUN_TREE = ["link", "unlink", "patch", "patch-commit", "dedupe", "prune"]
+const BUN_RUN = ["run", "x", "exec", "test", "init", "create", "c", "check", "lint", "fmt", "compile"]
+const BUN_VERBS = [BUN_INSTALL, BUN_TREE, BUN_RUN].flat()
+const BUN_OWN = [
+  ["build", "bun", "outdated", "audit", "info", "why", "publish", "whoami", "list", "pm", "repl"],
+  ["upgrade", "help", "completions", "getcompletes", "discord"]
+].flat()
+
+describe("a pnpm repository — every npm and bun verb that installs or runs", () => {
+  for (const verb of NPM_VERBS) {
+    blocked(`npm ${verb}`, `npm ${verb} lodash`)
+  }
+  for (const verb of BUN_VERBS) {
+    blocked(`bun ${verb}`, `bun ${verb} lodash`)
+  }
+  blocked("npm audit fix", "npm audit fix")
+  blocked("npm audit fix behind an option", "npm audit --json fix --force")
+  blocked("npm test alone", "npm test")
+  blocked("bunx", "bunx prettier --write .")
+  blocked("bunx bare", "bunx")
+  blocked("sudo-bunx", "sudo bunx tsc")
+  blocked("bunx-chained", "cd sub && bunx tsc --noEmit")
+  allowed("npm audit reads", "npm audit")
+  allowed("npm audit signatures reads", "npm audit signatures")
+  allowed("npm ls reads", "npm ls lodash")
+  allowed("npm outdated reads", "npm outdated")
+  allowed("npm help names a verb", "npm help install")
+  allowed("npm pkg get reads", "npm pkg get name")
+  blocked("npm explore runs a command in a package", "npm explore x -- ls")
+  allowed("bun build bundles", "bun build ./src/index.ts")
+  allowed("bun version", "bun --version")
+})
+
+describe("a pnpm repository — bun runs any word that is not its own command", () => {
+  for (const word of BUN_OWN) {
+    allowed(`bun ${word}`, `bun ${word}`)
+  }
+  blocked("a package.json script", "bun dev")
+  blocked("a file by path", "bun ./x.ts")
+  blocked("a file in a folder", "bun scripts/x.ts")
+  blocked("a name the shell expands", 'bun "$SCRIPT"')
+  blocked("a quoted script name", "bun 'dev'")
+  blocked("bun test runs code", "bun test")
+  blocked("bun pm trust runs lifecycle scripts", "bun pm trust x")
+  blocked("a script after a chain", "pnpm build && bun dev")
+  blocked("a script behind a wrapper", 'rtk run "bun dev"')
+  blocked("a script after a cd into a pnpm repository", "cd app && bun dev", OUTSIDE)
+  allowed("bun pm ls reads", "bun pm ls")
+  allowed("bun pm untrusted reads", "bun pm untrusted")
+  allowed("bare bun prints its help", "bun")
+  allowed("a script name in prose", 'git commit -m "docs: bun dev is banned"')
+  allowed("bun dev in an npm repository", "bun dev", NPM)
+})
+
+// bun's which() (src/runtime/cli/mod.rs) skips every leading word that starts with a `-` and reads the
+// next word as the command, an option's value included: `bun --cwd app outdated` is `app`, which runs
+// `outdated` as a script, a bin or a file. `-e`, `--eval`, `-p` and `--print` run their code.
+describe("a pnpm repository — an option before bun's first word does not hide it", () => {
+  blocked("--watch before a script", "bun --watch dev")
+  blocked("--hot before a file", "bun --hot ./x.ts")
+  blocked("--bun before a script", "bun --bun dev")
+  blocked("-b before a script", "bun -b dev")
+  blocked("--cwd before a script", "bun --cwd app dev")
+  blocked("--silent before install", "bun --silent install")
+  blocked("two options before install", "bun --silent --no-install install")
+  blocked("--filter runs the script in each workspace", "bun --filter '*' build")
+  blocked("an option's value is bun's command word", "bun --cwd app outdated")
+  blocked("a redirect before a script", "bun > log.txt dev")
+  blocked("a glued redirect before install", "bun 2>&1 install")
+  blocked("-e runs code", "bun -e 'console.log(1)'")
+  blocked("--eval runs code", 'bun --eval "console.log(1)"')
+  blocked("--eval= runs code", "bun --eval='console.log(1)'")
+  blocked("-p prints code it runs", "bun -p 1+1")
+  blocked("--print prints code it runs", "bun --print 1+1")
+  blocked("-e behind a flag of no value", "bun -be 'console.log(1)'")
+  blocked("-e whose code is a word of bun's own", "bun -e build")
+  blocked("-e after another option", "bun --silent -e 'console.log(1)'")
+  blocked("an option before a script after a chain", "pnpm build && bun --watch dev")
+  blocked("repl -e runs code", "bun repl -e 'console.log(1)'")
+  blocked("repl --print runs code", "bun repl --print 1+1")
+  allowed("repl alone", "bun repl")
+  allowed("--cwd= keeps the command word", "bun --cwd=app outdated")
+  allowed("--silent before pm ls", "bun --silent pm ls")
+  allowed("an option before a read", "bun --no-install outdated")
+  allowed("a redirect before a read", "bun 2>/dev/null outdated")
+  allowed("bun --version", "bun --version")
+  allowed("bun -v", "bun -v")
+  allowed("bun --help", "bun --help")
+  allowed("an option before a script in prose", 'git commit -m "docs: bun --watch dev is banned"')
+  allowed("an option before a script in an npm repository", "bun --watch dev", NPM)
+})
+
 describe("a pnpm repository — wrappers seen through", () => {
   blocked("rtk-npm-install", "rtk npm install")
   blocked("rtk-proxy-npm", "rtk proxy npm ci")
@@ -153,7 +259,7 @@ describe("a pnpm repository — pnpm and the near-misses pass", () => {
   allowed("npm-bare-version", "npm --version")
   allowed("npm-unknown-subcommand", "npm whoami")
   allowed("bundle-not-bun", "bundle exec rspec")
-  allowed("bunx-not-bun-space", "bunx tsc")
+  allowed("bunx-in-a-name", "bunxfoo --help")
   allowed("grep-for-yarn", "grep -rn yarn plugins/")
   allowed("empty-input", "")
   allowed("plain-ls", "ls -la")

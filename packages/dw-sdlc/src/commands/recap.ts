@@ -1,19 +1,17 @@
 // `dw-sdlc recap`: the facts a Recap rests on and whether the session can be closed, read from git and
 // gh. It writes nothing: the Action of the branch's pull request is the Ship script's decision, read.
 
-import { existsSync } from "node:fs"
-import { join } from "node:path"
-import { parseArgs } from "node:util"
-
 import { findRepository, mainCheckout, resolveConfig } from "../agentic-config.ts"
+import { CannotRun, readArgs, usageError } from "../cannot-run.ts"
+import { asked, must } from "../git.ts"
+import { pausedIn } from "../paused-operation.ts"
 import { type Answer, decide, declaredPolicy, labelOf, lineOf } from "../pr/decide.ts"
-import { CannotRun, defaultBranch, now, readBranch } from "../pr/read.ts"
+import { defaultBranch, ghReads, now } from "../pr/read.ts"
 import type { PrState } from "../pr/state.ts"
-import { holds, upstreamName } from "../pr/upstream.ts"
+import { holds } from "../pr/upstream.ts"
 import { type Candidate, type Next, READY_LABEL, readNext } from "../recap-next.ts"
 import { type Rolled, rollup } from "../recap-primitives.ts"
-import { isLive, Refusal, type Worker, workersOf, workingFolders } from "../worker/herdr.ts"
-import { asked, git } from "../working-tree.ts"
+import { isLive, type Worker, workersOf, workingFolders } from "../worker/herdr.ts"
 
 export const summary = "the facts a Recap rests on, whether the session can be closed and what could come next"
 
@@ -97,15 +95,6 @@ function plural(howMany: number, word: string): string {
   return `${howMany} ${word}${howMany === 1 ? "" : "s"}`
 }
 
-/** `git <args>` at `root`; what it prints, or a stop naming its problem. */
-function must(root: string, args: string[]): string {
-  const result = git(root, args)
-  if ("error" in result) {
-    throw new CannotRun(result.error, "check the repository with git status")
-  }
-  return result.out
-}
-
 function count(root: string, args: string[]): number {
   return Number(must(root, ["rev-list", "--count", ...args]))
 }
@@ -124,22 +113,6 @@ function upstreamOf(root: string, branch: string): string | null {
   return ref.startsWith(prefix) && track !== "[gone]" ? ref.slice(prefix.length) : null
 }
 
-/** Git's own record of each paused operation, in the git directory a linked worktree keeps apart. */
-const PAUSES = [
-  { record: "rebase-merge", name: "rebase" },
-  { record: "rebase-apply", name: "rebase or am" },
-  { record: "MERGE_HEAD", name: "merge" },
-  { record: "CHERRY_PICK_HEAD", name: "cherry-pick" },
-  { record: "REVERT_HEAD", name: "revert" },
-  { record: "sequencer", name: "cherry-pick or revert" },
-  { record: "BISECT_LOG", name: "bisect" }
-]
-
-function pausedIn(root: string): string | null {
-  const gitDir = must(root, ["rev-parse", "--absolute-git-dir"])
-  return PAUSES.find(({ record }) => existsSync(join(gitDir, record)))?.name ?? null
-}
-
 function readLocal(root: string): Local {
   const branch = asked(root, ["symbolic-ref", "--quiet", "--short", "HEAD"]) ?? null
   const head = asked(root, ["rev-parse", "--verify", "--quiet", "HEAD"]) ?? null
@@ -153,7 +126,7 @@ function readLocal(root: string): Local {
     uncommitted: status === "" ? 0 : status.split("\n").length,
     upstream,
     unpushed: head === null ? 0 : count(root, pushed),
-    paused: pausedIn(root),
+    paused: pausedIn(must(root, ["rev-parse", "--absolute-git-dir"])) ?? null,
     worktree: { linked: mainCheckout(root) !== undefined, path: root }
   }
 }
@@ -167,10 +140,7 @@ function liveWorkers(): Worker[] | null {
   try {
     return workingFolders(workersOf(lead, false).filter(isLive))
   } catch (error) {
-    if (error instanceof Refusal) {
-      throw new CannotRun(error.message, error.remedy ?? "check hc ls, then call again")
-    }
-    throw error
+    throw error instanceof CannotRun ? error.orRemedy("check hc ls, then call again") : error
   }
 }
 
@@ -178,19 +148,12 @@ function workersText(workers: Worker[]): string {
   return workers.map((worker) => `${worker.name} (${worker.status})`).join(", ")
 }
 
-/**
- * The current branch's pull request and the Action the Ship script's decision gives it, or null. The one
- * found by the upstream's name counts only when it holds the head: a branch started from another tracks
- * that branch until its first push.
- */
-function readShipped(root: string, branch: string, head: string | null): Shipped | null {
+/** This checkout's pull request and the Action the Ship script's decision gives it, or null when it has none. */
+function readShipped(root: string): Shipped | null {
   // An invalid config layer resolves to ask and full, as in the Ship script.
   const policy = declaredPolicy(resolveConfig(root).config.pr)
-  const found = readBranch(policy.review.depth === "auto", head === null ? undefined : upstreamName(root, branch))
-  if (found === null || (found.byUpstream && !holds(found.pr, head))) {
-    return null
-  }
-  return { pr: found.pr, answer: decide(found.pr, now(), policy) }
+  const found = ghReads(policy.review.depth === "auto").checkout(root)
+  return "problem" in found ? null : { pr: found, answer: decide(found, now(), policy) }
 }
 
 /**
@@ -392,20 +355,19 @@ function linesOf(local: Local, { shipped, askedGh, workers, next }: Facts, primi
   ].join("\n")
 }
 
-function parseCli(argv: string[]): { help: boolean; json: boolean } | { error: string } {
-  try {
-    const { values, positionals } = parseArgs({
+function parseCli(argv: string[]): { help: boolean; json: boolean } {
+  const { values, positionals } = readArgs(
+    {
       args: argv,
       allowPositionals: true,
       options: { help: { type: "boolean", short: "h" }, json: { type: "boolean" } }
-    })
-    if (positionals.length > 0 && values.help !== true) {
-      return { error: `it takes no argument, not ${JSON.stringify(positionals[0])}` }
-    }
-    return { help: values.help === true, json: values.json === true }
-  } catch (error) {
-    return { error: error instanceof Error ? error.message : String(error) }
+    },
+    USAGE
+  )
+  if (positionals.length > 0 && values.help !== true) {
+    throw usageError(`it takes no argument, not ${JSON.stringify(positionals[0])}`, USAGE)
   }
+  return { help: values.help === true, json: values.json === true }
 }
 
 function report(json: boolean): number {
@@ -417,7 +379,7 @@ function report(json: boolean): number {
   const { branch, head } = read
   // A detached HEAD names no branch for gh to look up, and a repository with no remote has no GitHub.
   const asksGh = branch !== null && remotesOf(root).length > 0
-  const shipped = asksGh ? readShipped(root, branch, head) : null
+  const shipped = asksGh ? readShipped(root) : null
   const held = shipped !== null && holds(shipped.pr, head)
   const local = standing(root, read, shipped, held)
   // An open pull request can still take the head, and a commit-less repository has nothing to merge.
@@ -459,21 +421,9 @@ function report(json: boolean): number {
 
 export function run(argv: string[]): number {
   const cli = parseCli(argv)
-  if ("error" in cli) {
-    process.stderr.write(`dw-sdlc recap: ${cli.error}\n\n${USAGE}\n`)
-    return 2
-  }
   if (cli.help) {
     process.stdout.write(`${USAGE}\n`)
     return 0
   }
-  try {
-    return report(cli.json)
-  } catch (error) {
-    if (error instanceof CannotRun) {
-      process.stderr.write(`dw-sdlc recap: ${error.message} — ${error.remedy}\n`)
-      return 2
-    }
-    throw error
-  }
+  return report(cli.json)
 }

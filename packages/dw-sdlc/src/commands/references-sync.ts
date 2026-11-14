@@ -5,10 +5,11 @@
 import { existsSync, linkSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs"
 import { extname, join } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
-import { parseArgs } from "node:util"
 
-import { exec, SLOW_LIMIT_MS } from "../exec.ts"
-import { repositoryFreeEnv } from "../git-env.ts"
+import { repositoryRoot } from "../agentic-config.ts"
+import { CannotRun, messageOf, readArgs } from "../cannot-run.ts"
+import { SLOW_LIMIT_MS } from "../exec.ts"
+import { asked, git } from "../git.ts"
 import { readPins, resolveRef, type Pins } from "../pins.ts"
 import { REFERENCES_FILE, readReferences, type Reference } from "../references-key.ts"
 import { renderBlock, withBlock } from "../router-block.ts"
@@ -35,18 +36,9 @@ its skip names. Prints one line per Reference. Exit 1 when any Reference fails, 
 config or argument, in which case nothing is synced. One Sync runs in a checkout at a time; a
 second one waits for it up to ${WAIT_SECONDS} s, or REFERENCES_SYNC_WAIT seconds.`
 
-function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
-}
-
 /** The code a failed system call throws with, as "ENOENT", or undefined. */
 function codeOf(error: unknown): string | undefined {
   return error instanceof Error && "code" in error && typeof error.code === "string" ? error.code : undefined
-}
-
-function fail(message: string): never {
-  console.error(`references:sync: ${message}`)
-  process.exit(2)
 }
 
 /** REFERENCES_SYNC_WAIT when it names a number of seconds, else WAIT_SECONDS. */
@@ -145,24 +137,14 @@ async function lock(root: string, seconds: number): Promise<Lock> {
   }
 }
 
-function git(args: string[], cwd?: string): { ok: boolean; out: string; err: string } {
-  // Each call finds its repository from `cwd`.
-  const env = repositoryFreeEnv()
-  const result = exec("git", args, { ...(cwd === undefined ? {} : { cwd }), env, limitMs: SLOW_LIMIT_MS })
-  // git's error on one line, so each Reference stays one line of the report.
-  const err = (result.stderr ?? "")
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .join(" ")
-  return { ok: result.status === 0, out: (result.stdout ?? "").trim(), err }
-}
+/** Every git call of a Sync: one that fetches may take long, and its error stays one line of the report. */
+const SYNC = { limitMs: SLOW_LIMIT_MS, whole: true }
 
-/** Runs one git step of a sync, `gitOptions` ahead of it; throws with git's error when it fails. */
-function step(args: string[], cwd?: string, gitOptions: string[] = []): void {
-  const result = git([...gitOptions, ...args], cwd)
-  if (!result.ok) {
-    throw new Error(`git ${args.join(" ")}: ${result.err}`)
+/** Runs one git step of a sync from `dir`, `gitOptions` ahead of it; throws with git's error when it fails. */
+function step(args: string[], dir: string, gitOptions: string[] = []): void {
+  const result = git(dir, [...gitOptions, ...args], SYNC)
+  if ("error" in result) {
+    throw new Error(`git ${args.join(" ")}: ${result.said}`)
   }
 }
 
@@ -185,11 +167,11 @@ function sparsePatterns({ only, skip }: Reference): string[] {
   return [...kept, ...skip.map((path) => `!/${path}`)]
 }
 
-/** Whether the tree fetched into `cwd` holds `path`, a directory when it ends in `/`. Reads trees only. */
-function fetchedTreeHas(path: string, cwd: string): boolean {
-  const listed = git(["ls-tree", "FETCH_HEAD", "--", path.replace(/\/+$/, "")], cwd)
-  if (!listed.ok) {
-    throw new Error(`git ls-tree FETCH_HEAD: ${listed.err}`)
+/** Whether the tree fetched into `dir` holds `path`, a directory when it ends in `/`. Reads trees only. */
+function fetchedTreeHas(path: string, dir: string): boolean {
+  const listed = git(dir, ["ls-tree", "FETCH_HEAD", "--", path.replace(/\/+$/, "")], SYNC)
+  if ("error" in listed) {
+    throw new Error(`git ls-tree FETCH_HEAD: ${listed.said}`)
   }
   // `<mode> <type> <object>\t<path>`, or nothing when the tree lacks the path.
   const type = listed.out.split(" ")[1]
@@ -208,13 +190,13 @@ function sync(root: string, reference: Reference, ref: string): string | undefin
   }
   try {
     if (existsSync(target)) {
-      const origin = git(["remote", "get-url", "origin"], target)
-      if (!existsSync(join(target, ".git")) || !origin.ok || origin.out !== repository) {
+      const origin = asked(target, ["remote", "get-url", "origin"], SYNC)
+      if (!existsSync(join(target, ".git")) || origin !== repository) {
         return `${CLONES}/${dir} exists and is not a clone of ${repository}; move it aside and run again`
       }
     } else {
       // An empty repository, so the one fetch below brings only the ref, a branch or a tag alike.
-      step(["init", "--quiet", target])
+      step(["init", "--quiet", target], root)
       step(["remote", "add", "origin", repository], target)
     }
     fetching(["fetch", "--quiet", "--depth", "1", "--filter=blob:none", "origin", ref])
@@ -237,16 +219,11 @@ function sync(root: string, reference: Reference, ref: string): string | undefin
 }
 
 function parseCli(argv: string[]): { help: boolean; dirs: string[] } {
-  try {
-    const { values, positionals } = parseArgs({
-      args: argv,
-      allowPositionals: true,
-      options: { help: { type: "boolean", short: "h" } }
-    })
-    return { help: values.help === true, dirs: positionals }
-  } catch (error) {
-    fail(`${messageOf(error)}\n\n${USAGE}`)
-  }
+  const { values, positionals } = readArgs(
+    { args: argv, allowPositionals: true, options: { help: { type: "boolean", short: "h" } } },
+    USAGE
+  )
+  return { help: values.help === true, dirs: positionals }
 }
 
 /**
@@ -292,7 +269,7 @@ function syncAll(root: string, selected: Reference[]): boolean {
       problem = messageOf(error)
     }
     if (problem === undefined) {
-      const head = git(["rev-parse", "--short", "HEAD"], join(root, CLONES, reference.dir)).out
+      const head = asked(join(root, CLONES, reference.dir), ["rev-parse", "--short", "HEAD"], SYNC) ?? ""
       console.log(`${CLONES}/${reference.dir}  ${head}  ${reference.repository} ${ref}`)
     } else {
       failed = true
@@ -309,17 +286,16 @@ export async function run(argv: string[]): Promise<number> {
     return 0
   }
 
-  const toplevel = git(["rev-parse", "--show-toplevel"])
-  const root = toplevel.ok ? toplevel.out : process.cwd()
+  const root = repositoryRoot(process.cwd())
   const reading = readReferences(root)
   if ("problem" in reading) {
-    fail(`${reading.problem}; nothing synced`)
+    throw new CannotRun(`${reading.problem}; nothing synced`)
   }
   const references = reading.references ?? []
 
   const unknown = cli.dirs.filter((dir) => !references.some((reference) => reference.dir === dir))
   if (unknown.length > 0) {
-    fail(`not in ${REFERENCES_FILE}: ${unknown.join(", ")}`)
+    throw new CannotRun(`not in ${REFERENCES_FILE}: ${unknown.join(", ")}`)
   }
   if (reading.references === undefined) {
     return 0
@@ -328,13 +304,13 @@ export async function run(argv: string[]): Promise<number> {
     cli.dirs.length === 0 ? references : references.filter((reference) => cli.dirs.includes(reference.dir))
 
   const seconds = waitSeconds()
-  const attempt = await lock(root, seconds).catch((error: unknown) =>
-    fail(`${CLONES}/${LOCK}: ${messageOf(error)}; nothing synced`)
-  )
+  const attempt = await lock(root, seconds).catch((error: unknown) => {
+    throw new CannotRun(`${CLONES}/${LOCK}: ${messageOf(error)}; nothing synced`)
+  })
   let failed = false
   if ("heldBy" in attempt) {
     console.error(
-      `references:sync: another Sync (pid ${attempt.heldBy}) still holds ${CLONES}/${LOCK} after ${seconds} s; the clones are what it leaves`
+      `dw-sdlc references sync: another Sync (pid ${attempt.heldBy}) still holds ${CLONES}/${LOCK} after ${seconds} s; the clones are what it leaves`
     )
   } else {
     try {

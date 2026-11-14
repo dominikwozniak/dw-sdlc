@@ -79,18 +79,21 @@ Refused by the sdlc plugin. If this is genuinely needed, the user runs it.
 
 `block-dangerous-commands.sh`, always on. It refuses what destroys work the reflog cannot bring back.
 
-- **Refuses:** `reset --hard` with uncommitted changes; `clean` with `-f`, `-d`, `-x`, `-X` or `--force`;
+- **Refuses:** `reset --hard` with uncommitted changes, or over an untracked file its target tracks,
+  which git writes over; `clean` with `-f`, `-d`, `-x`, `-X` or `--force`;
   `branch -M`, `-C`, and `-f` on a move, a copy or an existing branch; `checkout -f` or of the whole
   tree; `switch -f` and `--discard-changes`; a `restore` of the whole tree unless `--staged` alone;
   `stash drop` and `clear`; `worktree remove --force`; `reflog expire` and `delete`;
   `gc --prune=now|all`; `prune`; `update-ref -d`.
-- **Passes:** `reset --hard` when no tracked file has a change, since untracked files survive it and
-  the reflog keeps the old HEAD; `clean` as a dry run; a plain `branch -d` and `worktree remove`, since
-  git keeps unmerged and dirty work from them itself.
+- **Passes:** `reset --hard` when no tracked file has a change and its target tracks no untracked
+  file, since the other untracked files survive it and the reflog keeps the old HEAD; an ignored file
+  the target tracks, which git replaces on a checkout too; `clean` as a dry run; a plain `branch -d`
+  and `worktree remove`, since git keeps unmerged and dirty work from them itself.
 - **Edge:** `reset --hard` is refused when git cannot answer (outside a repository, an unborn HEAD),
   when a file is `assume-unchanged` or `skip-worktree`, under `GIT_DIR` or `GIT_WORK_TREE`, and after
-  a command that may change the tree first. The whole tree is a pathspec of `.`, `*` or `**`, `./`
-  alone, or the `:/` and `:(top)` magic.
+  a command that may change the tree first. After a fetch in the same command, or with a target
+  computed at runtime, the target is unknown, so any untracked file refuses it. The whole tree is a
+  pathspec of `.`, `*` or `**`, `./` alone, or the `:/` and `:(top)` magic.
 
 ```text
 BLOCKED: 'git clean -fd' deletes untracked files.
@@ -130,8 +133,9 @@ baseBranch in .ai/agentic.config.json.
 | `guardrails.protectedBranches` | branch names           | `master`, `main`, `production` |
 | `guardrails.forcePush`         | `deny`, `ask`, `lease` | `lease`; `ask` prompts first   |
 
-`--all` and a wildcard refspec count every local branch. A `switch -c` or `checkout -b` earlier in the
-same command moves the branch the push is judged on.
+`--all` and a wildcard refspec count every local branch. A `switch` or `checkout` earlier in the same
+command moves the branch the push is judged on: `-c` and `-b` name it, and a checkout of a branch only
+one remote has switches to it, as git's guess creates it.
 
 ```text
 BLOCKED: 'git push --force origin feat' force-pushes without a lease. Use --force-with-lease
@@ -204,6 +208,22 @@ credentials and .netrc are the user's, not the agent's, and reading one puts it 
 inferred from the lockfile when nothing declares it. It is silent in every other repository. An option
 or a redirect before the verb does not hide it, and a `cd` moves the repository whose manager counts.
 
+- `npx`, `bunx` and `yarn` are refused in every form.
+- An `npm` or `bun` verb is refused when it installs, removes, updates, links or rebuilds a
+  dependency, or runs a script, a package or code, under each alias npm and bun accept: `npm i`,
+  `npm test`, `npm uninstall`, `npm audit fix`, `npm rebuild`, `npm x`, `npm explore`, `bun add`,
+  `bun test`, `bun pm trust`. `npm publish`, `bun publish`, `bun pm pack` and `bun pm version` pass,
+  though they run the package's lifecycle scripts.
+- bun runs any word that is not one of its own commands as a script, a bin or a file, so
+  `bun dev` and `bun ./x.ts` are refused. So are `bun check`, `lint`, `fmt` and `compile`, which run
+  the project's script of that name when it has one.
+- bun takes the first word past those that start with a `-` for its command, an option's value too. So
+  `bun --watch dev` and `bun --silent install` are refused, and so is `bun --cwd app outdated`, where
+  `app` is the command and `outdated` runs as a script; `bun --cwd=app outdated` passes. `-e`,
+  `--eval`, `-p` and `--print` run code, and are refused.
+- A read passes: `npm view`, `npm ls`, `npm audit`, and bun's `bun build`, `bun outdated`, `bun info`,
+  `bun why`, `bun audit` and `bun pm ls`.
+
 ```text
 BLOCKED: 'npm install' uses npm, npx, yarn or bun, and this repository's package manager is pnpm
 (packageManagers.node). Use 'pnpm install', 'pnpm add <pkg>', or 'pnpm dlx <cmd>' …
@@ -217,6 +237,8 @@ BLOCKED: 'npm install' uses npm, npx, yarn or bun, and this repository's package
 - A check command is `gate.command`, each `gate.steps` command and `gate.checks.run` script, `dw-sdlc
   gate`, `dw-sdlc check`, or a runner of the built-in list: `vitest`, `jest`, `tsc`, `oxlint`, `eslint`,
   `vp check`, `rspec`, `rubocop`, `pytest`, `cargo test`, `go test`.
+- A package manager's `run` verb names the script its bare name does, so `pnpm run check` is
+  `pnpm check`, and so for npm, yarn and bun.
 - `| tee` and a redirect pass; a filter behind the `tee` is refused.
 - `guardrails.filteredOutput: "allow"` turns it off; the default is `"deny"`.
 
@@ -235,7 +257,10 @@ with 'pnpm exec vitest > <file> 2>&1' and read the file.
 - a live backtick in `-m` or an unquoted heredoc is refused, since the shell runs it;
 - `git add` of the whole tree is refused: `-A` or `--all` with no path, `.`, `*`, `:/`, `$PWD`.
 
-A commit inside a substitution or another shell is out of reach; the [Commit hook](#commit-hook)
+A commit inside a substitution, `x=$(git commit …)` or a backtick span, is judged too, since the shell
+runs it before the command that holds it. So is one in a substitution an unquoted heredoc body holds,
+which the shell runs as it reads the body. A commit another shell or `eval` reads from a quote or a
+heredoc, `bash -c '…'`, `eval "…"` or `bash <<'EOF'`, is out of reach; the [Commit hook](#commit-hook)
 checks its subject.
 
 ```text
@@ -294,7 +319,7 @@ spellings get past a rule; each is listed, not caught.
   `git 2>/dev/null push --force`.
 - git's own option parsing: a unique prefix of a long option (`--har`, `--forc`), the last of
   `--dry-run` and `--no-dry-run`, `-on` as `-o n`, and the value of `--config-env` or
-  `--attr-source` read as the verb.
+  `--attr-source` read as the verb. npm's own, too: a unique prefix of a verb, `npm uninst`.
 - A heredoc a shell reads another way: `bash /dev/stdin`, `. /dev/stdin`, `{ cat <<EOF … } | bash`,
   a pipe to a shell on a later line, `eval "$(cat <<EOF …)"`.
 - A `<<` inside `$(( ))` or `(( ))`, which the guard opens as a heredoc, dropping every later line.
@@ -401,7 +426,7 @@ as the `installPath` of `sdlc@dw-sdlc`.
 | `safe chain`       | [Safe Chain](https://github.com/AikidoSec/safe-chain), Aikido's blocklist of malicious npm packages, with `npm` going through it           | WARN: the agent's shell reaches the registry without the blocklist                     |
 | `pnpm release age` | pnpm's global `minimumReleaseAge` at 10080 minutes, 7 days, or more                                                                        | WARN, with the `pnpm config set --global` line                                         |
 | `commit signing`   | `commit.gpgsign` true in the global git config                                                                                             | WARN: commits go out unsigned                                                          |
-| `config`           | the resolved config of the repository holding `--root` or the current directory                                                            | FAIL on an invalid layer, each problem named                                           |
+| `config`           | the resolved config of the repository holding `--root` or the current directory                                                            | FAIL on an invalid layer, each problem named, and the commit rules off where none hold |
 
 Safe Chain, the release age and commit signing guard the supply chain and the history; the guards work
 without them. A `drift:` line means the hooks and skills run other code than the repository's Gate.
@@ -413,7 +438,8 @@ installs, and a main checkout in order gets nothing. It tells the first turn abo
 
 - a missing `jq`, with every guard silent without it;
 - an invalid config layer, each problem named, and that the guards run the strictest set until it is
-  fixed ([Where the rules come from](../../docs/overview.md#where-the-rules-come-from));
+  fixed, with the commit rules off where no valid layer sets one
+  ([Where the rules come from](../../docs/overview.md#where-the-rules-come-from));
 - in a linked worktree, the `.worktreeinclude` files not yet copied in and the `worktree.setup` commands.
 
 A layer is invalid, too, when the hooks cannot validate it against the schema beside them. A

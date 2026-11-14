@@ -69,6 +69,19 @@ const SIBLING = join(TMP, "on-main-topic")
 git(ON_MAIN, "worktree", "add", "-q", SIBLING, "-b", "topic")
 const RELEASE = initRepo(join(TMP, "release"), { branch: "feat" })
 writeJson(join(RELEASE, ".ai", "agentic.config.json"), { guardrails: { protectedBranches: ["release"] } })
+// A branch on feat whose main is on origin alone, where `git checkout main` guesses origin's; and one
+// whose main two remotes have, where git refuses to guess.
+function remoteMain(name: string, remotes: string[]): string {
+  const dir = initRepo(join(TMP, name), { branch: "feat" })
+  change(dir, "a.txt", "a\n")
+  for (const remote of remotes) {
+    git(dir, "remote", "add", remote, `https://example.com/${remote}.git`)
+    git(dir, "update-ref", `refs/remotes/${remote}/main`, "HEAD")
+  }
+  return dir
+}
+const REMOTE_MAIN = remoteMain("remote-main", ["origin"])
+const TWO_REMOTE_MAINS = remoteMain("two-remote-mains", ["origin", "upstream"])
 // Repositories that take no commit on a protected branch: one on main, one on a feature branch, and
 // one whose local layer is invalid, so the strictest set applies.
 function commitDeny(name: string, branch: string, config: object): string {
@@ -118,6 +131,25 @@ const DIRTY = withFile("reset-dirty", (dir) => {
   change(sub, "a.txt", "a\n")
   write(join(sub, "a.txt"), "b\n")
 })
+// A branch on feat and `theirs`, a commit ahead, also origin/main, that tracks src/new.ts and the ignored
+// dist/out.js: here those paths are untracked, written as the files the reset meets.
+function overwritten(name: string, files: string[]): string {
+  const dir = initRepo(join(TMP, name), { branch: "feat" })
+  change(dir, ".gitignore", "dist/\n")
+  git(dir, "switch", "-q", "-c", "theirs")
+  write(join(dir, "src", "new.ts"), "theirs\n")
+  write(join(dir, "dist", "out.js"), "theirs\n")
+  git(dir, "add", "-f", "src/new.ts", "dist/out.js")
+  commit(dir, "-m", "add new")
+  git(dir, "update-ref", "refs/remotes/origin/main", "HEAD")
+  git(dir, "switch", "-q", "feat")
+  for (const file of files) {
+    write(join(dir, file), "mine\n")
+  }
+  return dir
+}
+const OVER_UNTRACKED = overwritten("reset-over-untracked", ["src/new.ts"])
+const OVER_IGNORED = overwritten("reset-over-ignored", ["dist/out.js"])
 const NO_REPO = scratch("reset-no-repo")
 const DENY_ON_MAIN = commitDeny("deny-on-main", "main", { guardrails: { commitOnProtected: "deny" } })
 const DENY_ON_FEAT = commitDeny("deny-on-feat", "feat", { guardrails: { commitOnProtected: "deny" } })
@@ -257,6 +289,15 @@ describe("a literal cd or git -C moves a push to that repository, its branch and
   allowed("dash-C-protects-only-what-that-config-lists", `git -C ${RELEASE} push origin main`)
 })
 
+describe("a checkout of a branch one remote alone has switches to it, as git guesses", () => {
+  blocked("checkout-remote-only-main-then-push-head", "git checkout main && git push origin HEAD", REMOTE_MAIN)
+  blocked("checkout-remote-only-main-then-bare-push", "git checkout main && git push", REMOTE_MAIN)
+  blocked("switch-remote-only-main-then-push-head", "git switch main && git push origin HEAD", REMOTE_MAIN)
+  allowed("checkout-no-guess-stays-put", "git checkout --no-guess main && git push origin HEAD", REMOTE_MAIN)
+  allowed("checkout-of-a-name-two-remotes-have", "git checkout main && git push origin HEAD", TWO_REMOTE_MAINS)
+  allowed("checkout-of-a-path-stays-put", "git checkout main -- a.txt && git push origin HEAD", REMOTE_MAIN)
+})
+
 describe("reset --hard — passes when no tracked file has a change, since nothing is lost", () => {
   allowed("clean-tree", "git reset --hard", CLEAN)
   allowed("clean-tree-ref", "git reset --hard HEAD~0", CLEAN)
@@ -303,6 +344,23 @@ describe("reset --hard — passes when no tracked file has a change, since nothi
   allowed("soft-after-a-write", "echo x >> a.txt && git reset --soft HEAD", CLEAN)
   blocked("bash-c-on-a-dirty-tree", "bash -c 'git reset --hard'", UNSTAGED)
   allowed("bash-c-on-a-clean-tree", "bash -c 'git reset --hard'", CLEAN)
+})
+
+describe("reset --hard — refused over an untracked file its target tracks, which git writes over", () => {
+  refused("untracked-file-the-target-tracks", "git reset --hard theirs", OVER_UNTRACKED, /'src\/new\.ts'/)
+  blocked("untracked-file-origin-main-tracks", "git reset --hard origin/main", OVER_UNTRACKED)
+  blocked("untracked-file-the-target-tracks-redirected", "git reset --hard theirs 2>&1", OVER_UNTRACKED)
+  blocked("untracked-file-the-target-tracks-from-below", "git reset --hard theirs", join(OVER_UNTRACKED, "src"))
+  blocked("untracked-file-the-target-tracks-dash-C", `git -C ${OVER_UNTRACKED} reset --hard theirs`, CLEAN)
+  allowed("untracked-file-head-does-not-track", "git reset --hard", OVER_UNTRACKED)
+  allowed("ignored-file-the-target-tracks", "git reset --hard theirs", OVER_IGNORED)
+  allowed("a-target-that-names-no-commit", "git reset --hard nowhere", OVER_UNTRACKED)
+  // A fetch may move the target, and a target computed at runtime is unknown: any untracked file counts.
+  refused("untracked-file-after-a-fetch", "git fetch origin && git reset --hard origin/main", UNTRACKED, /scratch\.txt/)
+  blocked("untracked-file-after-a-remote-update", "git remote update && git reset --hard origin/main", UNTRACKED)
+  allowed("ignored-file-alone-after-a-fetch", "git fetch origin && git reset --hard origin/main", OVER_IGNORED)
+  blocked("untracked-file-target-computed-at-runtime", 'git reset --hard "$REF"', UNTRACKED)
+  allowed("target-computed-at-runtime-on-a-clean-tree", 'git reset --hard "$REF"', CLEAN)
 })
 
 describe("the rest of the destructive set", () => {

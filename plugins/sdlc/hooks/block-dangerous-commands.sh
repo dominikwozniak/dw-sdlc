@@ -214,6 +214,51 @@ tree_unchanged() {
   git -C "$GUARD_PUSH_LOC" diff --quiet HEAD -- 2>/dev/null
 }
 
+# reset_target — RESET_TARGET, the commit a `reset` moves to, guard_opts having read it: its first
+# operand that is no redirect, else HEAD.
+RESET_TARGET=""
+reset_target() {
+  local word skip=0
+  RESET_TARGET=HEAD
+  for word in ${OPT_OPERANDS[@]+"${OPT_OPERANDS[@]}"}; do
+    if ((skip)); then
+      skip=0
+    elif [[ "$word" =~ $GUARD_REDIRECT ]]; then
+      [[ "$word" =~ $GUARD_REDIRECT_ALONE ]] && skip=1
+    else
+      RESET_TARGET=$word
+      return 0
+    fi
+  done
+}
+
+# untracked_overwritten <target> — prints the first untracked file at GUARD_PUSH_LOC that <target>
+# tracks, which a `reset --hard` writes over; an ignored one is git's to replace, as a checkout does.
+# A target computed at runtime or moved by an earlier fetch is unknown: any untracked file counts.
+untracked_overwritten() {
+  local target=$1 root path ignored bt='`'
+  local -a found=()
+  if ((FETCHED)) || [[ "$target" == *'$'* || "$target" == *"$bt"* ]]; then
+    path=$(git -C "$GUARD_PUSH_LOC" ls-files --others --exclude-standard :/ 2>/dev/null)
+    [[ -n "$path" ]] || return 1
+    printf '%s' "${path%%$'\n'*}"
+    return 0
+  fi
+  # The paths the target tracks and the index does not, read from the two trees, not the disk.
+  root=$(git -C "$GUARD_PUSH_LOC" rev-parse --show-toplevel 2>/dev/null) || return 1
+  while IFS= read -r -d '' path; do
+    [[ -L "$root/$path" || (-e "$root/$path" && ! -d "$root/$path") ]] && found+=("$path")
+  done < <(git -C "$GUARD_PUSH_LOC" diff-index --cached --no-renames --name-only -z --diff-filter=D "$target" -- 2>/dev/null)
+  ((${#found[@]})) || return 1
+  ignored=$'\n'$(printf '%s\0' "${found[@]}" | git -C "$root" check-ignore -z --stdin 2>/dev/null | tr '\0' '\n')$'\n'
+  for path in "${found[@]}"; do
+    [[ "$ignored" == *$'\n'"$path"$'\n'* ]] && continue
+    printf '%s' "$path"
+    return 0
+  done
+  return 1
+}
+
 # check_git <segment> — a git command, its verb in GUARD_GIT_VERB and its words in WORDS.
 check_git() {
   local why="" sub="${WORDS[WORD_INDEX]:-}" word
@@ -234,7 +279,14 @@ check_git() {
       ;;
     reset)
       guard_opts "" "--pathspec-from-file"
-      guard_opt --hard && ! tree_unchanged && why="discards the index and every uncommitted change"
+      if guard_opt --hard; then
+        reset_target
+        if ! tree_unchanged; then
+          why="discards the index and every uncommitted change"
+        elif word=$(untracked_overwritten "$RESET_TARGET"); then
+          why="writes over the untracked '$word', which its target tracks or, read after a fetch or at runtime, may track; git keeps no copy of it. Move the file aside or add it first, and run a fetch as a command of its own"
+        fi
+      fi
       ;;
     clean)
       guard_opts "e" "--exclude"
@@ -375,6 +427,8 @@ check_gh_api() {
 ASK=""
 # 1 once a command that may change the tree has run: a reset then meets another tree than the one read.
 AFTER_COMMAND=0
+# 1 once a fetch has run, which may move the commit a reset is aimed at.
+FETCHED=0
 while IFS= read -r segment; do
   guard_scope_step "$segment" || continue
   verb=${WORDS[0]:-}
@@ -392,6 +446,7 @@ while IFS= read -r segment; do
         fetch | status | log | show | diff | rev-parse | rev-list | merge-base | ls-files | branch | remote | switch | worktree) ;;
         *) AFTER_COMMAND=1 ;;
       esac
+      [[ "$GUARD_GIT_VERB" == fetch || "$GUARD_GIT_VERB ${WORDS[WORD_INDEX]:-}" == "remote update" ]] && FETCHED=1
       ;;
     *) AFTER_COMMAND=1 ;;
   esac

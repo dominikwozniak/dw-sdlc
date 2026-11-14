@@ -1,8 +1,6 @@
 // `dw-sdlc gate`: the Gate of a repository, from the `gate` key of its resolved agentic config. The
 // run and the report serve `dw-sdlc check` too, which judges one Check of it.
 
-import { parseArgs } from "node:util"
-
 import {
   type Gate,
   type Problem,
@@ -13,7 +11,8 @@ import {
   stepCommand,
   stepHint
 } from "../agentic-config.ts"
-import { CannotRun } from "../checks/check.ts"
+import { CannotRun, messageOf, readArgs, rootDir, usageError } from "../cannot-run.ts"
+import { findingOf } from "../checks/check.ts"
 import { CHECK_NAMES, type EnabledCheck, enabledChecks, shippedCheck } from "../checks/index.ts"
 import { watchDrift } from "../drift.ts"
 import { type Fingerprint, fingerprint, isGreen, stampGreen } from "../gate-cache.ts"
@@ -50,10 +49,12 @@ changed or deleted is Drift, one failure per file, and the Steps after it still 
 and edits made before the run never drift, and a Step a signal stopped is not compared. gate.drift
 "allow" turns the watch off.
 
-SIGINT or SIGTERM sent while a command runs stops it and everything after it, and the report still
-prints: the stopped command's last lines, its failure line and the last line. A command that SIGINT
-or SIGTERM ends stops everything after it the same way, as Ctrl-C reaches it and the Gate together. A
-second signal, or one sent while the Checks the package ships run, ends the Gate at once.
+Each command runs in a process group of its own, which every process it starts joins. SIGINT or
+SIGTERM sent while a command runs reaches that whole group and stops everything after it, and the
+report still prints: the stopped command's last lines, its failure line and the last line. A command
+that SIGINT or SIGTERM ends stops everything after it the same way. A second signal ends the Gate at
+once and kills the command's group; one sent while the Checks the package ships run ends the Gate at
+once. SIGHUP reaches the command's group and ends the Gate.
 
 --verbose passes each command's output through as it runs instead, under a line naming the command,
 and keeps no tail. --json prints the document alone; each Step and Check in it carries tail, the last
@@ -69,8 +70,9 @@ Untracked files count and ignored files do not. Each worktree keeps its own stam
 hash runs the whole Gate.
 
 Exit 0 when everything passes, 1 when a Step or a Check fails or a Step drifts, 2 when the Gate
-cannot run: an invalid config layer, a Step or Check whose command the shell cannot find or execute,
-a Check missing an input it reads, or a tree it cannot record for Drift.`
+cannot run: a --root that names no directory, an invalid config layer, a Step or Check whose command
+the shell cannot find or execute, a Check missing an input it reads, or a tree it cannot record for
+Drift.`
 
 type Outcome = { status: Status | "skipped"; exitCode: number | null; tail: string[] | null }
 /** `hint` is what the Step carries to try when it fails, null where it has none. */
@@ -129,9 +131,9 @@ function plural(count: number, noun: string): string {
 
 type Cli = { help: boolean; json: boolean; verbose: boolean; root: string | undefined; mode: Mode }
 
-function parseCli(argv: string[]): Cli | { error: string } {
-  try {
-    const { values } = parseArgs({
+function parseCli(argv: string[]): Cli {
+  const { values } = readArgs(
+    {
       args: argv,
       options: {
         help: { type: "boolean", short: "h" },
@@ -141,18 +143,17 @@ function parseCli(argv: string[]): Cli | { error: string } {
         "update-baseline": { type: "boolean" },
         cache: { type: "boolean" }
       }
-    })
-    const refresh = values["update-baseline"] === true
-    const cache = values.cache === true
-    if (refresh && cache) {
-      return { error: "--cache and --update-baseline do not combine: a refresh needs the Gate to run" }
-    }
-    const mode = refresh ? "update-baseline" : cache ? "cache" : "plain"
-    const flags = { help: values.help === true, json: values.json === true, verbose: values.verbose === true }
-    return { ...flags, root: values.root, mode }
-  } catch (error) {
-    return { error: error instanceof Error ? error.message : String(error) }
+    },
+    USAGE
+  )
+  const refresh = values["update-baseline"] === true
+  const cache = values.cache === true
+  if (refresh && cache) {
+    throw usageError("--cache and --update-baseline do not combine: a refresh needs the Gate to run", USAGE)
   }
+  const mode = refresh ? "update-baseline" : cache ? "cache" : "plain"
+  const flags = { help: values.help === true, json: values.json === true, verbose: values.verbose === true }
+  return { ...flags, root: values.root, mode }
 }
 
 function configFailure({ file, path, message }: Problem): Failure {
@@ -229,8 +230,8 @@ function progressOf(options: RunOptions, log: Log): Progress {
 function erred(check: EnabledCheck, error: unknown): Judged {
   const finding =
     error instanceof CannotRun
-      ? error.finding
-      : { message: `stopped: ${error instanceof Error ? error.message : String(error)}`, remedy: REMEDIES.checkStopped }
+      ? findingOf(error, REMEDIES.checkStopped)
+      : { message: `stopped: ${messageOf(error)}`, remedy: REMEDIES.checkStopped }
   return {
     check,
     outcome: { status: "error", exitCode: EXIT_CODES.error, tail: null },
@@ -274,7 +275,8 @@ function refreshBaselines(judged: Judged[], others: Pick<Outcome, "status">[], r
       judged[index] = runShipped(check, root)
     } catch (error) {
       if (error instanceof CannotRun) {
-        notes.push(`gate: baseline ${file} not refreshed — ${error.finding.message}; ${error.finding.remedy}`)
+        const { message, remedy } = findingOf(error, REMEDIES.checkStopped)
+        notes.push(`gate: baseline ${file} not refreshed — ${message}; ${remedy}`)
       } else {
         judged[index] = erred(check, error)
       }
@@ -295,10 +297,10 @@ function worst(outcomes: Pick<Outcome, "status">[]): Status {
  */
 function select(gate: Gate, only: string | undefined): Selection | Failure {
   if (only === undefined) {
-    return { steps: gate.steps, run: gate.checks.run, shipped: enabledChecks(gate.checks) }
+    return { steps: gate.steps, run: gate.checks.run, shipped: enabledChecks(gate) }
   }
   const scripts = gate.checks.run.filter((check) => check.name === only)
-  const shipped = shippedCheck(only, gate.checks[only])
+  const shipped = shippedCheck(only, gate)
   if (scripts.length === 0 && shipped === undefined) {
     const names = [...gate.checks.run.map((check) => check.name), ...CHECK_NAMES].join(", ")
     return { rule: "check", message: `no Check is named ${JSON.stringify(only)}`, remedy: `name one of ${names}` }
@@ -451,16 +453,12 @@ export function printReport(report: GateReport, json: boolean, label: string): n
 
 export async function run(argv: string[]): Promise<number> {
   const cli = parseCli(argv)
-  if ("error" in cli) {
-    process.stderr.write(`dw-sdlc gate: ${cli.error}\n\n${USAGE}\n`)
-    return 2
-  }
   if (cli.help) {
     process.stdout.write(`${USAGE}\n`)
     return 0
   }
 
   const { json, verbose, mode } = cli
-  const report = await runGate(repositoryRoot(cli.root ?? process.cwd()), { json, verbose, mode })
+  const report = await runGate(repositoryRoot(rootDir(cli.root)), { json, verbose, mode })
   return printReport(report, json, "gate")
 }

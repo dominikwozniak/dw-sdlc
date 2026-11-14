@@ -5,9 +5,9 @@
 import { existsSync, readFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { join } from "node:path"
-import { parseArgs } from "node:util"
 
-import { findRepository, resolveConfig } from "../agentic-config.ts"
+import { findRepository, invalidLayerEffect, resolveConfig } from "../agentic-config.ts"
+import { readArgs, rootDir } from "../cannot-run.ts"
 import {
   checkPackage,
   checkPlugin,
@@ -17,7 +17,7 @@ import {
   sessionsEnabled,
   versionBefore
 } from "../doctor-plugins.ts"
-import { exec, TimedOut } from "../exec.ts"
+import { exec, firstLine, TimedOut } from "../exec.ts"
 import { isObject } from "../json-text.ts"
 
 export type Level = "PASS" | "WARN" | "FAIL" | "INFO"
@@ -34,7 +34,7 @@ export type Probe = {
 }
 
 export type RepositoryConfig = {
-  config: { commit: { convention?: string } }
+  config: { commit: { convention?: string; pattern?: string; trailer?: string } }
   problems: string[]
   /** The checkout each layer was read from, as `resolveConfig` reports it. */
   sources?: { committed: string | undefined; local: string | undefined }
@@ -82,7 +82,7 @@ export const realProbe: Probe = {
   shell(script) {
     const shell = process.env.SHELL ?? "/bin/sh"
     const result = probed(shell, ["-l", "-c", script])
-    return (result?.stdout ?? "").trim().split("\n")[0] ?? ""
+    return firstLine(result?.stdout ?? "") ?? ""
   }
 }
 
@@ -270,7 +270,7 @@ function checkConfig(config: RepositoryConfig | undefined, root: string): Check 
     return {
       name: "config",
       level: "FAIL",
-      detail: `the guards run on the strictest defaults: ${config.problems.join("; ")}`
+      detail: `${invalidLayerEffect(config.config)}: ${config.problems.join("; ")}`
     }
   }
   // A worktree that lacks a layer reads the main checkout's; say so, since the file is not here.
@@ -311,7 +311,7 @@ const USAGE = `Usage: dw-sdlc doctor [--root <dir>] [--home <dir>]
   or:  pnpm guardrails:doctor [--root <dir>] [--home <dir>], in a checkout of dw-sdlc
 
 One PASS / WARN / FAIL line per machine check the sdlc plugin relies on; read-only. Exit 1 when any
-check fails. Claude Code's settings are read from $CLAUDE_CONFIG_DIR, or ~/.claude without it; a
+check fails, 2 when --root names no directory. Claude Code's settings are read from $CLAUDE_CONFIG_DIR, or ~/.claude without it; a
 --home reads <home>/.claude.`
 
 function repositoryConfig(root: string): RepositoryConfig {
@@ -326,21 +326,18 @@ function repositoryConfig(root: string): RepositoryConfig {
 }
 
 export function run(argv: string[]): number {
-  let values: { help?: boolean; root?: string; home?: string }
-  try {
-    values = parseArgs({
+  const { values } = readArgs(
+    {
       args: argv,
       options: { help: { type: "boolean", short: "h" }, root: { type: "string" }, home: { type: "string" } }
-    }).values
-  } catch (error) {
-    console.error(`guardrails:doctor: ${error instanceof Error ? error.message : String(error)}\n\n${USAGE}`)
-    return 2
-  }
+    },
+    USAGE
+  )
   if (values.help === true) {
     console.log(USAGE)
     return 0
   }
-  const dir = values.root ?? process.cwd()
+  const dir = rootDir(values.root)
   const root = findRepository(dir)
   const checks = diagnose({
     root: root ?? dir,

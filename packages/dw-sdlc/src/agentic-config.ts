@@ -5,7 +5,8 @@
 import { existsSync, readFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 
-import { exec } from "./exec.ts"
+import { messageOf } from "./cannot-run.ts"
+import { asked, gitDirs } from "./git.ts"
 import { validate } from "./json-schema.ts"
 
 export const COMMITTED_FILE = ".ai/agentic.config.json"
@@ -19,6 +20,7 @@ export type CommitConvention = (typeof COMMIT_CONVENTIONS)[number]
 export type NodePackageManager = "pnpm" | "npm" | "yarn" | "bun"
 export type ForcePush = "deny" | "ask" | "lease"
 export type CommitOnProtected = "deny" | "allow"
+export type FilteredOutput = "deny" | "allow"
 export type EnvPolicy = "deny" | "git"
 /** Which env files may be read: `deny` list, then `allow` list, then `policy` for the rest. */
 export type EnvFiles = { policy: EnvPolicy; allow: string[]; deny: string[] }
@@ -49,6 +51,7 @@ export type WorkerConfig = { command: string; model: string; effort: WorkerEffor
 export type Guardrails = {
   forcePush: ForcePush
   commitOnProtected: CommitOnProtected
+  filteredOutput: FilteredOutput
   envFiles: EnvFiles
   protectedBranches: string[]
 }
@@ -122,12 +125,14 @@ export type Resolution = {
 export const STRICTNESS = {
   forcePush: ["deny", "ask", "lease"],
   commitOnProtected: ["deny", "allow"],
+  filteredOutput: ["deny", "allow"],
   envFiles: ["deny", "git"],
   merge: ["ask", "auto"],
   review: ["full", "auto", "light", "off"]
 } as const satisfies {
   forcePush: readonly ForcePush[]
   commitOnProtected: readonly CommitOnProtected[]
+  filteredOutput: readonly FilteredOutput[]
   envFiles: readonly EnvPolicy[]
   merge: readonly PrMerge[]
   review: readonly PrReview[]
@@ -137,6 +142,7 @@ export const STRICTNESS = {
 export const STRICTEST_GUARDRAILS: Guardrails = {
   forcePush: "deny",
   commitOnProtected: "deny",
+  filteredOutput: "deny",
   envFiles: { policy: "deny", allow: [], deny: [] },
   protectedBranches: ["master", "main", "production"]
 }
@@ -158,6 +164,7 @@ const DEFAULT_WORKER: WorkerConfig = { command: "claude", model: "sonnet", effor
 export const DEFAULT_GUARDRAILS: Guardrails = {
   forcePush: "lease",
   commitOnProtected: "allow",
+  filteredOutput: "deny",
   envFiles: { policy: "git", allow: ["**/.env.example", "**/.env.sample", "**/.env.template"], deny: [] },
   protectedBranches: ["master", "main", "production"]
 }
@@ -166,6 +173,7 @@ function cloneGuardrails(source: Guardrails): Guardrails {
   return {
     forcePush: source.forcePush,
     commitOnProtected: source.commitOnProtected,
+    filteredOutput: source.filteredOutput,
     envFiles: { policy: source.envFiles.policy, allow: [...source.envFiles.allow], deny: [...source.envFiles.deny] },
     protectedBranches: [...source.protectedBranches]
   }
@@ -208,10 +216,6 @@ const NODE_LOCKFILES: [string, NodePackageManager][] = [
   ["bun.lock", "bun"],
   ["bun.lockb", "bun"]
 ]
-
-function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
-}
 
 function show(value: unknown): string {
   return JSON.stringify(value)
@@ -269,8 +273,7 @@ function readLayer(checkouts: string[], file: string): Layer {
 
 /** The top level of the repository holding `dir`, or undefined outside one. */
 export function findRepository(dir: string): string | undefined {
-  const toplevel = exec("git", ["-C", dir, "rev-parse", "--show-toplevel"])
-  return toplevel.status === 0 ? toplevel.stdout.trim() : undefined
+  return asked(dir, ["rev-parse", "--show-toplevel"])
 }
 
 /** The top level of the repository holding `dir`, or `dir` itself outside one. */
@@ -283,13 +286,8 @@ export function repositoryRoot(dir: string): string {
  * repository: a linked worktree's git dir differs from the common one, which sits in the main checkout.
  */
 export function mainCheckout(root: string): string | undefined {
-  const args = ["-C", root, "rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir"]
-  const result = exec("git", args)
-  if (result.status !== 0) {
-    return undefined
-  }
-  const [gitDir, commonDir] = result.stdout.trim().split("\n")
-  return gitDir === undefined || commonDir === undefined || gitDir === commonDir ? undefined : dirname(commonDir)
+  const dirs = gitDirs(root)
+  return dirs === undefined || dirs.gitDir === dirs.commonDir ? undefined : dirname(dirs.commonDir)
 }
 
 function inferPackageManagers(root: string): ResolvedConfig["packageManagers"] {
@@ -371,27 +369,25 @@ function rank(key: keyof typeof STRICTNESS, value: string): number {
 }
 
 const LOOSENS = "the local file may tighten guardrails, never loosen them"
+/** The guardrails that hold one value, each ranked under its own name in `STRICTNESS`. */
+const RANKED_GUARDRAILS = ["forcePush", "commitOnProtected", "filteredOutput"] as const
 
 /**
  * Every guardrail the local layer sets less strictly than what it would override: a lower-ranked
- * `forcePush`, `commitOnProtected` or `envFiles.policy`, an added `envFiles.allow` entry, a dropped
- * `envFiles.deny` entry, a dropped protected branch.
+ * `forcePush`, `commitOnProtected`, `filteredOutput` or `envFiles.policy`, an added `envFiles.allow`
+ * entry, a dropped `envFiles.deny` entry, a dropped protected branch.
  */
 function loosenings(base: Guardrails, local: GuardrailsLayer | undefined): Problem[] {
   if (local === undefined) {
     return []
   }
   const problems: Problem[] = []
-  if (local.forcePush !== undefined && rank("forcePush", local.forcePush) > rank("forcePush", base.forcePush)) {
-    const message = `${show(local.forcePush)} loosens ${show(base.forcePush)}; ${LOOSENS}`
-    problems.push({ file: LOCAL_FILE, path: "guardrails.forcePush", message })
-  }
-  if (
-    local.commitOnProtected !== undefined &&
-    rank("commitOnProtected", local.commitOnProtected) > rank("commitOnProtected", base.commitOnProtected)
-  ) {
-    const message = `${show(local.commitOnProtected)} loosens ${show(base.commitOnProtected)}; ${LOOSENS}`
-    problems.push({ file: LOCAL_FILE, path: "guardrails.commitOnProtected", message })
+  for (const key of RANKED_GUARDRAILS) {
+    const value = local[key]
+    if (value !== undefined && rank(key, value) > rank(key, base[key])) {
+      const message = `${show(value)} loosens ${show(base[key])}; ${LOOSENS}`
+      problems.push({ file: LOCAL_FILE, path: `guardrails.${key}`, message })
+    }
   }
   const policy = local.envFiles?.policy
   if (policy !== undefined && rank("envFiles", policy) > rank("envFiles", base.envFiles.policy)) {
@@ -448,6 +444,18 @@ function finalize(merged: ResolvedConfig): ResolvedConfig {
     return merged
   }
   return { ...merged, commit: { ...merged.commit, pattern: COMMIT_PATTERNS[convention] } }
+}
+
+type CommitRules = { commit: { convention?: string; pattern?: string; trailer?: string } }
+
+/**
+ * What a report says is in force while a layer is invalid: the strictest guardrails, and no commit
+ * rule where no valid layer sets a convention, pattern or trailer, since the inferred layer names none.
+ */
+export function invalidLayerEffect({ commit }: CommitRules): string {
+  const strictest = "the guards run on the strictest defaults"
+  const unchecked = commit.convention === undefined && commit.pattern === undefined && commit.trailer === undefined
+  return unchecked ? `${strictest} and the commit rules are off` : strictest
 }
 
 /**
