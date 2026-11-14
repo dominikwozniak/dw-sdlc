@@ -1,6 +1,7 @@
 ---
 name: sdlc-sweep
 description: Remove what finished work leaves behind, with the Sweep, and report what it removed and what it kept. It runs only on the dev's word, when the dev types /sdlc-sweep or says go on a Recap follow-up that names a Sweep. A request in other words, such as "clean up" or "delete the old branches", is never this skill.
+argument-hint: "[dry-run]"
 ---
 
 # sdlc-sweep
@@ -15,7 +16,8 @@ through the plugin's link to the package, never a `dw-sdlc` from PATH:
 node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" sweep --json
 ```
 
-Add `--dry-run` only when the dev asked to look first, then report it as "would remove".
+Add `--dry-run` only when the dev asked to look first, as `/sdlc-sweep dry-run` or in their words, then
+report it as "would remove".
 
 ## Read the answer
 
