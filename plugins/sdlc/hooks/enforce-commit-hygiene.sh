@@ -161,16 +161,18 @@ message() {
   add_msg "$1" "$bt" "$dollar"
 }
 
-# has_trailer <key> <message> — a line whose start matches <key>, case-blind.
+# has_trailer <key> <message> — a line whose start, past its blanks, matches <key>, case-blind. One
+# `tr` for the whole message: a fork a line cost a 40-line message 140 ms.
 has_trailer() {
-  local key line
+  local key line lower
   key=$(printf '%s' "$1" | tr 'A-Z' 'a-z')
+  lower=$(printf '%s' "$2" | tr 'A-Z' 'a-z')
   while IFS= read -r line; do
-    line=$(printf '%s' "$line" | sed -e 's/^[[:space:]]*//' | tr 'A-Z' 'a-z')
+    line="${line#"${line%%[![:space:]]*}"}"
     case "$line" in
       "$key"*) return 0 ;;
     esac
-  done <<<"$2"
+  done <<<"$lower"
   return 1
 }
 
