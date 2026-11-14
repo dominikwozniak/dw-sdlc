@@ -1,6 +1,6 @@
-// Every git command the package runs, through `exec.ts`: from the directory it names, in this process's
-// environment without the variables that tie git to one repository, so a git hook's GIT_DIR or
-// GIT_INDEX_FILE never aims it at the hook's repository; and what went wrong, in git's words on one line.
+// The package's git commands, through `exec.ts`: from the directory each names, without the variables that tie
+// git to one repository, so a hook's GIT_DIR never aims one at the hook's repository; failures in git's words.
+// Two run outside it: the doctor's `git config --global`, which reads no repository, and landed.ts's pipeline.
 
 import { CannotRun } from "./cannot-run.ts"
 import { exec, firstLine } from "./exec.ts"
