@@ -4,7 +4,17 @@
 
 import { exec, TimedOut } from "../exec.ts"
 import { behindOf, changedOf, changesOf, compareArgs, sameChanges } from "./delta.ts"
-import { awaitsReview, parseDefaultBranch, parsePr, parseView, type PrState, QUERY, ReplyError } from "./state.ts"
+import { ReplyError } from "./reply.ts"
+import {
+  awaitsReview,
+  parseDefaultBranch,
+  type Parsed,
+  parsePr,
+  parseView,
+  type PrState,
+  QUERY,
+  type Read
+} from "./state.ts"
 
 /** What stops a pr command or recap before it answers: exit 2, the problem and its remedy on one line. */
 export class CannotRun extends Error {
@@ -216,19 +226,35 @@ export function carriesBase(before: PrState, after: PrState): boolean {
 }
 
 /** The own changes of `pr` at `commit`, from the compare with its base; null when it cannot show them whole. */
-function ownChanges(pr: Omit<PrState, "carried" | "changed" | "scope">, commit: string): string[] | null {
+function ownChanges(pr: Parsed, commit: string): string[] | null {
   const reply = compared(pr, pr.baseOid, commit, `the compare with ${commit.slice(0, 7)}`)
   return parseOrCannotRun(() => changesOf(reply))
 }
 
 /**
- * `pr` and whether its head carries the success of the last commit a Review read: a clean read, only
- * merges since it, and the same own changes at both. A read mark never carries. The compares run only
- * when a Review awaits the head.
+ * `pr` and, with no read in its history, the newest head a force push left behind that a Review read.
+ * A read mark on own changes the head holds as they were is passed over, and the read before it never
+ * carries: its Findings stand (ADR 0022). The compares run only when a Review awaits the head.
  */
-function withCarried(pr: Omit<PrState, "carried" | "changed" | "scope">): Omit<PrState, "changed" | "scope"> {
+function withRewritten(pr: Parsed, rewritten: Read[]): Parsed {
+  if (pr.lastRead !== null || pr.state !== "OPEN" || !awaitsReview(pr)) {
+    return pr
+  }
+  const index = rewritten.findIndex(
+    ({ commit, clean }) => clean || !sameChanges(ownChanges(pr, commit), ownChanges(pr, pr.head))
+  )
+  const found = rewritten[index]
+  return found === undefined ? pr : { ...pr, lastRead: { ...found, baseOnly: index === 0, baseMoved: true } }
+}
+
+/**
+ * `pr` and whether its head carries the success of the last commit a Review read: a clean read, only
+ * the base's changes since it, and the same own changes at both. A read mark never carries. The
+ * compares run only when a Review awaits the head.
+ */
+function withCarried(pr: Parsed): Omit<PrState, "changed" | "scope"> {
   const last = pr.lastRead
-  if (last === null || !last.clean || !last.mergesOnly || pr.state !== "OPEN" || !awaitsReview(pr)) {
+  if (last === null || !last.clean || !last.baseOnly || pr.state !== "OPEN" || !awaitsReview(pr)) {
     return { ...pr, carried: false }
   }
   return { ...pr, carried: sameChanges(ownChanges(pr, last.commit), ownChanges(pr, pr.head)) }
@@ -239,7 +265,7 @@ function withCarried(pr: Omit<PrState, "carried" | "changed" | "scope">): Omit<P
  * what a fix touched, without the files a merge of the base brought in. Null when a compare cannot show
  * the own changes whole.
  */
-function ownScope(pr: Omit<PrState, "carried" | "changed" | "scope">, from: string): string[] | null {
+function ownScope(pr: Parsed, from: string): string[] | null {
   const before = ownChanges(pr, from)
   const after = ownChanges(pr, pr.head)
   if (before === null || after === null) {
@@ -257,15 +283,15 @@ function ownScope(pr: Omit<PrState, "carried" | "changed" | "scope">, from: stri
 }
 
 /**
- * `pr` and, when a Review awaits a head that carries none, its `scope` after a merge of the base, and
- * when `sized`, the files the Review would read: the compare from the last commit a Review read, else
- * from the base, to the head, kept to the scope when there is one.
+ * `pr` and, when a Review awaits a head that carries none, its `scope` after a merge of the base or a
+ * rebase, and when `sized`, the files the Review would read: the compare from the last commit a Review
+ * read, else from the base, to the head, kept to the scope when there is one.
  */
 function withChanged(pr: Omit<PrState, "changed" | "scope">, sized: boolean): PrState {
   if (pr.carried || pr.state !== "OPEN" || !awaitsReview(pr)) {
     return { ...pr, changed: null, scope: null }
   }
-  const scope = pr.lastRead?.merges === true ? ownScope(pr, pr.lastRead.commit) : null
+  const scope = pr.lastRead?.baseMoved === true ? ownScope(pr, pr.lastRead.commit) : null
   if (!sized) {
     return { ...pr, changed: null, scope }
   }
@@ -301,6 +327,6 @@ function query({ repo, number }: { repo: string; number: number }, sized: boolea
     const remedy = problem.startsWith("Could not resolve to a") ? REMEDIES.target : REMEDIES.read
     throw new CannotRun(`${repo}#${number}: ${problem}`, remedy)
   }
-  const parsed = parseOrCannotRun(() => parsePr(reply.stdout, repo))
-  return withChanged(withCarried(parsed), sized)
+  const { pr, rewritten } = parseOrCannotRun(() => parsePr(reply.stdout, repo))
+  return withChanged(withCarried(withRewritten(pr, rewritten)), sized)
 }

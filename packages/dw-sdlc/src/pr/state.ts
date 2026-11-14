@@ -1,6 +1,25 @@
 // One pull request as the Ship script reads it: the one GraphQL query, and its reply parsed into the
 // state the decision reads. Every field the state needs is checked; a reply that fails names the field.
 
+import {
+  boolean,
+  child,
+  childOrNull,
+  firstNode,
+  hasMore,
+  integer,
+  integerOrNull,
+  type Node,
+  nodes,
+  oneOf,
+  ReplyError,
+  rootOf,
+  string,
+  stringOrNull,
+  time,
+  timeOrNull
+} from "./reply.ts"
+
 /** The commit status a clean review of the head leaves on it. */
 export const REVIEW = "dw-sdlc/review"
 /** How the description of a success the script posts under off begins: no one read that head. */
@@ -17,6 +36,8 @@ export const ACCEPTED = "accepted by the dev, findings open"
 /** How many checks and review threads the one read holds; each list's `pageInfo` says when more follow. */
 const CHECKS_READ = 50
 const THREADS_READ = 100
+/** How many of the last force pushes the read holds, each with the head it left behind. */
+const FORCE_PUSHES_READ = 20
 
 export const QUERY = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
@@ -33,6 +54,8 @@ export const QUERY = `query($owner: String!, $name: String!, $number: Int!) {
           ... on CheckRun { name status conclusion detailsUrl startedAt isRequired(pullRequestNumber: $number) }
           ... on StatusContext { context state targetUrl createdAt isRequired(pullRequestNumber: $number) } } } } } } }
       history: commits(last: 100) { nodes { commit { oid parents { totalCount } status { context(name: "${REVIEW}") { state description } } } } }
+      rewritten: timelineItems(last: ${FORCE_PUSHES_READ}, itemTypes: [HEAD_REF_FORCE_PUSHED_EVENT]) { nodes { ... on HeadRefForcePushedEvent {
+        beforeCommit { oid status { context(name: "${REVIEW}") { state description } } } } } }
     }
   }
 }`
@@ -102,10 +125,13 @@ export type PrState = {
   commits: string[]
   /**
    * The last commit before the head a Review read, of the last 100: a review success not posted under
-   * off, or a read mark.
+   * off, or a read mark. With none there, a head a force push left behind that a Review read.
    */
   lastRead: LastRead | null
-  /** The read marks since the last review success of any kind, of the last 100 commits. */
+  /**
+   * The read marks since the last review success of any kind, of the last 100 commits, then, when they
+   * hold no success, of the heads force pushes left behind.
+   */
   marks: ReadMarks
   /** Whether the head carries the success of `lastRead`: the read decides it from two compares. */
   carried: boolean
@@ -127,11 +153,15 @@ export type PrState = {
  */
 export type ChangedFile = { path: string; previous: string | null; lines: number | null }
 
+/** A commit a Review read; `clean` when that Review left a success on it, not a read mark. */
+export type Read = { commit: string; clean: boolean }
+
 /**
- * A commit a Review read; `clean` when that Review left a success on it, not a read mark; and whether
- * every commit after it, the head included, is a merge.
+ * A commit a Review read; `baseOnly` when every change after it is the base's, the head included: only
+ * merges of the base, or a rebase past no other read; `baseMoved` when a merge of the base or a rebase
+ * came after it.
  */
-export type LastRead = { commit: string; clean: boolean; mergesOnly: boolean; merges: boolean }
+export type LastRead = Read & { baseOnly: boolean; baseMoved: boolean }
 
 /**
  * The Reviews that left a Finding open since the last review success, a success under off and the dev's
@@ -139,139 +169,6 @@ export type LastRead = { commit: string; clean: boolean; mergesOnly: boolean; me
  * commit, null when none of the last 100 holds one.
  */
 export type ReadMarks = { count: number; since: string | null }
-
-/** A reply that is not the shape the query asks for; the message names the field. */
-export class ReplyError extends Error {}
-
-/** A JSON object of the reply and the path that reached it, as `data.repository.pullRequest`. */
-export type Node = { value: Record<string, unknown>; at: string }
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
-
-export function shown(value: unknown): string {
-  return value === undefined ? "missing" : JSON.stringify(value)
-}
-
-/** The JSON object `reply` holds, the root its fields' paths start from; `what` names it in a problem. */
-export function rootOf(reply: string, what: string): Node {
-  let json: unknown
-  try {
-    json = JSON.parse(reply)
-  } catch {
-    throw new ReplyError(`${what} is not JSON`)
-  }
-  if (!isRecord(json)) {
-    throw new ReplyError(`${what} is not a JSON object`)
-  }
-  return { value: json, at: "" }
-}
-
-export function fieldOf(node: Node, key: string): { value: unknown; at: string } {
-  return { value: node.value[key], at: node.at === "" ? key : `${node.at}.${key}` }
-}
-
-export function object(value: unknown, at: string): Node {
-  if (!isRecord(value)) {
-    throw new ReplyError(`${at} is ${shown(value)}, not an object`)
-  }
-  return { value, at }
-}
-
-function child(node: Node, key: string): Node {
-  const { value, at } = fieldOf(node, key)
-  return object(value, at)
-}
-
-function childOrNull(node: Node, key: string): Node | null {
-  const { value, at } = fieldOf(node, key)
-  return value === null ? null : object(value, at)
-}
-
-export function string(node: Node, key: string): string {
-  const { value, at } = fieldOf(node, key)
-  if (typeof value !== "string") {
-    throw new ReplyError(`${at} is ${shown(value)}, not a string`)
-  }
-  return value
-}
-
-function stringOrNull(node: Node, key: string): string | null {
-  return node.value[key] === null ? null : string(node, key)
-}
-
-function boolean(node: Node, key: string): boolean {
-  const { value, at } = fieldOf(node, key)
-  if (typeof value !== "boolean") {
-    throw new ReplyError(`${at} is ${shown(value)}, not a boolean`)
-  }
-  return value
-}
-
-export function integer(node: Node, key: string): number {
-  const { value, at } = fieldOf(node, key)
-  if (typeof value !== "number" || !Number.isInteger(value)) {
-    throw new ReplyError(`${at} is ${shown(value)}, not an integer`)
-  }
-  return value
-}
-
-function integerOrNull(node: Node, key: string): number | null {
-  const { value, at } = fieldOf(node, key)
-  if (value !== null && !Number.isInteger(value)) {
-    throw new ReplyError(`${at} is ${shown(value)}, not an integer or null`)
-  }
-  return typeof value === "number" ? value : null
-}
-
-/** A time as GitHub writes it, ISO 8601; the decision reads it as one. */
-function time(node: Node, key: string): string {
-  const value = string(node, key)
-  if (Number.isNaN(Date.parse(value))) {
-    throw new ReplyError(`${fieldOf(node, key).at} is ${shown(value)}, not a time`)
-  }
-  return value
-}
-
-function timeOrNull(node: Node, key: string): string | null {
-  return node.value[key] === null ? null : time(node, key)
-}
-
-function isOneOf<T extends string>(values: readonly T[], value: unknown): value is T {
-  return values.some((known) => known === value)
-}
-
-function oneOf<T extends string>(node: Node, key: string, values: readonly T[]): T {
-  const { value, at } = fieldOf(node, key)
-  if (!isOneOf(values, value)) {
-    throw new ReplyError(`${at} is ${shown(value)}, not one of ${values.join(", ")}`)
-  }
-  return value
-}
-
-/** The objects of a connection's `nodes`. */
-function nodes(node: Node, key: string): Node[] {
-  const { value, at } = fieldOf(child(node, key), "nodes")
-  if (!Array.isArray(value)) {
-    throw new ReplyError(`${at} is ${shown(value)}, not a list`)
-  }
-  return value.map((item: unknown, index) => object(item, `${at}[${index}]`))
-}
-
-/** Whether a connection has more nodes after the ones the reply holds. */
-function hasMore(node: Node, key: string): boolean {
-  return boolean(child(child(node, key), "pageInfo"), "hasNextPage")
-}
-
-/** The first object of a connection's `nodes`; an empty connection does not parse. */
-function firstNode(node: Node, key: string): Node {
-  const [first] = nodes(node, key)
-  if (first === undefined) {
-    throw new ReplyError(`${node.at}.${key}.nodes is empty`)
-  }
-  return first
-}
 
 const FAIL = new Set(["ERROR", "FAILURE", "TIMED_OUT", "ACTION_REQUIRED", "CANCELLED", "STARTUP_FAILURE"])
 const SKIPPING = new Set(["SKIPPED", "NEUTRAL"])
@@ -357,7 +254,9 @@ function postedOn(commit: Node): "clean" | "findings" | "off" | null {
   return state === MARK_STATE.toUpperCase() && description === READ_MARK ? "findings" : null
 }
 
-type Posted = { oid: string; posted: ReturnType<typeof postedOn>; merge: boolean }
+/** A commit and the review status it carries. */
+type Marked = { oid: string; posted: ReturnType<typeof postedOn> }
+type Posted = Marked & { merge: boolean }
 
 /** The pull request's last 100 commits, oldest first, each with the review status it carries. */
 function historyOf(pr: Node): Posted[] {
@@ -393,9 +292,32 @@ function lastReadOf(history: Posted[], head: string): LastRead | null {
   return {
     commit: last.oid,
     clean: last.read === "clean",
-    mergesOnly: mergesOnlyAfter(index),
-    merges: commits.slice(index + 1).some(({ merge }) => merge)
+    baseOnly: mergesOnlyAfter(index),
+    baseMoved: commits.slice(index + 1).some(({ merge }) => merge)
   }
+}
+
+/**
+ * The heads the force pushes left behind, newest first, each once and none the history still holds:
+ * an amend leaves the commits before the head in place.
+ */
+function forcePushedOf(pr: Node, history: Posted[]): Marked[] {
+  const inHistory = new Set(history.map(({ oid }) => oid))
+  const heads = nodes(pr, "rewritten").flatMap((event) => {
+    const left = childOrNull(event, "beforeCommit")
+    return left === null ? [] : [{ oid: string(left, "oid"), posted: postedOn(left) }]
+  })
+  const newest = heads.toReversed()
+  return newest.filter(
+    ({ oid }, index) => !inHistory.has(oid) && newest.findIndex((head) => head.oid === oid) === index
+  )
+}
+
+/** The heads of `forcePushed` a Review read, a success under off passed over as the history passes it. */
+function rewrittenOf(forcePushed: Marked[]): Read[] {
+  return forcePushed.flatMap(({ oid, posted }) =>
+    posted === "clean" || posted === "findings" ? [{ commit: oid, clean: posted === "clean" }] : []
+  )
 }
 
 /**
@@ -421,10 +343,22 @@ function changeRequestsOf(pr: Node, history: Posted[]): ChangeRequest[] {
     })
 }
 
-function readMarksOf(history: Posted[]): ReadMarks {
-  const success = history.findLastIndex(({ posted }) => posted === "clean" || posted === "off")
-  const count = history.slice(success + 1).filter(({ posted }) => posted === "findings").length
-  return { count, since: history[success]?.oid ?? null }
+/**
+ * The read marks since the last success, the history's first; with no success there, the marks on the
+ * heads force pushes left behind go on the count, newest first, up to the first success among them.
+ */
+function readMarksOf(history: Posted[], forcePushed: Marked[]): ReadMarks {
+  const isSuccess = ({ posted }: Marked): boolean => posted === "clean" || posted === "off"
+  const findings = (commits: Marked[]): number => commits.filter(({ posted }) => posted === "findings").length
+  const success = history.findLastIndex(isSuccess)
+  const count = findings(history.slice(success + 1))
+  const lastSuccess = history[success]
+  if (lastSuccess !== undefined) {
+    return { count, since: lastSuccess.oid }
+  }
+  const pushedSuccess = forcePushed.findIndex(isSuccess)
+  const sincePushed = pushedSuccess < 0 ? forcePushed : forcePushed.slice(0, pushedSuccess)
+  return { count: count + findings(sincePushed), since: forcePushed[pushedSuccess]?.oid ?? null }
 }
 
 /** The repository and number of the pull request whose URL `gh pr view --json url` printed. */
@@ -442,8 +376,15 @@ export function parseDefaultBranch(reply: string): string {
   return string(child(rootOf(reply, "the reply of gh repo view"), "defaultBranchRef"), "name")
 }
 
-/** The state of the pull request in `reply`, the text `gh api graphql` printed for QUERY on `repo`. */
-export function parsePr(reply: string, repo: string): Omit<PrState, "carried" | "changed" | "scope"> {
+/** The state as the reply holds it, before the compares decide what the head carries and a Review reads. */
+export type Parsed = Omit<PrState, "carried" | "changed" | "scope">
+
+/**
+ * The state of the pull request in `reply`, the text `gh api graphql` printed for QUERY on `repo`, and
+ * `rewritten`: the heads the last 20 force pushes left behind that a Review read, newest first, none the
+ * history still holds, where a Review's read stands once a rebase rewrote every commit it read.
+ */
+export function parsePr(reply: string, repo: string): { pr: Parsed; rewritten: Read[] } {
   const pr = child(child(child(rootOf(reply, "the reply"), "data"), "repository"), "pullRequest")
   const commit = child(firstNode(pr, "commits"), "commit")
   const rollup = childOrNull(commit, "statusCheckRollup")
@@ -452,7 +393,7 @@ export function parsePr(reply: string, repo: string): Omit<PrState, "carried" | 
   const baseRef = childOrNull(pr, "baseRef")
   const history = historyOf(pr)
   const [ready] = nodes(pr, "ready")
-  return {
+  const state = {
     url: string(pr, "url"),
     repo,
     number: integer(pr, "number"),
@@ -481,7 +422,8 @@ export function parsePr(reply: string, repo: string): Omit<PrState, "carried" | 
       ...(hasMore(pr, "reviewThreads") ? [`the first ${THREADS_READ} threads`] : [])
     ],
     commits: history.map(({ oid }) => oid),
-    lastRead: lastReadOf(history, head),
-    marks: readMarksOf(history)
+    lastRead: lastReadOf(history, head)
   }
+  const forcePushed = forcePushedOf(pr, history)
+  return { pr: { ...state, marks: readMarksOf(history, forcePushed) }, rewritten: rewrittenOf(forcePushed) }
 }

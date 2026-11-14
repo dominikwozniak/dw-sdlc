@@ -365,6 +365,12 @@ the same depth.
   a Review read, the script compares the pull request's own changes at both heads and names the files
   that moved in `details.paths`. It routes the depth on those files, and the Review reads only them; a
   file the base changed too still shows and counts the base's lines.
+- **A rebase keeps the read.** A rebase gives every commit a new oid, so the history holds no head a
+  Review read. The script then reads the last 20 force pushes on the pull request's timeline: the
+  newest head one left behind that a Review read stands in. A clean read whose own changes match the
+  head's carries its success. Otherwise the Review reads from that head, kept to the files whose own
+  change moved, as after a merge. A read mark the rebase left as it was is passed over, the read
+  before it never carries, and the marks on left-behind heads count toward the limit.
 - **The limit is three.** Three Reviews with no success between them park the pull request as
   `review-limit`, with `pr reviewed --accept` as the dev's command. The limit is a constant with no
   config key, so no repository turns the loop back on. The dev's `--review <depth>` buys one more

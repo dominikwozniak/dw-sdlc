@@ -2,7 +2,8 @@
 // the pull request's own changes from the base the same at both, since a merge of the base in adds none
 // of its own; and the files a Review would read, with their changed lines, for `pr.review: auto`.
 
-import { type ChangedFile, fieldOf, integer, type Node, object, ReplyError, rootOf, shown, string } from "./state.ts"
+import { fieldOf, integer, type Node, object, ReplyError, rootOf, shown, string } from "./reply.ts"
+import type { ChangedFile } from "./state.ts"
 
 /** GitHub's compare lists at most this many files; one that lists as many may hold back the rest. */
 const FILE_LIMIT = 300
