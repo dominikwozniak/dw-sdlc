@@ -140,7 +140,7 @@ describe("the sdlc plugin", () => {
   it("has sdlc-pr-ship fetch a <since> a rebase left behind and diff it with two dots", () => {
     const text = readFileSync(join(PLUGIN_ROOT, "skills", "sdlc-pr-ship", "SKILL.md"), "utf8")
     assert.match(text, /`git\s+fetch\s+origin\s+<since>`\s+when\s+the\s+checkout\s+lacks\s+it/)
-    assert.match(text, /two\s+dots,\s+`<since>\.\.<head>`,\s+on\s+each\s+`git\s+diff`/)
+    assert.match(text, /two\s+dots,\s+`<since>\.\.<head>`,\s+on\s+each\s+`git\s+diff`\s+below\s+that\s+shows\s+three/)
     assert.match(text, /a\s+merge\s+of\s+the\s+base\s+or\s+a\s+rebase\s+came\s+after\s+`<since>`/)
   })
 

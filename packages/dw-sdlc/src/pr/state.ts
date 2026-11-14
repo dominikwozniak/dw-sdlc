@@ -157,10 +157,11 @@ export type ChangedFile = { path: string; previous: string | null; lines: number
 export type Read = { commit: string; clean: boolean }
 
 /**
- * A commit a Review read; whether every commit after it, the head included, is a merge, and whether
- * one is; and whether a force push left it behind, so the history holds nothing after it.
+ * A commit a Review read; `baseOnly` when every change after it is the base's, the head included: only
+ * merges of the base, or a rebase past no other read; `baseMoved` when a merge of the base or a rebase
+ * came after it.
  */
-export type LastRead = Read & { mergesOnly: boolean; merges: boolean; rewritten: boolean }
+export type LastRead = Read & { baseOnly: boolean; baseMoved: boolean }
 
 /**
  * The Reviews that left a Finding open since the last review success, a success under off and the dev's
@@ -253,7 +254,9 @@ function postedOn(commit: Node): "clean" | "findings" | "off" | null {
   return state === MARK_STATE.toUpperCase() && description === READ_MARK ? "findings" : null
 }
 
-type Posted = { oid: string; posted: ReturnType<typeof postedOn>; merge: boolean }
+/** A commit and the review status it carries. */
+type Marked = { oid: string; posted: ReturnType<typeof postedOn> }
+type Posted = Marked & { merge: boolean }
 
 /** The pull request's last 100 commits, oldest first, each with the review status it carries. */
 function historyOf(pr: Node): Posted[] {
@@ -289,9 +292,8 @@ function lastReadOf(history: Posted[], head: string): LastRead | null {
   return {
     commit: last.oid,
     clean: last.read === "clean",
-    mergesOnly: mergesOnlyAfter(index),
-    merges: commits.slice(index + 1).some(({ merge }) => merge),
-    rewritten: false
+    baseOnly: mergesOnlyAfter(index),
+    baseMoved: commits.slice(index + 1).some(({ merge }) => merge)
   }
 }
 
@@ -299,18 +301,20 @@ function lastReadOf(history: Posted[], head: string): LastRead | null {
  * The heads the force pushes left behind, newest first, each once and none the history still holds:
  * an amend leaves the commits before the head in place.
  */
-function forcePushedOf(pr: Node, history: Posted[]): Omit<Posted, "merge">[] {
-  const held = new Set(history.map(({ oid }) => oid))
+function forcePushedOf(pr: Node, history: Posted[]): Marked[] {
+  const inHistory = new Set(history.map(({ oid }) => oid))
   const heads = nodes(pr, "rewritten").flatMap((event) => {
-    const before = childOrNull(event, "beforeCommit")
-    return before === null ? [] : [{ oid: string(before, "oid"), posted: postedOn(before) }]
+    const left = childOrNull(event, "beforeCommit")
+    return left === null ? [] : [{ oid: string(left, "oid"), posted: postedOn(left) }]
   })
   const newest = heads.toReversed()
-  return newest.filter(({ oid }, index) => !held.has(oid) && newest.findIndex((head) => head.oid === oid) === index)
+  return newest.filter(
+    ({ oid }, index) => !inHistory.has(oid) && newest.findIndex((head) => head.oid === oid) === index
+  )
 }
 
 /** The heads of `forcePushed` a Review read, a success under off passed over as the history passes it. */
-function rewrittenOf(forcePushed: Omit<Posted, "merge">[]): Read[] {
+function rewrittenOf(forcePushed: Marked[]): Read[] {
   return forcePushed.flatMap(({ oid, posted }) =>
     posted === "clean" || posted === "findings" ? [{ commit: oid, clean: posted === "clean" }] : []
   )
@@ -340,23 +344,21 @@ function changeRequestsOf(pr: Node, history: Posted[]): ChangeRequest[] {
 }
 
 /**
- * The read marks since the last success, the history's first; with no success there, the heads force
- * pushes left behind go on the count, newest first, so a rebase never starts it again.
+ * The read marks since the last success, the history's first; with no success there, the marks on the
+ * heads force pushes left behind go on the count, newest first, up to the first success among them.
  */
-function readMarksOf(history: Posted[], forcePushed: Omit<Posted, "merge">[]): ReadMarks {
-  const isSuccess = ({ posted }: Omit<Posted, "merge">): boolean => posted === "clean" || posted === "off"
+function readMarksOf(history: Posted[], forcePushed: Marked[]): ReadMarks {
+  const isSuccess = ({ posted }: Marked): boolean => posted === "clean" || posted === "off"
+  const findings = (commits: Marked[]): number => commits.filter(({ posted }) => posted === "findings").length
   const success = history.findLastIndex(isSuccess)
-  const count = history.slice(success + 1).filter(({ posted }) => posted === "findings").length
-  const held = history[success]
-  if (held !== undefined) {
-    return { count, since: held.oid }
+  const count = findings(history.slice(success + 1))
+  const lastSuccess = history[success]
+  if (lastSuccess !== undefined) {
+    return { count, since: lastSuccess.oid }
   }
-  const before = forcePushed.findIndex(isSuccess)
-  const left = before < 0 ? forcePushed : forcePushed.slice(0, before)
-  return {
-    count: count + left.filter(({ posted }) => posted === "findings").length,
-    since: forcePushed[before]?.oid ?? null
-  }
+  const pushedSuccess = forcePushed.findIndex(isSuccess)
+  const sincePushed = pushedSuccess < 0 ? forcePushed : forcePushed.slice(0, pushedSuccess)
+  return { count: count + findings(sincePushed), since: forcePushed[pushedSuccess]?.oid ?? null }
 }
 
 /** The repository and number of the pull request whose URL `gh pr view --json url` printed. */

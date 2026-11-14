@@ -139,21 +139,21 @@ describe("dw-sdlc pr ship after a rebase left the head a Review read behind", ()
     })
   })
 
-  it("passes over a read mark the rebase left as it read it, and reads from the read before it", () => {
-    const cases: [string, (Commit | null)[], object][] = [
+  it("passes over a read mark the rebase left as it read it, and reads from the read before it, carrying none", () => {
+    const older: Commit = { oid: OLDER, review: "SUCCESS" }
+    const cases: [string, (Commit | null)[], File[], { since?: string; paths?: string[] }][] = [
+      ["a success before it", [older, { oid: OLD, ...MARK }], [], { since: OLDER, paths: [PAYWALL] }],
       [
-        "a success before it",
-        [
-          { oid: OLDER, review: "SUCCESS" },
-          { oid: OLD, ...MARK }
-        ],
-        { since: OLDER, paths: [PAYWALL] }
+        "a success on the same own changes before it",
+        [older, { oid: OLD, ...MARK }],
+        [READ_THEN],
+        { since: OLDER, paths: [] }
       ],
-      ["no read before it", [{ oid: OLD, ...MARK }], {}]
+      ["no read before it", [{ oid: OLD, ...MARK }], [], {}]
     ]
-    for (const [name, rewritten, since] of cases) {
+    for (const [name, rewritten, atOlder, since] of cases) {
       const run = ship([], [rebased(rewritten)], {
-        ...compared(OLDER, []),
+        ...compared(OLDER, atOlder),
         ...compared(OLD, [READ_THEN]),
         ...compared(HEAD, [SHIFTED])
       })

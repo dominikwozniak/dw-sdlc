@@ -16,9 +16,9 @@ that head's review status. The newest such head a Review read, clean or not, sta
 history lost. Then the rules of a merge of the base apply. A clean read whose own changes, compared
 through GitHub against the base, are the head's carries its success as "carried from <sha>". Any other
 read is `details.since`, and `details.paths` names the files whose own change moved. A read mark the
-rebase left with its own changes as they were is passed over, since no fix answers its Findings yet.
-The read marks on left-behind heads count toward the three-Review limit, so a rebase never starts the
-count again.
+rebase left with its own changes as they were is passed over, since no fix answers its Findings yet,
+and the read before it never carries. The read marks on left-behind heads count toward the
+three-Review limit.
 
 ## Consequences
 
@@ -29,5 +29,6 @@ the thing a rebase lost. A mark that names its own changes still sits on a commi
 holds, so it needs the timeline to be found too. Only the head a force push left behind is read, not
 the commits under it. A read mark on a commit with a fix pushed after it and a rebase after that is
 missed. The Review then reads from an older read, or from the base, which is a wider read, never a
-narrower one. After a rebase `<since>` is not an ancestor of the head. The skill diffs it with two dots
+narrower one, and that mark leaves the count. A compare GitHub refuses for a head left behind stops
+the call with exit 2, as any compare it refuses does. After a rebase `<since>` is not an ancestor of the head. The skill diffs it with two dots
 and fetches it by oid when the checkout lacks it.

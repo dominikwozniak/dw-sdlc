@@ -47,7 +47,7 @@ push makes.
   `details.since`, the last head a Review read, clean or not, when the answer has it, else
   `origin/<base>`. After a rebase `<since>` is a head the branch left behind:
   `git fetch origin <since>` when the checkout lacks it, and two dots, `<since>..<head>`, on each
-  `git diff` below.
+  `git diff` below that shows three, the `light` one included.
   When the answer has `details.paths`, a merge of the base or a rebase came after `<since>`,
   and the Review reads only those files, the ones whose own change moved: `-- <paths>` on each
   `git diff` below, and the paths named to the command at `full`. An empty list leaves nothing to

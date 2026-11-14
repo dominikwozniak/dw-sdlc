@@ -232,29 +232,29 @@ function ownChanges(pr: Parsed, commit: string): string[] | null {
 }
 
 /**
- * `pr` and, when its history holds no read, the newest head a force push left behind that a Review
- * read. A read mark on own changes the head still holds as they were is passed over, as a mark with only
- * merges after it is: no fix answers its Findings yet. The compares run only when a Review awaits the head.
+ * `pr` and, with no read in its history, the newest head a force push left behind that a Review read.
+ * A read mark on own changes the head holds as they were is passed over, and the read before it never
+ * carries: its Findings stand (ADR 0022). The compares run only when a Review awaits the head.
  */
 function withRewritten(pr: Parsed, rewritten: Read[]): Parsed {
   if (pr.lastRead !== null || pr.state !== "OPEN" || !awaitsReview(pr)) {
     return pr
   }
-  const found = rewritten.find(
+  const index = rewritten.findIndex(
     ({ commit, clean }) => clean || !sameChanges(ownChanges(pr, commit), ownChanges(pr, pr.head))
   )
-  return found === undefined ? pr : { ...pr, lastRead: { ...found, mergesOnly: false, merges: false, rewritten: true } }
+  const found = rewritten[index]
+  return found === undefined ? pr : { ...pr, lastRead: { ...found, baseOnly: index === 0, baseMoved: true } }
 }
 
 /**
  * `pr` and whether its head carries the success of the last commit a Review read: a clean read, only
- * merges since it or a force push that left it behind, and the same own changes at both. A read mark
- * never carries. The compares run only when a Review awaits the head.
+ * the base's changes since it, and the same own changes at both. A read mark never carries. The
+ * compares run only when a Review awaits the head.
  */
 function withCarried(pr: Parsed): Omit<PrState, "changed" | "scope"> {
   const last = pr.lastRead
-  const after = last !== null && (last.mergesOnly || last.rewritten)
-  if (last === null || !last.clean || !after || pr.state !== "OPEN" || !awaitsReview(pr)) {
+  if (last === null || !last.clean || !last.baseOnly || pr.state !== "OPEN" || !awaitsReview(pr)) {
     return { ...pr, carried: false }
   }
   return { ...pr, carried: sameChanges(ownChanges(pr, last.commit), ownChanges(pr, pr.head)) }
@@ -291,8 +291,7 @@ function withChanged(pr: Omit<PrState, "changed" | "scope">, sized: boolean): Pr
   if (pr.carried || pr.state !== "OPEN" || !awaitsReview(pr)) {
     return { ...pr, changed: null, scope: null }
   }
-  const last = pr.lastRead
-  const scope = last !== null && (last.merges || last.rewritten) ? ownScope(pr, last.commit) : null
+  const scope = pr.lastRead?.baseMoved === true ? ownScope(pr, pr.lastRead.commit) : null
   if (!sized) {
     return { ...pr, changed: null, scope }
   }
