@@ -119,6 +119,19 @@ describe("what stays whatever its work", () => {
     assert.equal(run.status, 1)
   })
 
+  it("names git switch to the base for a Landed branch the main checkout has checked out, once nothing there could be lost", () => {
+    const { root } = clone([])
+    git(root, "switch", "-q", "-c", "shipped")
+    const clean = documentOf(runBin(["sweep", "--json"], root).stdout).kept.find(({ name }) => name === "shipped")
+    assert.equal(clean?.command, "git switch main && git pull --rebase")
+    assert.match(clean?.reason ?? "", /^checked out in the main checkout at .+, Landed on origin\/main$/)
+    writeFileSync(join(root, "wip.txt"), "wip\n")
+    const dirty = documentOf(runBin(["sweep", "--json"], root).stdout).kept.find(({ name }) => name === "shipped")
+    assert.equal(dirty?.command, null)
+    assert.match(dirty?.reason ?? "", /^checked out in the worktree at /)
+    assert.deepEqual(branches(root).toSorted(), ["main", "shipped"])
+  })
+
   it("reads the base from baseBranch of the config, which then stays as well", () => {
     const { root } = clone([])
     git(root, "push", "-q", "origin", "main:develop")

@@ -1,11 +1,13 @@
-// What a Sweep reads of a repository's linked worktrees: where each lies, what it has checked out, its lock,
-// the files that hold it and the operation paused in it.
+// What a Sweep reads of a repository's branches and worktrees: where each worktree lies, what it has checked
+// out, its lock, the files that hold it and the operation paused in it, and the way off the main checkout's.
 
 import { existsSync } from "node:fs"
 import { join } from "node:path"
 
 import { exec } from "./exec.ts"
 import { repositoryFreeEnv } from "./git-env.ts"
+import { isLanded } from "./landed.ts"
+import { shellLine } from "./pr/decide.ts"
 import { CannotRun } from "./pr/read.ts"
 import { asked, git } from "./working-tree.ts"
 
@@ -16,6 +18,13 @@ export function must(root: string, args: string[]): string {
     throw new CannotRun(result.error, "check the repository with git status")
   }
   return result.out
+}
+
+/** The local branches of the repository at `root`. */
+export function branchesOf(root: string): string[] {
+  return must(root, ["for-each-ref", "--format=%(refname:lstrip=2)", "refs/heads"])
+    .split("\n")
+    .filter((name) => name !== "")
 }
 
 export type Tree = {
@@ -80,4 +89,23 @@ const OPERATIONS = [
 export function pausedOperation(path: string): string | undefined {
   const dir = asked(path, ["rev-parse", "--absolute-git-dir"])
   return dir === undefined ? undefined : OPERATIONS.find(([file]) => existsSync(join(dir, file)))?.[1]
+}
+
+/** The dev's way off `branch`, checked out in the main checkout at `root`: null until it is Landed and nothing there could be lost. */
+export function switchOff(
+  root: string,
+  base: { name: string; ref: string },
+  branch: string
+): { reason: string; command: string } | null {
+  const files = dirtyFiles(root)
+  if (
+    "error" in files ||
+    files.length > 0 ||
+    pausedOperation(root) !== undefined ||
+    !isLanded(root, base.ref, branch)
+  ) {
+    return null
+  }
+  const command = `${shellLine(["git", "switch", base.name])} && ${shellLine(["git", "pull", "--rebase"])}`
+  return { reason: `checked out in the main checkout at ${root}, Landed on origin/${base.name}`, command }
 }

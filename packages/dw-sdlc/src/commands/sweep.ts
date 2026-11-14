@@ -25,7 +25,7 @@ import {
   type Terminals,
   whyHeld
 } from "../sweep-terminals.ts"
-import { dirtyFiles, must, pausedOperation, type Tree, worktreesOf } from "../sweep-trees.ts"
+import { branchesOf, dirtyFiles, pausedOperation, switchOff, type Tree, worktreesOf } from "../sweep-trees.ts"
 import { asked, git } from "../working-tree.ts"
 import { type LockVerdict, lockVerdict, type StaleLock } from "../worktree-lock.ts"
 
@@ -44,7 +44,8 @@ config, else the branch origin/HEAD names) and removes, never forcing:
 It keeps, and names with the reason and the command to run yourself:
   a worktree that fails the set: the files that hold it with the forced removal, the paused operation, the
   lock's reason with git worktree unlock, a live Claude Code lock named by its pid, a HEAD that is not Landed;
-  the default branch, the base branch, a protected branch and a branch a kept worktree has checked out;
+  the default branch, the base branch, a protected branch and a branch a kept worktree has checked out; a
+  Landed branch the main checkout has checked out, clean and with nothing paused, with git switch to the base;
   a branch whose work is on no commit of the base, with the forced delete.
 It never changes anything on a remote: the fetch only writes remote-tracking refs. A removal git refuses is
 kept with git's words, and the sweep goes on.
@@ -138,12 +139,6 @@ function baseOf(root: string, head: string | undefined): { name: string; ref: st
     )
   }
   return { name, ref }
-}
-
-function branchesOf(root: string): string[] {
-  return must(root, ["for-each-ref", "--format=%(refname:lstrip=2)", "refs/heads"])
-    .split("\n")
-    .filter((name) => name !== "")
 }
 
 /** Why the worktree stays, with the dev's command when there is one, or null when its whole set passes. */
@@ -271,8 +266,9 @@ function judge(root: string, terminals: Terminals | undefined): Judged {
     }
     judged.add(name)
     const why = stays(name, footing)
+    const off = why?.dev === true && held.get(name) === checkout.path ? switchOff(root, base, name) : null
     if (why !== null) {
-      kept.push({ kind: "branch", name, ...why })
+      kept.push({ kind: "branch", name, ...why, ...off })
     } else if (isLanded(root, base.ref, name)) {
       removed.push({ kind: "branch", name, reason: `Landed on ${baseName}` })
     } else {
