@@ -2,14 +2,13 @@
 // docs/adr/0015 sets its bounds: it runs from the main checkout, never forces and never writes to a remote.
 
 import { existsSync } from "node:fs"
-import { parseArgs } from "node:util"
 
 import { findRepository, mainCheckout, resolveConfig } from "../agentic-config.ts"
+import { CannotRun, readArgs, usageError } from "../cannot-run.ts"
 import { exec, SLOW_LIMIT_MS } from "../exec.ts"
 import { repositoryFreeEnv } from "../git-env.ts"
 import { isCommitLanded, isLanded } from "../landed.ts"
 import { shellLine } from "../pr/decide.ts"
-import { CannotRun } from "../pr/read.ts"
 import {
   byHand,
   type Holder,
@@ -426,9 +425,9 @@ function linesOf({ dryRun, terminalsRead, removed, kept }: Sweep): string {
   return [...(out.length === 0 ? ["nothing to sweep"] : out), ...note].join("\n")
 }
 
-function parseCli(argv: string[]): { help: boolean; json: boolean; dryRun: boolean } | { error: string } {
-  try {
-    const { values, positionals } = parseArgs({
+function parseCli(argv: string[]): { help: boolean; json: boolean; dryRun: boolean } {
+  const { values, positionals } = readArgs(
+    {
       args: argv,
       allowPositionals: true,
       options: {
@@ -436,14 +435,13 @@ function parseCli(argv: string[]): { help: boolean; json: boolean; dryRun: boole
         json: { type: "boolean" },
         "dry-run": { type: "boolean" }
       }
-    })
-    if (positionals.length > 0 && values.help !== true) {
-      return { error: `it takes no argument, not ${JSON.stringify(positionals[0])}` }
-    }
-    return { help: values.help === true, json: values.json === true, dryRun: values["dry-run"] === true }
-  } catch (error) {
-    return { error: error instanceof Error ? error.message : String(error) }
+    },
+    USAGE
+  )
+  if (positionals.length > 0 && values.help !== true) {
+    throw usageError(`it takes no argument, not ${JSON.stringify(positionals[0])}`, USAGE)
   }
+  return { help: values.help === true, json: values.json === true, dryRun: values["dry-run"] === true }
 }
 
 function sweep(json: boolean, dryRun: boolean): number {
@@ -475,21 +473,9 @@ function sweep(json: boolean, dryRun: boolean): number {
 
 export function run(argv: string[]): number {
   const cli = parseCli(argv)
-  if ("error" in cli) {
-    process.stderr.write(`dw-sdlc sweep: ${cli.error}\n\n${USAGE}\n`)
-    return 2
-  }
   if (cli.help) {
     process.stdout.write(`${USAGE}\n`)
     return 0
   }
-  try {
-    return sweep(cli.json, cli.dryRun)
-  } catch (error) {
-    if (error instanceof CannotRun) {
-      process.stderr.write(`dw-sdlc sweep: ${error.message} — ${error.remedy}\n`)
-      return 2
-    }
-    throw error
-  }
+  return sweep(cli.json, cli.dryRun)
 }

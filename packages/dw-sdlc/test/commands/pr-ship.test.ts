@@ -6,7 +6,6 @@ import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 
 import { COMMITTED_FILE, LOCAL_FILE } from "../../src/agentic-config.ts"
-import { run as runShip } from "../../src/commands/pr-ship.ts"
 import { forgetCompares } from "../../src/pr/read.ts"
 import { lines, repo, runBin, runInProcess, scratch } from "../harness.ts"
 import {
@@ -129,7 +128,7 @@ const MIXED: Pr = {
 function ship(args: string[], scenario: Scenario, env: NodeJS.ProcessEnv = {}, files: Files = FULL) {
   const gh = fakeGh(scenario)
   forgetCompares()
-  const run = runInProcess(runShip, args, repo({ files }), { ...gh.env, ...env })
+  const run = runInProcess(["pr", "ship", ...args], repo({ files }), { ...gh.env, ...env })
   return { ...run, calls: gh.calls() }
 }
 

@@ -6,9 +6,10 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs"
 import { join, posix } from "node:path"
 
 import { resolveConfig } from "../agentic-config.ts"
+import { CannotRun } from "../cannot-run.ts"
 import { readCatalogue } from "../catalogue.ts"
 import { headings, openFence, prose } from "../markdown.ts"
-import { CannotRun, type Check, type Finding } from "./check.ts"
+import { type Check, type Finding } from "./check.ts"
 import { catalogueFile } from "./primitives.ts"
 import { matching, treeFiles } from "./tree.ts"
 
@@ -136,18 +137,10 @@ function listedDocs(root: string): () => Set<string> {
       const file = catalogueFile(resolveConfig(root).config.gate.checks)
       const read = readCatalogue(root, file)
       if (read.state === "missing") {
-        throw new CannotRun({
-          file,
-          message: "the catalogue does not exist, and a skill holds a part",
-          remedy: REMEDIES.missing
-        })
+        throw new CannotRun("the catalogue does not exist, and a skill holds a part", REMEDIES.missing, { file })
       }
       if (read.state === "invalid") {
-        throw new CannotRun({
-          file,
-          message: "the catalogue is not valid, and a skill holds a part",
-          remedy: REMEDIES.invalid
-        })
+        throw new CannotRun("the catalogue is not valid, and a skill holds a part", REMEDIES.invalid, { file })
       }
       listed = new Set(read.catalogue.primitives.flatMap(({ docs }) => docs).map((entry) => posix.join(".", entry)))
     }

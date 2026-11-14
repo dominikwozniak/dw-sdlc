@@ -2,6 +2,7 @@
 // The `dw-sdlc` bin: one row per subcommand, each a module under `commands/`. A plugin's hook or skill
 // reaches it through the plugin's `dw-sdlc` link.
 
+import { CannotRun, messageOf } from "./cannot-run.ts"
 import * as check from "./commands/check.ts"
 import * as config from "./commands/config.ts"
 import * as doctor from "./commands/doctor.ts"
@@ -19,7 +20,7 @@ import * as workerLs from "./commands/worker-ls.ts"
 import * as workerReport from "./commands/worker-report.ts"
 import * as workerStart from "./commands/worker-start.ts"
 
-/** `run` takes the arguments after the subcommand's name and returns the exit code. */
+/** `run` takes the arguments after the subcommand's name and returns the exit code, or throws `CannotRun`. */
 type Command = { summary: string; run: (argv: string[]) => number | Promise<number> }
 
 const COMMANDS = new Map<string, Command>([
@@ -47,7 +48,14 @@ function usage(): string {
   return `Usage: dw-sdlc <command> [options]\n\nCommands:\n${rows.join("\n")}\n\nRun dw-sdlc <command> --help for its options.`
 }
 
-async function main(argv: string[]): Promise<number> {
+/** What the bin prints for `error`, which stopped `command`: the problem, its remedy, the lines after it. */
+function stopText(command: string, { message, remedy, detail }: CannotRun): string {
+  const line = `dw-sdlc ${command}: ${message}${remedy === undefined ? "" : ` — ${remedy}`}\n`
+  return detail.after === undefined ? line : `${line}${detail.after}\n`
+}
+
+/** `dw-sdlc <argv>`: the command's exit code, or 2 with its line when it throws `CannotRun`. */
+export function dispatch(argv: string[]): number | Promise<number> {
   const [first, second] = argv
   if (first === "--help" || first === "-h") {
     process.stdout.write(`${usage()}\n`)
@@ -55,21 +63,34 @@ async function main(argv: string[]): Promise<number> {
   }
   // A two-word name, as `references sync`, before its first word alone.
   const words = second !== undefined && COMMANDS.has(`${first} ${second}`) ? 2 : 1
-  const command = COMMANDS.get(argv.slice(0, words).join(" "))
+  const name = argv.slice(0, words).join(" ")
+  const command = COMMANDS.get(name)
   if (command === undefined) {
     const problem = first === undefined ? "no command given" : `unknown command ${JSON.stringify(first)}`
     process.stderr.write(`dw-sdlc: ${problem}\n\n${usage()}\n`)
     return 2
   }
-  return command.run(argv.slice(words))
+  const stopped = (error: unknown): number => {
+    if (!(error instanceof CannotRun)) {
+      throw error
+    }
+    process.stderr.write(stopText(name, error))
+    return 2
+  }
+  try {
+    const code = command.run(argv.slice(words))
+    return typeof code === "number" ? code : code.catch(stopped)
+  } catch (error) {
+    return stopped(error)
+  }
 }
 
 if (import.meta.main) {
   try {
-    process.exitCode = await main(process.argv.slice(2))
+    process.exitCode = await dispatch(process.argv.slice(2))
   } catch (error) {
     // What no command answered for stopped it before a verdict: exit 1 would read as one.
-    process.stderr.write(`dw-sdlc: ${error instanceof Error ? error.message : String(error)}\n`)
+    process.stderr.write(`dw-sdlc: ${messageOf(error)}\n`)
     process.exitCode = 2
   }
 }

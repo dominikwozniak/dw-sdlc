@@ -2,9 +2,8 @@
 // needs next, performs it when it is the script's and reads again, then answers the first Action that
 // is not, as a line or one JSON document, with an exit code that names whose turn it is.
 
-import { parseArgs } from "node:util"
-
 import { repositoryRoot, resolveConfig, REVIEW_DEPTHS, type ReviewDepth } from "../agentic-config.ts"
+import { CannotRun, readArgs, usageError } from "../cannot-run.ts"
 import {
   type Answer,
   decide,
@@ -20,18 +19,7 @@ import {
   shellLine,
   type Status
 } from "../pr/decide.ts"
-import {
-  CannotRun,
-  carriesBase,
-  gh,
-  namedProblem,
-  nameItRemedy,
-  now,
-  read,
-  readAgain,
-  readBranch,
-  said
-} from "../pr/read.ts"
+import { carriesBase, gh, namedProblem, nameItRemedy, now, read, readAgain, readBranch, said } from "../pr/read.ts"
 import type { PrState } from "../pr/state.ts"
 import { holds, renamedUpstream } from "../pr/upstream.ts"
 
@@ -99,18 +87,22 @@ type Performed = { action: ScriptAction; command: string } & (
   | { ok: null; exit?: number; stderr?: string }
 )
 
-/** A call that stopped after it ran Actions: what it ran stands in `performed`, `ok` null where no read followed. */
+/**
+ * A call that stopped after it ran Actions: what it ran stands in `performed`, `ok` null where no read
+ * followed, and each Action is named with gh's exit under the problem.
+ */
 class Interrupted extends CannotRun {
-  performed: Performed[]
+  readonly performed: Performed[]
   constructor({ message, remedy }: CannotRun, performed: Performed[]) {
-    super(message, remedy)
+    const ran = performed.map(({ action, exit }) => `${action} ran (gh exit ${exit ?? "unknown"})`)
+    super(message, remedy, { after: ran.join("\n") })
     this.performed = performed
   }
 }
 
-function parseCli(argv: string[]): Cli | { error: string } {
-  try {
-    const { values, positionals } = parseArgs({
+function parseCli(argv: string[]): Cli {
+  const { values, positionals } = readArgs(
+    {
       args: argv,
       allowPositionals: true,
       options: {
@@ -122,34 +114,33 @@ function parseCli(argv: string[]): Cli | { error: string } {
         "dry-run": { type: "boolean" },
         repo: { type: "string", short: "R" }
       }
-    })
-    const [number, ...more] = positionals
-    const { repo } = values
-    const review = REVIEW_DEPTHS.find((depth) => depth === values.review)
-    if (values.help !== true) {
-      if (more.length > 0) {
-        return { error: `name one pull request, not ${positionals.length}` }
-      }
-      const problem = namedProblem(number, repo)
-      if (problem !== undefined) {
-        return { error: problem }
-      }
-      if (values.review !== undefined && review === undefined) {
-        return { error: `--review takes ${DEPTHS_SENTENCE}, not ${JSON.stringify(values.review)}` }
-      }
+    },
+    USAGE
+  )
+  const [number, ...more] = positionals
+  const { repo } = values
+  const review = REVIEW_DEPTHS.find((depth) => depth === values.review)
+  if (values.help !== true) {
+    if (more.length > 0) {
+      throw usageError(`name one pull request, not ${positionals.length}`, USAGE)
     }
-    return {
-      help: values.help === true,
-      json: values.json === true,
-      verbose: values.verbose === true,
-      merge: values.merge === true,
-      review,
-      dryRun: values["dry-run"] === true,
-      number: number === undefined ? undefined : Number(number),
-      repo
+    const problem = namedProblem(number, repo)
+    if (problem !== undefined) {
+      throw usageError(problem, USAGE)
     }
-  } catch (error) {
-    return { error: error instanceof Error ? error.message : String(error) }
+    if (values.review !== undefined && review === undefined) {
+      throw usageError(`--review takes ${DEPTHS_SENTENCE}, not ${JSON.stringify(values.review)}`, USAGE)
+    }
+  }
+  return {
+    help: values.help === true,
+    json: values.json === true,
+    verbose: values.verbose === true,
+    merge: values.merge === true,
+    review,
+    dryRun: values["dry-run"] === true,
+    number: number === undefined ? undefined : Number(number),
+    repo
   }
 }
 
@@ -294,10 +285,6 @@ function documentOf(pr: PrState, answer: Answer, performed: Performed[], verbose
 
 export function run(argv: string[]): number {
   const cli = parseCli(argv)
-  if ("error" in cli) {
-    process.stderr.write(`dw-sdlc pr ship: ${cli.error}\n\n${USAGE}\n`)
-    return 2
-  }
   if (cli.help) {
     process.stdout.write(`${USAGE}\n`)
     return 0
@@ -314,16 +301,9 @@ export function run(argv: string[]): number {
   try {
     shipped = ship(cli, root, policy)
   } catch (error) {
-    if (error instanceof CannotRun) {
-      const ran = error instanceof Interrupted ? error.performed : []
-      const named = ran.map(({ action, ...rest }) => `${action} ran (gh exit ${rest.exit ?? "unknown"})\n`)
-      process.stderr.write(`dw-sdlc pr ship: ${error.message} — ${error.remedy}\n${named.join("")}`)
-      if (cli.json && ran.length > 0) {
-        process.stdout.write(
-          `${JSON.stringify({ error: error.message, remedy: error.remedy, performed: ran }, null, 2)}\n`
-        )
-      }
-      return 2
+    if (cli.json && error instanceof Interrupted) {
+      const { message, remedy, performed } = error
+      process.stdout.write(`${JSON.stringify({ error: message, remedy, performed }, null, 2)}\n`)
     }
     throw error
   }

@@ -1,19 +1,9 @@
 // What the `worker` commands share: `hc` and `herdr-app` as child processes, the Lead a command acts for,
 // and the Workers herdr lists for it.
 
-import { exec, TimedOut } from "../exec.ts"
+import { CannotRun } from "../cannot-run.ts"
+import { type Called, need } from "../exec.ts"
 import { isObject, type JsonObject, parseObject } from "../json-text.ts"
-
-/** What stops a `worker` command before it acts: exit 2, the problem and, when there is one, its remedy. */
-export class Refusal extends Error {
-  remedy: string | undefined
-  constructor(message: string, remedy?: string) {
-    super(message)
-    this.remedy = remedy
-  }
-}
-
-export type Called = { status: number; stdout: string; stderr: string }
 
 /** The first line of a tool's output that says anything, or the exit it ended with. */
 export function said(called: Called): string {
@@ -21,57 +11,25 @@ export function said(called: Called): string {
   return line?.trim() ?? `exited ${called.status}`
 }
 
-/** `tool args` as a child process; past its limit it stops the command as any failed call does. */
-function reach(tool: string, args: string[]): ReturnType<typeof exec> {
-  try {
-    return exec(tool, args)
-  } catch (error) {
-    if (error instanceof TimedOut) {
-      throw new Refusal(error.message, "check herdr is responding, then call again")
-    }
-    throw error
-  }
-}
-
-/** `tool args` as a child process; a tool that is not on PATH stops the command. */
+/** `tool args` as a child process; a tool that is not on PATH, or past its limit, stops the command. */
 export function call(tool: "hc" | "herdr-app", args: string[]): Called {
-  const result = reach(tool, args)
-  if (result.error !== undefined) {
-    if ("code" in result.error && result.error.code === "ENOENT") {
-      throw new Refusal(`${tool} is not on PATH`, "install herdr, or run the command in a terminal herdr started")
-    }
-    throw result.error
-  }
-  return { status: result.status ?? 1, stdout: result.stdout, stderr: result.stderr }
+  return need(tool, args, {
+    missing: "install herdr, or run the command in a terminal herdr started",
+    stalled: "check herdr is responding, then call again"
+  })
 }
 
 /** The JSON object `hc <args>` prints; a failing call or a reply that is no object stops the command. */
 export function hcObject(args: string[]): JsonObject {
   const called = call("hc", args)
   if (called.status !== 0) {
-    throw new Refusal(`hc ${args[0] ?? ""} failed: ${said(called)}`)
+    throw new CannotRun(`hc ${args[0] ?? ""} failed: ${said(called)}`)
   }
   const parsed = parseObject(called.stdout)
   if (parsed === undefined) {
-    throw new Refusal(`hc ${args[0] ?? ""} answered something that is no JSON object`, "check hc --version")
+    throw new CannotRun(`hc ${args[0] ?? ""} answered something that is no JSON object`, "check hc --version")
   }
   return parsed
-}
-
-/** What an error says, whatever was thrown. */
-export function describe(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
-}
-
-/** Reports a `Refusal` of `command` on stderr and answers exit 2; any other error is a bug and goes on up. */
-export function refuse(command: string, error: unknown): number {
-  if (!(error instanceof Refusal)) {
-    throw error
-  }
-  process.stderr.write(
-    `dw-sdlc ${command}: ${error.message}${error.remedy === undefined ? "" : ` — ${error.remedy}`}\n`
-  )
-  return 2
 }
 
 /** The option `flag` as a whole number from `min`, `fallback` when the command line leaves it out. */
@@ -91,7 +49,7 @@ export function wholeNumber(
 export function lead(): string {
   const id = process.env.HC_TERMINAL_ID
   if (id === undefined || id === "") {
-    throw new Refusal(
+    throw new CannotRun(
       "outside herdr: $HC_TERMINAL_ID is not set",
       "run it in a terminal herdr started, where the Lead has an address"
     )
@@ -140,7 +98,7 @@ export function workersOf(leadId: string, all: boolean): Worker[] {
   const listing = hcObject(["ls", "--json", ...(all ? ["--all"] : []), "--label", "role=worker"])
   const { terminals } = listing
   if (!Array.isArray(terminals)) {
-    throw new Refusal("hc ls answered no list of terminals", "check hc --version")
+    throw new CannotRun("hc ls answered no list of terminals", "check hc --version")
   }
   return terminals.flatMap((entry: unknown): Worker[] => {
     if (!isObject(entry) || entry.parent !== leadId) {
@@ -148,7 +106,7 @@ export function workersOf(leadId: string, all: boolean): Worker[] {
     }
     const { address, state, cwd } = entry
     if (typeof address !== "string" || typeof state !== "string" || typeof cwd !== "string") {
-      throw new Refusal("hc ls answered a terminal without an address, state or folder", "check hc --version")
+      throw new CannotRun("hc ls answered a terminal without an address, state or folder", "check hc --version")
     }
     const status = state === "finished" ? "finished" : (word(entry.status) ?? "unknown")
     return [{ name: word(entry.name) ?? address, address, state, status, folder: cwd }]

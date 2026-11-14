@@ -1,9 +1,7 @@
 // `dw-sdlc check <name>`: one Check of the Gate by its name, without the Steps and the other Checks.
 
-import { parseArgs } from "node:util"
-
 import { repositoryRoot, resolveConfig } from "../agentic-config.ts"
-import { CannotRun } from "../checks/check.ts"
+import { CannotRun, readArgs, usageError } from "../cannot-run.ts"
 import { CHECK_NAMES, shippedCheck } from "../checks/index.ts"
 import { TAIL_LINES } from "../run-command.ts"
 import { printReport, runGate } from "./gate.ts"
@@ -33,9 +31,9 @@ missing.`
 
 type Cli = { help: boolean; json: boolean; write: boolean; root: string | undefined; name: string | undefined }
 
-function parseCli(argv: string[]): Cli | { error: string } {
-  try {
-    const { values, positionals } = parseArgs({
+function parseCli(argv: string[]): Cli {
+  const { values, positionals } = readArgs(
+    {
       args: argv,
       allowPositionals: true,
       options: {
@@ -44,35 +42,35 @@ function parseCli(argv: string[]): Cli | { error: string } {
         write: { type: "boolean" },
         root: { type: "string" }
       }
-    })
-    if (positionals.length > 1) {
-      return { error: `one Check at a time, not ${positionals.map((name) => JSON.stringify(name)).join(" and ")}` }
-    }
-    const flags = { help: values.help === true, json: values.json === true, write: values.write === true }
-    return { ...flags, root: values.root, name: positionals[0] }
-  } catch (error) {
-    return { error: error instanceof Error ? error.message : String(error) }
+    },
+    USAGE
+  )
+  if (positionals.length > 1) {
+    const names = positionals.map((name) => JSON.stringify(name)).join(" and ")
+    throw usageError(`one Check at a time, not ${names}`, USAGE)
   }
+  const flags = { help: values.help === true, json: values.json === true, write: values.write === true }
+  return { ...flags, root: values.root, name: positionals[0] }
 }
 
 /**
  * Writes what the shipped Check `name` derives, on the setting the config gives it, and prints what it
- * wrote; why it cannot when it takes no --write. An invalid config or a missing input writes nothing,
- * and the run after it reports why.
+ * wrote; stops the command when it takes no --write. An invalid config or a missing input writes
+ * nothing, and the run after it reports why.
  */
-function writeDerived(root: string, name: string, json: boolean): string | undefined {
+function writeDerived(root: string, name: string, json: boolean): void {
   const { config, problems } = resolveConfig(root)
   if (problems.length > 0) {
-    return undefined
+    return
   }
   const shipped = shippedCheck(name, config.gate.checks[name])
   if (shipped === undefined && !config.gate.checks.run.some((check) => check.name === name)) {
     // No Check of that name: the run after it says so, with the names there are.
-    return undefined
+    return
   }
   const write = shipped?.write
   if (write === undefined) {
-    return `${JSON.stringify(name)} takes no --write: it derives no file`
+    throw new CannotRun(`${JSON.stringify(name)} takes no --write: it derives no file`)
   }
   try {
     const out = json ? process.stderr : process.stdout
@@ -82,32 +80,22 @@ function writeDerived(root: string, name: string, json: boolean): string | undef
       throw error
     }
   }
-  return undefined
 }
 
 export async function run(argv: string[]): Promise<number> {
   const cli = parseCli(argv)
-  if ("error" in cli) {
-    process.stderr.write(`dw-sdlc check: ${cli.error}\n\n${USAGE}\n`)
-    return 2
-  }
   if (cli.help) {
     process.stdout.write(`${USAGE}\n`)
     return 0
   }
   if (cli.name === undefined) {
-    process.stderr.write(`dw-sdlc check: name the Check to run\n\n${USAGE}\n`)
-    return 2
+    throw usageError("name the Check to run", USAGE)
   }
 
   const { json, name } = cli
   const root = repositoryRoot(cli.root ?? process.cwd())
   if (cli.write) {
-    const refused = writeDerived(root, name, json)
-    if (refused !== undefined) {
-      process.stderr.write(`dw-sdlc check: ${refused}\n`)
-      return 2
-    }
+    writeDerived(root, name, json)
   }
   const report = await runGate(root, { json, only: name })
   return printReport(report, json, `check ${name}`)

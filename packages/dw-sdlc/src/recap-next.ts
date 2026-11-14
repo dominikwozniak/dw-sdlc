@@ -1,8 +1,9 @@
 // The candidates for the session after this one, as `dw-sdlc recap` reads them: the open issues an agent may
 // start, from one GraphQL request that also asks which issues the branch's pull request closes.
 
+import { CannotRun } from "./cannot-run.ts"
 import { isObject, type JsonObject, parseObject } from "./json-text.ts"
-import { CannotRun, gh, said } from "./pr/read.ts"
+import { gh, said } from "./pr/read.ts"
 
 /** The label that marks an issue as ready for an agent to start. */
 export const READY_LABEL = "ready-for-agent"

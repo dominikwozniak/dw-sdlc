@@ -3,11 +3,11 @@
 
 import { existsSync, realpathSync } from "node:fs"
 
+import { CannotRun } from "./cannot-run.ts"
 import { isObject, parseObject } from "./json-text.ts"
 import { shellLine } from "./pr/decide.ts"
-import { CannotRun } from "./pr/read.ts"
 import { worktreesOf } from "./sweep-trees.ts"
-import { call, hcObject, isLive, Refusal, said, type Worker, workersOf } from "./worker/herdr.ts"
+import { call, hcObject, isLive, said, type Worker, workersOf } from "./worker/herdr.ts"
 import { type LockVerdict, lockVerdict } from "./worktree-lock.ts"
 
 /** A live terminal of another session, or the sweeping one's own, with the place herdr shows it at. */
@@ -59,7 +59,7 @@ function foldersOf(list: Worker[]): Located[] {
     }
     const parsed = got.status === 0 ? parseObject(got.stdout) : undefined
     if (parsed === undefined) {
-      throw new Refusal(
+      throw new CannotRun(
         `hc get ${worker.address} failed: ${got.status === 0 ? "its reply is no JSON object" : said(got)}`
       )
     }
@@ -73,13 +73,13 @@ function foldersOf(list: Worker[]): Located[] {
 function liveTerminals(): Seen[] {
   const { terminals } = hcObject(["ls", "--json"])
   if (!Array.isArray(terminals)) {
-    throw new Refusal("hc ls answered no list of terminals", "check hc --version")
+    throw new CannotRun("hc ls answered no list of terminals", "check hc --version")
   }
   const places = new Map<string, string | undefined>()
   const listed = terminals.flatMap((entry: unknown): Worker[] => {
     const address = isObject(entry) ? word(entry.address) : undefined
     if (!isObject(entry) || address === undefined || typeof entry.cwd !== "string") {
-      throw new Refusal("hc ls answered a terminal without an address or a folder", "check hc --version")
+      throw new CannotRun("hc ls answered a terminal without an address or a folder", "check hc --version")
     }
     places.set(address, word(entry.where))
     const name = word(entry.name) ?? address
@@ -108,10 +108,7 @@ export function readTerminals(own: string): Terminals {
       others: live.filter(({ address }) => address !== own && !addresses.has(address))
     }
   } catch (error) {
-    if (error instanceof Refusal) {
-      throw new CannotRun(error.message, error.remedy ?? "check hc, then call again")
-    }
-    throw error
+    throw error instanceof CannotRun ? error.orRemedy("check hc, then call again") : error
   }
 }
 
@@ -225,7 +222,7 @@ export function removeTerminal(item: { name: string; stop?: boolean }): string |
     // 3: the terminal is gone already.
     return removed.status === 0 || removed.status === 3 ? undefined : `hc rm ${item.name} failed: ${said(removed)}`
   } catch (error) {
-    if (error instanceof Refusal) {
+    if (error instanceof CannotRun) {
       return error.message
     }
     throw error

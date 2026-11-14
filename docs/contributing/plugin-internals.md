@@ -35,7 +35,8 @@ why, since no guard could judge it. A refusal from one guard ends the chain; an 
 guard, so a later refusal still wins.
 
 Inside the `dw-sdlc` link, `src/cli.ts` is the bin and each subcommand is a module under
-`src/commands/`. `src/agentic-config.ts` resolves the layers, `src/json-schema.ts` is the
+`src/commands/`. A command that cannot run throws the `CannotRun` of `src/cannot-run.ts`, which the bin
+alone prints and turns into exit 2. `src/agentic-config.ts` resolves the layers, `src/json-schema.ts` is the
 dependency-free schema validator, and `src/pr/` holds the read and the decision of the Ship script.
 For References, `src/references-key.ts` parses `.ai/references.json`, `src/pins.ts` resolves a ref's
 `{name}`, `src/router-block.ts` writes the Router's block, and `templates/router.md` is the Router the

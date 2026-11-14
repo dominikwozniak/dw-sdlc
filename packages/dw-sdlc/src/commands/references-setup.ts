@@ -4,8 +4,8 @@
 
 import { existsSync, lstatSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
-import { parseArgs } from "node:util"
 
+import { readArgs } from "../cannot-run.ts"
 import { exec } from "../exec.ts"
 import { parseObject, removeKey, render } from "../json-text.ts"
 import {
@@ -62,15 +62,6 @@ type Outcome = "wrote" | "unchanged" | "refused"
 type Step = { file: string; outcome: Outcome; detail?: string }
 /** A file's text after the step, or why the step leaves it alone. */
 type Change = { text: string } | { refusal: string }
-
-function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
-}
-
-function fail(message: string): never {
-  console.error(`references:setup: ${message}`)
-  process.exit(2)
-}
 
 class Writer {
   readonly steps: Step[] = []
@@ -226,9 +217,8 @@ function setup(root: string, dryRun: boolean): Step[] {
 }
 
 export function run(argv: string[]): number {
-  let values: { help?: boolean; root?: string; "dry-run"?: boolean; check?: boolean }
-  try {
-    values = parseArgs({
+  const { values } = readArgs(
+    {
       args: argv,
       options: {
         help: { type: "boolean", short: "h" },
@@ -236,10 +226,9 @@ export function run(argv: string[]): number {
         "dry-run": { type: "boolean" },
         check: { type: "boolean" }
       }
-    }).values
-  } catch (error) {
-    fail(`${messageOf(error)}\n\n${USAGE}`)
-  }
+    },
+    USAGE
+  )
   if (values.help === true) {
     console.log(USAGE)
     return 0

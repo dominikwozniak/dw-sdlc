@@ -3,8 +3,9 @@
 
 import { setTimeout as sleep } from "node:timers/promises"
 
+import { CannotRun } from "../cannot-run.ts"
 import { isObject, parseObject } from "../json-text.ts"
-import { call, Refusal, said } from "./herdr.ts"
+import { call, said } from "./herdr.ts"
 
 type Tab = { id: string; terminals: string[] }
 
@@ -12,11 +13,11 @@ type Tab = { id: string; terminals: string[] }
 function tabsOf(): Tab[] {
   const listed = call("herdr-app", ["ls"])
   if (listed.status !== 0) {
-    throw new Refusal(`herdr-app ls failed: ${said(listed)}`)
+    throw new CannotRun(`herdr-app ls failed: ${said(listed)}`)
   }
   const parsed = parseObject(listed.stdout)
   if (parsed === undefined) {
-    throw new Refusal("herdr-app ls answered no JSON object")
+    throw new CannotRun("herdr-app ls answered no JSON object")
   }
   const spaces = Array.isArray(parsed.spaces) ? parsed.spaces : []
   return spaces
@@ -66,7 +67,7 @@ export async function nameTab(address: string, name: string, boundSeconds: numbe
     }
     return "renamed"
   } catch (error) {
-    if (error instanceof Refusal) {
+    if (error instanceof CannotRun) {
       return { kept: `the tab of ${address} keeps herdr's name: ${error.message}` }
     }
     throw error

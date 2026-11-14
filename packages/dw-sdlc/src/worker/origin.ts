@@ -2,10 +2,10 @@
 // `--worktree` branches from the cached `origin/<default>` and fetches it only when the clone has gone a
 // day without a fetch, so a Worker could otherwise begin from a ref that is hours or days behind.
 
+import { CannotRun } from "../cannot-run.ts"
 import { exec, SLOW_LIMIT_MS, TimedOut } from "../exec.ts"
 import { repositoryFreeEnv } from "../git-env.ts"
 import { asked } from "../working-tree.ts"
-import { Refusal } from "./herdr.ts"
 
 const REMOTE_HEAD = "refs/remotes/origin/HEAD"
 const PREFIX = "refs/remotes/origin/"
@@ -21,7 +21,7 @@ function defaultBranch(root: string, baseBranch: string): string | undefined {
 
 /**
  * Fetches origin's default branch, or every branch of origin when no default is known, into the remote-tracking
- * refs at `root`; a clone with no origin has nothing to fetch and is left alone. Throws a `Refusal` when the
+ * refs at `root`; a clone with no origin has nothing to fetch and is left alone. Throws `CannotRun` when the
  * fetch fails, since a Worker started on a stale base is the fault this prevents.
  */
 export function freshenOrigin(root: string, baseBranch: string): void {
@@ -31,8 +31,8 @@ export function freshenOrigin(root: string, baseBranch: string): void {
   const branch = defaultBranch(root, baseBranch)
   const args = ["-C", root, "fetch", "--quiet", "origin", ...(branch === undefined ? [] : [branch])]
   const fetched = `git fetch origin${branch === undefined ? "" : ` ${branch}`}`
-  const stale = (why: string): Refusal =>
-    new Refusal(
+  const stale = (why: string): CannotRun =>
+    new CannotRun(
       `${fetched} failed, so the Worker would begin from a stale base: ${why}`,
       "check the network and the access to origin; when origin/HEAD names a branch the remote no longer has, " +
         "run `git remote set-head origin --auto`; then start the Worker again"

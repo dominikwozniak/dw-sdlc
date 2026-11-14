@@ -5,9 +5,9 @@
 import { existsSync, readFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { join } from "node:path"
-import { parseArgs } from "node:util"
 
 import { findRepository, resolveConfig } from "../agentic-config.ts"
+import { readArgs } from "../cannot-run.ts"
 import {
   checkPackage,
   checkPlugin,
@@ -326,16 +326,13 @@ function repositoryConfig(root: string): RepositoryConfig {
 }
 
 export function run(argv: string[]): number {
-  let values: { help?: boolean; root?: string; home?: string }
-  try {
-    values = parseArgs({
+  const { values } = readArgs(
+    {
       args: argv,
       options: { help: { type: "boolean", short: "h" }, root: { type: "string" }, home: { type: "string" } }
-    }).values
-  } catch (error) {
-    console.error(`guardrails:doctor: ${error instanceof Error ? error.message : String(error)}\n\n${USAGE}`)
-    return 2
-  }
+    },
+    USAGE
+  )
   if (values.help === true) {
     console.log(USAGE)
     return 0

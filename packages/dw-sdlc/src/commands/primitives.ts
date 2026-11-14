@@ -4,9 +4,9 @@
 
 import { existsSync, realpathSync } from "node:fs"
 import { basename, dirname, join, relative, resolve } from "node:path"
-import { parseArgs } from "node:util"
 
 import { repositoryRoot, resolveConfig } from "../agentic-config.ts"
+import { readArgs, usageError } from "../cannot-run.ts"
 import { type Primitive, primitivesNaming, readCatalogue } from "../catalogue.ts"
 import { catalogueFile } from "../checks/primitives.ts"
 import { blockOf, primitivesDiff } from "../primitives-diff.ts"
@@ -46,9 +46,9 @@ type Cli = {
   root: string | undefined
 }
 
-function parseCli(argv: string[]): Cli | { error: string } {
-  try {
-    const { values, positionals } = parseArgs({
+function parseCli(argv: string[]): Cli {
+  const { values, positionals } = readArgs(
+    {
       args: argv,
       allowPositionals: true,
       options: {
@@ -58,25 +58,27 @@ function parseCli(argv: string[]): Cli | { error: string } {
         diff: { type: "string" },
         root: { type: "string" }
       }
-    })
-    const cli = {
-      help: values.help === true,
-      json: values.json === true,
-      paths: values.paths === true,
-      diff: values.diff,
-      files: positionals,
-      root: values.root
-    }
-    if (cli.help) {
-      return cli
-    }
-    if (cli.diff !== undefined && (cli.paths || cli.files.length > 0)) {
-      return { error: "--diff and --paths exclude each other — ask one question at a time" }
-    }
-    return cli.paths || cli.diff !== undefined ? cli : { error: "name the paths with --paths, or a base with --diff" }
-  } catch (error) {
-    return { error: error instanceof Error ? error.message : String(error) }
+    },
+    USAGE
+  )
+  const cli = {
+    help: values.help === true,
+    json: values.json === true,
+    paths: values.paths === true,
+    diff: values.diff,
+    files: positionals,
+    root: values.root
   }
+  if (cli.help) {
+    return cli
+  }
+  if (cli.diff !== undefined && (cli.paths || cli.files.length > 0)) {
+    throw usageError("--diff and --paths exclude each other — ask one question at a time", USAGE)
+  }
+  if (!cli.paths && cli.diff === undefined) {
+    throw usageError("name the paths with --paths, or a base with --diff", USAGE)
+  }
+  return cli
 }
 
 /**
@@ -117,10 +119,6 @@ function runDiff(root: string, base: string, json: boolean): number {
 
 export function run(argv: string[]): number {
   const cli = parseCli(argv)
-  if ("error" in cli) {
-    process.stderr.write(`dw-sdlc primitives: ${cli.error}\n\n${USAGE}\n`)
-    return 2
-  }
   if (cli.help) {
     process.stdout.write(`${USAGE}\n`)
     return 0

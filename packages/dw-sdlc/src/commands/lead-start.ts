@@ -1,10 +1,9 @@
 // `dw-sdlc lead start`: starts the next session as a Lead in a herdr terminal of its own, beside the caller and
 // outliving it, on the command the config names for a Worker, without what makes it unsafe or isolated.
 
-import { parseArgs } from "node:util"
-
 import { mainCheckout, repositoryRoot, resolveConfig } from "../agentic-config.ts"
-import { describe, lead, refuse, Refusal, wholeNumber } from "../worker/herdr.ts"
+import { CannotRun, readArgs, usageError } from "../cannot-run.ts"
+import { lead, wholeNumber } from "../worker/herdr.ts"
 import { launch, NAME, spaceOf, TAB_WAIT, undelivered } from "../worker/launch.ts"
 
 export const summary = "start the next session as a Lead in a herdr terminal of its own"
@@ -38,11 +37,11 @@ const UNSAFE = "--dangerously-skip-permissions"
 /** The flags that put a Claude Code session in a worktree of its own, each taking an optional name. */
 const WORKTREE = new Set(["--worktree", "-w"])
 
-type Cli = { name: string; prompt: string; wait: number; json: boolean }
+type Cli = { help: false; name: string; prompt: string; wait: number; json: boolean }
 
-function parseCli(argv: string[]): Cli | "help" | { error: string } {
-  try {
-    const { values } = parseArgs({
+function parseCli(argv: string[]): Cli | { help: true } {
+  const { values } = readArgs(
+    {
       args: argv,
       options: {
         help: { type: "boolean", short: "h" },
@@ -51,25 +50,24 @@ function parseCli(argv: string[]): Cli | "help" | { error: string } {
         prompt: { type: "string" },
         wait: { type: "string" }
       }
-    })
-    if (values.help === true) {
-      return "help"
-    }
-    const { name, prompt } = values
-    if (name === undefined || !NAME.test(name)) {
-      return { error: `--name takes 1-32 of a-z, 0-9, - and _, not ${JSON.stringify(name ?? "")}` }
-    }
-    if (prompt === undefined || prompt.trim() === "") {
-      return { error: "give the Lead its first message: --prompt <first message>" }
-    }
-    const wait = wholeNumber("--wait", values.wait, DEFAULT_WAIT, 0)
-    if (typeof wait === "object") {
-      return wait
-    }
-    return { name, prompt, wait, json: values.json === true }
-  } catch (error) {
-    return { error: describe(error) }
+    },
+    USAGE
+  )
+  if (values.help === true) {
+    return { help: true }
   }
+  const { name, prompt } = values
+  if (name === undefined || !NAME.test(name)) {
+    throw usageError(`--name takes 1-32 of a-z, 0-9, - and _, not ${JSON.stringify(name ?? "")}`, USAGE)
+  }
+  if (prompt === undefined || prompt.trim() === "") {
+    throw usageError("give the Lead its first message: --prompt <first message>", USAGE)
+  }
+  const wait = wholeNumber("--wait", values.wait, DEFAULT_WAIT, 0)
+  if (typeof wait === "object") {
+    throw usageError(wait.error, USAGE)
+  }
+  return { help: false, name, prompt, wait, json: values.json === true }
 }
 
 /** `words` without the flag that skips permissions and without a worktree flag, its name with it when it has one. */
@@ -97,14 +95,14 @@ async function start(cli: Cli): Promise<number> {
   const checkout = repositoryRoot(process.cwd())
   const main = mainCheckout(checkout)
   if (main !== undefined) {
-    throw new Refusal(
+    throw new CannotRun(
       `in a linked worktree, ${checkout}: a Lead works in the main checkout, and this session cannot start one there`,
       `run it from the main checkout, ${main}, or start the Lead there by hand`
     )
   }
   const command = leadCommand(resolveConfig(checkout).config.worker.command.split(/\s+/).filter(Boolean))
   if (command.length === 0) {
-    throw new Refusal("worker.command holds no command", "set it in .ai/agentic.config.local.json, or remove the key")
+    throw new CannotRun("worker.command holds no command", "set it in .ai/agentic.config.local.json, or remove the key")
   }
 
   const { address, tab, reason } = await launch("lead start", {
@@ -133,17 +131,9 @@ async function start(cli: Cli): Promise<number> {
 
 export async function run(argv: string[]): Promise<number> {
   const cli = parseCli(argv)
-  if (cli === "help") {
+  if (cli.help) {
     process.stdout.write(`${USAGE}\n`)
     return 0
   }
-  if ("error" in cli) {
-    process.stderr.write(`dw-sdlc lead start: ${cli.error}\n\n${USAGE}\n`)
-    return 2
-  }
-  try {
-    return await start(cli)
-  } catch (error) {
-    return refuse("lead start", error)
-  }
+  return start(cli)
 }

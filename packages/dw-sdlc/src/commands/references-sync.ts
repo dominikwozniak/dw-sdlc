@@ -5,8 +5,8 @@
 import { existsSync, linkSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs"
 import { extname, join } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
-import { parseArgs } from "node:util"
 
+import { CannotRun, messageOf, readArgs } from "../cannot-run.ts"
 import { exec, SLOW_LIMIT_MS } from "../exec.ts"
 import { repositoryFreeEnv } from "../git-env.ts"
 import { readPins, resolveRef, type Pins } from "../pins.ts"
@@ -35,18 +35,9 @@ its skip names. Prints one line per Reference. Exit 1 when any Reference fails, 
 config or argument, in which case nothing is synced. One Sync runs in a checkout at a time; a
 second one waits for it up to ${WAIT_SECONDS} s, or REFERENCES_SYNC_WAIT seconds.`
 
-function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
-}
-
 /** The code a failed system call throws with, as "ENOENT", or undefined. */
 function codeOf(error: unknown): string | undefined {
   return error instanceof Error && "code" in error && typeof error.code === "string" ? error.code : undefined
-}
-
-function fail(message: string): never {
-  console.error(`references:sync: ${message}`)
-  process.exit(2)
 }
 
 /** REFERENCES_SYNC_WAIT when it names a number of seconds, else WAIT_SECONDS. */
@@ -237,16 +228,11 @@ function sync(root: string, reference: Reference, ref: string): string | undefin
 }
 
 function parseCli(argv: string[]): { help: boolean; dirs: string[] } {
-  try {
-    const { values, positionals } = parseArgs({
-      args: argv,
-      allowPositionals: true,
-      options: { help: { type: "boolean", short: "h" } }
-    })
-    return { help: values.help === true, dirs: positionals }
-  } catch (error) {
-    fail(`${messageOf(error)}\n\n${USAGE}`)
-  }
+  const { values, positionals } = readArgs(
+    { args: argv, allowPositionals: true, options: { help: { type: "boolean", short: "h" } } },
+    USAGE
+  )
+  return { help: values.help === true, dirs: positionals }
 }
 
 /**
@@ -313,13 +299,13 @@ export async function run(argv: string[]): Promise<number> {
   const root = toplevel.ok ? toplevel.out : process.cwd()
   const reading = readReferences(root)
   if ("problem" in reading) {
-    fail(`${reading.problem}; nothing synced`)
+    throw new CannotRun(`${reading.problem}; nothing synced`)
   }
   const references = reading.references ?? []
 
   const unknown = cli.dirs.filter((dir) => !references.some((reference) => reference.dir === dir))
   if (unknown.length > 0) {
-    fail(`not in ${REFERENCES_FILE}: ${unknown.join(", ")}`)
+    throw new CannotRun(`not in ${REFERENCES_FILE}: ${unknown.join(", ")}`)
   }
   if (reading.references === undefined) {
     return 0
@@ -328,13 +314,13 @@ export async function run(argv: string[]): Promise<number> {
     cli.dirs.length === 0 ? references : references.filter((reference) => cli.dirs.includes(reference.dir))
 
   const seconds = waitSeconds()
-  const attempt = await lock(root, seconds).catch((error: unknown) =>
-    fail(`${CLONES}/${LOCK}: ${messageOf(error)}; nothing synced`)
-  )
+  const attempt = await lock(root, seconds).catch((error: unknown) => {
+    throw new CannotRun(`${CLONES}/${LOCK}: ${messageOf(error)}; nothing synced`)
+  })
   let failed = false
   if ("heldBy" in attempt) {
     console.error(
-      `references:sync: another Sync (pid ${attempt.heldBy}) still holds ${CLONES}/${LOCK} after ${seconds} s; the clones are what it leaves`
+      `dw-sdlc references sync: another Sync (pid ${attempt.heldBy}) still holds ${CLONES}/${LOCK} after ${seconds} s; the clones are what it leaves`
     )
   } else {
     try {

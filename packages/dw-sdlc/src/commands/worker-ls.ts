@@ -1,8 +1,7 @@
 // `dw-sdlc worker ls`: the Workers the calling Lead started, with the state herdr holds them in.
 
-import { parseArgs } from "node:util"
-
-import { describe, lead, refuse, table, workersOf, workingFolders } from "../worker/herdr.ts"
+import { readArgs } from "../cannot-run.ts"
+import { lead, table, workersOf, workingFolders } from "../worker/herdr.ts"
 
 export const summary = "list the Workers this Lead started and their states"
 
@@ -22,33 +21,22 @@ with --json.
 Exit 0 listed, 2 when it cannot run.`
 
 export function run(argv: string[]): number {
-  let json: boolean
-  try {
-    const { values } = parseArgs({
-      args: argv,
-      options: { help: { type: "boolean", short: "h" }, json: { type: "boolean" } }
-    })
-    if (values.help === true) {
-      process.stdout.write(`${USAGE}\n`)
-      return 0
-    }
-    json = values.json === true
-  } catch (error) {
-    process.stderr.write(`dw-sdlc worker ls: ${describe(error)}\n\n${USAGE}\n`)
-    return 2
-  }
-  try {
-    const workers = workingFolders(workersOf(lead(), true))
-    if (json) {
-      process.stdout.write(`${JSON.stringify(workers, null, 2)}\n`)
-    } else if (workers.length === 0) {
-      process.stdout.write("no Workers\n")
-    } else {
-      const rows = workers.map((worker) => [worker.name, worker.address, worker.state, worker.status, worker.folder])
-      process.stdout.write(`${table([["NAME", "ADDRESS", "STATE", "STATUS", "FOLDER"], ...rows])}\n`)
-    }
+  const { values } = readArgs(
+    { args: argv, options: { help: { type: "boolean", short: "h" }, json: { type: "boolean" } } },
+    USAGE
+  )
+  if (values.help === true) {
+    process.stdout.write(`${USAGE}\n`)
     return 0
-  } catch (error) {
-    return refuse("worker ls", error)
   }
+  const workers = workingFolders(workersOf(lead(), true))
+  if (values.json === true) {
+    process.stdout.write(`${JSON.stringify(workers, null, 2)}\n`)
+  } else if (workers.length === 0) {
+    process.stdout.write("no Workers\n")
+  } else {
+    const rows = workers.map((worker) => [worker.name, worker.address, worker.state, worker.status, worker.folder])
+    process.stdout.write(`${table([["NAME", "ADDRESS", "STATE", "STATUS", "FOLDER"], ...rows])}\n`)
+  }
+  return 0
 }

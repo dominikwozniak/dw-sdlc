@@ -533,8 +533,8 @@
       "id": "distribution.bin",
       "name": "dw-sdlc bin",
       "group": "distribution",
-      "summary": "The package's command line: one table of subcommands, each a module under src/commands/.",
-      "code": ["packages/dw-sdlc/src/cli.ts"],
+      "summary": "The package's command line: one table of subcommands, each a module under src/commands/; prints what stops one.",
+      "code": ["packages/dw-sdlc/src/cli.ts", "packages/dw-sdlc/src/cannot-run.ts"],
       "docs": [
         "AGENTS.md#commands",
         "docs/overview.md#how-the-gate-runs",

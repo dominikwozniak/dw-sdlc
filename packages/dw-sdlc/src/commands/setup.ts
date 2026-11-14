@@ -6,7 +6,6 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { dirname, join, relative } from "node:path"
 import { pathToFileURL } from "node:url"
-import { parseArgs } from "node:util"
 
 import {
   type AgenticConfig,
@@ -25,6 +24,7 @@ import {
   schemaId,
   validateDocument
 } from "../agentic-config.ts"
+import { readArgs, usageError } from "../cannot-run.ts"
 import { exec } from "../exec.ts"
 import { isObject, type JsonObject, parseObject, render } from "../json-text.ts"
 import { type Change, withGate, withPackage } from "../setup-gate.ts"
@@ -428,25 +428,9 @@ export function setup(options: SetupOptions): Step[] {
   return writer.steps
 }
 
-function fail(message: string, code: 1 | 2): never {
-  console.error(`guardrails:setup: ${message}`)
-  process.exit(code)
-}
-
 export function run(argv: string[]): number {
-  let values: {
-    help?: boolean
-    root?: string
-    home?: string
-    convention?: string
-    "force-push"?: string
-    "commit-on-protected"?: string
-    "add-package"?: boolean
-    force?: boolean
-    "dry-run"?: boolean
-  }
-  try {
-    values = parseArgs({
+  const { values } = readArgs(
+    {
       args: argv,
       options: {
         help: { type: "boolean", short: "h" },
@@ -459,27 +443,24 @@ export function run(argv: string[]): number {
         force: { type: "boolean" },
         "dry-run": { type: "boolean" }
       }
-    }).values
-  } catch (error) {
-    fail(`${error instanceof Error ? error.message : String(error)}\n\n${USAGE}`, 2)
-  }
+    },
+    USAGE
+  )
   if (values.help === true) {
     console.log(USAGE)
     return 0
   }
   if (values.convention !== undefined && !isConvention(values.convention)) {
-    fail(`--convention must be ${COMMIT_CONVENTIONS.join(" or ")}, not '${values.convention}'\n\n${USAGE}`, 2)
+    throw usageError(`--convention must be ${COMMIT_CONVENTIONS.join(" or ")}, not '${values.convention}'`, USAGE)
   }
   const forcePush = values["force-push"]
   if (forcePush !== undefined && !isForcePush(forcePush)) {
-    fail(`--force-push must be ${STRICTNESS.forcePush.join(", ")}, not '${forcePush}'\n\n${USAGE}`, 2)
+    throw usageError(`--force-push must be ${STRICTNESS.forcePush.join(", ")}, not '${forcePush}'`, USAGE)
   }
   const commitOnProtected = values["commit-on-protected"]
   if (commitOnProtected !== undefined && !isCommitOnProtected(commitOnProtected)) {
-    fail(
-      `--commit-on-protected must be ${STRICTNESS.commitOnProtected.join(" or ")}, not '${commitOnProtected}'\n\n${USAGE}`,
-      2
-    )
+    const allowed = STRICTNESS.commitOnProtected.join(" or ")
+    throw usageError(`--commit-on-protected must be ${allowed}, not '${commitOnProtected}'`, USAGE)
   }
   const steps = setup({
     root: values.root ?? process.cwd(),

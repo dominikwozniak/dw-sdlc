@@ -5,8 +5,9 @@
 import { existsSync, readFileSync, statSync } from "node:fs"
 import { join, matchesGlob, posix } from "node:path"
 
+import { CannotRun } from "../cannot-run.ts"
 import { type FrontmatterEntry, frontmatter, frontmatterList, headings } from "../markdown.ts"
-import { CannotRun, type Check, type Finding } from "./check.ts"
+import { type Check, type Finding } from "./check.ts"
 import { directoriesOf, treeFiles } from "./tree.ts"
 
 /** The frontmatter fields beyond `status` a record can be held to, in the order they are judged. */
@@ -238,7 +239,7 @@ function judge(root: string, dir: string, { statuses, fields }: DecisionRecordsO
 function run(root: string, options: DecisionRecordsOptions): Finding[] {
   const present = options.dirs.filter((dir) => isDirectory(join(root, dir)))
   if (present.length === 0) {
-    throw new CannotRun({ message: `none of ${options.dirs.join(", ")} exists`, remedy: REMEDIES.missing })
+    throw new CannotRun(`none of ${options.dirs.join(", ")} exists`, REMEDIES.missing)
   }
   let cached: Tree | undefined
   const tree = (): Tree => {

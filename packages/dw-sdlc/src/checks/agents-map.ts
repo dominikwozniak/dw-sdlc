@@ -15,8 +15,9 @@ import {
 import { join, normalize } from "node:path"
 
 import { resolveConfig } from "../agentic-config.ts"
+import { CannotRun } from "../cannot-run.ts"
 import { codeSpans, tableRows } from "../markdown.ts"
-import { CannotRun, type Check, type Finding, optionsOf } from "./check.ts"
+import { type Check, type Finding, optionsOf } from "./check.ts"
 import { overBudget } from "./markdown-budget.ts"
 import { catalogueFile } from "./primitives.ts"
 
@@ -205,7 +206,7 @@ function linksTo(link: string, target: string): boolean {
 export function readMap(root: string, file: string): string {
   const path = join(root, file)
   if (!existsSync(path)) {
-    throw new CannotRun({ file, message: "the map does not exist", remedy: REMEDIES.missing })
+    throw new CannotRun("the map does not exist", REMEDIES.missing, { file })
   }
   return readFileSync(path, "utf8")
 }

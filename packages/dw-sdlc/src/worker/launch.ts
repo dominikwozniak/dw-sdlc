@@ -3,8 +3,9 @@
 
 import { setTimeout as sleep } from "node:timers/promises"
 
+import { CannotRun } from "../cannot-run.ts"
 import { isObject, type JsonObject } from "../json-text.ts"
-import { describe, hcObject, Refusal } from "./herdr.ts"
+import { hcObject } from "./herdr.ts"
 import { type Named, nameTab } from "./tabs.ts"
 
 /** hc names a terminal with 1-32 of a-z, 0-9, - and _. */
@@ -42,11 +43,11 @@ async function delivery(address: string, wait: number, who: string): Promise<str
     try {
       terminal = hcObject(["get", address, "--json"])
     } catch (error) {
-      if (!(error instanceof Refusal)) {
+      if (!(error instanceof CannotRun)) {
         throw error
       }
       // The session is running by now, so a failed read is a message not confirmed, never a start that did not happen.
-      return `the terminal could not be read back: ${describe(error)}`
+      return `the terminal could not be read back: ${error.message}`
     }
     const failed = failure(terminal, who)
     if (failed !== undefined) {
@@ -106,7 +107,10 @@ export async function launch(command: string, { name, role, space, cwd, argv, wa
     ...argv
   ])
   if (typeof address !== "string") {
-    throw new Refusal("hc run answered no address for the terminal it started", "check hc ls before starting it again")
+    throw new CannotRun(
+      "hc run answered no address for the terminal it started",
+      "check hc ls before starting it again"
+    )
   }
   // Side by side, so the wait for the tab overlaps the wait for the session to start.
   const naming: Promise<"none" | Named> =

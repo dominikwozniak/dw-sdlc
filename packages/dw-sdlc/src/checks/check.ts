@@ -1,18 +1,20 @@
 // What every Check the package ships is: a name, the options `true` stands for, and a run over the
 // tree that answers with its failures. The Gate names the Check as each failure's rule.
 
+import type { CannotRun } from "../cannot-run.ts"
 import type { Failure } from "../report.ts"
 
 /** A failure as a Check finds it: the file and line where it has one, what is wrong, the remedy. */
 export type Finding = Omit<Failure, "rule">
 
-/** An input the Check needs is missing or unreadable, so the Gate cannot run: exit 2, not 1. */
-export class CannotRun extends Error {
-  finding: Finding
-
-  constructor(finding: Finding) {
-    super(finding.message)
-    this.finding = finding
+/** What a Check reports when it cannot judge: the input it lacks, in the file it names, and the remedy. */
+export function findingOf({ message, remedy, detail }: CannotRun, fallback: string): Finding {
+  const { file, line } = detail
+  return {
+    ...(file === undefined ? {} : { file }),
+    ...(line === undefined ? {} : { line }),
+    message,
+    remedy: remedy ?? fallback
   }
 }
 

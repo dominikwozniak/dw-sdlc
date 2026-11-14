@@ -3,16 +3,16 @@
 
 import { existsSync } from "node:fs"
 import { join } from "node:path"
-import { parseArgs } from "node:util"
 
 import { findRepository, mainCheckout, resolveConfig } from "../agentic-config.ts"
+import { CannotRun, readArgs, usageError } from "../cannot-run.ts"
 import { type Answer, decide, declaredPolicy, labelOf, lineOf } from "../pr/decide.ts"
-import { CannotRun, defaultBranch, now, readBranch } from "../pr/read.ts"
+import { defaultBranch, now, readBranch } from "../pr/read.ts"
 import type { PrState } from "../pr/state.ts"
 import { holds, upstreamName } from "../pr/upstream.ts"
 import { type Candidate, type Next, READY_LABEL, readNext } from "../recap-next.ts"
 import { type Rolled, rollup } from "../recap-primitives.ts"
-import { isLive, Refusal, type Worker, workersOf, workingFolders } from "../worker/herdr.ts"
+import { isLive, type Worker, workersOf, workingFolders } from "../worker/herdr.ts"
 import { asked, git } from "../working-tree.ts"
 
 export const summary = "the facts a Recap rests on, whether the session can be closed and what could come next"
@@ -167,10 +167,7 @@ function liveWorkers(): Worker[] | null {
   try {
     return workingFolders(workersOf(lead, false).filter(isLive))
   } catch (error) {
-    if (error instanceof Refusal) {
-      throw new CannotRun(error.message, error.remedy ?? "check hc ls, then call again")
-    }
-    throw error
+    throw error instanceof CannotRun ? error.orRemedy("check hc ls, then call again") : error
   }
 }
 
@@ -392,20 +389,19 @@ function linesOf(local: Local, { shipped, askedGh, workers, next }: Facts, primi
   ].join("\n")
 }
 
-function parseCli(argv: string[]): { help: boolean; json: boolean } | { error: string } {
-  try {
-    const { values, positionals } = parseArgs({
+function parseCli(argv: string[]): { help: boolean; json: boolean } {
+  const { values, positionals } = readArgs(
+    {
       args: argv,
       allowPositionals: true,
       options: { help: { type: "boolean", short: "h" }, json: { type: "boolean" } }
-    })
-    if (positionals.length > 0 && values.help !== true) {
-      return { error: `it takes no argument, not ${JSON.stringify(positionals[0])}` }
-    }
-    return { help: values.help === true, json: values.json === true }
-  } catch (error) {
-    return { error: error instanceof Error ? error.message : String(error) }
+    },
+    USAGE
+  )
+  if (positionals.length > 0 && values.help !== true) {
+    throw usageError(`it takes no argument, not ${JSON.stringify(positionals[0])}`, USAGE)
   }
+  return { help: values.help === true, json: values.json === true }
 }
 
 function report(json: boolean): number {
@@ -459,21 +455,9 @@ function report(json: boolean): number {
 
 export function run(argv: string[]): number {
   const cli = parseCli(argv)
-  if ("error" in cli) {
-    process.stderr.write(`dw-sdlc recap: ${cli.error}\n\n${USAGE}\n`)
-    return 2
-  }
   if (cli.help) {
     process.stdout.write(`${USAGE}\n`)
     return 0
   }
-  try {
-    return report(cli.json)
-  } catch (error) {
-    if (error instanceof CannotRun) {
-      process.stderr.write(`dw-sdlc recap: ${error.message} — ${error.remedy}\n`)
-      return 2
-    }
-    throw error
-  }
+  return report(cli.json)
 }

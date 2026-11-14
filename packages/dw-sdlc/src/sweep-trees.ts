@@ -4,11 +4,11 @@
 import { existsSync } from "node:fs"
 import { join } from "node:path"
 
+import { CannotRun } from "./cannot-run.ts"
 import { exec } from "./exec.ts"
 import { repositoryFreeEnv } from "./git-env.ts"
 import { isLanded } from "./landed.ts"
 import { shellLine } from "./pr/decide.ts"
-import { CannotRun } from "./pr/read.ts"
 import { asked, git } from "./working-tree.ts"
 
 /** `git <args>` at `root`, or a stop naming its problem. */
