@@ -361,6 +361,9 @@ the same depth.
 - **A merge of the base carries a success.** Two tests must both pass: every commit since the reviewed
   one is a merge, and the pull request's own changes are the same at both commits, compared through
   GitHub. A read mark never carries, since its Findings still stand.
+- **A merge of the base keeps out of a fix's Review.** When a merge came after the head a Review read,
+  the script compares the pull request's own changes at both heads and names the files that moved in
+  `details.paths`. It routes the depth on those files, and the Review reads only them.
 - **The limit is three.** Three Reviews with no success between them park the pull request as
   `review-limit`, with `pr reviewed --accept` as the dev's command. The limit is a constant with no
   config key, so no repository turns the loop back on. The dev's `--review <depth>` buys one more

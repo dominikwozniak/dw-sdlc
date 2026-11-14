@@ -110,24 +110,41 @@ function documentOf(stdout: string, keys: string[]): Record<string, unknown> {
 
 describe("dw-sdlc pr ship after a push to a reviewed pull request", () => {
   it("names the last reviewed commit in details.since after a commit of the branch's own, reading no compare", () => {
-    const pushed: [string, Pr][] = [
-      ["a commit, then the head", PUSHED_ON],
-      ["a merge, then a commit as the head", { ...MERGED_IN, headParents: 1 }]
+    const run = ship(["--json"], [PUSHED_ON])
+    assert.equal(run.status, 10, run.stderr)
+    assert.deepEqual(documentOf(run.stdout, ["action", "actor", "details", "performed"]), {
+      action: "review",
+      actor: "agent",
+      details: { depth: "full", source: "config", reviewCommand: "/code-review", since: REVIEWED },
+      performed: []
+    })
+    assert.deepEqual(run.calls, [AUTH, READ])
+  })
+
+  it("names in details.paths the files whose own change moved when a merge of the base came after the read", () => {
+    const pushed: [string, Pr, File[], string[]][] = [
+      ["a merge, then a commit as the head", { ...MERGED_IN, headParents: 1 }, [SHIFTED, ADDED], [ADDED.filename]],
+      [
+        "a merge, then a commit that leaves the own changes as they were",
+        { ...MERGED_IN, headParents: 1 },
+        [SHIFTED],
+        []
+      ]
     ]
-    for (const [name, pr] of pushed) {
-      const run = ship(["--json"], [pr], { ...compared(REVIEWED, [READ_THEN]), ...compared(HEAD, [SHIFTED]) })
+    for (const [name, pr, now, paths] of pushed) {
+      const run = ship(["--json"], [pr], { ...compared(REVIEWED, [READ_THEN]), ...compared(HEAD, now) })
       assert.equal(run.status, 10, `${name}: ${run.stderr}`)
       assert.deepEqual(
         documentOf(run.stdout, ["action", "actor", "details", "performed"]),
         {
           action: "review",
           actor: "agent",
-          details: { depth: "full", source: "config", reviewCommand: "/code-review", since: REVIEWED },
+          details: { depth: "full", source: "config", reviewCommand: "/code-review", since: REVIEWED, paths },
           performed: []
         },
         name
       )
-      assert.deepEqual(run.calls, [AUTH, READ], name)
+      assert.deepEqual(run.calls, [AUTH, READ, compare(REVIEWED), compare(HEAD)], name)
     }
   })
 
@@ -203,22 +220,27 @@ describe("dw-sdlc pr ship after a push to a reviewed pull request", () => {
       patch: "@@ -10,3 +10,5 @@\n   const offerings = useOfferings()\n+  const a = 1\n+  const b = 2"
     }
     const many = Array.from({ length: 300 }, (_, index) => ({ ...ADDED, filename: `src/f${index}.ts` }))
-    const cases: [string, File[], File[]][] = [
-      ["a file added", [READ_THEN], [READ_THEN, ADDED]],
-      ["a file dropped", [READ_THEN, ADDED], [READ_THEN]],
-      ["lines reordered", [then], [reordered]],
-      ["renamed", [READ_THEN], [{ ...READ_THEN, status: "renamed", previous_filename: "src/old.tsx" }]],
-      ["a file without a patch", [binary], [binary]],
-      ["300 files, GitHub's limit", many, many]
+    const cases: [string, File[], File[], object][] = [
+      ["a file added", [READ_THEN], [READ_THEN, ADDED], { paths: [ADDED.filename] }],
+      ["a file dropped", [READ_THEN, ADDED], [READ_THEN], { paths: [ADDED.filename] }],
+      ["lines reordered", [then], [reordered], { paths: [PAYWALL] }],
+      [
+        "renamed",
+        [READ_THEN],
+        [{ ...READ_THEN, status: "renamed", previous_filename: "src/old.tsx" }],
+        { paths: [PAYWALL, "src/old.tsx"] }
+      ],
+      ["a file without a patch", [binary], [binary], {}],
+      ["300 files, GitHub's limit", many, many, {}]
     ]
-    for (const [name, before, now] of cases) {
+    for (const [name, before, now, paths] of cases) {
       const run = ship(["--json"], [MERGED_IN], { ...compared(REVIEWED, before), ...compared(HEAD, now) })
       assert.equal(run.status, 10, `${name}: ${run.stderr}`)
       assert.deepEqual(
         documentOf(run.stdout, ["action", "details"]),
         {
           action: "review",
-          details: { depth: "full", source: "config", reviewCommand: "/code-review", since: REVIEWED }
+          details: { depth: "full", source: "config", reviewCommand: "/code-review", since: REVIEWED, ...paths }
         },
         name
       )
@@ -358,13 +380,19 @@ describe("dw-sdlc pr ship after a Review that left a Finding open", () => {
   })
 
   it("carries nothing over a head that only merged the base in after a mark, and reads from the read before it", () => {
-    const cases: [string, Commit, object][] = [
-      ["a success before the mark", { oid: EARLIER, review: "SUCCESS" }, { since: EARLIER }],
-      ["no read before the mark", { oid: EARLIER }, {}]
+    const cases: [string, Commit, object, string[][]][] = [
+      [
+        "a success before the mark",
+        { oid: EARLIER, review: "SUCCESS" },
+        { since: EARLIER, paths: [PAYWALL] },
+        [compare(EARLIER), compare(HEAD)]
+      ],
+      ["no read before the mark", { oid: EARLIER }, {}, []]
     ]
-    for (const [name, earlier, since] of cases) {
+    for (const [name, earlier, since, compares] of cases) {
       const history: Commit[] = [earlier, { oid: REVIEWED, ...MARK }, { oid: PUSHED, review: null, parents: 2 }]
       const run = ship(["--json"], [{ ...MERGED_IN, history }], {
+        ...compared(EARLIER, []),
         ...compared(REVIEWED, [READ_THEN]),
         ...compared(HEAD, [SHIFTED])
       })
@@ -378,7 +406,7 @@ describe("dw-sdlc pr ship after a Review that left a Finding open", () => {
         },
         name
       )
-      assert.deepEqual(run.calls, [AUTH, READ], name)
+      assert.deepEqual(run.calls, [AUTH, READ, ...compares], name)
     }
   })
 

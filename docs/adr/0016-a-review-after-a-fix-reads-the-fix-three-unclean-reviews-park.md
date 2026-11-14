@@ -14,7 +14,9 @@ reaches goes to the Recap's follow-ups. A Review that is not clean is still pinn
 `pr reviewed` posts `dw-sdlc/review` on it in state failure, "read, findings open". The Ship script
 reads the changes since the last head any Review read, so the Review after a fix reads the fix alone,
 at the depth `auto` routes on it (ADR 0013), and its prompt names the Findings that fix answers: it
-checks each one is fixed and that the fix breaks nothing. Three Reviews without a success between them
+checks each one is fixed and that the fix breaks nothing. When a merge of the base came after that head, the
+script names in `details.paths` the files whose own change moved, routes on those alone, and the
+Review reads only them, so the base's changes never pass for the fix. Three Reviews without a success between them
 park the pull request for the dev. The park's command, the dev's to run, posts success as "accepted by
 the dev, findings open"; the dev's `--review <depth>` buys one Review past the limit. A success starts
 the count again. The rule holds at `full` and at `light` alike.

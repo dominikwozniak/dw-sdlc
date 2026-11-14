@@ -337,7 +337,8 @@ describe("dw-sdlc pr ship", () => {
       lastRead: null,
       marks: { count: 0, since: null },
       carried: false,
-      changed: null
+      changed: null,
+      scope: null
     })
     const bare = json({ ...GREEN, checks: [] }, ["--verbose"]).document
     assert.ok(typeof bare === "object" && bare !== null && "facts" in bare)
