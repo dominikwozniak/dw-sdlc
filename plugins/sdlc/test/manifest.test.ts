@@ -137,6 +137,14 @@ describe("the sdlc plugin", () => {
     assert.match(text, /An\s+empty\s+list\s+leaves\s+nothing\s+to\s+read/)
   })
 
+  it("has sdlc-pr-ship fix a details.open read mark's Findings first, else review the whole pull request", () => {
+    const text = readFileSync(join(PLUGIN_ROOT, "skills", "sdlc-pr-ship", "SKILL.md"), "utf8")
+    assert.match(text, /When\s+the\s+answer\s+has\s+`details\.open`/)
+    assert.match(text, /fix\s+them\s+and\s+`git\s+push`\s+before\s+any\s+Review/)
+    assert.match(text, /Review\s+reads\s+the\s+whole\s+pull\s+request\s+from\s+`origin\/<base>`/)
+    assert.match(text, /Never\s+post\s+a\s+success\s+over\s+that\s+mark\s+without\s+that\s+Review/)
+  })
+
   it("has sdlc-pr-ship fetch a <since> a rebase left behind and diff it with two dots", () => {
     const text = readFileSync(join(PLUGIN_ROOT, "skills", "sdlc-pr-ship", "SKILL.md"), "utf8")
     assert.match(text, /`git\s+fetch\s+origin\s+<since>`\s+when\s+the\s+checkout\s+lacks\s+it/)

@@ -379,21 +379,28 @@ describe("dw-sdlc pr ship after a Review that left a Finding open", () => {
     }
   })
 
-  it("carries nothing over a head that only merged the base in after a mark, and reads from the read before it", () => {
-    const cases: [string, Commit, object, string[][]][] = [
+  it("names open a read mark only merges of the base came after, and reads the whole pull request", () => {
+    const cases: [string, Commit[]][] = [
       [
         "a success before the mark",
-        { oid: EARLIER, review: "SUCCESS" },
-        { since: EARLIER, paths: [PAYWALL] },
-        [compare(EARLIER), compare(HEAD)]
+        [
+          { oid: EARLIER, review: "SUCCESS" },
+          { oid: REVIEWED, ...MARK }
+        ]
       ],
-      ["no read before the mark", { oid: EARLIER }, {}, []]
+      ["no read before the mark", [{ oid: EARLIER }, { oid: REVIEWED, ...MARK }]],
+      [
+        "a success on the same own changes before a mark on a merge",
+        [
+          { oid: EARLIER, review: "SUCCESS" },
+          { oid: REVIEWED, ...MARK, parents: 2 }
+        ]
+      ]
     ]
-    for (const [name, earlier, since, compares] of cases) {
-      const history: Commit[] = [earlier, { oid: REVIEWED, ...MARK }, { oid: PUSHED, review: null, parents: 2 }]
-      const run = ship(["--json"], [{ ...MERGED_IN, history }], {
-        ...compared(EARLIER, []),
-        ...compared(REVIEWED, [READ_THEN]),
+    for (const [name, history] of cases) {
+      const merged = [...history, { oid: PUSHED, review: null, parents: 2 }]
+      const run = ship(["--json"], [{ ...MERGED_IN, history: merged }], {
+        ...compared(EARLIER, [READ_THEN]),
         ...compared(HEAD, [SHIFTED])
       })
       assert.equal(run.status, 10, `${name}: ${run.stderr}`)
@@ -401,12 +408,12 @@ describe("dw-sdlc pr ship after a Review that left a Finding open", () => {
         documentOf(run.stdout, ["action", "details", "performed"]),
         {
           action: "review",
-          details: { depth: "full", source: "config", reviewCommand: "/code-review", ...since },
+          details: { depth: "full", source: "config", reviewCommand: "/code-review", open: REVIEWED },
           performed: []
         },
         name
       )
-      assert.deepEqual(run.calls, [AUTH, READ, ...compares], name)
+      assert.deepEqual(run.calls, [AUTH, READ], name)
     }
   })
 

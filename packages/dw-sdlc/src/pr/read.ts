@@ -232,19 +232,19 @@ function ownChanges(pr: Parsed, commit: string): string[] | null {
 }
 
 /**
- * `pr` and, with no read in its history, the newest head a force push left behind that a Review read.
- * A read mark on own changes the head holds as they were is passed over, and the read before it never
- * carries: its Findings stand (ADR 0022). The compares run only when a Review awaits the head.
+ * `pr` and, with no read in its history, the newest commit force pushes left behind that a Review read;
+ * a read mark on own changes the head holds as they were is `open`, no read standing in (ADR 0023).
+ * The compares run only when a Review awaits the head.
  */
 function withRewritten(pr: Parsed, rewritten: Read[]): Parsed {
-  if (pr.lastRead !== null || pr.state !== "OPEN" || !awaitsReview(pr)) {
+  const [newest] = rewritten
+  if (newest === undefined || pr.lastRead !== null || pr.open !== null || pr.state !== "OPEN" || !awaitsReview(pr)) {
     return pr
   }
-  const index = rewritten.findIndex(
-    ({ commit, clean }) => clean || !sameChanges(ownChanges(pr, commit), ownChanges(pr, pr.head))
-  )
-  const found = rewritten[index]
-  return found === undefined ? pr : { ...pr, lastRead: { ...found, baseOnly: index === 0, baseMoved: true } }
+  if (newest.clean || !sameChanges(ownChanges(pr, newest.commit), ownChanges(pr, pr.head))) {
+    return { ...pr, lastRead: { ...newest, baseOnly: true, baseMoved: true } }
+  }
+  return { ...pr, open: newest.commit }
 }
 
 /**

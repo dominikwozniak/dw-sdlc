@@ -155,7 +155,14 @@ export type Pr = {
  * them, left out one with none; `described` its description, a clean review's when left out; `parents`
  * 2 is a merge, 1 when left out.
  */
-export type Commit = { oid: string; review?: string | null; described?: string; parents?: number }
+export type Commit = {
+  oid: string
+  review?: string | null
+  described?: string
+  parents?: number
+  /** For a head a force push left behind: the commits under it, its first parent first. None when left out. */
+  under?: Commit[]
+}
 
 export const HEAD = "e36732e33915969ef4449becafeecd2e2846d544"
 export const BASE_OID = "8ba44d6f750333be72a05ca309e37b5984e3a0b9"
@@ -228,9 +235,24 @@ function commitOf(commit: Commit): object {
   return { commit: { oid: commit.oid, parents: { totalCount: commit.parents ?? 1 }, status: statusOf(commit) } }
 }
 
-/** A force push's event as the timeline lists it: the head it left behind, with that head's status. */
+/**
+ * A force push's event as the timeline lists it: the head it left behind, and that head's history, it
+ * first, each commit with its status and its first parent, the next one down.
+ */
 function forcePushOf(commit: Commit | null): object {
-  return { beforeCommit: commit === null ? null : { oid: commit.oid, status: statusOf(commit) } }
+  if (commit === null) {
+    return { beforeCommit: null }
+  }
+  const line = [commit, ...(commit.under ?? [])]
+  const nodes = line.map((each, index) => {
+    const parent = line[index + 1]
+    return {
+      oid: each.oid,
+      parents: { nodes: parent === undefined ? [] : [{ oid: parent.oid }] },
+      status: statusOf(each)
+    }
+  })
+  return { beforeCommit: { oid: commit.oid, history: { nodes } } }
 }
 
 /** The `pullRequest` node of the reply, an object a test may break before serving it. */
