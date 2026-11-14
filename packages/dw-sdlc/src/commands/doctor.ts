@@ -17,7 +17,7 @@ import {
   sessionsEnabled,
   versionBefore
 } from "../doctor-plugins.ts"
-import { exec, TimedOut } from "../exec.ts"
+import { exec, firstLine, TimedOut } from "../exec.ts"
 import { isObject } from "../json-text.ts"
 
 export type Level = "PASS" | "WARN" | "FAIL" | "INFO"
@@ -82,7 +82,7 @@ export const realProbe: Probe = {
   shell(script) {
     const shell = process.env.SHELL ?? "/bin/sh"
     const result = probed(shell, ["-l", "-c", script])
-    return (result?.stdout ?? "").trim().split("\n")[0] ?? ""
+    return firstLine(result?.stdout ?? "") ?? ""
   }
 }
 

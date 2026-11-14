@@ -15,7 +15,7 @@ import {
 import { join, normalize } from "node:path"
 
 import { resolveConfig } from "../agentic-config.ts"
-import { CannotRun } from "../cannot-run.ts"
+import { CannotRun, messageOf } from "../cannot-run.ts"
 import { codeSpans, tableRows } from "../markdown.ts"
 import { type Check, type Finding, optionsOf } from "./check.ts"
 import { overBudget } from "./markdown-budget.ts"
@@ -134,7 +134,7 @@ function lockedSkills(root: string): string[] | { problem: string } {
   try {
     lock = JSON.parse(readFileSync(join(root, LOCK), "utf8"))
   } catch (error) {
-    return { problem: `not JSON: ${error instanceof Error ? error.message : String(error)}` }
+    return { problem: `not JSON: ${messageOf(error)}` }
   }
   if (typeof lock !== "object" || lock === null || !("skills" in lock)) {
     return { problem: "it has no skills object" }

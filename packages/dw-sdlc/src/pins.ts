@@ -5,6 +5,8 @@
 import { existsSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 
+import { messageOf } from "./cannot-run.ts"
+
 /** Versions by package name: what package.json pins, or what a catalog lists. */
 export type Pins = Record<string, string>
 
@@ -72,7 +74,7 @@ export function readPins(root: string): Pins {
   try {
     return parsePins(readFileSync(manifest, "utf8"), catalog)
   } catch (error) {
-    throw new Error(`package.json: ${error instanceof Error ? error.message : String(error)}`, { cause: error })
+    throw new Error(`package.json: ${messageOf(error)}`, { cause: error })
   }
 }
 

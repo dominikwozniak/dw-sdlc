@@ -2,14 +2,8 @@
 // and the Workers herdr lists for it.
 
 import { CannotRun } from "../cannot-run.ts"
-import { type Called, need } from "../exec.ts"
+import { type Called, need, whyFailed } from "../exec.ts"
 import { isObject, type JsonObject, parseObject } from "../json-text.ts"
-
-/** The first line of a tool's output that says anything, or the exit it ended with. */
-export function said(called: Called): string {
-  const line = `${called.stderr}\n${called.stdout}`.split("\n").find((text) => text.trim() !== "")
-  return line?.trim() ?? `exited ${called.status}`
-}
 
 /** `tool args` as a child process; a tool that is not on PATH, or past its limit, stops the command. */
 export function call(tool: "hc" | "herdr-app", args: string[]): Called {
@@ -23,7 +17,7 @@ export function call(tool: "hc" | "herdr-app", args: string[]): Called {
 export function hcObject(args: string[]): JsonObject {
   const called = call("hc", args)
   if (called.status !== 0) {
-    throw new CannotRun(`hc ${args[0] ?? ""} failed: ${said(called)}`)
+    throw new CannotRun(`hc ${args[0] ?? ""} failed: ${whyFailed(called)}`)
   }
   const parsed = parseObject(called.stdout)
   if (parsed === undefined) {

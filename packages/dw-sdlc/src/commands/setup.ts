@@ -2,7 +2,7 @@
 // each written only when its content would change, so a run is safe to repeat. Existing content is
 // merged, never replaced: other keys stay, and a file that is not a JSON object is refused.
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
+import { existsSync, readFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { dirname, join, relative } from "node:path"
 import { pathToFileURL } from "node:url"
@@ -27,13 +27,12 @@ import {
 import { readArgs, usageError } from "../cannot-run.ts"
 import { exec } from "../exec.ts"
 import { isObject, type JsonObject, parseObject, render } from "../json-text.ts"
-import { type Change, withGate, withPackage } from "../setup-gate.ts"
+import { withGate, withPackage } from "../setup-gate.ts"
 import { GLOBAL_DENY, LEASE_RULE, RETIRED_DENY, repositoryDeny } from "../setup-rules.ts"
 import { keptWorker, pinnedWorker } from "../setup-worker.ts"
+import { type Step, stepLines, Writer } from "../setup-writer.ts"
 
-/** `by hand` is an edit the setup names and leaves to the user; `skipped` is a file it has no reason to write. */
-export type Outcome = "wrote" | "unchanged" | "skipped" | "refused" | "by hand"
-export type Step = { file: string; outcome: Outcome; detail?: string }
+export type { Step }
 export type SetupOptions = {
   root: string
   home: string
@@ -262,47 +261,6 @@ function readJson(path: string): JsonObject | undefined | "invalid" {
   return existsSync(path) ? (parseObject(readFileSync(path, "utf8")) ?? "invalid") : undefined
 }
 
-class Writer {
-  readonly steps: Step[] = []
-  private readonly dryRun: boolean
-  constructor(dryRun: boolean) {
-    this.dryRun = dryRun
-  }
-
-  /** Writes when the text differs from what is on disk; records the outcome under `label`, with what the write does. */
-  put(label: string, path: string, text: string, detail?: string): void {
-    const current = existsSync(path) ? readFileSync(path, "utf8") : undefined
-    if (current === text) {
-      this.steps.push({ file: label, outcome: "unchanged" })
-      return
-    }
-    if (!this.dryRun) {
-      mkdirSync(dirname(path), { recursive: true })
-      writeFileSync(path, text)
-    }
-    this.steps.push(
-      detail === undefined ? { file: label, outcome: "wrote" } : { file: label, outcome: "wrote", detail }
-    )
-  }
-
-  refuse(label: string, detail: string): void {
-    this.steps.push({ file: label, outcome: "refused", detail })
-  }
-
-  /** The step's file as `change` leaves it: written, unchanged or refused. */
-  apply(label: string, path: string, change: Change): void {
-    if ("refusal" in change) {
-      this.refuse(label, change.refusal)
-    } else {
-      this.put(label, path, change.text, change.detail)
-    }
-  }
-
-  byHand(label: string, detail: string): void {
-    this.steps.push({ file: label, outcome: "by hand", detail })
-  }
-}
-
 /** The enabledPlugins edit settings that still enable a retired plugin need; none where they enable neither. */
 function enabledPluginsEdit(settings: JsonObject): string | undefined {
   const enabled = isObject(settings.enabledPlugins) ? settings.enabledPlugins : {}
@@ -348,11 +306,11 @@ export function setup(options: SetupOptions): Step[] {
     const { worker, detail } = pinnedWorker(keptWorker(existing), options.path ?? process.env.PATH)
     const local = localConfig(checkout, claudeDir, convention, pinned.guardrails, worker)
     if (Object.keys(local).length === 1 && (localCurrent === undefined || sameContent(existing, local))) {
-      writer.steps.push({ file: LOCAL_FILE, outcome: "skipped", detail: "the layer would hold only $schema" })
+      writer.skip(LOCAL_FILE, "the layer would hold only $schema")
     } else if (localCurrent !== undefined && !sameContent(existing, local) && !options.force) {
       writer.refuse(LOCAL_FILE, "exists with other content; pass --force to overwrite it")
     } else {
-      writer.put(LOCAL_FILE, localPath, render(local), detail)
+      writer.apply(LOCAL_FILE, localPath, { text: render(local), detail })
     }
   }
 
@@ -364,10 +322,10 @@ export function setup(options: SetupOptions): Step[] {
   const missing = [LOCAL_FILE, ".claude/settings.local.json"].filter((entry) => !lines.includes(entry))
   const excludeLabel = relative(checkout, excludePath).startsWith("..") ? excludePath : relative(checkout, excludePath)
   if (missing.length === 0) {
-    writer.steps.push({ file: excludeLabel, outcome: "unchanged" })
+    writer.apply(excludeLabel, excludePath, { text: excludeText })
   } else {
     const separator = excludeText === "" || excludeText.endsWith("\n") ? "" : "\n"
-    writer.put(excludeLabel, excludePath, excludeText + separator + missing.join("\n") + "\n")
+    writer.apply(excludeLabel, excludePath, { text: excludeText + separator + missing.join("\n") + "\n" })
   }
 
   // 3. The repository's deny rules, the backstop for the hooks where jq is missing, merged into the main
@@ -381,7 +339,7 @@ export function setup(options: SetupOptions): Step[] {
     const permissions = isObject(settings.permissions) ? settings.permissions : {}
     const deny = union(permissions.deny, repositoryDeny(root)).filter((rule) => !RETIRED_DENY.includes(rule))
     settings.permissions = { ...permissions, deny }
-    writer.put(".claude/settings.local.json", localSettingsPath, render(settings))
+    writer.apply(".claude/settings.local.json", localSettingsPath, { text: render(settings) })
   }
 
   // 4. The user file, under $CLAUDE_CONFIG_DIR when it is set: the lease exception, "$defaults" kept, and
@@ -400,7 +358,7 @@ export function setup(options: SetupOptions): Step[] {
     settings.autoMode = { ...autoMode, allow }
     const permissions = isObject(settings.permissions) ? settings.permissions : {}
     settings.permissions = { ...permissions, deny: union(permissions.deny, GLOBAL_DENY) }
-    writer.put(userLabel, userPath, render(settings))
+    writer.apply(userLabel, userPath, { text: render(settings) })
     const edit = enabledPluginsEdit(settings)
     if (edit !== undefined) {
       writer.byHand(userLabel, edit)
@@ -473,9 +431,8 @@ export function run(argv: string[]): number {
     commitOnProtected,
     addPackage: values["add-package"] === true
   })
-  for (const step of steps) {
-    const verb = step.outcome === "wrote" && values["dry-run"] === true ? "would write" : step.outcome
-    console.log(`${verb.padEnd(11)} ${step.file}${step.detail === undefined ? "" : ` — ${step.detail}`}`)
+  for (const line of stepLines(steps, values["dry-run"] === true)) {
+    console.log(line)
   }
   return steps.some((step) => step.outcome === "refused") ? 1 : 0
 }

@@ -5,6 +5,7 @@ import { copyFileSync, existsSync, mkdtempSync, rmSync, statSync, utimesSync } f
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
+import { messageOf } from "./cannot-run.ts"
 import { exec } from "./exec.ts"
 import { repositoryFreeEnv } from "./git-env.ts"
 
@@ -61,6 +62,6 @@ export function workingTree(root: string): { tree: string; gitDir: string } | { 
     const tree = treeOf(root, gitDir.out)
     return "error" in tree ? tree : { tree: tree.out, gitDir: gitDir.out }
   } catch (error) {
-    return { error: error instanceof Error ? error.message : String(error) }
+    return { error: messageOf(error) }
   }
 }

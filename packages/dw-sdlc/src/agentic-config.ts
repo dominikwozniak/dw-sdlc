@@ -5,6 +5,7 @@
 import { existsSync, readFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 
+import { messageOf } from "./cannot-run.ts"
 import { exec } from "./exec.ts"
 import { validate } from "./json-schema.ts"
 
@@ -208,10 +209,6 @@ const NODE_LOCKFILES: [string, NodePackageManager][] = [
   ["bun.lock", "bun"],
   ["bun.lockb", "bun"]
 ]
-
-function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
-}
 
 function show(value: unknown): string {
   return JSON.stringify(value)

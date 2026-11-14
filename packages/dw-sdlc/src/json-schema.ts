@@ -2,17 +2,13 @@
 // has no validator built in, and a config file does not justify pulling one in. A keyword outside the
 // subset throws instead of passing silently, so a schema never promises more than this file enforces.
 
+import { isObject, type JsonObject } from "./json-text.ts"
+
 export type SchemaProblem = { path: string; message: string }
 
 export class SchemaError extends Error {}
 
-type JsonObject = { [key: string]: unknown }
-
 const ANNOTATIONS = new Set(["$schema", "$id", "$comment", "title", "description", "default", "examples"])
-
-function isObject(value: unknown): value is JsonObject {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
 
 function show(value: unknown): string {
   return value === undefined ? "undefined" : JSON.stringify(value)

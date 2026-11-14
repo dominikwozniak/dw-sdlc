@@ -4,7 +4,7 @@
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs"
 import { dirname, join, matchesGlob } from "node:path"
 
-import { CannotRun } from "../cannot-run.ts"
+import { CannotRun, messageOf } from "../cannot-run.ts"
 import { exec } from "../exec.ts"
 import { type Check, type Finding } from "./check.ts"
 import { matching, treeFiles } from "./tree.ts"
@@ -97,7 +97,7 @@ function readBaseline(root: string): BaselineRead {
   try {
     parsed = JSON.parse(text)
   } catch (error) {
-    const message = `not JSON: ${error instanceof Error ? error.message : String(error)}`
+    const message = `not JSON: ${messageOf(error)}`
     return { state: "invalid", findings: [{ file: BASELINE, message, remedy: REMEDIES.shape }] }
   }
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {

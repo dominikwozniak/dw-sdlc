@@ -1,15 +1,13 @@
 // The reply of a gh call read as JSON: each field checked as the type the reader asks for, and a
 // reply that fails names the field by its path.
 
+import { isObject } from "../json-text.ts"
+
 /** A reply that is not the shape the query asks for; the message names the field. */
 export class ReplyError extends Error {}
 
 /** A JSON object of the reply and the path that reached it, as `data.repository.pullRequest`. */
 export type Node = { value: Record<string, unknown>; at: string }
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
 
 export function shown(value: unknown): string {
   return value === undefined ? "missing" : JSON.stringify(value)
@@ -23,7 +21,7 @@ export function rootOf(reply: string, what: string): Node {
   } catch {
     throw new ReplyError(`${what} is not JSON`)
   }
-  if (!isRecord(json)) {
+  if (!isObject(json)) {
     throw new ReplyError(`${what} is not a JSON object`)
   }
   return { value: json, at: "" }
@@ -34,7 +32,7 @@ export function fieldOf(node: Node, key: string): { value: unknown; at: string }
 }
 
 export function object(value: unknown, at: string): Node {
-  if (!isRecord(value)) {
+  if (!isObject(value)) {
     throw new ReplyError(`${at} is ${shown(value)}, not an object`)
   }
   return { value, at }

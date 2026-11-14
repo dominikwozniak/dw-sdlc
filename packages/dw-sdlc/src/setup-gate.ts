@@ -6,11 +6,9 @@ import type { NodePackageManager } from "./agentic-config.ts"
 import { CHECK_NAMES } from "./checks/index.ts"
 import { appendKey, isObject, type JsonObject, parseObject, render } from "./json-text.ts"
 import { packageVersion } from "./package-version.ts"
+import type { Change } from "./setup-writer.ts"
 
 const PACKAGE = "dw-sdlc"
-
-/** A file's text after the setup and what writing it does, or why the setup leaves the file alone. */
-export type Change = { text: string; detail?: string } | { refusal: string }
 
 /**
  * The Checks a new `gate` key turns on: each judges a tree as it is, the agent map aside, which the

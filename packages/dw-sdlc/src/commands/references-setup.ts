@@ -2,8 +2,8 @@
 // each written only when it would change. A list gains the entries it lacks at its end; the one removal
 // is a `references` key moving out of the agentic config. A file it cannot read as expected is refused.
 
-import { existsSync, lstatSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs"
-import { dirname, join } from "node:path"
+import { existsSync, readFileSync, symlinkSync } from "node:fs"
+import { join } from "node:path"
 
 import { readArgs } from "../cannot-run.ts"
 import { exec } from "../exec.ts"
@@ -18,6 +18,7 @@ import {
   type Reference
 } from "../references-key.ts"
 import { renderBlock, withBlock } from "../router-block.ts"
+import { type Change, type Step, stepLines, Writer } from "../setup-writer.ts"
 
 const ROUTER = "references/AGENTS.md"
 /** A symlink to the Router, so Claude Code loads it. */
@@ -57,49 +58,6 @@ and leaves the config; with the file there too, both stay and the step is refuse
 written only when it would change, and the text around the Router's table never; --dry-run reports
 without writing, and --check does the same and exits 1 when a file would change. Prints one line
 per file. Exit 1 when a file is refused, 2 on a bad argument.`
-
-type Outcome = "wrote" | "unchanged" | "refused"
-type Step = { file: string; outcome: Outcome; detail?: string }
-/** A file's text after the step, or why the step leaves it alone. */
-type Change = { text: string } | { refusal: string }
-
-class Writer {
-  readonly steps: Step[] = []
-  private readonly root: string
-  private readonly dryRun: boolean
-  constructor(root: string, dryRun: boolean) {
-    this.root = root
-    this.dryRun = dryRun
-  }
-
-  private record(file: string, changed: boolean, write: (path: string) => void): void {
-    if (changed && !this.dryRun) {
-      const path = join(this.root, file)
-      mkdirSync(dirname(path), { recursive: true })
-      write(path)
-    }
-    this.steps.push({ file, outcome: changed ? "wrote" : "unchanged" })
-  }
-
-  /** The text `change` gives `file`, from what `file` holds now; written when the two differ. */
-  put(file: string, change: (current: string | undefined) => Change): void {
-    const path = join(this.root, file)
-    const current = existsSync(path) ? readFileSync(path, "utf8") : undefined
-    const next = change(current)
-    if ("refusal" in next) {
-      this.steps.push({ file, outcome: "refused", detail: next.refusal })
-      return
-    }
-    this.record(file, next.text !== current, (target) => {
-      writeFileSync(target, next.text)
-    })
-  }
-
-  /** `file`, made by `make` when nothing sits at its path, a dangling symlink included; never replaced. */
-  create(file: string, make: (path: string) => void): void {
-    this.record(file, lstatSync(join(this.root, file), { throwIfNoEntry: false }) === undefined, make)
-  }
-}
 
 /** The settings with claudeMdExcludes holding every glob of EXCLUDES, those it lacks appended. */
 function withExcludes(current: string | undefined): Change {
@@ -194,24 +152,28 @@ function toplevel(dir: string): string {
 }
 
 function setup(root: string, dryRun: boolean): Step[] {
-  const writer = new Writer(root, dryRun)
+  const writer = new Writer(dryRun)
+  /** `file` of the repository, under its own name, as `change` leaves it. */
+  const put = (file: string, change: Change | ((current: string | undefined) => Change)): void => {
+    writer.apply(file, join(root, file), change)
+  }
   const template = readFileSync(TEMPLATE, "utf8")
   const from = source(root)
-  writer.put(ROUTER, (current) => {
+  put(ROUTER, (current) => {
     if ("problem" in from) {
       return { refusal: `${from.problem}; the table comes from ${REFERENCES_FILE}, so fix it first` }
     }
     const next = withBlock(current ?? template, renderBlock(from.references ?? []))
     return "problem" in next ? { refusal: next.problem } : next
   })
-  writer.create(ROUTER_LINK, (path) => {
+  writer.create(ROUTER_LINK, join(root, ROUTER_LINK), (path) => {
     symlinkSync("AGENTS.md", path)
   })
-  writer.put(SETTINGS, withExcludes)
-  writer.put(IGNORE, withIgnoreLines)
-  writer.put(REFERENCES_FILE, () => ("problem" in from ? (from.file ?? { refusal: from.problem }) : from.file))
+  put(SETTINGS, withExcludes)
+  put(IGNORE, withIgnoreLines)
+  put(REFERENCES_FILE, "problem" in from ? (from.file ?? { refusal: from.problem }) : from.file)
   if (!("problem" in from) && from.config !== undefined) {
-    writer.put(CONFIG, from.config)
+    put(CONFIG, from.config)
   }
   return writer.steps
 }
@@ -237,9 +199,8 @@ export function run(argv: string[]): number {
   const check = values.check === true
   const dryRun = values["dry-run"] === true || check
   const steps = setup(toplevel(values.root ?? process.cwd()), dryRun)
-  for (const step of steps) {
-    const verb = step.outcome === "wrote" && dryRun ? "would write" : step.outcome
-    console.log(`${verb.padEnd(11)} ${step.file}${step.detail === undefined ? "" : ` — ${step.detail}`}`)
+  for (const line of stepLines(steps, dryRun)) {
+    console.log(line)
   }
   const refused = steps.some((step) => step.outcome === "refused")
   return refused || (check && steps.some((step) => step.outcome === "wrote")) ? 1 : 0

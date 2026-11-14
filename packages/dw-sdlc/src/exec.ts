@@ -72,6 +72,19 @@ export function exec(tool: string, args: string[], options: ExecOptions = {}): S
 /** What a tool the command needs answered: its exit status, 1 for a signal, and both streams. */
 export type Called = { status: number; stdout: string; stderr: string }
 
+/** The first line of a tool's output that says anything, trimmed; undefined where none does. */
+export function firstLine(text: string): string | undefined {
+  return text
+    .split("\n")
+    .map((line) => line.trim())
+    .find((line) => line !== "")
+}
+
+/** Why a call failed, in the tool's words: its first line, stderr before stdout, else the exit it ended with. */
+export function whyFailed({ status, stdout, stderr }: Called): string {
+  return firstLine(`${stderr}\n${stdout}`) ?? `exited ${status}`
+}
+
 /**
  * `tool args` for a command that cannot go on without the tool: one not on PATH stops the command with
  * `missing`, one past its limit with `stalled`. Its own exit is the caller's.

@@ -3,7 +3,7 @@
 // and that size its changes, and beside them the default branch and the clock the decision reads.
 
 import { CannotRun } from "../cannot-run.ts"
-import { type Called, need } from "../exec.ts"
+import { type Called, firstLine, need } from "../exec.ts"
 import { behindOf, changedOf, changesOf, compareArgs, sameChanges } from "./delta.ts"
 import { ReplyError } from "./reply.ts"
 import {
@@ -40,19 +40,15 @@ export function namedProblem(number: string | undefined, repo: string | undefine
   return undefined
 }
 
-function firstLine(text: string): string {
-  return text.trim().split("\n")[0] ?? ""
-}
-
 /** What gh said went wrong: the first line of its stderr, without its `gh: ` prefix or its `X` icon. */
 export function said(stderr: string): string {
-  return firstLine(stderr).replace(/^(?:gh: |X )/, "")
+  return (firstLine(stderr) ?? "").replace(/^(?:gh: |X )/, "")
 }
 
 /** The problem `gh auth status` reports: its line marked `X` under the host, else its first line. */
 function authProblem(stderr: string): string {
   const marked = stderr.split("\n").find((line) => line.trimStart().startsWith("X "))
-  return marked === undefined ? firstLine(stderr) : marked.trim().slice(2)
+  return marked === undefined ? (firstLine(stderr) ?? "") : marked.trim().slice(2)
 }
 
 /** `gh args` as a child process; not on PATH, or past its limit, it stops the command as any failed read does. */
@@ -85,7 +81,7 @@ function targetOf({ number, repo }: Named, command: string): { repo: string; num
   const named = [...(number === undefined ? [] : [String(number)]), ...(repo === undefined ? [] : ["-R", repo])]
   const view = gh(["pr", "view", ...named, "--json", "url"])
   if (view.status !== 0) {
-    throw new CannotRun(`gh pr view found no pull request: ${firstLine(view.stderr)}`, nameItRemedy(command))
+    throw new CannotRun(`gh pr view found no pull request: ${firstLine(view.stderr) ?? ""}`, nameItRemedy(command))
   }
   return parseOrCannotRun(() => parseView(view.stdout))
 }

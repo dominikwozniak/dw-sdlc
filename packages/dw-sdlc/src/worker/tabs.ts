@@ -4,8 +4,9 @@
 import { setTimeout as sleep } from "node:timers/promises"
 
 import { CannotRun } from "../cannot-run.ts"
+import { whyFailed } from "../exec.ts"
 import { isObject, parseObject } from "../json-text.ts"
-import { call, said } from "./herdr.ts"
+import { call } from "./herdr.ts"
 
 type Tab = { id: string; terminals: string[] }
 
@@ -13,7 +14,7 @@ type Tab = { id: string; terminals: string[] }
 function tabsOf(): Tab[] {
   const listed = call("herdr-app", ["ls"])
   if (listed.status !== 0) {
-    throw new CannotRun(`herdr-app ls failed: ${said(listed)}`)
+    throw new CannotRun(`herdr-app ls failed: ${whyFailed(listed)}`)
   }
   const parsed = parseObject(listed.stdout)
   if (parsed === undefined) {
@@ -63,7 +64,9 @@ export async function nameTab(address: string, name: string, boundSeconds: numbe
     }
     const renamed = call("herdr-app", ["do", "tab.rename", "--id", tab.id, "--name", name])
     if (renamed.status !== 0) {
-      return { kept: `herdr-app could not rename the tab of ${address}: ${errorOf(renamed.stdout) ?? said(renamed)}` }
+      return {
+        kept: `herdr-app could not rename the tab of ${address}: ${errorOf(renamed.stdout) ?? whyFailed(renamed)}`
+      }
     }
     return "renamed"
   } catch (error) {

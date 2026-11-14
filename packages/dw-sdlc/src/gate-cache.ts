@@ -6,6 +6,7 @@ import { readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 
 import type { Gate } from "./agentic-config.ts"
+import { messageOf } from "./cannot-run.ts"
 import { packageVersion } from "./package-version.ts"
 import { workingTree } from "./working-tree.ts"
 
@@ -24,7 +25,7 @@ export function fingerprint(root: string, gate: Gate): Fingerprint | { error: st
     const judge = createHash("sha256").update(JSON.stringify({ version: packageVersion(), gate }))
     return { key: `${found.tree} ${judge.digest("hex")}`, stampFile: join(found.gitDir, STAMP_FILE) }
   } catch (error) {
-    return { error: error instanceof Error ? error.message : String(error) }
+    return { error: messageOf(error) }
   }
 }
 

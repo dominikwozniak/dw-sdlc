@@ -4,10 +4,11 @@
 import { existsSync, realpathSync } from "node:fs"
 
 import { CannotRun } from "./cannot-run.ts"
+import { whyFailed } from "./exec.ts"
 import { isObject, parseObject } from "./json-text.ts"
 import { shellLine } from "./pr/decide.ts"
 import { worktreesOf } from "./sweep-trees.ts"
-import { call, hcObject, isLive, said, type Worker, workersOf } from "./worker/herdr.ts"
+import { call, hcObject, isLive, type Worker, workersOf } from "./worker/herdr.ts"
 import { type LockVerdict, lockVerdict } from "./worktree-lock.ts"
 
 /** A live terminal of another session, or the sweeping one's own, with the place herdr shows it at. */
@@ -60,7 +61,7 @@ function foldersOf(list: Worker[]): Located[] {
     const parsed = got.status === 0 ? parseObject(got.stdout) : undefined
     if (parsed === undefined) {
       throw new CannotRun(
-        `hc get ${worker.address} failed: ${got.status === 0 ? "its reply is no JSON object" : said(got)}`
+        `hc get ${worker.address} failed: ${got.status === 0 ? "its reply is no JSON object" : whyFailed(got)}`
       )
     }
     const { cwd, pid } = isObject(parsed.foreground) ? parsed.foreground : { cwd: undefined, pid: undefined }
@@ -215,12 +216,12 @@ export function removeTerminal(item: { name: string; stop?: boolean }): string |
       const killed = call("hc", ["kill", item.name])
       // 11: the terminal finished between the read and the stop.
       if (killed.status !== 0 && killed.status !== 11) {
-        return `hc kill ${item.name} failed: ${said(killed)}`
+        return `hc kill ${item.name} failed: ${whyFailed(killed)}`
       }
     }
     const removed = call("hc", ["rm", item.name])
     // 3: the terminal is gone already.
-    return removed.status === 0 || removed.status === 3 ? undefined : `hc rm ${item.name} failed: ${said(removed)}`
+    return removed.status === 0 || removed.status === 3 ? undefined : `hc rm ${item.name} failed: ${whyFailed(removed)}`
   } catch (error) {
     if (error instanceof CannotRun) {
       return error.message

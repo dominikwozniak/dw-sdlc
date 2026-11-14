@@ -5,6 +5,7 @@
 import { existsSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 
+import { messageOf } from "./cannot-run.ts"
 import { validate } from "./json-schema.ts"
 
 export type Group = { id: string; name: string }
@@ -54,7 +55,7 @@ export function parseCatalogue(text: string): Exclude<CatalogueRead, { state: "m
   try {
     parsed = JSON.parse(text)
   } catch (error) {
-    return { state: "invalid", problems: [`not JSON: ${error instanceof Error ? error.message : String(error)}`] }
+    return { state: "invalid", problems: [`not JSON: ${messageOf(error)}`] }
   }
   const problems = validate(SCHEMA, parsed).map(({ path: at, message }) => (at === "" ? message : `${at}: ${message}`))
   if (problems.length > 0) {

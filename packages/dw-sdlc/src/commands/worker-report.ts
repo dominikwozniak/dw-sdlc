@@ -5,7 +5,8 @@ import { resolve } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
 import { CannotRun, messageOf, readArgs, usageError } from "../cannot-run.ts"
-import { call, lead, said, wholeNumber } from "../worker/herdr.ts"
+import { whyFailed } from "../exec.ts"
+import { call, lead, wholeNumber } from "../worker/herdr.ts"
 
 export const summary = "deliver a Recap to the Lead, retrying while it is blocked"
 
@@ -92,7 +93,7 @@ async function report({ to, recap, attempts, interval }: Cli): Promise<number> {
       return 0
     }
     if (sent.status !== BLOCKED) {
-      process.stderr.write(`dw-sdlc worker report: hc send failed: ${said(sent)} — the Recap stays at ${path}\n`)
+      process.stderr.write(`dw-sdlc worker report: hc send failed: ${whyFailed(sent)} — the Recap stays at ${path}\n`)
       return 1
     }
     if (attempt === attempts) {

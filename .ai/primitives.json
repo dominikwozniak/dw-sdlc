@@ -250,6 +250,7 @@
         "packages/dw-sdlc/src/commands/setup.ts",
         "packages/dw-sdlc/src/setup-gate.ts",
         "packages/dw-sdlc/src/setup-rules.ts",
+        "packages/dw-sdlc/src/setup-writer.ts",
         "packages/dw-sdlc/src/json-text.ts",
         "packages/dw-sdlc/src/package-version.ts"
       ],
@@ -282,6 +283,7 @@
       "summary": "Makes a repository ready for References: the Router with its table from the file, the excludes, the ignore rules.",
       "code": [
         "packages/dw-sdlc/src/commands/references-setup.ts",
+        "packages/dw-sdlc/src/setup-writer.ts",
         "packages/dw-sdlc/src/json-text.ts",
         "packages/dw-sdlc/src/router-block.ts",
         "packages/dw-sdlc/templates/router.md"
