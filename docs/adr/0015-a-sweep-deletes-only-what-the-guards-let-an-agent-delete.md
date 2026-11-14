@@ -27,3 +27,9 @@ because git run inside the command is out of sight of Claude Code's worktree iso
 A dirty worktree, a scratch one included, still needs the dev's `--force`. The sweep spans the whole
 repository, so it removes what other sessions left; that is safe only because each thing it removes holds
 nothing to lose, and a live lock or another session's terminal keeps it off work in progress.
+
+A branch goes with `git branch -D`, the one delete the guard lets an agent make, and `-D` takes no
+expected tip. The Sweep reads the tip right before the delete and deletes only a branch still at the
+commit it judged Landed, which leaves a window of one git call. A commit made to the branch inside that
+window is lost from the branch, though the reflog keeps it. `git update-ref -d`, which names the tip it
+expects, closes the window, and the guard refuses it. The Sweep does not use what the guard refuses.

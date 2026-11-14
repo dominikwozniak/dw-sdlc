@@ -384,11 +384,11 @@ describe("dw-sdlc worker start, the base of the Worker", () => {
     const realGit = runCommand("which", ["git"], scratch("which")).stdout.trim()
     const shim = scratch("slow-git")
     const bin = join(shim, "git")
-    write(bin, `#!/bin/sh\ncase " $* " in *" fetch "*) sleep 5;; esac\nexec "${realGit}" "$@"\n`)
+    write(bin, `#!/bin/sh\ncase " $* " in *" fetch "*) sleep 30;; esac\nexec "${realGit}" "$@"\n`)
     chmodSync(bin, 0o755)
     const run = startIt({
       PATH: `${shim}:${herdr.env.PATH ?? ""}`,
-      DW_SDLC_LIMIT_MS: "1500"
+      DW_SDLC_LIMIT_MS: "5000"
     })
     assert.equal(run.status, 2, run.stderr)
     assert.match(

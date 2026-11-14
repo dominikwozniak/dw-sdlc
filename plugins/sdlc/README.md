@@ -326,6 +326,8 @@ spellings get past a rule; each is listed, not caught.
 - A check command neither the config nor the built-in list names, such as `pnpm test:unit`, piped
   into a filter; and a pipe left at the end of a line, `vitest |⏎tail`.
 - `yarn` against a separator (`yarn;`, `(yarn)`, `yarn&&`) and `pnpm exec npm`.
+- The reverse, a refusal too wide: `bun -e` and `bun --eval` are refused before a word bun reads as its
+  own command, as in `bun --eval build`, though bun builds there. The guard errs safe.
 - A push to a protected branch named `@` or `heads/main`, or aimed at another repository by `GIT_DIR=`.
 - A `cd` or `pushd` in the background, in a pipeline or behind a false `||`, read as a move, so an
   `rm -rf *` after it passes and `cd sub & cat .env` is judged as `sub/.env`. A turn of the `pushd`
