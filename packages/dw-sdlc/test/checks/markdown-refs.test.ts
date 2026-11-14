@@ -112,7 +112,9 @@ describe("the markdown-refs Check on absolute URLs into the repository", () => {
     for (const remote of [
       "git@github.com:demo/site.git",
       "https://github.com/demo/site.git",
-      "https://github.com/demo/site"
+      "https://github.com/demo/site",
+      "https://x-access-token:secret@github.com/demo/site.git",
+      "ssh://git@github.com:22/demo/site.git"
     ]) {
       const run = runBin(["gate"], withDocs({ "docs/urls.md": URLS }, true, remote))
       assert.equal(run.status, 1, remote)
@@ -122,6 +124,21 @@ describe("the markdown-refs Check on absolute URLs into the repository", () => {
         'docs/urls.md:9: markdown-refs: links to "https://raw.githubusercontent.com/demo/site/main/config/gone.json", which does not exist — fix the path or drop the link'
       ])
     }
+  })
+
+  it("reads a URL as GitHub does: once per line, a line anchor no heading, emphasis and the branch's case not part of it", () => {
+    const doc = [
+      "[https://github.com/demo/site/blob/main/gone.md](https://github.com/demo/site/blob/main/gone.md)",
+      "See https://github.com/demo/site/blob/main/README.md?plain=1#L3-L5 and https://github.com/demo/site/blob/main/README.md#L2.",
+      "**https://github.com/demo/site/blob/main/README.md** and _https://raw.githubusercontent.com/demo/site/main/README.md_",
+      "[Another branch](https://github.com/demo/site/blob/Main/gone.md)",
+      ""
+    ].join("\n")
+    const run = runBin(["gate"], withDocs({ "docs/read.md": doc }, true, "git@github.com:demo/site.git"))
+    assert.equal(run.status, 1)
+    assert.deepEqual(failures(run.stdout), [
+      'docs/read.md:1: markdown-refs: links to "https://github.com/demo/site/blob/main/gone.md", which does not exist — fix the path or drop the link'
+    ])
   })
 
   it("reads the default branch from origin/HEAD, and judges no URL at another branch", () => {

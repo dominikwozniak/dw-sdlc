@@ -24,9 +24,9 @@ const REMEDIES = {
 /** A target with a scheme, such as `https:` or `mailto:`, or a host: no file of the tree answers it. */
 const EXTERNAL = /^([a-z][a-z\d+.-]*:|\/\/)/i
 
-/** `owner/name` in the URL of a GitHub remote, over SSH or HTTPS, `.git` or not. */
+/** `owner/name` in the URL of a GitHub remote, over SSH or HTTPS, with a user, a token or a port, `.git` or not. */
 const GITHUB_REMOTE =
-  /^(?:git@github\.com:|ssh:\/\/git@github\.com\/|https:\/\/github\.com\/)([^/]+\/[^/]+?)(?:\.git)?\/?$/i
+  /^(?:git@github\.com:|(?:ssh|https?):\/\/(?:[^@/]+@)?github\.com(?::\d+)?\/)([^/]+\/[^/]+?)(?:\.git)?\/?$/i
 const REMOTE_HEAD = "refs/remotes/origin/HEAD"
 /** The branch a URL is judged at when origin/HEAD names none, as in a CI checkout. */
 const FALLBACK_BRANCH = "main"
@@ -35,8 +35,16 @@ const FALLBACK_BRANCH = "main"
 const REPOSITORY_URL =
   /https:\/\/(?:github\.com\/[^/\s]+\/[^/\s]+\/(?:blob|tree)|raw\.githubusercontent\.com\/[^/\s]+\/[^/\s]+)\/[^\s"'`<>()[\]]+/gi
 
-/** The URL prefixes, lowercased, that name a path of origin's default branch; none when origin is not on GitHub. */
-function prefixesOf(root: string): string[] {
+/** A URL prefix naming a path of origin's default branch: up to the branch, lowercased as GitHub matches it, and the branch. */
+type Prefix = { repository: string; branch: string }
+
+/** Closing punctuation and emphasis markers after a URL, which GitHub leaves out of it. */
+const TRAILING = /[.,;:!?*_~]+$/
+/** A GitHub anchor to a line or a range of lines, which names no heading. */
+const LINE_ANCHOR = /#L\d+(C\d+)?(-L\d+(C\d+)?)?$/
+
+/** The prefixes of URLs into origin's default branch; none when origin is not on GitHub. */
+function prefixesOf(root: string): Prefix[] {
   const slug = GITHUB_REMOTE.exec(asked(root, ["remote", "get-url", "origin"]) ?? "")?.[1]?.toLowerCase()
   if (slug === undefined) {
     return []
@@ -44,26 +52,38 @@ function prefixesOf(root: string): string[] {
   const head = asked(root, ["symbolic-ref", "-q", REMOTE_HEAD])?.replace(/^refs\/remotes\/origin\//, "")
   const branch = head === undefined || head === "" ? FALLBACK_BRANCH : head
   return [
-    `https://github.com/${slug}/blob/${branch}/`,
-    `https://github.com/${slug}/tree/${branch}/`,
-    `https://raw.githubusercontent.com/${slug}/${branch}/`
-  ]
+    `https://github.com/${slug}/blob/`,
+    `https://github.com/${slug}/tree/`,
+    `https://raw.githubusercontent.com/${slug}/`
+  ].map((repository) => ({ repository, branch }))
 }
 
-/**
- * Every URL of `text` into the repository's default branch, a fenced line's included, as a link to its
- * path from the root; a sentence's closing punctuation is not part of it.
- */
-function repositoryLinks(text: string, prefixes: string[]): (Link & { shown: string })[] {
+/** The path from the root `url` names under one of `prefixes`, its line anchor dropped; undefined under none. */
+function pathOf(url: string, prefixes: Prefix[]): string | undefined {
+  const prefix = prefixes.find(
+    ({ repository, branch }) =>
+      url.toLowerCase().startsWith(repository) && url.slice(repository.length).startsWith(`${branch}/`)
+  )
+  return prefix === undefined
+    ? undefined
+    : `/${url.slice(prefix.repository.length + prefix.branch.length + 1).replace(LINE_ANCHOR, "")}`
+}
+
+/** A URL into the repository as a link to its path from the root, and the URL the finding quotes. */
+type RepositoryLink = Link & { shown: string }
+
+/** Every URL of `text` into the repository's default branch, a fenced line's included, once per line. */
+function repositoryLinks(text: string, prefixes: Prefix[]): RepositoryLink[] {
   if (prefixes.length === 0) {
     return []
   }
-  return text.split("\n").flatMap((line, index) =>
-    Array.from(line.matchAll(REPOSITORY_URL), ([url]) => url.replace(/[.,;:!?]+$/, "")).flatMap((url) => {
-      const prefix = prefixes.find((candidate) => url.toLowerCase().startsWith(candidate))
-      return prefix === undefined ? [] : [{ target: `/${url.slice(prefix.length)}`, line: index + 1, shown: url }]
+  return text.split("\n").flatMap((line, index) => {
+    const urls = new Set(Array.from(line.matchAll(REPOSITORY_URL), ([url]) => url.replace(TRAILING, "")))
+    return [...urls].flatMap((url) => {
+      const target = pathOf(url, prefixes)
+      return target === undefined ? [] : [{ target, line: index + 1, shown: url }]
     })
-  )
+  })
 }
 
 function decode(text: string): string {
@@ -88,7 +108,7 @@ function resolve(file: string, path: string): string {
 function judge(
   repository: Repository,
   file: string,
-  { target, line, shown = target }: Link & { shown?: string }
+  { target, line, shown = target }: Link & Partial<RepositoryLink>
 ): Finding[] {
   if (EXTERNAL.test(target)) {
     return []
