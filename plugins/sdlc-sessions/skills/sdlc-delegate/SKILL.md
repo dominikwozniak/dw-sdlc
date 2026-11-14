@@ -1,6 +1,6 @@
 ---
 name: sdlc-delegate
-description: Make this session a Lead that starts Workers in herdr terminals, in parallel where the tickets allow, and gathers their Recaps. Invoke it when the dev types /sdlc-delegate, or asks in their own words to hand work to Workers or parallel sessions, such as "oddeleguj", "puść te tickety równolegle" or "odpal workerów na te tickety". When the conversation has just published tickets, or a spec with sub-issues, offer it in one line and wait for the dev's go. It is how a session starts a Worker, never a bare hc run. A Worker never invokes it, and "implement this issue" is work for this session, never this skill.
+description: Make this session a Lead that starts Workers in herdr terminals, in parallel where the tickets allow, and gathers their Recaps. Invoke it when the dev types /sdlc-delegate, or asks in their own words to hand work to Workers or parallel sessions, such as "oddeleguj", "puść te tickety równolegle" or "odpal workerów na te tickety". When the conversation has just published tickets, or a spec with sub-issues, in a repository that has `.ai/agentic.config.json`, offer it in one line and wait for the dev's go. It is how a session starts a Worker, never a bare hc run. A Worker never invokes it, and "implement this issue" is work for this session, never this skill.
 argument-hint: "[#issue ... | spec path | split] [model or effort]"
 ---
 

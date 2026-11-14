@@ -63,7 +63,6 @@ repository that declares nothing gets these rules, inferred:
 
 - a push to `main`, `master` or `production` is refused, plain, lease or forced: those take pull requests
 - a bare `push --force` is refused anywhere; `push --force-with-lease` passes off a protected branch
-- an agent's commit subject must follow Conventional Commits
 - `npm`, `npx`, `yarn` and `bun` are refused in a pnpm repository, known from its lockfile
 - a `.env` file git does not track is refused, so are credential files and a `curl` carrying a secret
 - destructive git (`reset --hard` over changes, `clean -fd`, a reflog expiry) and every App Store

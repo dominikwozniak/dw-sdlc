@@ -34,7 +34,7 @@ export type Probe = {
 }
 
 export type RepositoryConfig = {
-  config: { commit: { convention: string } }
+  config: { commit: { convention?: string } }
   problems: string[]
   /** The checkout each layer was read from, as `resolveConfig` reports it. */
   sources?: { committed: string | undefined; local: string | undefined }
@@ -280,7 +280,7 @@ function checkConfig(config: RepositoryConfig | undefined, root: string): Check 
   return {
     name: "config",
     level: "PASS",
-    detail: `commit ${config.config.commit.convention}${borrowed.join("")}`
+    detail: `commit ${config.config.commit.convention ?? "unchecked"}${borrowed.join("")}`
   }
 }
 

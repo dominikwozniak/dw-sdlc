@@ -75,7 +75,10 @@ describe("the sdlc-sessions plugin", () => {
     assert.doesNotMatch(frontmatter, /^disable-model-invocation:/m)
     const description = /^description: (.+)$/m.exec(frontmatter)?.[1] ?? ""
     assert.match(description, /Invoke it when the dev types \/sdlc-delegate, or asks in their own words/)
-    assert.match(description, /offer it in one line and wait for the dev's go/)
+    assert.match(
+      description,
+      /in a repository that has `.ai\/agentic.config.json`, offer it in one line and wait for the dev's go/
+    )
     assert.match(description, /A Worker never invokes it/)
     assert.doesNotMatch(description, /: /, "a colon and a space end a plain YAML value")
     assert.doesNotMatch(description, / #/, "a space and a hash start a YAML comment")

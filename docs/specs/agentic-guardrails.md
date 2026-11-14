@@ -42,13 +42,12 @@ refuses.
 - The local layer may tighten `guardrails.*`, `pr.merge` and `pr.review` and never loosen them;
   everything else it overrides freely.
 - Resolution order is local over committed over inferred; inference reads the package manager from
-  the lockfile and sets the `conventional` commit convention, so a repository with nothing committed
-  still works.
+  the lockfile, so a repository with nothing committed still works.
 - An invalid layer is dropped whole, a loosening local file counts as invalid, and the guards then run
   on one fixed strictest set (ADR 0003).
 - `commit.convention` names the subject's shape, `ticket-key` or `conventional`, never whose
-  repository it is. Inference always gives `conventional`; `ticket-key` comes only from a config
-  layer, and a set `commit.pattern` wins over both.
+  repository it is. Inference gives none, so a repository with no config keeps its own subjects
+  unchecked; a convention comes only from a config layer, and a set `commit.pattern` wins over both.
 - A commit made outside the agent meets the subject rule through git's `commit-msg` hook,
   `hooks/commit-msg.sh`, on the same resolved config and the same `guard_subject_fits` in `lib.sh`.
   The trailer stays the agent's rule: a commit a person writes has no co-author to name.

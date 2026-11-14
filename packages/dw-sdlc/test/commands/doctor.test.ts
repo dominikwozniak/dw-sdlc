@@ -552,6 +552,13 @@ describe("diagnose", () => {
     assert.equal(check.detail, "commit ticket-key")
   })
 
+  it("config: says the subject goes unchecked when no layer names a convention", () => {
+    const config = { config: { commit: {} }, problems: [] as string[] }
+    const check = line(diagnose({ root: ROOT, home: HOME, probe: fake(HEALTHY), config }), "config")
+    assert.equal(check.level, "PASS")
+    assert.equal(check.detail, "commit unchecked")
+  })
+
   it("config: names a layer read from the main checkout of a worktree", () => {
     const config = { ...CONFIG, sources: { committed: undefined, local: "/main" } }
     const check = line(diagnose({ root: ROOT, home: HOME, probe: fake(HEALTHY), config }), "config")

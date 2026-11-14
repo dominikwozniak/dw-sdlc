@@ -20,6 +20,7 @@ function repo(name: string, config?: object): string {
   return dir
 }
 const INFERRED = repo("inferred")
+const CONVENTIONAL = repo("conventional", { commit: { convention: "conventional" } })
 const TICKETS = repo("tickets", { commit: { convention: "ticket-key" } })
 const ANY = repo("any", { commit: { pattern: ".+" } })
 const TRAILERED = repo("trailered", { commit: { convention: "conventional", trailer: "Co-Authored-By" } })
@@ -31,20 +32,26 @@ function run(message: string, cwd: string): Verdict {
   write(file, message)
   return runBash([hookPath("commit-msg"), file], "", { cwd })
 }
-function refused(name: string, message: string, cwd = INFERRED): void {
+function refused(name: string, message: string, cwd = CONVENTIONAL): void {
   it(name, () => {
     const verdict = run(message, cwd)
     expectExit(verdict, 1)
     assert.match(verdict.stderr, /does not match this repository's commit pattern/)
   })
 }
-function allowed(name: string, message: string, cwd = INFERRED): void {
+function allowed(name: string, message: string, cwd = CONVENTIONAL): void {
   it(name, () => {
     expectExit(run(message, cwd), 0)
   })
 }
 
-describe("Conventional Commits when nothing is configured", () => {
+describe("no subject check when nothing is configured", () => {
+  allowed("typed-unset", "fix(hook): a thing\n", INFERRED)
+  allowed("no-type-unset", "whatever\n", INFERRED)
+  allowed("ticket-style-unset", "[VER-1] feat: x\n", INFERRED)
+})
+
+describe("Conventional Commits when the config names them", () => {
   allowed("typed", "fix(hook): a thing\n")
   allowed("breaking", "feat!: a thing\n")
   allowed("with-body", "docs: a thing\n\nWhy it was done.\n")
@@ -107,11 +114,17 @@ describe("a commit from a terminal", () => {
   }
 
   it("refuses an off-convention subject and records nothing", () => {
-    const dir = repo("terminal-refused")
+    const dir = repo("terminal-refused", { commit: { convention: "conventional" } })
     const result = commit(dir, "--allow-empty", "-m", "added a thing")
     expectExit(result, 1)
     assert.match(result.stderr, /does not match this repository's commit pattern/)
     assert.equal(spawnSync("git", ["-C", dir, "rev-parse", "-q", "--verify", "HEAD"]).status, 1)
+  })
+
+  it("records any subject when nothing is configured", () => {
+    const dir = repo("terminal-unset")
+    expectExit(commit(dir, "--allow-empty", "-m", "[VER-1] feat: x"), 0)
+    assert.equal(git(dir, "log", "--format=%s", "-n", "1").trim(), "[VER-1] feat: x")
   })
 
   it("records a subject on the convention", () => {

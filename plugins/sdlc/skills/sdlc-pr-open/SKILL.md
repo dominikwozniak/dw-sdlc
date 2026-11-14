@@ -12,8 +12,8 @@ merges nothing and does not start `/sdlc-pr-ship`, which comes after.
 ## 1. Read the repository
 
 - The convention: `node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" config` prints two lines of layers,
-  then JSON, on exit 1 too. Read `commit.convention` and `commit.pattern` from that JSON. Without any
-  JSON, take `conventional`, and say so in one line.
+  then JSON, on exit 1 too. Read `commit.convention` and `commit.pattern` from that JSON. With neither,
+  or no JSON, the repository names no convention: follow the subjects `git log --oneline -10` shows.
 - The template: look for `pull_request_template.md` in `.github/`, the root and `docs/`, in any case,
   and for a `.github/PULL_REQUEST_TEMPLATE/` folder. A folder with several: take the one that fits
   the change, else ask. GitHub applies a template only in the web form, so `--body-file` skips it and

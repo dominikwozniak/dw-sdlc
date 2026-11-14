@@ -101,16 +101,11 @@ export type ResolvedConfig = {
   baseBranch: string
   packageManagers: { node?: NodePackageManager; ruby?: "bundler" }
   guardrails: Guardrails
-  commit: { convention: CommitConvention; pattern: string; trailer?: string }
+  commit: { convention?: CommitConvention; pattern?: string; trailer?: string }
   gate: Gate
   pr: PrConfig
   worker: WorkerConfig
   worktree: { setup: string[] }
-}
-
-/** The layers merged, before `commit.pattern` falls back to the preset its convention names. */
-type Merged = Omit<ResolvedConfig, "commit"> & {
-  commit: { convention: CommitConvention; pattern?: string; trailer?: string }
 }
 
 export type Problem = { file: string; path: string; message: string }
@@ -335,16 +330,16 @@ function inferGate(root: string): Gate {
 
 /**
  * The bottom layer: the package manager the lockfile implies, the Gate command the manifest's `check`
- * script implies, plus the defaults every key falls back to. `commit.pattern` is left to
- * `resolveConfig`, which fills it from the convention when no layer sets one.
+ * script implies, plus the defaults every key falls back to. No commit convention: only a file sets
+ * one, and `resolveConfig` fills `commit.pattern` from it when no layer sets a pattern.
  */
-export function inferConfig(root: string): Merged {
+export function inferConfig(root: string): ResolvedConfig {
   return {
     version: 1,
     baseBranch: "auto",
     packageManagers: inferPackageManagers(root),
     guardrails: cloneGuardrails(DEFAULT_GUARDRAILS),
-    commit: { convention: "conventional" },
+    commit: {},
     gate: inferGate(root),
     pr: { ...DEFAULT_PR },
     worker: { ...DEFAULT_WORKER },
@@ -352,7 +347,7 @@ export function inferConfig(root: string): Merged {
   }
 }
 
-function applyLayer(base: Merged, layer: AgenticConfig): Merged {
+function applyLayer(base: ResolvedConfig, layer: AgenticConfig): ResolvedConfig {
   return {
     version: 1,
     baseBranch: layer.baseBranch ?? base.baseBranch,
@@ -443,10 +438,16 @@ function prLoosenings(base: PrConfig, local: Partial<PrConfig> | undefined): Pro
   })
 }
 
-/** `commit.pattern` from the convention's preset when no layer set one; a set pattern wins. */
-function finalize(merged: Merged): ResolvedConfig {
-  const pattern = merged.commit.pattern ?? COMMIT_PATTERNS[merged.commit.convention]
-  return { ...merged, commit: { ...merged.commit, pattern } }
+/**
+ * `commit.pattern` from the convention's preset when no layer set one; a set pattern wins. Neither
+ * set, no pattern: the subject goes unchecked.
+ */
+function finalize(merged: ResolvedConfig): ResolvedConfig {
+  const { convention, pattern } = merged.commit
+  if (pattern !== undefined || convention === undefined) {
+    return merged
+  }
+  return { ...merged, commit: { ...merged.commit, pattern: COMMIT_PATTERNS[convention] } }
 }
 
 /**

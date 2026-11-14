@@ -34,7 +34,7 @@ function subjectPattern(pattern: string | undefined): RegExp {
 }
 
 describe("inference, with no config file", () => {
-  it("infers Conventional Commits under any remote and the package manager from the lockfile, nothing from Ruby files", () => {
+  it("infers no commit convention under any remote, and the package manager from the lockfile, nothing from Ruby files", () => {
     const root = repo({
       remote: ORG_REMOTE,
       files: { ".ruby-version": "4.0.5\n", Gemfile: "", "package.json": "{}", "pnpm-lock.yaml": "" }
@@ -42,12 +42,9 @@ describe("inference, with no config file", () => {
     const { config, problems, layers } = resolveConfig(root)
     assert.deepEqual(problems, [])
     assert.deepEqual(layers, { committed: "absent", local: "absent" })
-    assert.equal(config.commit.convention, "conventional")
+    assert.deepEqual(config.commit, {})
     assert.ok(!("stack" in config))
     assert.deepEqual(config.packageManagers, { node: "pnpm" })
-    assert.match("feat(scope)!: x", subjectPattern(config.commit.pattern))
-    assert.doesNotMatch("[ABC-12] docs: x", subjectPattern(config.commit.pattern))
-    assert.equal(config.commit.trailer, undefined)
     assert.deepEqual(config.guardrails, {
       forcePush: "lease",
       commitOnProtected: "allow",
@@ -63,13 +60,12 @@ describe("inference, with no config file", () => {
   it("has no package manager without a lockfile", () => {
     const root = repo({ remote: "https://github.com/dominikwozniak/x.git", files: { "package.json": "{}" } })
     const { config } = resolveConfig(root)
-    assert.equal(config.commit.convention, "conventional")
     assert.deepEqual(config.packageManagers, {})
   })
 
-  it("is conventional outside git", () => {
+  it("infers no commit convention outside git", () => {
     const { config } = resolveConfig(repo({ git: false }))
-    assert.equal(config.commit.convention, "conventional")
+    assert.deepEqual(config.commit, {})
   })
 
   it("infers the Gate command as pnpm check from the manifest's check script, and none without one", () => {
@@ -126,7 +122,15 @@ describe("the committed file", () => {
       drift: "fail",
       checks: { run: [{ name: "docs", command: "node docs.ts" }] }
     })
-    assert.equal(config.commit.convention, "conventional")
+    assert.deepEqual(config.commit, {})
+  })
+
+  it("takes the Conventional Commits preset only when the file names it", () => {
+    const root = repo({ files: { [COMMITTED_FILE]: { commit: { convention: "conventional" } } } })
+    const { config } = resolveConfig(root)
+    assert.match("feat(scope)!: x", subjectPattern(config.commit.pattern))
+    assert.doesNotMatch("[VER-1] feat: x", subjectPattern(config.commit.pattern))
+    assert.doesNotMatch("whatever", subjectPattern(config.commit.pattern))
   })
 
   it("picks the subject preset from commit.convention when no pattern is set", () => {
