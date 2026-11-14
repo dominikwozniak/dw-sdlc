@@ -294,10 +294,10 @@ function worst(outcomes: Pick<Outcome, "status">[]): Status {
  */
 function select(gate: Gate, only: string | undefined): Selection | Failure {
   if (only === undefined) {
-    return { steps: gate.steps, run: gate.checks.run, shipped: enabledChecks(gate.checks) }
+    return { steps: gate.steps, run: gate.checks.run, shipped: enabledChecks(gate) }
   }
   const scripts = gate.checks.run.filter((check) => check.name === only)
-  const shipped = shippedCheck(only, gate.checks[only])
+  const shipped = shippedCheck(only, gate)
   if (scripts.length === 0 && shipped === undefined) {
     const names = [...gate.checks.run.map((check) => check.name), ...CHECK_NAMES].join(", ")
     return { rule: "check", message: `no Check is named ${JSON.stringify(only)}`, remedy: `name one of ${names}` }

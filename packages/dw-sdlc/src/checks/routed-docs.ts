@@ -4,7 +4,7 @@
 
 import { matchesGlob, posix } from "node:path"
 
-import { resolveConfig } from "../agentic-config.ts"
+import type { Gate } from "../agentic-config.ts"
 import { readCatalogue } from "../catalogue.ts"
 import { mapFile, readMap, routes } from "./agents-map.ts"
 import type { Check, Finding } from "./check.ts"
@@ -35,8 +35,7 @@ function catalogueDocs(root: string, file: string): string[] {
   return read.state === "valid" ? read.catalogue.primitives.flatMap(({ docs }) => docs) : []
 }
 
-function run(root: string, { files, exempt }: RoutedDocsOptions): Finding[] {
-  const { checks } = resolveConfig(root).config.gate
+function run(root: string, { files, exempt }: RoutedDocsOptions, { checks }: Gate): Finding[] {
   const map = mapFile(checks)
   const rows = routes(readMap(root, map))
   const findings: Finding[] = []

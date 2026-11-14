@@ -4,7 +4,7 @@
 import { existsSync } from "node:fs"
 import { join } from "node:path"
 
-import { resolveConfig } from "../agentic-config.ts"
+import type { Gate } from "../agentic-config.ts"
 import { CannotRun } from "../cannot-run.ts"
 import { type Catalogue, CATALOGUE_FILE, type Primitive, primitivesNaming, readCatalogue } from "../catalogue.ts"
 import { type Anchors, anchorsOf } from "../markdown.ts"
@@ -90,7 +90,7 @@ function judge(
   return findings
 }
 
-function run(root: string, { file, roots }: PrimitivesOptions): Finding[] {
+function run(root: string, { file, roots }: PrimitivesOptions, gate: Gate): Finding[] {
   const read = readCatalogue(root, file)
   if (read.state === "missing") {
     throw new CannotRun("the catalogue does not exist", REMEDIES.missing, { file })
@@ -99,9 +99,7 @@ function run(root: string, { file, roots }: PrimitivesOptions): Finding[] {
     return read.problems.map((message) => ({ file, message, remedy: REMEDIES.shape }))
   }
   const { catalogue, text } = read
-  const records = (
-    optionsOf(decisionRecords, resolveConfig(root).config.gate.checks["decision-records"]) ?? decisionRecords.defaults
-  ).dirs
+  const records = (optionsOf(decisionRecords, gate.checks["decision-records"]) ?? decisionRecords.defaults).dirs
   const findings: Finding[] = []
   const seen = new Map<string, number>()
   const cache: Anchors = new Map()

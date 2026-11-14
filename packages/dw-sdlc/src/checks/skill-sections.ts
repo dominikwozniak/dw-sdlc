@@ -5,7 +5,7 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs"
 import { join, posix } from "node:path"
 
-import { resolveConfig } from "../agentic-config.ts"
+import type { Gate } from "../agentic-config.ts"
 import { CannotRun } from "../cannot-run.ts"
 import { readCatalogue } from "../catalogue.ts"
 import { headings, openFence, prose } from "../markdown.ts"
@@ -129,12 +129,12 @@ function render(root: string, path: string, sources: Sources): Rendered {
   return { text: pieces.join(""), findings, rewritten }
 }
 
-/** The docs entries the catalogue names, each read from the root; the catalogue is read on the first call. */
-function listedDocs(root: string): () => Set<string> {
+/** The docs entries of the catalogue `gate` points at, each read from the root; it is read on the first call. */
+function listedDocs(root: string, gate: Gate): () => Set<string> {
   let listed: Set<string> | undefined
   return () => {
     if (listed === undefined) {
-      const file = catalogueFile(resolveConfig(root).config.gate.checks)
+      const file = catalogueFile(gate.checks)
       const read = readCatalogue(root, file)
       if (read.state === "missing") {
         throw new CannotRun("the catalogue does not exist, and a skill holds a part", REMEDIES.missing, { file })
@@ -148,8 +148,8 @@ function listedDocs(root: string): () => Set<string> {
   }
 }
 
-function renderAll(root: string, { files }: SkillSectionsOptions): { path: string; rendered: Rendered }[] {
-  const sources: Sources = { listed: listedDocs(root), readmes: new Map() }
+function renderAll(root: string, { files }: SkillSectionsOptions, gate: Gate): { path: string; rendered: Rendered }[] {
+  const sources: Sources = { listed: listedDocs(root, gate), readmes: new Map() }
   return matching(root, treeFiles(root), files).map((path) => ({ path, rendered: render(root, path, sources) }))
 }
 
@@ -157,8 +157,8 @@ function plural(count: number, noun: string): string {
   return `${count} ${noun}${count === 1 ? "" : "s"}`
 }
 
-function write(root: string, options: SkillSectionsOptions): string {
-  const changed = renderAll(root, options).filter(({ rendered }) => rendered.rewritten > 0)
+function write(root: string, options: SkillSectionsOptions, gate: Gate): string {
+  const changed = renderAll(root, options, gate).filter(({ rendered }) => rendered.rewritten > 0)
   for (const { path, rendered } of changed) {
     writeFileSync(join(root, path), rendered.text)
   }
@@ -172,6 +172,6 @@ function write(root: string, options: SkillSectionsOptions): string {
 export const skillSections: Check<SkillSectionsOptions> = {
   name: "skill-sections",
   defaults: { files: ["**/skills/**/*.md"] },
-  run: (root, options) => renderAll(root, options).flatMap(({ rendered }) => rendered.findings),
+  run: (root, options, gate) => renderAll(root, options, gate).flatMap(({ rendered }) => rendered.findings),
   write
 }

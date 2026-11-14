@@ -14,7 +14,7 @@ import {
 } from "node:fs"
 import { join, normalize } from "node:path"
 
-import { resolveConfig } from "../agentic-config.ts"
+import type { Gate } from "../agentic-config.ts"
 import { CannotRun, messageOf } from "../cannot-run.ts"
 import { codeSpans, tableRows } from "../markdown.ts"
 import { type Check, type Finding, optionsOf } from "./check.ts"
@@ -66,10 +66,9 @@ export function routes(text: string): { line: number; paths: string[] }[] {
 }
 
 /** The budget, the Gate command, the row to the catalogue and every path the Task Router points at. */
-function judgeMap(root: string, { file, ...budget }: AgentsMapOptions, text: string): Finding[] {
+function judgeMap(root: string, { file, ...budget }: AgentsMapOptions, text: string, gate: Gate): Finding[] {
   const findings: Finding[] = overBudget(text, budget).map((message) => ({ file, message, remedy: REMEDIES.budget }))
 
-  const { gate } = resolveConfig(root).config
   if (gate.command === undefined) {
     findings.push({ message: "the Gate has no command for the map to name", remedy: REMEDIES.noCommand })
   } else if (!new RegExp(`(^|[^\\w-])${escape(gate.command)}($|[^\\w-])`, "m").test(text)) {
@@ -211,9 +210,9 @@ export function readMap(root: string, file: string): string {
   return readFileSync(path, "utf8")
 }
 
-function run(root: string, options: AgentsMapOptions): Finding[] {
+function run(root: string, options: AgentsMapOptions, gate: Gate): Finding[] {
   return [
-    ...judgeMap(root, options, readMap(root, options.file)),
+    ...judgeMap(root, options, readMap(root, options.file), gate),
     ...judgeLink(root, options.file),
     ...judgeSkills(root)
   ]

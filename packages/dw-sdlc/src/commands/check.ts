@@ -63,7 +63,7 @@ function writeDerived(root: string, name: string, json: boolean): void {
   if (problems.length > 0) {
     return
   }
-  const shipped = shippedCheck(name, config.gate.checks[name])
+  const shipped = shippedCheck(name, config.gate)
   if (shipped === undefined && !config.gate.checks.run.some((check) => check.name === name)) {
     // No Check of that name: the run after it says so, with the names there are.
     return
