@@ -111,7 +111,7 @@ export type Started = { group: number; done: Promise<Run & { signal: NodeJS.Sign
 
 /**
  * Starts `dw-sdlc <args>` from `cwd` as the leader of a process group of its own, so a test signals the
- * bin and the commands it runs together, as Ctrl-C in a terminal does.
+ * bin's group as Ctrl-C in a terminal does; each command the bin runs leads a group of its own.
  */
 export function startBin(args: string[], cwd: string): Started {
   const child = spawn(process.execPath, [BIN, ...args], { cwd, env: scratchEnv({}), detached: true })

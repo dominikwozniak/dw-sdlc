@@ -1,8 +1,8 @@
-// How the Gate runs one command, a Step or a `gate.checks.run` script: through `sh -c` from the
-// repository root, stdin closed, its output captured or passed through, and what it answered; and
-// how SIGINT and SIGTERM stop the command running and every command after it.
+// How the Gate runs one command, a Step or a `gate.checks.run` script: `sh -c` from the repository
+// root in a process group of its own, stdin closed, output captured or passed through; and how SIGINT
+// and SIGTERM stop it, every process it started and every command after it.
 
-import { type ChildProcess, spawn, type StdioOptions } from "node:child_process"
+import { spawn, type StdioOptions } from "node:child_process"
 import { closeSync, fstatSync, mkdtempSync, openSync, readSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -34,13 +34,13 @@ export const TAIL_LINES = 50
 const NOT_RUNNABLE: Record<number, string> = { 127: "was not found", 126: "could not be executed" }
 const STOPPING: NodeJS.Signals[] = ["SIGINT", "SIGTERM"]
 
-/** The command running, which a signal the Gate gets is passed on to. */
-let running: ChildProcess | undefined
+/** The process group the running command leads, which a signal the Gate gets is passed on to. */
+let running: number | undefined
 /** The first SIGINT or SIGTERM the Gate got; no command starts after it. */
 let received: NodeJS.Signals | undefined
 /**
- * The SIGINT or SIGTERM that ended a command; no command starts after it either. Ctrl-C reaches the
- * command and the Gate together, and the command's exit can be seen before the Gate's own signal.
+ * The SIGINT or SIGTERM that ended a command; no command starts after it either. A signal sent to
+ * the command and the Gate together can show in the command's exit before the Gate's own handler runs.
  */
 let commandEndedBy: NodeJS.Signals | undefined
 
@@ -48,20 +48,49 @@ function release(): void {
   for (const signal of STOPPING) {
     process.off(signal, stop)
   }
+  process.off("SIGHUP", hangUp)
+}
+
+/** Sends `signal` to every process of the running command's group. */
+function signalCommand(signal: NodeJS.Signals): void {
+  // A pid of 0 would make the kill reach the Gate's own group.
+  if (running === undefined || running <= 0) {
+    return
+  }
+  try {
+    process.kill(-running, signal)
+  } catch (error) {
+    // ESRCH: no process is left in the group.
+    if (!(error instanceof Error && "code" in error && error.code === "ESRCH")) {
+      throw error
+    }
+  }
 }
 
 function stop(signal: NodeJS.Signals): void {
   if (received !== undefined) {
-    // A second signal ends the Gate at once, as it would with no handler: the command ignored the first.
+    // A second signal ends the Gate at once, as it would with no handler, and kills the command, which
+    // ignored the first.
+    signalCommand("SIGKILL")
     release()
     process.kill(process.pid, signal)
     return
   }
   received = signal
-  running?.kill(signal)
+  signalCommand(signal)
 }
 
-/** Runs `body` with SIGINT and SIGTERM held, so a signal stops the command running and the Gate reports it. */
+/** A hangup ends the Gate as with no handler, passed on first: a terminal's hangup misses the command's session. */
+function hangUp(): void {
+  signalCommand("SIGHUP")
+  release()
+  process.kill(process.pid, "SIGHUP")
+}
+
+/**
+ * Runs `body` with SIGINT and SIGTERM held, so a signal stops the command running and the Gate
+ * reports it, and SIGHUP passed on to the command.
+ */
 export async function holdingSignals<T>(body: () => Promise<T>): Promise<T> {
   running = undefined
   received = undefined
@@ -70,6 +99,7 @@ export async function holdingSignals<T>(body: () => Promise<T>): Promise<T> {
   for (const signal of STOPPING) {
     process.on(signal, stop)
   }
+  process.on("SIGHUP", hangUp)
   try {
     return await body()
   } finally {
@@ -138,8 +168,9 @@ function run(command: string, root: string, stdio: StdioOptions): Promise<Omit<R
       running = undefined
       resolve({ ...answered, seconds: (performance.now() - started) / 1000 })
     }
-    const child = spawn(command, { shell: true, cwd: root, stdio })
-    running = child
+    // A session of its own makes the command lead a process group, which every process it starts joins.
+    const child = spawn(command, { shell: true, cwd: root, stdio, detached: true })
+    running = child.pid
     // A signal that cannot be delivered is an error too; only a child with no pid never started.
     child.on("error", (error) => {
       if (child.pid === undefined) {
