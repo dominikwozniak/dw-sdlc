@@ -53,11 +53,10 @@ push makes.
   `git diff` below, and the paths named to the command at `full`. An empty list leaves nothing to
   read: a Finding an earlier Review left open stays open, and with none the Review is clean.
   When the answer has `details.open`, the read mark on that head left Findings no later commit
-  answers, and a merge of the base or a rebase came after it. Those Findings in this conversation:
-  fix them and `git push` before any Review, and the next call reads the fix. None here: the
-  Review reads the whole pull request from `origin/<base>`, as the answer names no `since`, and
-  its Findings stand in for the mark's. Never post a success over that mark without that Review
-  clean. At
+  answers, and a merge of the base or a rebase came after it. The answer names no `since`: the
+  Review reads the whole pull request from `origin/<base>`, and its Findings stand in for the
+  mark's, unless this conversation holds the mark's own, which `references/review.md` has fixed
+  first. At
   `full`, run the slash command `details.reviewCommand` names, with its arguments, on those
   changes, naming that range to it: `<since>..<head>`. It is the config's
   `pr.reviewCommand`, `/code-review` by default, the review skill of the engineering skills

@@ -231,20 +231,29 @@ function ownChanges(pr: Parsed, commit: string): string[] | null {
   return parseOrCannotRun(() => changesOf(reply))
 }
 
-/**
- * `pr` and, with no read in its history, the newest commit force pushes left behind that a Review read;
- * a read mark on own changes the head holds as they were is `open`, no read standing in (ADR 0023).
- * The compares run only when a Review awaits the head.
- */
+/** `pr` and, with no read in its history, the newest commit force pushes left behind that a Review read. */
 function withRewritten(pr: Parsed, rewritten: Read[]): Parsed {
   const [newest] = rewritten
-  if (newest === undefined || pr.lastRead !== null || pr.open !== null || pr.state !== "OPEN" || !awaitsReview(pr)) {
+  if (newest === undefined || pr.lastRead !== null || pr.open !== null) {
     return pr
   }
-  if (newest.clean || !sameChanges(ownChanges(pr, newest.commit), ownChanges(pr, pr.head))) {
-    return { ...pr, lastRead: { ...newest, baseOnly: true, baseMoved: true } }
+  return { ...pr, lastRead: { ...newest, baseOnly: true, baseMoved: true } }
+}
+
+/**
+ * `pr` with its last read mark `open` when a merge of the base or a rebase came after it and the own
+ * changes are as it read them: no fix answers its Findings, so no read stands in (ADR 0023). The
+ * compares run only when a Review awaits the head.
+ */
+function withOpen(pr: Parsed): Parsed {
+  const last = pr.lastRead
+  if (last === null || last.clean || !last.baseMoved || pr.state !== "OPEN" || !awaitsReview(pr)) {
+    return pr
   }
-  return { ...pr, open: newest.commit }
+  if (!sameChanges(ownChanges(pr, last.commit), ownChanges(pr, pr.head))) {
+    return pr
+  }
+  return { ...pr, lastRead: null, open: last.commit }
 }
 
 /**
@@ -328,5 +337,5 @@ function query({ repo, number }: { repo: string; number: number }, sized: boolea
     throw new CannotRun(`${repo}#${number}: ${problem}`, remedy)
   }
   const { pr, rewritten } = parseOrCannotRun(() => parsePr(reply.stdout, repo))
-  return withChanged(withCarried(withRewritten(pr, rewritten)), sized)
+  return withChanged(withCarried(withOpen(withRewritten(pr, rewritten))), sized)
 }

@@ -134,9 +134,9 @@ export type PrState = {
    */
   lastRead: LastRead | null
   /**
-   * A read mark whose Findings no later commit answers: only merges of the base, or a rebase that left
-   * the own changes as they were, came after it. Then `lastRead` is null, the Review reads the whole
-   * pull request, and nothing carries (ADR 0023).
+   * A read mark whose Findings no later commit answers: a merge of the base or a rebase came after it,
+   * and the own changes are as it read them. Then `lastRead` is null, the Review reads the whole pull
+   * request, and nothing carries (ADR 0023).
    */
   open: string | null
   /**
