@@ -79,18 +79,21 @@ Refused by the sdlc plugin. If this is genuinely needed, the user runs it.
 
 `block-dangerous-commands.sh`, always on. It refuses what destroys work the reflog cannot bring back.
 
-- **Refuses:** `reset --hard` with uncommitted changes; `clean` with `-f`, `-d`, `-x`, `-X` or `--force`;
+- **Refuses:** `reset --hard` with uncommitted changes, or over an untracked file its target tracks,
+  which git writes over; `clean` with `-f`, `-d`, `-x`, `-X` or `--force`;
   `branch -M`, `-C`, and `-f` on a move, a copy or an existing branch; `checkout -f` or of the whole
   tree; `switch -f` and `--discard-changes`; a `restore` of the whole tree unless `--staged` alone;
   `stash drop` and `clear`; `worktree remove --force`; `reflog expire` and `delete`;
   `gc --prune=now|all`; `prune`; `update-ref -d`.
-- **Passes:** `reset --hard` when no tracked file has a change, since untracked files survive it and
-  the reflog keeps the old HEAD; `clean` as a dry run; a plain `branch -d` and `worktree remove`, since
-  git keeps unmerged and dirty work from them itself.
+- **Passes:** `reset --hard` when no tracked file has a change and its target tracks no untracked
+  file, since the other untracked files survive it and the reflog keeps the old HEAD; an ignored file
+  the target tracks, which git replaces on a checkout too; `clean` as a dry run; a plain `branch -d`
+  and `worktree remove`, since git keeps unmerged and dirty work from them itself.
 - **Edge:** `reset --hard` is refused when git cannot answer (outside a repository, an unborn HEAD),
   when a file is `assume-unchanged` or `skip-worktree`, under `GIT_DIR` or `GIT_WORK_TREE`, and after
-  a command that may change the tree first. The whole tree is a pathspec of `.`, `*` or `**`, `./`
-  alone, or the `:/` and `:(top)` magic.
+  a command that may change the tree first. After a fetch in the same command, or with a target
+  computed at runtime, the target is unknown, so any untracked file refuses it. The whole tree is a
+  pathspec of `.`, `*` or `**`, `./` alone, or the `:/` and `:(top)` magic.
 
 ```text
 BLOCKED: 'git clean -fd' deletes untracked files.
