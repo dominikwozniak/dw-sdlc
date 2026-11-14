@@ -520,7 +520,7 @@ needs next:
 | status | whose turn  | what the skill does                                                                  |
 | ------ | ----------- | ------------------------------------------------------------------------------------ |
 | `act`  | the agent's | `fix-ci`, `fix-conflicts`, `address-review` or `review`, then calls the script again |
-| `wait` | no one's    | tells you the reason and `recheckAfter`, and ends the turn                           |
+| `wait` | no one's    | waits in the background, `gh pr checks --watch` on CI, then calls the script again   |
 | `park` | yours       | prints the reason and the command, and stops                                         |
 | `done` | no one's    | prints the merge and the branch delete command, yours to run, and stops              |
 

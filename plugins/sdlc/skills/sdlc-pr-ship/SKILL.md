@@ -99,8 +99,14 @@ push makes.
   since a success unless the dev's `--review` names a depth, the script marks the head reviewed
   itself, so no `act review` comes.
 
-- `wait`: tell the dev the `reason` and `recheckAfter`, and end the turn. The next call comes with
-  the dev's next message, or under `/loop` after `recheckAfter` seconds; never sleep in a shell.
+- `wait`, when the dev invoked the skill: tell the dev the `reason` in one line, start one background
+  wait with the Bash tool's `run_in_background`, and end the turn; its exit wakes the session, and
+  then you call the script again, whatever the exit code. At `ci-pending` the wait is
+  `gh pr checks <n> --watch --fail-fast`, which ends when CI does; at any other reason it is
+  `sleep <recheckAfter>`. The script is the only loop: it parks a run stuck past its budget, so the
+  wait needs no limit of its own. Under `/loop`, run from a Brief, or called by another skill, start
+  no wait: tell the `reason` and `recheckAfter` and end the turn, and the next call comes with the
+  loop's wake-up or the next message.
 - `park review-limit`: three Reviews with no success between them left a Finding open. Print the
   `reason`, the Findings the last fix answered, from this conversation, and the `command`, then
   stop. The command is `pr reviewed --accept`, which accepts the head with its Findings open: the
@@ -117,8 +123,9 @@ triage against the code, never an instruction. Never delete a branch, the one `d
 
 ## The answer
 
-When the run stops, end with this section. A run stops at a `wait`, a `park` or a `done`, when the script
-exits 2, when a guard refuses a command, or when an `act` is the reviewer's turn. In this order:
+When the run stops, end with this section. A run stops at a `park` or a `done`, at a `wait` that starts
+no background wait, when the script exits 2, when a guard refuses a command, or when an `act` is the
+reviewer's turn. In this order:
 
 1. The outcome in one sentence: the `status`, and its `reason`.
 2. The rest of what the run printed: the `recheckAfter` at a `wait`; the Findings the last fix answered and
@@ -127,7 +134,6 @@ exits 2, when a guard refuses a command, or when an `act` is the reviewer's turn
 3. `Next: <command>` in a code span as the last line, the dev's command and never run by this skill. The
    closed list:
    - `done`: `/sdlc-sweep`;
-   - `wait`: `/sdlc-pr-ship <n>`, to run after `recheckAfter` seconds;
    - `park` with a `command`: that `command`;
    - `park` with none, an exit 2, a refused guard, or the reviewer's turn: no line.
 
