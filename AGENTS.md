@@ -14,7 +14,7 @@ extends those skills and replaces none. `README.md` is the front page, `docs/ove
   `src/worker/` the herdr calls; `config/` the JSON Schemas of `.ai/*.json`; `templates/` the Router
   the setup writes; `test/` the bin spawned on a throwaway repo and the packed tarball
 - `plugins/sdlc/` — guards, session hooks, the Sync, six skills and the `sdlc-reviewer` agent, as
-  `plugins/sdlc/README.md#layout` lists; `dw-sdlc` links the package its hooks and skills run;
+  `docs/contributing/plugin-internals.md#layout` lists; `dw-sdlc` links the package its hooks and skills run;
   `test/` mirrors `hooks/`
 - `plugins/sdlc-sessions/` — the session skills, depending on `sdlc`: `skills/`, `templates/brief.md`
 - `.ai/` — `agentic.config.json`, this repo's agent rules against the package's schema;
@@ -28,7 +28,7 @@ extends those skills and replaces none. `README.md` is the front page, `docs/ove
   `.claude/skills/` links them
 - `docs/agents/` — how those skills use this repo: issue tracker, domain docs
 - `docs/overview.md` — how it works, for a user; `docs/contributing/` — development, how a change lands,
-  releasing, the bash guard's parser, evals
+  releasing, the bash guard's parser, the plugin's internals, evals
 - `docs/adr/` — decision records; `docs/specs/` — a built feature's design record;
   `docs/research/<feature>/` — the dated outside facts it rests on. New work goes in GitHub Issues
 - `GLOSSARY.md` — what a word means here

@@ -20,7 +20,12 @@
       "markdown-budget": {
         "budgets": [
           { "glob": "docs/agents/*.md", "maxBytes": 6144 },
-          { "glob": "GLOSSARY.md", "maxBytes": 9216 }
+          { "glob": "GLOSSARY.md", "maxBytes": 9216 },
+          { "glob": "README.md", "maxBytes": 16384 },
+          { "glob": "docs/overview.md", "maxBytes": 36864 },
+          { "glob": "plugins/sdlc/README.md", "maxBytes": 49152 },
+          { "glob": "plugins/sdlc-sessions/README.md", "maxBytes": 14336 },
+          { "glob": "packages/dw-sdlc/README.md", "maxBytes": 12288 }
         ]
       },
       "markdown-refs": true,

@@ -14,17 +14,17 @@ Node 24 or later.
 pnpm add -D dw-sdlc
 ```
 
+Every release goes to npm from GitHub Actions by trusted publishing, and every version after 0.17.0
+carries provenance too. Trust evidence never drops from one version to the next, so a repository on
+pnpm's `trustPolicy: no-downgrade` takes each release. Dependabot offers one after the seven days of
+`minimumReleaseAge`; a repository that cannot wait names `dw-sdlc` in `minimumReleaseAgeExclude` under
+its own rule for exclusions.
+
 ## The Gate
 
 `dw-sdlc gate` proves a change. It runs the Steps under `gate.steps`, the repository's own commands, in
-order from the repository root, then every Check under `gate.checks`, a named rule the package ships. It
-prints one line per Step and per Check, and the last 50 lines of a command that fails; `--verbose` streams
-every command's output instead. A Step that creates, changes or deletes a file git tracks or would track
-fails the Gate as Drift, unless `gate.drift` is `"allow"`. It exits 0 when everything passes, 1 when a
-Step or a Check fails or a Step drifts, and 2 when the Gate cannot run. `--json` prints the result as one
-document. `--cache` skips the run when the working tree and the resolved Gate match the last green run in
-that checkout, so a pre-push hook costs nothing on an unchanged tree. `dw-sdlc check <name>` runs one
-Check alone, with the same lines, exit codes and document.
+order from the repository root, stopping at the first that fails. Then it runs every Check under
+`gate.checks`, a named rule the package ships, none stopping the next.
 
 ```json
 {
@@ -36,67 +36,82 @@ Check alone, with the same lines, exit codes and document.
 }
 ```
 
-A Step is a command string, or `{ "command": "…", "hint": "…" }`; a `gate.checks.run` entry takes a
-`hint` beside `name` and `command`. When the Step or script fails, the Gate prints `hint: <text>` under
-its failure line, and `--json` carries `hint` on every Step and Check, `null` where there is none.
-
 ```json
 { "scripts": { "check": "dw-sdlc gate" } }
 ```
 
-Under `gate.checks`, a Check the package ships is `true` for its defaults or an object of its options;
-the schema names each one's options. The package ships `primitives`, `agents-map`, `routed-docs`,
-`markdown-budget`, `markdown-refs`, `temporal-language`, `decision-records`, `file-size-ratchet`,
-`comment-budget`, `disable-directives` and `skill-sections`. Three of them:
+It prints one line per Step and per Check, and the last 50 lines of a command that fails. A Step that
+creates, changes or deletes a file git tracks or would track fails as Drift, unless `gate.drift` is
+`"allow"`. A Step written as `{ "command": "…", "hint": "…" }` prints `hint: <text>` under its failure
+line; a `gate.checks.run` entry takes a `hint` beside `name` and `command`.
 
-- `comment-budget` holds each comment block in the JavaScript, TypeScript and shell (`.sh`) files under
-  its `roots` to `maxProseLines` lines of prose, 3 by default.
-- `disable-directives` fails every Disable directive, a comment that turns a linter or the type checker
-  off, that gives no reason: `oxlint-disable*`, `eslint-disable*`, `@ts-expect-error`, `@ts-ignore`,
-  `rubocop:disable` and `noqa`. A reason follows `--` on the directive's line, follows an `@ts-`
-  directive, or is a comment on the line above.
-- `skill-sections` holds each README section a skill copies to its source. A part sits between two
-  markers, each on its own line, and `dw-sdlc check skill-sections --write` fills an empty pair:
+| flag                | does                                                                              |
+| ------------------- | --------------------------------------------------------------------------------- |
+| `--json`            | prints the result as one document; each Step and Check carries `tail` and `hint`  |
+| `--verbose`         | streams every command's output instead of the tail                                |
+| `--cache`           | skips the run when the tree and the Gate match the last green run in the checkout |
+| `--update-baseline` | after a green run, tightens the baseline of each Ratchet                          |
 
-  ```md
-  <!-- README.md#errors -->
-  <!-- /README.md#errors -->
-  ```
+| exit | means                                                                              |
+| ---- | ---------------------------------------------------------------------------------- |
+| 0    | everything passes                                                                  |
+| 1    | a Step or a Check fails, or a Step drifts                                          |
+| 2    | the Gate cannot run: an invalid config layer, a command not found, a missing input |
 
-  The anchor is GitHub's, and the section runs from its heading to the next heading of its level or
-  above, in the `README.md` beside the `skills` directory that holds the file, or beside the file outside
-  one. The Check fails a part that differs from its section, a part whose anchor names no heading of the
-  README, a part from a section no Primitive in `.ai/primitives.json` names among its docs, a marker
-  without its pair, and a code fence that never closes above a marker, which hides it. A Primitive is one
-  unit a repository exposes to an agent, a module, a hook, a script, a config key or a skill, and
-  `.ai/primitives.json` is their catalogue.
+`dw-sdlc check <name>` runs one Check alone, with the same lines, exit codes and document.
 
-Every Check is in
-[The Checks the package ships](https://github.com/dominikwozniak/dw-sdlc/blob/main/docs/overview.md#the-checks-the-package-ships).
+### Checks
+
+Under `gate.checks`, a Check is `true` for its defaults, an object of its options, or `false`. The
+schema's description of each one names its options and defaults.
+
+| Check                | fails                                                                       | reads first               |
+| -------------------- | --------------------------------------------------------------------------- | ------------------------- |
+| `markdown-refs`      | a relative link or image whose path or heading anchor does not resolve      | nothing                   |
+| `temporal-language`  | a changelog phrase in a durable document, outside code                      | nothing                   |
+| `comment-budget`     | a comment block over 3 lines of prose in JS, TS or shell                    | nothing                   |
+| `disable-directives` | a linter or type-checker disable comment with no reason                     | nothing                   |
+| `agents-map`         | an `AGENTS.md` over budget, missing the Gate command or pointing at nothing | `AGENTS.md`               |
+| `primitives`         | a catalogue entry out of step with the tree, or a file no entry owns        | `.ai/primitives.json`     |
+| `routed-docs`        | a document under `docs/` no Task Router row or Primitive leads to           | the map, the catalogue    |
+| `markdown-budget`    | a markdown file over the byte budget of its glob                            | the files its globs match |
+| `decision-records`   | a decision record misnamed, misnumbered or without a valid status           | a records directory       |
+| `file-size-ratchet`  | a code file over its line limit that the baseline does not allow            | its baseline              |
+| `skill-sections`     | a README section a skill copies that differs from its source                | the catalogue             |
+
+Each Check's options and defaults:
+[its description in the schema](https://github.com/dominikwozniak/dw-sdlc/blob/main/packages/dw-sdlc/config/agentic.config.schema.json).
 
 ## The Ship script
 
 `dw-sdlc pr ship [<n>] [-R owner/name]` reads one pull request through an authenticated `gh` and answers
-the one Action it needs next, as a line or, with `--json`, one document. The exit code says whose turn it
-is: 0 done, 10 the agent's, 20 wait, 30 the dev's, 2 it cannot run. The script performs its own Actions:
-it updates a branch GitHub reports `BEHIND`, marks the head reviewed when the Review depth is `off`,
-marks a draft ready once nothing else holds it back, and squash merges a pull request that is green,
-reviewed and opened by the `gh` account, when the merge is its own. `--dry-run` performs nothing: it
-answers the first Action the script would perform as the dev's. It never deletes a branch; a merged pull
-request answers with the delete command for the dev.
+the one Action it needs next, as a line or, with `--json`, one document. It performs its own Actions:
+it updates a branch GitHub reports `BEHIND`, marks the head reviewed at Review depth `off`, marks a draft
+ready once nothing else holds it back, and squash merges when the merge is its own. It never deletes a
+branch. `--dry-run` performs nothing.
 
-`pr.merge` in the committed `.ai/agentic.config.json` says who merges: the script under `auto`, the dev
-under `ask`, the default. A pull request the `gh` account did not open is always the dev's to merge.
-`pr.review` sets the Review depth of a head no one has reviewed: `full` runs the command
-`pr.reviewCommand` names, `/code-review` by default; `light` spawns the `sdlc-reviewer` subagent of the
-[`sdlc` plugin](https://github.com/dominikwozniak/dw-sdlc/blob/main/plugins/sdlc/README.md#the-light-review);
-`off` reads nothing. Under `auto`, the default, the script routes the depth from the size of the change.
-The local layer may tighten either key and never loosen it; `--merge` acts as `auto` and
-`--review full|light|off` sets the depth for one call.
+| exit | whose turn         |
+| ---- | ------------------ |
+| 0    | done               |
+| 10   | the agent's: act   |
+| 20   | nobody's yet: wait |
+| 30   | the dev's: park    |
+| 2    | it cannot run      |
+
+| key                | sets                                                                                           |
+| ------------------ | ---------------------------------------------------------------------------------------------- |
+| `pr.merge`         | who merges: the script under `auto`, the dev under `ask`, the default                          |
+| `pr.review`        | the Review depth of an unreviewed head: `full`, `light`, `off`, or `auto` from the change size |
+| `pr.reviewCommand` | the slash command a `full` Review runs, `/code-review` by default                              |
 
 ```json
 { "pr": { "merge": "auto", "review": "full" } }
 ```
+
+The local layer may tighten `pr.merge` and `pr.review`, never loosen them. `--merge` acts as `auto` and
+`--review full|light|off` sets the depth for one call. A pull request the `gh` account did not open is
+always the dev's to merge. `light` spawns the `sdlc-reviewer` subagent of the
+[`sdlc` plugin](https://github.com/dominikwozniak/dw-sdlc/blob/main/plugins/sdlc/README.md#the-light-review).
 
 `dw-sdlc pr reviewed <n> --head <sha>` pins a Review to the head it read, as the commit status
 `dw-sdlc/review`: clean, Findings open with `--findings`, or accepted by the dev with `--accept`. The
@@ -125,7 +140,8 @@ routing rules, the read mark and the limit of three unclean Reviews are in
 | `lead start`       | the next session started as a Lead in a herdr terminal of its own                                 |
 
 `dw-sdlc --help` lists them, and `dw-sdlc <command> --help` gives each one's options and exit codes. A
-Recap, a Brief, a Worker and a Lead belong to the
+Primitive is one unit a repository exposes to an agent, a module, a hook, a script, a config key or a
+skill, listed in `.ai/primitives.json`. A Recap, a Brief, a Worker and a Lead belong to the
 [`sdlc-sessions` plugin](https://github.com/dominikwozniak/dw-sdlc/blob/main/plugins/sdlc-sessions/README.md).
 
 ## The resolver

@@ -1,7 +1,7 @@
 #!/bin/bash
-# The library every guard sources, its parts in README.md#layout. Not a security boundary: a command
-# can always be spelled so a text scan misses it. Without jq every reader returns 1 and the guard
-# exits 0; the SessionStart report and the doctor say so.
+# The library every guard sources: docs/contributing/plugin-internals.md#layout. Not a security
+# boundary: a command can always be spelled so a text scan misses it. Without jq every reader returns
+# 1 and the guard exits 0; the SessionStart report and the doctor say so.
 
 # Bytes, not characters: every scanner below splits only on ASCII — quotes, whitespace, separators —
 # and a UTF-8 continuation byte is never ASCII, so the verdicts are the same. Under a UTF-8 locale

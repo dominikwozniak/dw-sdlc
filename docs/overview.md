@@ -1,361 +1,33 @@
 # How dw-sdlc works
 
-dw-sdlc is Claude Code tooling that holds my agentic workflow where the engineering skills leave it
-loose: guards on every tool call, a Gate that proves a change, and the road from a pull request to
-merged. It extends those skills and replaces none. Its plugin `sdlc` carries a set of deterministic
-hooks that stop an agent session from doing the damage a human would not: rewriting history, reading
-a secret, installing through the wrong package manager, committing sloppily. Beside them it carries
-the Sync of a repository's References and the skills that set a repository up, check a machine and
-ship a pull request. The plugin [`sdlc-sessions`](../plugins/sdlc-sessions/README.md) depends on it
-and carries the skills that run a session.
+This page explains how the parts of dw-sdlc fit together, for someone who uses the plugins. Each
+section says what a part is for, shows it once, and links to where its flags and edge cases live.
+Every guard in full is in the [plugin README](../plugins/sdlc/README.md); a word with a capital
+letter, such as Landed or Finding, is defined in [`GLOSSARY.md`](../GLOSSARY.md). How this repository
+is built and released is under [`contributing/`](contributing/development.md).
 
-This page is the long version of the README, for someone who uses the plugins: how a guard judges a
-call, where its rules come from, how the Gate runs, why the design is shaped this way, where it sits
-beside the engineering skills, how to adopt it, how the Ship script merges a pull request, how a Lead
-runs Workers and how a Sweep cleans up. Every guard in full is in the
-[plugin README](../plugins/sdlc/README.md); how this repository is built and released is under
-[`contributing/`](contributing/development.md).
+## The parts at a glance
 
-## How a guard judges a call
-
-Every guard is a shell hook. Claude Code hands it the tool call as JSON on stdin before the call
-runs, and the guard answers with one of three verdicts: deny (exit 2, the call never runs), ask (a
-permission prompt), or pass (silent). Bash commands go through one dispatcher that parses the
-payload once and spawns only the guards the command could trip.
-
-```mermaid
-sequenceDiagram
-    participant CC as Claude Code
-    participant D as bash-guard.sh
-    participant G as guard
-    participant C as config layers
-    CC->>D: tool call (JSON on stdin)
-    D->>C: resolve local > committed > inferred
-    C-->>D: rules, or strictest set if a layer is invalid
-    D->>G: command + rules
-    G-->>CC: deny (exit 2) / ask / pass
-```
-
-## Where the rules come from
-
-The rules come from the repository, not from the plugin. `.ai/agentic.config.json` declares the
-package manager, protected branches, env-file policy and commit convention; `pr.merge`, who merges
-a pull request the Ship script finds ready: the script under `auto`, the dev under `ask`, the
-default; `pr.review`, the Review depth of a head no one has reviewed: `full`, `light`, `off`, or
-`auto`, the default, which routes one from the changes; and `pr.reviewCommand`, the slash command
-a `full` Review runs, `/code-review` by default. A machine may add `.ai/agentic.config.local.json`
-on top, which can tighten `guardrails`, `pr.merge` and `pr.review` and never loosen them. It sets
-`pr.reviewCommand` freely: the key has no strictness order. The `worker` key names how a Worker's
-Claude Code session starts: `worker.command`, the words that start it before its own flags, `claude`
-by default; `worker.model`, `sonnet`; and `worker.effort`, `high`, one of Claude Code's effort levels.
-It has no strictness order either. The command belongs to one machine, so `dw-sdlc setup` writes
-`cswap run -- --dangerously-skip-permissions` into the local layer when `cswap` is on PATH, and
-leaves a command already there alone. Any key neither file sets is inferred: pnpm from
-the lockfile, and the `conventional` commit convention. A repository whose subjects start with a
-ticket key sets `commit.convention: ticket-key` in either file. A linked worktree reads a layer it
-lacks from its main checkout, so a repository that keeps `.ai/` out of git needs no copy per
-worktree. An invalid layer is dropped whole and the guards run on the strictest set, `pr.merge: ask`
-and `pr.review: full` with it, until it is fixed; the session start hook names each problem.
-`pr.reviewCommand` and `worker` stay as the valid layers name them.
-
-The guards judge the agent's tool calls only. A commit typed in a terminal meets the subject rule
-through git's `commit-msg` hook: `hooks/commit-msg.sh` resolves the same config and refuses a subject
-off the pattern. This repository runs it from `.vite-hooks/commit-msg`, a Vite+ git hook. The trailer
-stays the agent's rule, since a commit a person writes has no co-author to name.
-
-The plugin guards Node repositories, and App Store Connect from every repository: `asc` reaches the
-whole store account from any directory. It carries no other stack-specific guard;
-`packageManagers.ruby` is accepted by the schema and read by nothing.
-
-## How the Gate runs
-
-`pnpm check` is the Gate, the one command a change must pass, in a terminal and in CI. CI
-runs the whole Gate on a pull request once it is out of draft and on a push to `main` that is not a
-squash merge. On a pull request that changes only content, `pnpm test:content` stands in for
-`pnpm test` ([how CI runs it](contributing/how-a-change-lands.md)). Its
-script is `dw-sdlc gate`, the bin of the `dw-sdlc` package, which reads the `gate` key of the
-resolved config. The Steps under `gate.steps` run in order from the repository root through `sh -c`,
-and the first that fails ends the Gate. Then every Check under `gate.checks` runs, and a failed Check
-does not stop the next: first a repository's own scripts, which join through `gate.checks.run` as a
-`name` and a `command`, then the Checks the package ships. The schema refuses a Check name the
-package does not ship. `gate.command` is the command an agent or a person runs, inferred as
-`pnpm check` from the `check` script of `package.json` when no layer sets it.
-
-A Step is a command string, or `{ "command": "…", "hint": "…" }` when it has a Hint: one line that
-names what to try when it fails. A `gate.checks.run` entry takes a `hint` beside `name` and `command`
-the same way. The Gate prints `hint: <text>` under the failure line of a Step or script that does not
-pass, and nothing for one that passes; a Check the package ships keeps its remedy line and takes no
-Hint.
-
-The Gate is quiet in a terminal and for an agent alike, so its whole report fits in what an
-agent's Bash tool shows. A Step or run script runs with its two output streams captured into one, in
-the order written, and prints none of it when it passes. A green run prints one line per Step with
-its time, one per Check and a last line saying it is green:
-
-```text
-gate: step pnpm test — pass (71 s)
-gate: check primitives — pass
-gate: green — 3 steps, 8 checks
-```
-
-A Step or run script that does not pass prints its last 50 lines, indented, under its own line; the
-Steps after a failed one do not run and print nothing. A Check the package ships prints `— failed`
-or `— cannot run`. Then every failure is one line naming the file where there is one, the rule and
-the remedy, and a last line ends the report:
-
-```text
-gate: step pnpm exec vp check — pass (4 s)
-gate: step pnpm test — failed, exit 1 (71 s); its last 50 lines:
-  …
-  ✖ failing tests:
-  …
-step: "pnpm test" exited 1 — fix what it printed above; run it alone for the full output
-gate: failed — 1 failure
-```
-
-A failing Step with a Hint prints it under its failure line:
-
-```text
-gate: step pnpm generate:check — failed, exit 1 (4 s); its last 50 lines:
-  …
-step: "pnpm generate:check" exited 1 — fix what it printed above; run it alone for the full output
-hint: run pnpm generate to rewrite the stale files
-gate: failed — 1 failure
-```
-
-No file keeps the full output: the failure line names the command to run alone. In a terminal a
-Step's line shows when it starts and takes its result in place when it ends; elsewhere each line
-prints once, finished. `--verbose` passes each command's output through live instead, colours kept,
-under a `gate: step <command>` or `gate: check <name>` line, and keeps no tail. The Quality Gate
-workflow runs it this way, so the log of a job that times out shows how far the tests got.
-
-SIGINT or SIGTERM sent while a command runs, from Ctrl-C or a cancelled CI job, stops that command
-and every command and Check after it, and the report still prints: the stopped command's last 50
-lines, its failure line, `"<command>" was stopped by SIGINT`, and the last line. A second signal ends
-the Gate at once, for a command that ignores the first. The Checks the package ships run inside the
-bin, where a signal ends the Gate at once.
-
-Every Step runs under watch for Drift. Before and after each Step the Gate records the content of
-every file git tracks or would track, hashed with `git write-tree` over a copy of the index, and
-each file the Step created, changed or deleted is one failure:
-`packages/x/package.json: drift: "pnpm build" changed it — commit the change, or make the Step only read`.
-The records are taken around each Step, never against `HEAD`, so an edit made before the run never
-drifts, and an ignored file, such as build output under `dist/`, is never recorded. Nor is a tracked
-file marked `--assume-unchanged` or `--skip-worktree`, which `git add` passes over. Drift does not
-stop the Steps after it or the Checks, so one run names every Step that writes. A Step a signal
-stopped is not compared. A stale generated file then fails a local `pnpm check` as it fails a
-`git diff --exit-code` in CI. A tree the Gate cannot record, such as a directory outside git, means
-the Gate cannot run. `gate.drift: "allow"` turns the watch off, for a repository whose Steps must write
-while it fixes them.
-
-An invalid config layer runs nothing and fails as
-`.ai/agentic.config.json: config: gate.checks: unknown key "nope" — fix the file; the Gate runs once every layer is valid`.
-
-Under GitHub Actions each failure line is also a workflow annotation on its file. `--json` prints the
-document alone on stdout: the status, the resolved command, each Step and Check with its exit code and
-its `tail`, and the failures. `tail` is the last 50 lines of a Step or run script that did not pass,
-and null otherwise. A Check the package ships runs inside the bin, so its `command` and its `tail`
-are null. With `--verbose` the commands' output goes to stderr and every `tail` is null. The exit
-code is 0 when everything passes, 1 when a Step or a Check fails or a Step drifts, and 2 when the
-Gate cannot run: an invalid config layer, a Step or Check whose command the shell cannot find or
-execute, a Check missing an input it reads, such as a Ratchet's baseline, or a tree it cannot record
-for Drift. Why a Check is a named unit turned on in the config is
-[ADR 0009](adr/0009-checks-are-named-units-turned-on-in-the-config.md).
-
-### The Checks the package ships
-
-A Check the package ships is `true` under `gate.checks` for its defaults, an options object over
-them, or `false`; the schema's descriptions name each option and its default. Each is one module
-under `packages/dw-sdlc/src/checks/`, one row of the list the Gate runs them in, and one key of the
-schema.
-
-- `primitives` holds the Primitives catalogue, `.ai/primitives.json`, to the tree: unique ids, each
-  starting with its group and a `.` or a `-`, a group that `groups` lists, a summary of one line within
-  120 characters, every `code` and `docs` path on disk with its heading anchor resolving, no `docs`
-  entry that names a decision record whose status is `superseded` or `deprecated`, and every file under
-  the roots named by the `code` of a Primitive, the file itself or a directory above it. A decision
-  record is a file `<number>-<slug>.md` under the directories `decision-records` names, on or off.
-  The roots are `packages`, `plugins`, `scripts` and `src` by default; a test file needs no Primitive.
-- `agents-map` holds `AGENTS.md` to 10240 bytes, to naming the resolved `gate.command`, to a Task
-  Router row that points at the catalogue where there is one, and to every path the Task Router
-  points at existing. It holds `CLAUDE.md` at the root to a symbolic link to the map by its path
-  from the root, so Claude Code reads the map the Gate judges; a map named `CLAUDE.md` needs no
-  link. Where the repository has them, it keeps the skills directory, `skills-lock.json` and the
-  `.claude/skills` links in step.
-- `routed-docs` fails each document under `docs/` that no Task Router row and no Primitive's docs
-  reach, so a task leads an agent to every document that explains it. A row reaches a document
-  through a code span in a cell after the first that names it, a directory above it or a glob that
-  matches it; a Primitive reaches the documents its `docs` name, the heading anchor dropped.
-  Research notes, `docs/research/**`, are exempt by default: they are read through the spec they
-  back. It reads the map `agents-map` reads and the catalogue `primitives` reads, each Check on or
-  off, and never a document's prose. A map with no Task Router table fails once on the map, a
-  missing map leaves the Gate unable to run, and a catalogue that is missing or invalid reaches
-  nothing.
-- `markdown-budget` holds each file a glob matches to that glob's byte budget, by default the agent
-  docs, `docs/agents/*.md`, to 6144 bytes. A list of budgets replaces the default, such as one that
-  adds `GLOSSARY.md` at a budget of its own; no default names a glossary, since a glob that matches
-  no file fails. Neither `agents-map` nor `markdown-budget` counts lines: each holds a file's size in
-  bytes.
-- `markdown-refs` fails a relative link or image whose path is not a file or directory of the
-  repository, or whose heading anchor names no heading of the markdown file it points at. A link
-  with a scheme, such as `https:`, and a link inside code are not judged.
-- `temporal-language` fails a changelog phrase in a durable document: the list kody's docs check
-  holds, as [the research notes](research/gate/kody.md#two-checks-read-whole) record it, such as
-  `we now`, `is now the` or `no longer supports`, matched across a line break and never inside code.
-  Decision records, research notes and changelogs record a point in time, so `docs/adr/`,
-  `docs/decisions/`, `docs/research/` and every `CHANGELOG.md` are exempt by default.
-- `decision-records` holds the records under `docs/adr`, or the template's `docs/decisions`, to
-  files named `<number>-<slug>.md`, numbered from 1 with no gap and no number taken twice, each with
-  a level-1 heading for its title and a frontmatter `status` whose first word is `proposed`,
-  `accepted`, `active`, `deprecated` or `superseded`. Its `fields` option holds each record to more
-  of its frontmatter, and names no field by default. `date` is a `YYYY-MM-DD` day. Under `touches`,
-  a record in force, `accepted` or `active`, names the paths it governs. Each is a file or directory
-  git tracks or would track, or a glob that matches such a file. A `superseded` record names none.
-  Under `superseded-by`, a `superseded` record names the number of each record that replaces it.
-  Each number under `amended-by` is the number of a record in the same directory. A list is
-  comma-separated after its key, or one `- ` item a line under it.
-- `file-size-ratchet` is a Ratchet over code. It holds each file to the line limit of the first
-  group whose glob matches it: `tests` 2000, `source` 500. A file over its limit passes only when
-  the committed baseline, `.ai/file-size-ratchet.baseline.json`, lists it, and then only up to the
-  count recorded there. A baseline that lists a file twice, at a count within its group's limit or
-  in no group fails the Check. No default group holds markdown: the byte budgets above are fixed,
-  so a long map has to shrink, where a baseline would record it as it stands.
-- `comment-budget` holds each comment block in the JavaScript, TypeScript and shell (`.sh`) under
-  `packages`, `plugins`, `scripts` and `src` to 3 lines of prose. A block is one `/* … */` comment or
-  a run of `//` or `#` lines, each alone on its line; a comment after code is none. In shell, a `#`
-  opens a comment only where it starts a word of code: never inside a quote, a `${…}`, an arithmetic
-  `((…))` or a heredoc body, and the shebang on line 1 is none.
-- `disable-directives` holds every Disable directive in a comment to a reason: `oxlint-disable*` and
-  `eslint-disable*` in every form, `@ts-expect-error` and `@ts-ignore` in JavaScript and TypeScript,
-  `rubocop:disable` in Ruby and `noqa` in Python. A reason is text after `--` on the directive's line;
-  for the two `@ts-` directives, text after the directive, with or without `:`; or a comment on the
-  line directly above. A directive inside a string or a template is none; Ruby and Python are read by
-  their `#` comments outside strings. It fails hard, with no Ratchet, and leaves a rule set to `off`
-  in a lint config alone. `files` picks the files and `exempt` leaves some out, `references/**`,
-  `**/vendor/**` and `**/node_modules/**` by default.
-- `skill-sections` holds each README section a skill copies, a part, to its source. A part opens
-  with `<!-- README.md#<anchor> -->` and closes with `<!-- /README.md#<anchor> -->`, each on its own
-  line, with a blank line inside each. Between them sits the section of the README under the heading
-  with GitHub's anchor `<anchor>`, up to the next heading of its level or above. The README is the
-  `README.md` of the directory that holds the `skills` directory the file is in, or of the file's own
-  directory outside one. The skill files are `**/skills/**/*.md` by default. A part fails when it
-  differs from its section, when the README has no heading with its anchor, and when no Primitive
-  names `<README>#<anchor>` among its docs, so a part repeats only a section the catalogue points
-  to. A marker without its pair fails too, so a mistyped one never leaves a part unchecked. A marker
-  inside code is none, and a code fence that never closes above a marker fails, since it hides that
-  marker.
-  `dw-sdlc check skill-sections --write` writes each part from its section, and an empty pair is a
-  part it fills. A repository with no part passes without reading the catalogue; one with a part
-  and no valid catalogue cannot run.
-
-The Checks that read many files judge the ones git tracks or would track, never one it ignores, so a
-link to an ignored file, or to another case of a file's name, fails on a Mac as it fails in CI. A
-glob's `*` and `**` skip a name that starts with a dot, as a shell does: `**/*.md` leaves the
-vendored skills under `.agents/` out.
-
-`dw-sdlc gate --update-baseline` runs the Gate, then rewrites the baseline of each Ratchet, only
-when every Step and every other Check passed and no Step drifted. It only tightens: a file within
-its limit leaves the list, a count that shrank is lowered, and no file joins. Where there is no
-baseline it records one, every file over its limit at its count, unless HEAD holds one the tree
-lost: that one is restored with git, never recorded again. A refused refresh leaves the file byte
-for byte as it was.
-
-`dw-sdlc gate --cache` skips the run when the working tree holds what it held at the last green run
-in this checkout, and the same version of dw-sdlc runs the same resolved Gate. A pre-push hook that
-runs the Gate then costs nothing on an unchanged tree. The tree is hashed with `git write-tree` over
-a copy of the index, after `git add -A` on the copy. The real index is never touched. Untracked
-files count and ignored files do not, and the same content still matches once it is committed,
-amended or rebased. What a Step or a Check reads outside the tree, such as `node_modules`, the
-environment or `HEAD`, is not part of the hash, and neither is an uncommitted edit inside a
-submodule. The stamp is `dw-sdlc-gate.green` in the checkout's own git dir, so each worktree keeps
-its own. It holds the hash taken before the run, so a Gate that changes the tree runs again next
-time. A tree the cache cannot hash, such as a directory outside git, runs the whole Gate behind a
-line saying why. A cached run prints `gate: green — cached, the tree matches the last green run`,
-and under `--json` a green document with `cached: true` and no Step or Check. Without the flag
-nothing is skipped and nothing stamped, and `--cache` does not combine with `--update-baseline`.
-
-`dw-sdlc check <name>` runs one Check of the Gate alone, so a person iterates on one Check and a
-skill reads one result. The name is a script under `gate.checks.run` or a Check the package ships; a
-name both carry runs both, as the Gate does. No Step runs and no other Check. A shipped Check runs
-on the setting `gate.checks` gives it, and on its defaults where the config sets it `false` or
-leaves it out, so a Check can be tried before it is turned on. Its lines, its exit codes and its
-`--json` document are the Gate's, the document with no Step; it prints no line of its own for a
-Check that passes, and a run script that does not pass prints its last 50 lines. It takes no
-`--update-baseline`: a refresh needs every other Check to pass, and only the Gate runs them.
-`--write` first writes what a Check derives from its sources, then judges the tree it wrote; only
-`skill-sections` derives files, and any other name exits 2. Its line on what it wrote goes to
-stdout, or to stderr under `--json`. A part it cannot write, such as one whose anchor names no
-heading, stays as it is and fails.
-
-`dw-sdlc primitives --paths <files>` answers from the same catalogue: for each path, the Primitives
-whose `code` names it nearest, with their summaries and the documents to read, or that none does.
-
-`dw-sdlc primitives --diff <base>` answers from it too, for the committed change from the merge-base of
-`<base>` and `HEAD` to `HEAD`. A script decides from paths and the catalogue alone, read at both ends,
-the Primitives the change **removes** (an id gone), **adds** (a new id, every one when the base has no
-catalogue) and **extends** (a changed file in the `code` of a Primitive that was there). It owns a path
-as `--paths` does, the nearest entry, a file with several owners listing each. By default it prints
-a markdown block between `<!-- primitives:start -->` and `<!-- primitives:end -->`: a sentence counting
-each class and the changed files outside every Primitive, then a table of Primitive, Class and Files;
-`No Primitive changes.` when it touches none. `--json` carries, per Primitive, its id, name, class, file
-count, summary and `docs`, each with `touched` set when the change edits that file, whatever its anchor.
-It exits 2 with a remedy for a base that does not resolve, `--paths` beside it, an invalid catalogue at
-the base, or none or an invalid one at `HEAD`; that is never "no Primitive changes".
-
-No agent reads the catalogue whole, about 8 to 10 thousand tokens. Three readers take the slice this
-command prints, each once: `/sdlc-pr-open` puts the block in the pull request body, in the template's
-Primitives section or after the description of the change, and every rewrite runs it again; the `light`
-Review hands `sdlc-reviewer` each touched Primitive's id, class and summary with the docs the change
-leaves untouched, so a summary or doc the change makes false is a Finding and a doc that only leaves
-new behaviour unmentioned is none; `dw-sdlc recap --json` carries the ids and classes of the session's
-branch, from its merge-base with `origin/<default>`, none on the default branch, and `/sdlc-recap` writes
-them as one line.
-
-## Why this way
-
-Each choice below is a one-paragraph decision record in `adr/`.
-
-- **It extends the engineering skills and replaces none.** They plan, build and review; dw-sdlc adds
-  the guards, the Gate and the delivery around them, and today carries no planner, implementer or
-  `full` reviewer of its own. [ADR 0019](adr/0019-dw-sdlc-extends-the-engineering-skills.md)
-- **One plugin, not hooks copied into every repository.** Copies drift; a plugin gives one shared
-  library and one line to enable. [ADR 0001](adr/0001-guards-ship-from-this-marketplace.md)
-- **The guards, the Sync and the `sdlc` skills are that one plugin.** One `enabledPlugins` line and one
-  version cover a machine, and a machine takes every part or none.
-  [ADR 0010](adr/0010-one-sdlc-plugin-carries-guards-sync-and-gate.md)
-- **The session helpers are a plugin of their own.** They are work the dev starts, not protection on
-  every tool call, and they depend on `sdlc`, so a session keeps its guards.
-  [ADR 0014](adr/0014-session-helpers-ship-as-sdlc-sessions-beside-sdlc.md)
-- **Policy is a validated config file, not prose.** A hook parsing a markdown rule is fragile; a JSON
-  file against a schema is checked before it is trusted.
-  [ADR 0002](adr/0002-agent-rules-are-a-validated-config-file.md)
-- **An invalid layer runs the strictest set.** A typo must never quietly loosen a guard.
-  [ADR 0003](adr/0003-invalid-config-layer-runs-strictest.md)
-- **A lease push passes, a bare force push is refused.** Feature branches get rebased; protected
-  branches take pull requests. [ADR 0004](adr/0004-lease-push-passes-bare-force-refused.md)
-- **Env access is a list in the config, git as the fallback.** Some repositories track `.env` on
-  purpose; a guard refusing every `.env*` by name blocks real work.
-  [ADR 0005](adr/0005-env-access-is-a-list-in-the-config.md)
-- **A Review's depth follows the change.** A `full` Review costs as much on a dependency bump as on a
-  feature, so built-in rules route the depth and the dev's word overrides them.
-  [ADR 0013](adr/0013-review-depth-follows-the-change-the-devs-word-overrides.md)
-
-Every other decision record is in [`adr/`](adr/).
+| part                                           | runs when                                     | started by                                                   | detail                                                                   |
+| ---------------------------------------------- | --------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------ |
+| the guards                                     | on every Bash command, file tool and Grep     | Claude Code, as hooks                                        | [How a guard judges a call](#how-a-guard-judges-a-call)                  |
+| the session hooks                              | when a session starts                         | Claude Code, as hooks                                        | [plugin README](../plugins/sdlc/README.md#session-start)                 |
+| the `commit-msg` hook                          | on a commit typed in a terminal               | git, once a repository wires it                              | [plugin README](../plugins/sdlc/README.md#commit-hook)                   |
+| the Gate, `pnpm check`                         | before a change lands, locally and in CI      | you, a Brief's Proof, CI                                     | [How the Gate runs](#how-the-gate-runs)                                  |
+| `/sdlc-setup`, `/sdlc-doctor`                  | once per repository and machine, then at will | you                                                          | [Adopting it](#adopting-it-in-your-repository)                           |
+| `/sdlc-pr-open`                                | when a pull request is wanted                 | the agent, once you or a Brief want one                      | [plugin README](../plugins/sdlc/README.md#opening-a-pull-request)        |
+| `/sdlc-pr-ship` and the Ship script            | from an open pull request to merged           | you, or a Brief                                              | [How the Ship script merges](#how-the-ship-script-merges-a-pull-request) |
+| `/sdlc-recap`, `/sdlc-brief`, `/sdlc-delegate` | at a session's end, or to hand work on        | you, or a Brief; the agent offers `/sdlc-delegate` and waits | [How a Lead runs Workers](#how-a-lead-runs-workers)                      |
+| `/sdlc-sweep`                                  | once work has landed                          | you, or your "go" on a Recap follow-up                       | [How a Sweep removes](#how-a-sweep-removes-what-finished-work-leaves)    |
 
 ## Where dw-sdlc sits beside the engineering skills
 
-The engineering skills are [`mattpocock/skills`](https://github.com/mattpocock/skills), which this
-repository installs under `.agents/skills/`: `wayfinder`, `grilling`, `research`, `to-spec`,
-`to-tickets`, `triage`, `implement`, `implement-spec`, `tdd`, `code-review` and `handoff`. They plan,
-build and review the work, and each one stops where it asks the dev. dw-sdlc extends them and replaces
-none ([ADR 0019](adr/0019-dw-sdlc-extends-the-engineering-skills.md)): it holds them where they are
-loose, with the guards, the Gate, and the delivery from a Brief through the pull request, the Review
-loop, the merge and the Sweep. The guards still judge a skill's tool calls, and a skill still stops
-where it asks the dev.
-
-A repository without the engineering skills still runs every part of dw-sdlc but three: a Brief's
-start line names `/implement`, a `full` Review runs `/code-review` unless `pr.reviewCommand` names
-another command, and `/sdlc-delegate` reads the sub-issues a `/to-tickets` cut leaves.
+dw-sdlc extends the engineering skills and replaces none
+([ADR 0019](adr/0019-dw-sdlc-extends-the-engineering-skills.md)). The engineering skills are
+[`mattpocock/skills`](https://github.com/mattpocock/skills); this repository pins them in
+`skills-lock.json` under `.agents/skills/`. They plan, build and review the work, and each one stops
+where it asks the dev. dw-sdlc holds them where they are loose: the guards judge every tool call a
+skill makes, the Gate proves the change, and dw-sdlc carries the delivery from a Brief to the merge.
 
 | stage                                | carried by                                  | invoked by                                              | whose      |
 | ------------------------------------ | ------------------------------------------- | ------------------------------------------------------- | ---------- |
@@ -374,98 +46,113 @@ another command, and `/sdlc-delegate` reads the sub-issues a `/to-tickets` cut l
 | pass context to the next agent       | `handoff`                                   | the dev                                                 | mattpocock |
 | remove what landed                   | `/sdlc-sweep`                               | the dev                                                 | dw-sdlc    |
 
-### What is always on
-
-Four things run with no one asking, each from a file in this repository:
-
-- **The guards.** `bash-guard.sh` judges every Bash command; `block-env-access.sh` judges a read, edit or write of a file and a Grep; `large-file-guard.sh` flags a
-  written file over 256 KiB. `plugins/sdlc/.claude-plugin/plugin.json` registers them.
-- **The session hooks.** At a session's start `session-start.sh` reports what the checkout lacks, and
-  `references-sync.sh` brings each Reference to its ref.
-- **The git hooks.** `.vite-hooks/commit-msg` runs `hooks/commit-msg.sh` on a commit typed in a terminal,
-  and `.vite-hooks/pre-commit` runs `vp staged` on the staged files.
-- **The Gate in CI.** In this repository `quality-gate.yaml` runs `pnpm check` on a pull request once it
-  is ready, and on a direct push to `main`, as [How a change lands](contributing/how-a-change-lands.md)
-  says.
-
-### What runs on the dev's word
-
-The skills `/sdlc-setup`, `/sdlc-doctor`, `/sdlc-references-add` and `/sdlc-brief` carry
-`disable-model-invocation: true`, so only the dev starts them. `/sdlc-sweep` acts only on the dev's word,
-by typing it or by "go" on a Recap's Sweep follow-up. `/sdlc-delegate` starts on the dev's words, and the
-model offers it in one line and waits for the dev's go. `/sdlc-pr-ship` and `/sdlc-recap` start when the dev
-types them or a Brief tells the session to. Every mattpocock skill above carries
-`disable-model-invocation: true` as well, except `grilling`, `research`, `tdd` and `code-review`, which another
-skill calls.
+Without the engineering skills every part of dw-sdlc still runs but three: a Brief's start line names
+`/implement`, a `full` Review runs `/code-review` unless `pr.reviewCommand` names another command, and
+`/sdlc-delegate` reads the sub-issues a `/to-tickets` cut leaves.
 
 ### The ways to implement
 
-- **`/implement #<n>` in this session.** The session reads the issue, builds it and commits to the current
-  branch. The pull request follows when the dev asks for it, through `/sdlc-pr-open` and `/sdlc-pr-ship`.
-- **A Brief's start line in any terminal.** `/sdlc-brief` prints the line, which starts a Claude Code
-  session in its own worktree with the Brief as its first message. It needs no herdr.
-- **`/sdlc-delegate` through herdr.** A Lead starts a Worker per ticket, in parallel where the tickets
-  allow, each with its own session and pull request, and gathers their Recaps
-  ([How a Lead runs Workers](#how-a-lead-runs-workers)). This is the usual way to implement a spec.
-- **`implement-spec`.** The rare way, for a spec that lands as one pull request on an integration branch.
-  After it, the dev runs `/sdlc-pr-ship <n>` and `/sdlc-sweep`.
+| way                                   | where it runs                                   | needs herdr | pick it when                                      |
+| ------------------------------------- | ----------------------------------------------- | ----------- | ------------------------------------------------- |
+| `/implement #<n>` in this session     | the current branch; a pull request when you ask | no          | one issue, here and now                           |
+| a Brief's start line, in any terminal | a new session in its own worktree               | no          | one issue, in parallel with this session          |
+| `/sdlc-delegate`                      | a Worker per ticket, each in its own worktree   | yes         | a spec cut into tickets: the usual way            |
+| `implement-spec`                      | one pull request on an integration branch       | no          | rarely: a spec that must land as one pull request |
 
-herdr is optional: only `/sdlc-delegate` and the commands under `dw-sdlc worker` and `dw-sdlc lead` need
-it.
-
-Claude Code creates a Worker's worktree, from the `--worktree <name>` flag of its start line, and the Sweep
-removes it once the Worker's work has landed ([How a Sweep removes what finished work
-leaves](#how-a-sweep-removes-what-finished-work-leaves)).
-
-### The Review loop
-
-dw-sdlc owns the Review loop: when a head is reviewed, how deep, what counts as a Finding, the read
-mark a Review leaves and the limit of three unclean Reviews. At `full` it runs the reviewer you name,
-`/code-review` of the engineering skills by default; at `light` it runs its own `sdlc-reviewer`.
-`/sdlc-pr-ship` reads a head at one of three depths, set by the dev's `--review` for a call, else by
-`pr.review`, whose default `auto` routes a depth from the size of the change. `light` hands
-`sdlc-reviewer` the Primitives the change touches. `off` reads nothing, and the Ship script marks the
-head reviewed itself. The rules are in
-[How the Ship script merges a pull request](#how-the-ship-script-merges-a-pull-request). A Worker commits
-before it runs `/code-review`, which reads `HEAD`, so the Review reads its change and `/sdlc-pr-ship` skips a
-second `full` Review of a clean, unchanged head.
+Claude Code creates a Worker's worktree from the `--worktree <name>` flag of its start line. The Sweep
+removes it once the Worker's work has landed.
 
 ### A Brief and a Recap beside `triage` and `handoff`
 
-- **A Brief beside `triage`'s agent brief.** The agent brief in the issue says what to build, durably. A Brief
-  says how the session runs: what it may write, what proves it done, how it ships and whom it reports to.
-  It points at the issue and retells none of it.
-- **A Recap beside `handoff`.** A Recap tells the dev where a session stands, with a verdict on whether it
-  can close. A `handoff` document gives the next agent the context to carry on.
+- **A Brief beside `triage`'s agent brief.** The agent brief in the issue says what to build. A Brief
+  says how the session runs: what it may write, what proves it done, how it ships and whom it reports
+  to. It points at the issue and retells none of it.
+- **A Recap beside `handoff`.** A Recap tells the dev where a session stands and whether it can close.
+  A `handoff` document gives the next agent the context to carry on.
+
+## How a guard judges a call
+
+A guard is a shell hook that answers a tool call with a verdict. Claude Code hands it the call as JSON
+on stdin before the call runs. It answers deny (exit 2, the call never runs), ask (a permission
+prompt), or pass (silence). One guard runs after the call instead: `large-file-guard.sh` flags a
+written file over 256 KiB, as advice.
+
+Bash commands go through one dispatcher, `bash-guard.sh`. It parses the payload once and spawns only
+the guards the command could trip. A deny ends the chain. An ask waits for the other guards, so a
+later deny still wins.
+
+```mermaid
+sequenceDiagram
+    participant CC as Claude Code
+    participant D as bash-guard.sh
+    participant G as guard
+    participant C as config layers
+    CC->>D: tool call (JSON on stdin)
+    D->>G: the command, to each guard it could trip
+    G->>C: resolve local > committed > inferred
+    C-->>G: rules, or strictest set if a layer is invalid
+    G-->>CC: deny (exit 2) / ask / pass
+```
+
+The guards catch the commands an agent writes in ordinary work, not a deliberate evasion. What gets
+past them is listed in the plugin README's
+[Known limits](../plugins/sdlc/README.md#known-limits).
+
+## Where the rules come from
+
+The rules live in the repository, not in the plugin. Three layers set them, the higher one winning:
+
+| layer     | file                                             | written by                    |
+| --------- | ------------------------------------------------ | ----------------------------- |
+| local     | `.ai/agentic.config.local.json`, kept out of git | `/sdlc-setup`, on one machine |
+| committed | `.ai/agentic.config.json`                        | the repository                |
+| inferred  | none                                             | the guards, from the checkout |
+
+- A key no file sets is inferred: pnpm from the lockfile, the `conventional` commit convention.
+- The local layer may tighten `guardrails`, `pr.merge` and `pr.review`. It never loosens them.
+- `pr.reviewCommand` and `worker` have no strictness order, so any layer sets them.
+- A linked worktree with no layer of its own reads the main checkout's.
+- An invalid layer is dropped whole. Until it is fixed, the guards run the strictest set, with
+  `pr.merge: ask` and `pr.review: full`, and the session start names each problem.
+
+| key               | what it decides                                                          |
+| ----------------- | ------------------------------------------------------------------------ |
+| `guardrails.*`    | protected branches, force push, commits on them, env files, piped output |
+| `commit.*`        | the subject convention, or a pattern, and a required trailer             |
+| `packageManagers` | the Node package manager the guards allow                                |
+| `baseBranch`      | the branch a Landed branch's work must be on                             |
+| `gate.*`          | the Steps and Checks of the Gate                                         |
+| `pr.*`            | who merges, how deep a Review reads, which command reviews               |
+| `worker.*`        | how a Worker's Claude Code session starts                                |
+| `worktree.setup`  | the commands a new worktree's session is told to run                     |
+
+Each key, its default and its strictness order are in the
+[schema](../packages/dw-sdlc/config/agentic.config.schema.json). `/sdlc-setup` writes
+`worker.command` into the local layer when `cswap`, an account switcher, is on PATH.
+
+The guards judge the agent's tool calls only. A commit typed in a terminal meets the subject rule
+through git's `commit-msg` hook, which resolves the same config. The trailer stays the agent's rule,
+since a commit a person writes has no co-author to name.
+
+The plugin guards Node repositories, and App Store Connect from every repository, since `asc` reaches
+the whole store account from any directory. It carries no other stack-specific guard.
 
 ## Adopting it in your repository
 
-Run `/sdlc-setup` in the repository. It sets the repository and the machine up, a dry run first,
-and writes only what would change. In a repository with a `package.json` it adopts the Gate. It asks
-before it adds `dw-sdlc` as a devDependency, naming the version it pins, the one the plugin runs,
-and stops on a no. On a yes it pins the package and runs the install. The committed
-`.ai/agentic.config.json` gains a `gate` key when it has none, created when absent; a `gate` key it
-has stays. The key turns on `markdown-refs`, `temporal-language` and `comment-budget`, which judge
-the tree as it is, and `agents-map`, which reads the map the user writes. Every other Check is
-`false`, since each reads an input the repository adds first: a catalogue, a records directory, the
-docs a glob matches, a Task Router row or Primitive for each doc, a Ratchet's baseline, the
-catalogue a skill's part is listed in. The setup
-never writes `AGENTS.md`: the first `dw-sdlc gate` names what the map lacks through `agents-map`.
-The Ratchet joins once the Gate is green: `file-size-ratchet` set to `true`, then
-`dw-sdlc gate --update-baseline` records the baseline to commit.
+`/sdlc-setup` sets a repository and a machine up. It shows a dry run first and writes only what would
+change.
 
-For the machine, the setup writes the local config layer from what it infers, plus the commit
-convention when asked for one. A layer that would hold only `$schema` is not written. The setup excludes the file from git, and adds a permission backstop to
-`.claude/settings.local.json` plus the lease-push exception to `~/.claude/settings.json`. Where those
-settings still enable `guardrails@dw-sdlc` or `references@dw-sdlc`, it prints the `enabledPlugins`
-edit and leaves it to the user. It ends with the doctor, one PASS / WARN / FAIL line per machine
-check, and after a run that wrote the `gate` key, with one Gate run. The doctor needs only Node 24
-and runs from the installed plugin: `/sdlc-doctor` in a session, or
-`node <plugin root>/dw-sdlc/src/cli.ts doctor` from the repository in a terminal.
+1. Run `/sdlc-setup` in the repository. It writes this machine's layer, keeps it out of git, and
+   adds the permission backstops.
+2. In a repository with a `package.json`, say yes to the `dw-sdlc` devDependency it proposes. It
+   pins the version the plugin runs and adds a `gate` key to `.ai/agentic.config.json`, with the
+   Checks that need no input of yours turned on.
+3. Run `pnpm check`. The first run names what the Agent map, `AGENTS.md`, still lacks.
+4. Read the doctor's lines at the end. `/sdlc-doctor` runs it again.
 
-The rules a repository wants beyond the Gate go in the same `.ai/agentic.config.json`; validate it
-with `node <plugin root>/dw-sdlc/src/cli.ts config <file>`, where the plugin root is the
-`installPath` that `claude plugin list --json` names. A small useful file:
+What the setup writes, file by file, and which Checks it turns on are in the plugin README's
+[Setup](../plugins/sdlc/README.md#setup). The rules a repository wants beyond the Gate go in the same
+`.ai/agentic.config.json`. A small useful file:
 
 ```json
 {
@@ -487,262 +174,256 @@ with `node <plugin root>/dw-sdlc/src/cli.ts config <file>`, where the plugin roo
 }
 ```
 
-A repository with nothing declared still gets the inferred defaults, so the file is optional. A
-repository whose subjects start with a ticket key sets `"commit": { "convention": "ticket-key" }`; on
-one machine only, `/sdlc-setup ticket-key` pins it in the local layer instead. A repository where
-every change starts on a branch sets `"guardrails": { "commitOnProtected": "deny" }`; on one machine
-only, `/sdlc-setup` with `--commit-on-protected deny` pins it, and `--force-push ask` asks before each
-lease push. Each key and its inferred value is described in the
-[schema](../packages/dw-sdlc/config/agentic.config.schema.json). The `$schema` URL is an annotation
-for editors; the guards always validate against the schema the plugin ships.
+| you want                              | committed key                                   | one machine only                         |
+| ------------------------------------- | ----------------------------------------------- | ---------------------------------------- |
+| subjects that start with a ticket key | `"commit": { "convention": "ticket-key" }`      | `/sdlc-setup ticket-key`                 |
+| every change on a branch              | `"guardrails": { "commitOnProtected": "deny" }` | `/sdlc-setup --commit-on-protected deny` |
+| a prompt before each lease push       | `"guardrails": { "forcePush": "ask" }`          | `/sdlc-setup --force-push ask`           |
+
+The file is optional: a repository with nothing declared still gets the inferred defaults. Validate it
+with `node <plugin root>/dw-sdlc/src/cli.ts config <file>`; the plugin root is the `installPath` that
+`claude plugin list --json` names. The `$schema` URL serves editors only. The guards always validate
+against the schema the plugin ships.
+
+## How the Gate runs
+
+The Gate is the one command a change must pass, `pnpm check`, in a terminal and in CI. Its script is
+`dw-sdlc gate`, which reads the `gate` key of the resolved config.
+
+- **Steps** run first, in order, each a shell command from `gate.steps`. The first that fails ends
+  them. A Step may carry a Hint, one line naming what to try when it fails.
+- **Checks** run next, all of them, a failure stopping none: first the repository's own scripts under
+  `gate.checks.run`, then the Checks the package ships.
+- **Drift.** Every file a Step creates, changes or deletes in the tree git tracks is one failure. So a
+  stale generated file fails a local `pnpm check` as it fails a `git diff --exit-code` in CI.
+  `gate.drift: "allow"` turns the watch off.
+
+The Gate is quiet, so its whole report fits in what an agent's Bash tool shows. A passing Step prints
+one line; a failing one prints its last 50 lines:
+
+```text
+gate: step pnpm exec vp check — pass (4 s)
+gate: step pnpm test — failed, exit 1 (71 s); its last 50 lines:
+  …
+  ✖ failing tests:
+  …
+step: "pnpm test" exited 1 — fix what it printed above; run it alone for the full output
+gate: failed — 1 failure
+```
+
+| command                          | what it does                                                               |
+| -------------------------------- | -------------------------------------------------------------------------- |
+| `dw-sdlc gate --verbose`         | streams every command's output live, as CI runs it                         |
+| `dw-sdlc gate --json`            | one document: each Step and Check, its exit code, its tail, the failures   |
+| `dw-sdlc gate --cache`           | skips the run when the tree matches the last green run in this checkout    |
+| `dw-sdlc gate --update-baseline` | after a green run, tightens each Ratchet's baseline                        |
+| `dw-sdlc check <name> [--write]` | runs one Check alone; `--write` first writes what `skill-sections` derives |
+
+The Quality Gate workflow runs `--verbose`, so the log of a job that times out shows how far the
+tests got. `--cache` hashes the working tree only: what a Step or a Check reads outside it, such as
+`node_modules`, the environment or `HEAD`, and an uncommitted edit inside a submodule, never changes
+the hash, so a cached green can hide a failure they would cause. The stamp holds the hash taken before
+the run, so a Gate that changes the tree runs again next time.
+
+Exit 0 is green, 1 a failure or Drift, 2 a Gate that cannot run. Signals, the JSON fields and every
+exit-2 case are in `dw-sdlc gate --help`. Why a Check is a named unit turned on in the config is
+[ADR 0009](adr/0009-checks-are-named-units-turned-on-in-the-config.md).
+
+### The Checks the package ships
+
+A Check is one named rule the Gate runs over the tree. Each is `true` under `gate.checks` for its
+defaults, an options object, or `false`. Its options and defaults are in its schema description.
+
+| Check                | holds                                                                                   | on after `/sdlc-setup`   |
+| -------------------- | --------------------------------------------------------------------------------------- | ------------------------ |
+| `primitives`         | the Primitives catalogue, `.ai/primitives.json`, to the tree                            | off: needs the catalogue |
+| `agents-map`         | `AGENTS.md` to 10240 bytes, its Gate command, its Task Router paths, `CLAUDE.md` a link | on                       |
+| `routed-docs`        | every document under `docs/` reached by a Task Router row or a Primitive                | off: needs the routes    |
+| `markdown-budget`    | each file a glob matches to its byte budget                                             | off: needs the globs     |
+| `markdown-refs`      | every relative link and heading anchor resolving                                        | on                       |
+| `temporal-language`  | durable docs free of changelog phrases such as `we now` or `no longer supports`         | on                       |
+| `decision-records`   | the records under `docs/adr` numbered, titled and given a status                        | off: needs the records   |
+| `file-size-ratchet`  | each code file under its line limit, or within its recorded baseline                    | off: needs a green Gate  |
+| `comment-budget`     | each comment block in code to 3 lines of prose                                          | on                       |
+| `disable-directives` | every lint or type-check disable directive to a reason                                  | off                      |
+| `skill-sections`     | each README section a skill copies to its source                                        | off: needs the catalogue |
+
+The Checks that read many files judge only what git tracks or would track. So a link to an ignored
+file fails on a Mac as it fails in CI. A glob's `*` and `**` skip a name that starts with a dot, as a
+shell does.
+
+A Ratchet is a Check whose recorded baseline may only shrink. `dw-sdlc gate --update-baseline` lowers
+it and never lets a file join. No default Ratchet holds markdown, since a long doc should shrink, not be
+recorded as it stands.
+
+### The Primitives catalogue
+
+A Primitive is one named part of a repository, a guard, a skill or a config key, with the code it owns
+and the docs that explain it. `.ai/primitives.json` lists them. No agent reads it whole: it costs 8 to
+10 thousand tokens. `dw-sdlc primitives` prints the slice a reader needs, and three readers take it:
+
+- `/sdlc-pr-open` puts the Primitives a change removes, adds and extends in the pull request body.
+- The `light` Review hands `sdlc-reviewer` each touched Primitive's summary and the docs the change
+  leaves untouched, so a doc the change makes false is a Finding.
+- `dw-sdlc recap --json` names the Primitives of the session's branch, and `/sdlc-recap` writes them
+  as one line.
+
+`--paths` and `--diff`, and their output, are in `dw-sdlc primitives --help`.
 
 ## How the Ship script merges a pull request
 
-The Ship script, `dw-sdlc pr ship [<n>]`, drives one pull request to merged. A call reads the pull
-request's state through `gh` in one GraphQL query and decides the one Action it needs next. When that Action
-is the script's own, the call performs it, reads again and decides again; it answers the first
-Action that is not, as one line or, with `--json`, one document. The exit code says whose turn it
-is: 0 done, 10 the agent's, 20 wait, 30 the dev's, 2 it cannot run. The script holds no state
-between calls and never sleeps: a `wait` carries `recheckAfter`, the seconds until the next call.
+The Ship script, `dw-sdlc pr ship [<n>]`, drives one pull request to merged. Each call reads the pull
+request through `gh` and answers the one Action it needs next. The script holds no state between
+calls and never sleeps: a `wait` carries `recheckAfter`, the seconds until the next call. The exit
+code says whose turn it is:
 
-The script owns four Actions, one `gh` command each. It updates a branch by merging the base in,
-and only when GitHub reports it `BEHIND`, which GitHub does only where a rule asks a branch to be up
-to date before it merges. A branch only behind its base merges as it is: the Gate ran in CI on the
-pull request's merge with the base as the base stood at that run, and an update would run it once
-more, in GitHub Actions minutes, for no rule that asks for it. It marks the head of the viewer's
-own pull request reviewed when the Review depth is `off`. It marks the viewer's own draft ready
-once no check fails or runs, no thread is open and the head is reviewed. A
-ready head whose every check was skipped counts as having no CI: the script waits for the run its
-`ready` starts and never merges on the skip. It squash
-merges with `--match-head-commit`, so a push during the decision never merges blind. Each runs at
-most once per call; one that comes round again, and every one under `--dry-run`, parks with its
-command for the dev.
+| exit | status | whose turn                                    |
+| ---- | ------ | --------------------------------------------- |
+| 0    | done   | nobody's: the pull request is merged          |
+| 10   | act    | the agent's                                   |
+| 20   | wait   | nobody's yet: call again after `recheckAfter` |
+| 30   | park   | the dev's                                     |
+| 2    | —      | it cannot run                                 |
 
-`performed` lists each Action a call ran, with `ok`, `exit` and `stderr` when `gh` wrote any. `ok` is
-whether the read after the Action shows its effect; `exit` is what `gh` answered. The pair `ok: false`
-with `exit: 0` means `gh` accepted the Action and the read does not show it yet, and the reason says
-so. An update counts when the head carries the base read before it, not for a moved head alone. A
-`mark-reviewed` whose head moved names both heads. When the read after an Action fails, the call exits
-2 and names each Action that ran with `gh`'s exit, and `--json` puts them under `performed`: the
-Action may have landed, so a caller does not run it blind again.
+| owner      | Actions                                                                                                             |
+| ---------- | ------------------------------------------------------------------------------------------------------------------- |
+| the script | update a branch GitHub reports `BEHIND`; mark the head reviewed at depth `off`; mark your draft ready; squash merge |
+| the agent  | `fix-conflicts`, `fix-ci`, `address-review`, `review`                                                               |
+| the dev    | the rest, as a `park`                                                                                               |
 
-The agent owns four: `fix-conflicts`, `fix-ci`, `address-review` and `review`. Under `details`,
-`fix-ci` lists each failing check with its link and, for a GitHub Actions job, the command that
-prints its log; `address-review` lists each open thread someone else commented on last, and with
-none answers a review that requests changes while it is unanswered. A review is answered when a
-non-merge commit follows the commit it read, which the same GraphQL query reads from
-`latestReviews` and finds in the commit history; a review whose commit has left the history, after a
-force-push or past the last 100 commits, stays unanswered, and so does the pull request while any
-one of several reviewers' reviews is. Every later Action that holds the pull request back
-rides in `blockers`, so one push can fix several. The dev owns the rest: a closed pull request, a
-head no check reported on within 120 s of its commit date, CI pending past its 40-minute budget, a
-thread whose last comment is the viewer's and so awaits the reviewer, a review that requests
-changes and a push has answered (`awaiting-review`, named for the reviewer, with no command: only
-they can review again or dismiss it), which sits after `awaiting-reply` so the pull request's own
-Review and CI run first, another author's draft, which
-is the author's to mark ready, a required approval, three Reviews with no success between them, and
-the merge when it is not the script's.
+The script runs its own Actions in the same call, each at most once, then reads again.
 
-Who merges follows `pr.merge`: the script under `auto`, the dev under `ask`, and the script for one
-call under `--merge`. A pull request another author opened needs no Review, since the dev merges it.
-Once nothing else holds it back, it parks for the dev under all three. A Review is clean when it
-reports no Finding: a concrete harm the pull request's own changes cause, a doc or Primitive summary
-they make false, a miss against the spec, or a bug fix without its regression test. The agent declines the rest with a line each in the
-Recap, and lists a harm outside the change as a follow-up. A clean review is a commit status:
-`dw-sdlc pr reviewed <n> --head <sha>` posts `dw-sdlc/review` in state `success` on the head the
-review read and refuses once a push moved it, so a new head needs a fresh review. A Review that
-leaves a Finding open is pinned too: `--findings` posts the same status in state `failure`,
-described `read, findings open`, the read mark. The mark sits on a head the fix then leaves behind,
-so the head of the pull request never shows it from an earlier round. Three Reviews with no
-success between them park the pull request, as the next paragraph says. Contexts under
-`dw-sdlc/` never count as CI. The script never deletes a branch: a merged pull request answers
-`done` with the deletion command for the dev while its head branch still stands on `origin`. The
-same GraphQL query reads `headRef`, which GitHub leaves null once the branch is gone, as
-`delete_branch_on_merge` leaves it at the merge, and `isCrossRepository`. A merged pull request with no
-`headRef`, or one from a fork, whose branch lives on the fork and not on `origin`, answers `done` with
-no command.
+- **It updates a branch only when GitHub reports it `BEHIND`.** GitHub does so only under a rule that a
+  branch be up to date. A branch only behind its base merges as it is: CI already ran on its merge with
+  the base, and an update would spend GitHub Actions minutes on a rule no one set.
+- **It squash merges with `--match-head-commit`**, so a push during the decision never merges blind.
+  Who merges follows `pr.merge`: the script under `auto`, the dev under `ask`, the default. `--merge`
+  lets the script merge for one call.
+- **It never merges on skipped CI.** A ready head whose every check was skipped counts as having no
+  CI: the script waits for the run that marking it ready starts.
+- **It never deletes a branch.** A `done` names the deletion command for the dev while the branch
+  still stands on `origin`.
 
-The Review limit is 3, a constant with no config key, so no repository turns the loop back on. The same
-GraphQL query counts the read marks on the commits after the last review success of any kind: a
-clean one, one the script posted under `off` and the dev's acceptance all start the count again. The
-head's own read mark counts too. When the head has no success and the count is 3 or more, the answer
-is `park review-limit`, actor `dev`, in the place of `act review`, under `--dry-run` too and at
-`full` and `light` alike. Its reason names the Reviews and the commit they count from, and its
-command is `dw-sdlc pr reviewed <n> -R <owner/name> --head <head> --accept`. `--accept` posts
-`dw-sdlc/review` in state `success`, described `accepted by the dev, findings open`, so the
-status never presents an accepted pull request as cleanly reviewed; with `--findings` it exits 2.
-Only the dev runs it. The agent prints the reason, the Findings the last fix answered and the command,
-and stops. The dev's `--review <depth>` on the call answers `act review` past the limit, for that
-call only; a fourth Review that leaves a Finding open posts a fourth read mark, so the next call
-without the flag parks again. The limit counts only Reviews of the viewer's own pull request, and a
-depth of `off` has none to count.
+It parks the pull request for the dev when:
 
-How closely a head is read is its Review depth: the dev's `--review full|light|off` for one call,
-else `pr.review`, and `details` names it under `depth` and where it came from under `source`, `flag`,
-`config` or `auto`. Under `full` the agent reviews the head with the slash command `pr.reviewCommand`
-names, which `details.reviewCommand` carries. Under `light` one `sdlc-reviewer` subagent the plugin
-ships reads the diff, and the summaries and untouched docs of the Primitives it touches, at medium effort. Under `off` no one reads it: the script posts the
-`dw-sdlc/review` success itself as `mark-reviewed`, its description `off: --review off` or
-`off: pr.review`, so a green pull request merges with no agent turn. Every other row holds at every
-depth: conflicts, failing CI, threads and who merges.
+- it is closed;
+- no check reports within 120 s of the head's commit, or CI runs past 40 minutes;
+- a thread or a review that requests changes waits for its reviewer (`awaiting-reply`, `awaiting-review`);
+- it is another author's draft, or it needs an approval;
+- three Reviews in a row left Findings open (`review-limit`);
+- it is ready and the merge is the dev's.
 
-Under `pr.review: auto`, the default, built-in rules route the depth from the changes the Review
-would read, so the same change always gets the same depth. The script reads them through one more
-`gh api` call, GitHub's compare from `details.since`, else from the base, to the head, only when a
-Review awaits the viewer's own head and no carry applies. Each file counts its added and removed
-lines. The rules, first match wins:
+Every flag and the fields of the answer are in `dw-sdlc pr ship --help`.
 
-- `off`: every changed file is a lockfile, as `pnpm-lock.yaml` or `Gemfile.lock` in any directory.
-  The status reads `off: lockfiles only`.
-- `full`: a change the script cannot size: 300 files, GitHub's compare limit, which may hold some
-  back, or a file outside lockfiles the compare shows no patch for, such as a binary one. A file
-  under `.github/workflows/`, under its name or its name before a rename. More than 100 changed
-  lines outside lockfiles.
+### The Review loop
+
+dw-sdlc owns the Review loop: when a head is reviewed, how deep, what counts as a Finding and when the
+loop stops. At `full` it runs the reviewer you name, `/code-review` of the engineering skills by
+default. At `light` it runs its own `sdlc-reviewer`.
+
+| depth   | who reads the change                              | set by                             |
+| ------- | ------------------------------------------------- | ---------------------------------- |
+| `full`  | the slash command `pr.reviewCommand` names        | `--review`, `pr.review`, or `auto` |
+| `light` | one `sdlc-reviewer` subagent, at medium effort    | `--review`, `pr.review`, or `auto` |
+| `off`   | no one; the script marks the head reviewed itself | `--review`, `pr.review`, or `auto` |
+
+Under `pr.review: auto`, the default, built-in rules route the depth from the change, first match
+winning:
+
+- `off`: every changed file is a lockfile;
+- `full`: a file under `.github/workflows/`, more than 100 changed lines outside lockfiles, or a change
+  the script cannot size;
 - `light`: the rest.
 
-`source` is then `auto`, and `details.reviewCommand` comes at every depth: the agent may raise a
-`light` it judges riskier than its size to `full`, saying why in one line. An `off` the rules route
-the script posts in the same call, so no agent turn comes to raise it. The agent never lowers a
-depth, and never raises one the dev or the config set. No config key moves the rules. An invalid layer
-runs `full`, and the local layer may tighten `pr.review` in the order full, auto, light, off.
+The agent may raise an `auto` depth from `light` to `full`, saying why. It never lowers one, and never
+changes one the dev or the config set. No config key moves the rules, so the same change always gets
+the same depth.
 
-After a push, the Review reads only what changed since the head the last Review read. The same
-GraphQL query reads the pull request's last 100 commits. The last one before the head with a
-`dw-sdlc/review` success or a read mark goes under `details.since`, the point the Review reads from
-and `auto` routes from. A success the script posted under `off` does not count, since no one read
-that head. So the Review after a fix reads the fix alone, at the depth `auto` routes on the fix's
-own size, and the agent names to it the Findings that fix answers. A rebase or a force push drops
-the read commit from the history, and 100 later commits push it out of the read. Then no
-`details.since` comes, and the Review reads the whole diff since the base. After a merge of the base
-in, the changes since `details.since` include what the base brought in, and `auto` counts them too.
+- **A Finding** is a concrete harm the pull request's own changes cause, a doc or Primitive summary
+  they make false, a miss against the spec, or a bug fix without its regression test. A Review with
+  none is clean. The agent declines the rest with a line each in the Recap.
+- **The marks.** `dw-sdlc pr reviewed <n> --head <sha>` posts a `dw-sdlc/review` success on the head a
+  clean Review read. `--findings` posts a failure there instead, the read mark. Contexts under
+  `dw-sdlc/` never count as CI.
+- **After a fix** the Review reads only the changes since the head the last Review read,
+  `details.since`, and checks each Finding that fix answers.
+- **A merge of the base carries a success.** Two tests must both pass: every commit since the reviewed
+  one is a merge, and the pull request's own changes are the same at both commits, compared through
+  GitHub. A read mark never carries, since its Findings still stand.
+- **The limit is three.** Three Reviews with no success between them park the pull request as
+  `review-limit`, with `pr reviewed --accept` as the dev's command. The limit is a constant with no
+  config key, so no repository turns the loop back on. The dev's `--review <depth>` buys one more
+  Review.
 
-A head that only merged the base in carries the earlier success. A read mark never carries: the
-Findings it records still stand. A read mark with only merges after it is passed over, since no fix
-answers its Findings yet and the changes since it are only the base's. `details.since` then names
-the read before the mark, else none, so the Review reads again the changes the mark's Review read
-and finds the open Findings, even in a session that never saw them. Two tests tell a merge from the
-branch's own changes, and both must pass for a carry:
-
-- Every commit after the reviewed one, the head included, is a merge. The GraphQL query reads each
-  commit's parent count.
-- The pull request's own changes are the same at the head as at the reviewed commit. The script
-  reads GitHub's compare from the base's head to each of the two commits. That takes two `gh api`
-  calls and no checkout. Each compare is the diff the pull request shows. Both must list the same
-  files, with the same status and names, and the same added and removed lines in the same order.
-  Hunk positions and context lines are left out, since a base that moved shifts them.
-
-When both pass, the script posts the status as `mark-reviewed`, described as `carried from <sha>`,
-and its `details` name only `since`: a carry reads at no depth. A depth the dev names for the call
-beats the carry: `--review full` or `light` asks for a Review of the whole diff since the base, and
-`--review off` posts the status as `off: --review off`. A conflict resolved by hand changes the
-branch's own lines, so it never carries. Neither does a file the compare shows no patch
-for, such as a binary one, or a compare at GitHub's limit of 300 files. A merge made by hand that
-moves one of the branch's own lines within a file, keeping their order, does carry: the test leaves
-positions out.
-
-The `sdlc-pr-ship` skill is the agent's side: it calls the script, does the agent's Action, calls
-again, and stops at a wait, a park or done, as the
-[plugin README](../plugins/sdlc/README.md#shipping-a-pull-request) describes. The dev starts it, or a
-Worker whose Brief tells it to, as `templates/brief.md` of
-[`sdlc-sessions`](../plugins/sdlc-sessions/README.md#the-brief) words it; `pr.merge` decides the merge
-either way.
+What the skill does at each step is in the plugin README's
+[Shipping a pull request](../plugins/sdlc/README.md#shipping-a-pull-request).
 
 ## How a Lead runs Workers
 
-A Lead hands each Brief to a Worker in a herdr terminal through three commands, tested against a fake
-`hc` and a fake `herdr-app` the way the Ship script is tested against a fake `gh`. They run only in a
-terminal herdr started: `$HC_TERMINAL_ID` is the Lead's address, and without it each command exits 2.
+A Lead is a session that hands Briefs to Workers, each a Claude Code session in its own herdr terminal
+and worktree. The commands run only in a terminal herdr started: `$HC_TERMINAL_ID` is the Lead's
+address.
 
-- `dw-sdlc worker start --brief <file> --name <name>` runs `hc run` in the background with the name, the
-  label `role=worker`, `--outlive-parent` and the repository as the folder. The command that follows is
-  `worker.command` of the config, then `--worktree <name>`, `--model`, `--effort` and the Brief as the first
-  message. The flags default to `worker.model` and `worker.effort`. It refuses a fourth live Worker of the
-  same Lead; `--max-workers` raises the limit. When the Lead sits in a herdr space, the Worker joins it, and
-  the command renames its tab, which herdr numbers, to the Worker's name. The folder is the main checkout,
-  also when the Lead sits in a linked worktree. Before `hc run` it fetches origin's default branch (the
-  branch `origin/HEAD` names, else `baseBranch` of the config, else every branch of origin) into that
-  checkout: Claude Code branches the Worker's worktree from the cached `origin/<default>` and refetches it
-  only after a day, so without the fetch a Worker could begin from an older ref. A checkout with no origin
-  skips the fetch; a failed or timed-out fetch starts no Worker and exits 2, and its remedy names
-  `git remote set-head origin --auto` for an `origin/HEAD` that names a branch gone from the remote. The
-  Brief travels as an argument of the Worker's command, so herdr keeps no `first_message` for it; the command reads the terminal
-  for up to `--wait` seconds (30) until the Worker's status turns `working`, `blocked` or `done`. It exits 1
-  when herdr reports the first message unsent, the terminal has ended, the Worker reports an error or it
-  shows no work in time. It never sends the Brief again: the Lead reads the terminal first.
-- `dw-sdlc worker ls` lists the Lead's Workers: name, address, herdr's state, status and folder. The status
-  is what the Worker reports, or `finished` once its terminal has ended. herdr's `done` means a turn ended,
-  not the task: the Worker's Recap says whether the task is done.
-- `dw-sdlc worker report --to <lead> --recap <file>` sends a one-line Recap as itself and a longer one as the
-  path of its file. `hc send` exits 9 while the Lead is blocked on a dialog. The command then waits
-  `--interval` seconds (60) and sends again, up to `--attempts` times (30), and exits 1 when the Lead is
-  still blocked. It never passes `--force`, since typing into a blocked terminal may answer its dialog.
+| command                                          | what it does                                                                                    |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
+| `dw-sdlc worker start --brief <file> --name <n>` | starts a Worker in the background with the Brief as its first message, three at most by default |
+| `dw-sdlc worker ls`                              | lists the Lead's Workers: name, state, status, folder                                           |
+| `dw-sdlc worker report --to <lead> --recap <f>`  | sends a Worker's Recap to its Lead, retried while the Lead sits on a dialog                     |
+| `dw-sdlc lead start --name <n> --prompt <msg>`   | starts the next session as a Lead, from a Recap                                                 |
 
-A Lead can start from a Recap too. `dw-sdlc recap --json` lists under `next` the open issues labelled
-`ready-for-agent` with no assignee and no open blocker. Those under an issue the session's pull request
-closes come first. The Recap of a session that can close picks one and names `/sdlc-delegate #<n>`.
-On the dev's "go", `dw-sdlc lead start --name lead-<n>-<slug> --prompt "/sdlc-delegate #<n>"` runs
-`hc run` as `worker start` does, with the label `role=lead`, in the caller's space and the main checkout.
-Its command is `worker.command` without `--dangerously-skip-permissions` and without `--worktree`, its tab
-takes the name, and the terminal outlives the session that started it. It refuses outside herdr and in a
-linked worktree, and it reads the first message back without ever sending it twice.
+- **A Worker starts from origin's tip.** `worker start` fetches origin's default branch first, since
+  Claude Code branches the worktree from a cached `origin/<default>` it refetches only once a day.
+- **herdr's `done` means a turn ended, not the task.** The Worker's Recap says whether the task is done.
+- **The next Lead comes from a Recap.** `dw-sdlc recap --json` lists the open `ready-for-agent` issues
+  with no assignee and no open blocker. On the dev's "go", `lead start` runs `/sdlc-delegate #<n>`.
+
+Every flag and exit code is in each command's `--help`. How a Lead plans and gathers its Workers is in
+the [`sdlc-sessions` README](../plugins/sdlc-sessions/README.md#the-lead).
 
 ## How a Sweep removes what finished work leaves
 
-`dw-sdlc sweep [--dry-run] [--json]` removes the worktrees and the local branches finished work leaves
-behind. The dev's word starts it, and it runs from the main checkout: in a linked worktree it exits 2 and
-names the line to run from the main checkout, since git run inside the command is out of sight of Claude
-Code's worktree isolation. [ADR 0015](adr/0015-a-sweep-deletes-only-what-the-guards-let-an-agent-delete.md)
-sets its bounds: it never forces, and it never writes to a remote.
+The Sweep, `dw-sdlc sweep`, removes the worktrees and local branches finished work leaves behind. It
+runs on the dev's word, from the main checkout. It never forces and never writes to a remote
+([ADR 0015](adr/0015-a-sweep-deletes-only-what-the-guards-let-an-agent-delete.md)).
 
-- It fetches origin first, so a branch squash-merged since the last fetch counts. The fetch writes
-  remote-tracking refs only; origin's own refs stay as they were.
-- It reads the base as the guard does: `baseBranch` of the config, else the branch `origin/HEAD` names. With
-  no base it exits 2 and removes nothing.
-- A linked worktree goes when its whole set passes, wherever it lies: Claude Code's worktree folder, beside
-  the checkout or in an old session's scratchpad. The set: no modified or untracked file, ignored files such
-  as installed dependencies aside; no paused rebase, merge, cherry-pick, revert or bisect; no lock but a
-  stale Claude Code one; its HEAD Landed, on a branch or detached. It removes the worktree without force,
-  then deletes the branch that worktree had checked out, in the same run. The main checkout is never
-  removed.
-- Claude Code locks the worktree of a session with the reason `claude session <name> (pid <N> start
-  <time>)`, the time being the process's start in UTC as `ps -o lstart` writes it; local time reads as well,
-  so a live lock is never taken for stale over a time zone. The lock is stale when no process N runs, or when N started at another time, as a reused pid
-  does. The Sweep lifts a stale lock just before it removes the worktree, and only when the rest of the set
-  passes; if git then refuses the removal, it puts the lock back. A live lock keeps the worktree, named by
-  its pid. A lock with any other reason keeps it too, with the reason and `git worktree unlock` as the
-  command for the dev to run. A lifted lock is an item of kind `lock` in `removed`, just before its worktree.
-- A worktree that fails the set stays, with its reason: the files that hold it, with the forced removal as
-  the command for the dev to run; the paused operation; the lock's reason; a HEAD that is not Landed. A worktree git refuses to remove stays with git's words, its branch with it, and
-  the Sweep goes on.
-- In herdr (`$HC_TERMINAL_ID` set) it also reads terminals, with `hc`: the sweeping session's Workers, the
-  terminals whose parent is its own, read as `worker ls` and `recap` read them, finished ones included, and
-  every other live terminal, each with the folder it works in. A Worker whose status is none of working,
-  blocked or unknown, the last being a Worker yet to report, is stopped (`hc kill`) and then removed (`hc
-  rm`) when its worktree goes in the same Sweep: the Worker's terminal, the stale lock, the worktree, then
-  its branch. The worktree is judged whole first, so a Worker beside a dirty worktree is never stopped. A
-  done Worker's own Claude Code session holds a live lock on its worktree, naming the pid `hc get` reports
-  as its foreground program. That lock alone does not keep the worktree: after the stop the Sweep reads the
-  lock again, giving the program a moment to end, and lifts it only when it is stale then. A lock still live
-  keeps the worktree, saying so, and a live lock that names any other process keeps it. A
-  Worker whose folder is gone, with no worktree around it, could commit nothing, so it goes under the same
-  status rule. A finished
-  Worker of the sweeping session is removed, never stopped. Another session's terminal in a worktree keeps
-  that worktree, named with the terminal's address and place and `hc kill` as the command for the dev to run,
-  and is listed as a kept terminal itself;
-  the sweeping session's own terminal is never stopped and keeps its worktree too. Outside herdr no terminal
-  is read and the output says so. In herdr an `hc` that fails, `hc get` included, since it says where a
-  terminal works, ends the Sweep with exit 2 before any removal; a
+| item           | removed when                                                   | kept when, with the dev's command                                              |
+| -------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| a worktree     | clean, no paused operation, no live lock, its HEAD Landed      | files hold it (forced removal), a lock of another kind (`git worktree unlock`) |
+| its branch     | right after its worktree goes                                  | —                                                                              |
+| another branch | Landed: its work is on the base                                | its work is on no base commit (forced delete)                                  |
+| a stale lock   | Claude Code's, its process gone, just before its worktree goes | a live lock, named by its pid                                                  |
+
+It always keeps the default branch, the base branch, a protected branch and a branch a kept worktree
+has checked out. It fetches origin first, so a branch squash-merged since the last fetch counts.
+
+In herdr it also cleans up the session's own Workers. It never stops a terminal next to work that
+could still be committed.
+
+- A Worker that is not working, blocked or yet to report is stopped and removed, in the same Sweep that
+  removes its worktree.
+- A finished Worker is removed.
+- Another session's terminal keeps its worktree. The Sweep names it, with `hc kill` for the dev.
+- The Sweep's own terminal is never stopped.
+- When `hc` fails while the Sweep reads terminals, it ends with exit 2 before it removes anything. A
   stop or removal that fails later keeps the Worker's worktree, with `hc`'s words, and the Sweep goes on.
-- A branch goes when it is Landed (see [`GLOSSARY.md`](../GLOSSARY.md)). `packages/dw-sdlc/src/landed.ts`
-  follows the guard's rule in `lib-git.sh`: the tip is on the base, or a base commit since the fork holds the
-  tip's tree or the verbatim patch-id of its whole diff. It reads the same 5000 base commits and only local
-  objects. The guard keeps its own bash version; one table of scenarios,
-  `plugins/sdlc/test/landed-scenarios.ts`, which both suites read, holds the two to one meaning.
-- It keeps the default branch, the base branch, a protected branch and a branch a kept worktree has checked
-  out, each with its reason. A branch whose work is on no commit of the base stays, with the forced delete
-  as the command for the dev to run. A delete git refuses is kept with git's words, and the Sweep goes on.
-- One line an item, or one document with `--json`: `terminalsRead`, `removed` and `kept`, each item with its
-  kind (branch, worktree, lock or terminal), name (a worktree's path, a terminal's address), reason and, for
-  a kept one, the dev's command. `--dry-run` removes and stops nothing and answers the same items. Exit 0 when nothing is kept but the default, the base or a protected
-  branch, which are never the dev's to decide and are still listed; 1 when something else is; 2 when it
-  cannot run.
+
+Landed means the same to the Sweep and to the branch-delete guard: `packages/dw-sdlc/src/landed.ts`
+and `lib-git.sh` follow one rule, held to one table of scenarios both test suites read. Locks, the
+JSON items and exit codes are in `dw-sdlc sweep --help`.
+
+## Why this way
+
+Each choice below is a one-paragraph decision record in `adr/`; every other record is in
+[`adr/`](adr/).
+
+| choice                                                         | because                                                                         | record                                                                      |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| it extends the engineering skills and replaces none            | they plan, build and review; dw-sdlc adds the guards, the Gate and the delivery | [0019](adr/0019-dw-sdlc-extends-the-engineering-skills.md)                  |
+| one plugin, not hooks copied into every repository             | copies drift; a plugin gives one shared library and one line to enable          | [0001](adr/0001-guards-ship-from-this-marketplace.md)                       |
+| the guards, the Sync and the `sdlc` skills are that one plugin | one `enabledPlugins` line and one version cover a machine                       | [0010](adr/0010-one-sdlc-plugin-carries-guards-sync-and-gate.md)            |
+| the session helpers are a plugin of their own                  | they are work the dev starts, not protection; they depend on `sdlc`             | [0014](adr/0014-session-helpers-ship-as-sdlc-sessions-beside-sdlc.md)       |
+| policy is a validated config file, not prose                   | a JSON file against a schema is checked before it is trusted                    | [0002](adr/0002-agent-rules-are-a-validated-config-file.md)                 |
+| an invalid layer runs the strictest set                        | a typo must never quietly loosen a guard                                        | [0003](adr/0003-invalid-config-layer-runs-strictest.md)                     |
+| a lease push passes, a bare force push is refused              | feature branches get rebased; protected branches take pull requests             | [0004](adr/0004-lease-push-passes-bare-force-refused.md)                    |
+| env access is a list in the config, git as the fallback        | some repositories track `.env` on purpose                                       | [0005](adr/0005-env-access-is-a-list-in-the-config.md)                      |
+| a Review's depth follows the change                            | a `full` Review costs as much on a dependency bump as on a feature              | [0013](adr/0013-review-depth-follows-the-change-the-devs-word-overrides.md) |
