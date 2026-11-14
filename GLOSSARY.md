@@ -105,9 +105,10 @@ test. A Review with none is clean.
 _Avoid_: nit, smell (a judgement call the agent may decline), issue (a GitHub Issue)
 
 **Read mark**:
-The `dw-sdlc/review` status in state failure, described "read, findings open", that pins a Review which
-left a Finding open to the head it read; the next Review reads the fix from it. It never carries over a
-merge of the base, and three of them with no success between them park the pull request.
+The `dw-sdlc/review` failure described "read, findings open", that pins a Review with a Finding
+open to the head it read; the next Review reads the fix from it. A merge or rebase with no
+fix after passes it over; it never carries. Three across rebases with no success between them park
+the pull request.
 _Avoid_: review marker (it does not say whether the Review was clean), failure status
 
 ### Sessions
