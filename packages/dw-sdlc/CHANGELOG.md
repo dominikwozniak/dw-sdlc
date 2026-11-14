@@ -1,5 +1,39 @@
 # dw-sdlc
 
+## 0.21.1
+
+### Patch Changes
+
+- 8c30379: - A local layer that sets `guardrails.filteredOutput` to `allow` over a committed or default `deny` loosens it, so the layer is invalid as for every other guardrail; the resolved config shows `filteredOutput`, `deny` by default and in the strictest set.
+  - While a config layer is invalid and no valid layer sets a commit convention, pattern or trailer, `dw-sdlc config`, the session-start report and the doctor say the commit rules are off until the layer is fixed, beside the strictest defaults the guards run on.
+  - `dw-sdlc gate` runs each Step and run script in a process group of its own and passes SIGINT, SIGTERM and SIGHUP to that whole group, so no process a Step started outlives the Gate; a second signal kills the group as it ends the Gate.
+  - Every command that takes `--root` (`gate`, `check`, `primitives`, `config`, `doctor`, `setup` and `references setup`) stops with exit 2 when it names no directory, instead of judging the empty repository a typo leaves: `gate` read green there and `setup` wrote into it.
+- 8c30379: `setup`, `config`, `doctor`, `references sync` and `references setup` print what stops them as `dw-sdlc <command>: <problem>`, as every other command does, in place of their `guardrails:setup:`, `agentic:check:`, `guardrails:doctor:`, `references:sync:` and `references:setup:` prefixes, and every exit code stays as it was; `setup` in a checkout whose git dir lies outside it, as a submodule's, writes the local layer and settings into the checkout instead of beside the git dir.
+- 8c30379: `pr ship` counts a check not yet started from the head's ready when it left draft after its commit, so CI queued right after the script marks a draft ready waits as `ci-pending` instead of parking as `ci-stuck`.
+
+  `pr ship` never posts `off: lockfiles only` over an open Finding: under `pr.review: auto` a push that changes only lockfiles after a read mark gets a `light` Review, and three Reviews with Findings open park as `review-limit` at every depth, `pr.review: off` included; only the dev's `--review off` posts past the limit.
+
+  `pr ship` reads the head's `dw-sdlc/review` status by its name when the pull request has more checks than the first 50 it reads, so a reviewed head whose status the rollup lists past them no longer asks for a Review again.
+
+  `pr ship` with no number finds the checkout's pull request through the one lookup `recap` uses, so a `gh pr view` failure other than no pull request reads `gh pr view failed: …` with the network remedy, not as a pull request to name.
+
+  `pr ship` counts the read marks on heads an amend left behind after the last success toward the three-Review limit, so a fix amended and force-pushed after each Review with a Finding open parks as `review-limit` at the third, as after a rebase, instead of asking for a Review again.
+
+  `pr ship` names the ready beside the commit when it parks a head no check reported on as `unverified`, since the grace counts from the later of the two.
+
+  `pr ship --help` names the three-Review limit: `review-limit` parks at every depth, `pr.review: off` included, and only the dev's `--review off` posts past it.
+
+  `pr ship` names a read mark in `details.open` when commits of the branch's own came after it with no change since, as an empty commit that runs CI again, so a fresh session reads the whole pull request instead of an empty diff and never posts a success over the mark's Findings. A push after a read mark now reads one compare, the changes since the mark.
+
+  `pr reviewed` reads the pull request without the compares a Review's standing needs, so a compare GitHub refuses, as a 502 on a large diff, no longer stops it posting the status.
+
+  `pr ship` reads from a read mark a force push left behind after the last clean Review, so a mark on a dropped head is never carried past by the clean read before it: the head gets a Review from the mark, or of the whole pull request when the own changes are as the mark read them.
+
+- 8c30379: `sweep` reads each worktree again just before it removes it and keeps one whose HEAD, branch or lock changed since it was judged, or that holds a file or a paused operation by then, so a commit a Worker makes while it is stopped stays; a branch goes only while it points at the commit judged Landed.
+  `sweep` keeps a worktree whose removal outlives its time limit, now ten minutes, with the limit it hit, and goes on, so what it removed before and after is still reported; it no longer stops with exit 2 there.
+  `sweep` keeps a branch a rebase paused in a kept worktree works on, with that reason and no command, where it planned to delete a Landed one and named `git branch -D` for another, both of which git refuses.
+  `sweep` lifts a stale Claude Code lock whose session name holds a letter `git worktree list` quotes, as a non-ASCII one or a quote, which it kept as a lock of another kind; it reads the list with `-z`.
+
 ## 0.21.0
 
 ### Minor Changes
