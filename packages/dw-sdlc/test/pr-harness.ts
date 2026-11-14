@@ -132,6 +132,8 @@ export type Pr = {
   checks: Context[]
   /** Whether more checks follow `checks` than the one read holds; none when left out. */
   moreChecks?: boolean
+  /** The contexts past the ones the read holds; the head's review status among them is read by its name. */
+  pastRead?: Context[]
   threads: Thread[]
   /** Whether more threads follow `threads` than the one read holds; none when left out. */
   moreThreads?: boolean
@@ -255,6 +257,12 @@ function forcePushOf(commit: Commit | null): object {
   return { beforeCommit: { oid: commit.oid, history: { nodes } } }
 }
 
+/** The head's status as the reply reads it by name: the review status `checks` or `pastRead` holds, else none. */
+function headStatusOf({ checks, pastRead = [] }: Pr): object | null {
+  const review = [...checks, ...pastRead].find(({ kind, name }) => kind === "status" && name === "dw-sdlc/review")
+  return review === undefined ? null : { context: contextOf(review) }
+}
+
 /** The `pullRequest` node of the reply, an object a test may break before serving it. */
 export function pullRequestOf(pr: Pr): Record<string, unknown> {
   const rollup =
@@ -287,7 +295,9 @@ export function pullRequestOf(pr: Pr): Record<string, unknown> {
         commit: commit === null ? null : { oid: commit }
       }))
     },
-    commits: { nodes: [{ commit: { committedDate: pr.committedAt, statusCheckRollup: rollup } }] },
+    commits: {
+      nodes: [{ commit: { committedDate: pr.committedAt, statusCheckRollup: rollup, status: headStatusOf(pr) } }]
+    },
     history: { nodes: [...pr.history, { oid: pr.head, parents: pr.headParents ?? 1, ...pr.headReview }].map(commitOf) },
     rewritten: { nodes: (pr.rewritten ?? []).map(forcePushOf) }
   }

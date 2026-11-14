@@ -6,10 +6,11 @@ import { describe, it } from "node:test"
 
 import { COMMITTED_FILE } from "../../src/agentic-config.ts"
 import { repo, runBin } from "../harness.ts"
-import { fakeGh, GREEN, HEAD, type Pr, RUN, served } from "../pr-harness.ts"
+import { type Context, fakeGh, GREEN, HEAD, type Pr, RUN, served } from "../pr-harness.ts"
 
 const AUTO = { [COMMITTED_FILE]: { pr: { merge: "auto", review: "full" } } }
 const COMMAND = `gh pr merge 40 --squash --match-head-commit ${HEAD}`
+const PASSING: Context = { kind: "run", name: "Check", state: "SUCCESS", link: RUN, startedAt: "2026-10-31T11:01:00Z" }
 function ship(pr: Pr, args: string[] = []) {
   const gh = fakeGh({ graphql: [served(pr)] })
   const run = runBin(
@@ -55,6 +56,18 @@ describe("dw-sdlc pr ship on a pull request its read does not hold whole", () =>
     assertParked({ ...GREEN, moreChecks: true }, "the read holds only the first 50 checks: the merge is the dev's", [
       "--merge"
     ])
+  })
+
+  it("reads the head's review status by its name when the checks past the read may hold it", () => {
+    const ci = Array.from({ length: 50 }, (_, index): Context => ({ ...PASSING, name: `Check ${index}` }))
+    const reviewed = GREEN.checks.filter(({ name }) => name === "dw-sdlc/review")
+    assertParked(
+      { ...GREEN, checks: ci, moreChecks: true, pastRead: reviewed },
+      "the read holds only the first 50 checks: the merge is the dev's"
+    )
+    const unreviewed = ship({ ...GREEN, checks: ci, moreChecks: true })
+    assert.equal(unreviewed.status, 10, unreviewed.stderr)
+    assert.equal(unreviewed.answer.action, "review")
   })
 
   it("answers the failure it does see first, the cut-off riding in the blockers", () => {

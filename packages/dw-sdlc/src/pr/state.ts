@@ -56,7 +56,8 @@ export const QUERY = `query($owner: String!, $name: String!, $number: Int!) {
       commits(last: 1) { nodes { commit { committedDate statusCheckRollup {
         contexts(first: ${CHECKS_READ}) { pageInfo { hasNextPage } nodes {
           ... on CheckRun { name status conclusion detailsUrl startedAt isRequired(pullRequestNumber: $number) }
-          ... on StatusContext { context state targetUrl createdAt isRequired(pullRequestNumber: $number) } } } } } } }
+          ... on StatusContext { context state targetUrl createdAt isRequired(pullRequestNumber: $number) } } } }
+        status { context(name: "${REVIEW}") { context state targetUrl createdAt isRequired(pullRequestNumber: $number) } } } } }
       history: commits(last: 100) { nodes { commit { oid parents { totalCount } status { context(name: "${REVIEW}") { state description } } } } }
       rewritten: timelineItems(last: ${FORCE_PUSHES_READ}, itemTypes: [HEAD_REF_FORCE_PUSHED_EVENT]) { nodes { ... on HeadRefForcePushedEvent {
         beforeCommit { oid history(first: ${LEFT_BEHIND_READ}) { nodes { oid parents(first: 1) { nodes { oid } }
@@ -226,6 +227,24 @@ function checkOf(context: Node, repo: string): CiCheck {
     }
   }
   throw new ReplyError(`${context.at} is neither a CheckRun nor a StatusContext`)
+}
+
+/**
+ * The head's checks as the rollup lists them. With more past its first 50, the review status is read by
+ * its name too, so whether the head is reviewed never hangs on where the rollup lists it.
+ */
+function checksOf(commit: Node, repo: string): CiCheck[] {
+  const rollup = childOrNull(commit, "statusCheckRollup")
+  if (rollup === null) {
+    return []
+  }
+  const listed = nodes(rollup, "contexts").map((context) => checkOf(context, repo))
+  if (!hasMore(rollup, "contexts") || listed.some(({ name }) => name === REVIEW)) {
+    return listed
+  }
+  const status = childOrNull(commit, "status")
+  const review = status === null ? null : childOrNull(status, "context")
+  return review === null ? listed : [...listed, checkOf(review, repo)]
 }
 
 /** A thread by its opening comment; a deleted account's comment has no author and reads as GitHub's ghost. */
@@ -447,7 +466,7 @@ export function parsePr(reply: string, repo: string): { pr: Parsed; rewritten: R
     base: string(pr, "baseRefName"),
     baseOid: baseRef === null ? string(pr, "baseRefOid") : string(child(baseRef, "target"), "oid"),
     mergeCommit: mergeCommit === null ? null : string(mergeCommit, "oid"),
-    checks: rollup === null ? [] : nodes(rollup, "contexts").map((context) => checkOf(context, repo)),
+    checks: checksOf(commit, repo),
     unresolvedThreads: nodes(pr, "reviewThreads")
       .filter((thread) => !boolean(thread, "isResolved") && !boolean(thread, "isOutdated"))
       .map(threadOf),
