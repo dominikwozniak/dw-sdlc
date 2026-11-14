@@ -55,8 +55,9 @@ extends those skills and replaces none. `README.md` is the front page, `docs/ove
 - **Formatting, import order, lint and the type check belong to Vite+**, configured in `vite.config.ts`.
   The pre-commit hook runs `vp staged`: `vp lint --fix` and `vp fmt` on the staged files.
 - **External actions are pinned** to a full commit SHA with a `# vX.Y.Z` comment.
-- **A skill the plugin ships is named `sdlc-<verb>`, or `sdlc-<area>-<verb>`**, as `sdlc-setup` and
-  `sdlc-references-add`, so the skills group in the slash menu and never collide with dw-solo's `dw-*`.
+- **A skill the plugin ships is named `sdlc-<word>`, or `sdlc-<area>-<word>`, a verb where one fits**,
+  as `sdlc-sweep` and `sdlc-references-add`, so the skills group in the slash menu and never collide
+  with dw-solo's `dw-*`.
 - **Tests pin the words of a skill.** `plugins/*/test/manifest.test.ts` holds each description and
   frontmatter, and `plugins/sdlc/test/skill-lines.test.ts` each `dw-sdlc` line a SKILL.md runs to the
   bin's `--help`. A changed description or command line changes its test in the same commit.
