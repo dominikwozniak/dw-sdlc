@@ -20,7 +20,11 @@ cwd="$GUARD_CWD"
 
 guard_config_load "$cwd"
 if [[ -n "$GUARD_CONFIG_PROBLEMS" ]]; then
-  say "agentic config: INVALID, the guards run on the strictest defaults until it is fixed:"
+  # The inferred layer names no commit rule, so one only the dropped layer set is off.
+  effect="the guards run on the strictest defaults"
+  [[ -z "$(guard_config_get '.commit.convention // .commit.pattern // .commit.trailer')" ]] &&
+    effect+=" and the commit rules are off"
+  say "agentic config: INVALID, $effect until it is fixed:"
   while IFS= read -r line; do say "  $line"; done <<<"$GUARD_CONFIG_PROBLEMS"
 fi
 

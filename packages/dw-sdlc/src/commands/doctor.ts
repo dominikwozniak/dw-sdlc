@@ -6,7 +6,7 @@ import { existsSync, readFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { join } from "node:path"
 
-import { findRepository, resolveConfig } from "../agentic-config.ts"
+import { findRepository, invalidLayerEffect, resolveConfig } from "../agentic-config.ts"
 import { readArgs } from "../cannot-run.ts"
 import {
   checkPackage,
@@ -34,7 +34,7 @@ export type Probe = {
 }
 
 export type RepositoryConfig = {
-  config: { commit: { convention?: string } }
+  config: { commit: { convention?: string; pattern?: string; trailer?: string } }
   problems: string[]
   /** The checkout each layer was read from, as `resolveConfig` reports it. */
   sources?: { committed: string | undefined; local: string | undefined }
@@ -270,7 +270,7 @@ function checkConfig(config: RepositoryConfig | undefined, root: string): Check 
     return {
       name: "config",
       level: "FAIL",
-      detail: `the guards run on the strictest defaults: ${config.problems.join("; ")}`
+      detail: `${invalidLayerEffect(config.config)}: ${config.problems.join("; ")}`
     }
   }
   // A worktree that lacks a layer reads the main checkout's; say so, since the file is not here.

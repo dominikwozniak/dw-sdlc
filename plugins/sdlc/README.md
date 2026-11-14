@@ -413,7 +413,7 @@ as the `installPath` of `sdlc@dw-sdlc`.
 | `safe chain`       | [Safe Chain](https://github.com/AikidoSec/safe-chain), Aikido's blocklist of malicious npm packages, with `npm` going through it           | WARN: the agent's shell reaches the registry without the blocklist                     |
 | `pnpm release age` | pnpm's global `minimumReleaseAge` at 10080 minutes, 7 days, or more                                                                        | WARN, with the `pnpm config set --global` line                                         |
 | `commit signing`   | `commit.gpgsign` true in the global git config                                                                                             | WARN: commits go out unsigned                                                          |
-| `config`           | the resolved config of the repository holding `--root` or the current directory                                                            | FAIL on an invalid layer, each problem named                                           |
+| `config`           | the resolved config of the repository holding `--root` or the current directory                                                            | FAIL on an invalid layer, each problem named, and the commit rules off where none hold |
 
 Safe Chain, the release age and commit signing guard the supply chain and the history; the guards work
 without them. A `drift:` line means the hooks and skills run other code than the repository's Gate.
@@ -425,7 +425,8 @@ installs, and a main checkout in order gets nothing. It tells the first turn abo
 
 - a missing `jq`, with every guard silent without it;
 - an invalid config layer, each problem named, and that the guards run the strictest set until it is
-  fixed ([Where the rules come from](../../docs/overview.md#where-the-rules-come-from));
+  fixed, with the commit rules off where no valid layer sets one
+  ([Where the rules come from](../../docs/overview.md#where-the-rules-come-from));
 - in a linked worktree, the `.worktreeinclude` files not yet copied in and the `worktree.setup` commands.
 
 A layer is invalid, too, when the hooks cannot validate it against the schema beside them. A

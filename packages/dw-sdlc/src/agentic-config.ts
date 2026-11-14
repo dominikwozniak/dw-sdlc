@@ -446,6 +446,18 @@ function finalize(merged: ResolvedConfig): ResolvedConfig {
   return { ...merged, commit: { ...merged.commit, pattern: COMMIT_PATTERNS[convention] } }
 }
 
+type CommitRules = { commit: { convention?: string; pattern?: string; trailer?: string } }
+
+/**
+ * What a report says is in force while a layer is invalid: the strictest guardrails, and no commit
+ * rule where no valid layer sets a convention, pattern or trailer, since the inferred layer names none.
+ */
+export function invalidLayerEffect({ commit }: CommitRules): string {
+  const strictest = "the guards run on the strictest defaults"
+  const unchecked = commit.convention === undefined && commit.pattern === undefined && commit.trailer === undefined
+  return unchecked ? `${strictest} and the commit rules are off` : strictest
+}
+
 /**
  * Local over committed over inferred, for the repository at `root`. A linked worktree reads a layer it
  * lacks from its main checkout, where a repository that keeps `.ai/` out of git has the only copy.

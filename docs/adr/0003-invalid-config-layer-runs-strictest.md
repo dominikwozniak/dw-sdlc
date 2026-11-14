@@ -19,6 +19,8 @@ file, path and message.
 One bad key blocks the whole file, and until it is fixed lease pushes and every env file are refused.
 While a layer is invalid, a repository that commits small fixes on its protected branch cannot commit
 them there.
+The inferred layer names no commit convention, so a commit rule only the invalid layer sets is off
+until it is fixed, and `dw-sdlc config`, the session-start report and the doctor say so.
 Applying the valid keys of a failed file, falling back to the ordinary defaults and refusing every
 command are the rejected shapes. A doctor `config` FAIL traced to this rule rather than to a real
 misconfiguration is the signal to reopen it.

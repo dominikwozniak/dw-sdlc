@@ -6,6 +6,7 @@ import { readFileSync } from "node:fs"
 import {
   COMMITTED_FILE,
   findRepository,
+  invalidLayerEffect,
   LOCAL_FILE,
   type Problem,
   repositoryRoot,
@@ -86,9 +87,7 @@ export function run(argv: string[]): number {
   console.log(JSON.stringify(config, null, 2))
   if (problems.length > 0) {
     report(problems)
-    return failed(
-      `${problems.length} problem(s) above; the guards run on the strictest defaults until the file is fixed`
-    )
+    return failed(`${problems.length} problem(s) above; ${invalidLayerEffect(config)} until the file is fixed`)
   }
   return 0
 }
