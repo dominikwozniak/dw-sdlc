@@ -6,7 +6,7 @@ import { existsSync, realpathSync } from "node:fs"
 import { basename, dirname, join, relative, resolve } from "node:path"
 
 import { repositoryRoot, resolveConfig } from "../agentic-config.ts"
-import { readArgs, rootDir, usageError } from "../cannot-run.ts"
+import { CannotRun, readArgs, rootDir, usageError } from "../cannot-run.ts"
 import { type Primitive, primitivesNaming, readCatalogue } from "../catalogue.ts"
 import { catalogueFile } from "../checks/primitives.ts"
 import { blockOf, primitivesDiff } from "../primitives-diff.ts"
@@ -107,11 +107,17 @@ function plain(path: string, primitives: Primitive[]): string[] {
   ])
 }
 
+/** Stops the command on every one of `problems`, each on a line of its own, as the bin prints the first. */
+function stopOn(problems: string[]): never {
+  const [first = "the catalogue cannot be read", ...rest] = problems
+  const after = rest.map((problem) => `dw-sdlc primitives: ${problem}`).join("\n")
+  throw new CannotRun(first, undefined, rest.length === 0 ? {} : { after })
+}
+
 function runDiff(root: string, base: string, json: boolean): number {
   const answer = primitivesDiff(root, base)
   if ("problems" in answer) {
-    process.stderr.write(answer.problems.map((problem) => `dw-sdlc primitives: ${problem}\n`).join(""))
-    return 2
+    stopOn(answer.problems)
   }
   process.stdout.write(json ? `${JSON.stringify(answer, null, 2)}\n` : `${blockOf(answer)}\n`)
   return 0
@@ -135,8 +141,7 @@ export function run(argv: string[]): number {
       read.state === "missing"
         ? [`the catalogue does not exist — ${REMEDIES.missing}`]
         : read.problems.map((problem) => `${problem} — ${REMEDIES.invalid}`)
-    process.stderr.write(problems.map((problem) => `dw-sdlc primitives: ${file}: ${problem}\n`).join(""))
-    return 2
+    stopOn(problems.map((problem) => `${file}: ${problem}`))
   }
 
   const answers = cli.files.map((path) => {
