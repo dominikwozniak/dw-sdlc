@@ -1,6 +1,7 @@
 # The Review: what it checks and how its report is judged
 
-`SKILL.md` runs the Review and marks the head it read. This file holds the rules in between.
+`SKILL.md` runs the Review and marks the head it read. This file holds the rules around it: what
+the Review checks, when an earlier one stands in, and how its report is judged.
 
 ## The earlier Findings
 
@@ -11,7 +12,7 @@ Findings still open in this conversation with no fix pushed yet: fix them and pu
 
 ## A Review an earlier one stands in for
 
-Skip the Review when one earlier in this conversation read the changes since `<since>` at `<head>`,
+Skip either Review, `full` or `light`, when one earlier in this conversation read the changes since `<since>` at `<head>`,
 was clean, and nothing changed after it: no edit, no commit, no pull. Only a clean run of
 `details.reviewCommand`, or at `light` of `sdlc-reviewer` too, whose range ended at `<head>` counts
 as that earlier Review; an informal read of the diff never counts. A Review whose head the

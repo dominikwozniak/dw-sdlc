@@ -37,9 +37,11 @@ push makes.
   for changes (`gh pr view <n> --json reviews`). Fix it and resolve the thread with
   `resolveReviewThread` through `gh api graphql`, or reply with `addPullRequestReviewThreadReply`
   and leave it open for the reviewer; `git push` when code changed.
-- `act review`: `details.depth` is the Review depth, and `details.source` says who set it: `flag`
-  the dev, `config` the repository, `auto` the script's rules from the size of the changes. Only
-  under `auto` may you raise it, `light` to `full`, when the change looks riskier than its size,
+- `act review`: first read `references/review.md`, whole, before the Review starts: it says
+  whether an earlier Review stands in for this one, which earlier Findings to name to it, and how
+  to judge its report, what is a Finding and what is declined or carried. `details.depth` is the
+  Review depth, and `details.source` says who set it: `flag` the dev, `config` the repository,
+  `auto` the script's rules from the size of the changes. Only under `auto` may you raise it, `light` to `full`, when the change looks riskier than its size,
   saying why in one line; never lower one. A depth the dev or the config set stands: when you think
   it wrong, say so in one line and review at it. The Review reads the changes since `<since>`:
   `details.since`, the last head a Review read, clean or not, when the answer has it, else
@@ -68,16 +70,14 @@ push makes.
   list is empty. Exit 2, a repository with no catalogue included, sends "not read" and the one line it
   printed, never "none". Its report's first line, `clean` or `findings: <n>`, is the result.
 
-  Read `references/review.md` before the Review starts: it says which earlier Findings the Review
-  checks, when an earlier Review stands in for it, and how to judge its report, what is a Finding
-  and what is declined or carried. Then mark the head it read. Clean, or skipped under that file,
-  run `node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" pr reviewed <n> --head <head>`; its exit 2
-  says whether the head moved or it cannot run. A Finding left open, run
-  `node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" pr reviewed <n> --head <head> --findings`, the
-  read mark the next Review reads the fix from; then fix each Finding, `git push` and call the
-  script again. At `off`, and over a head that only merged the base in since a success unless the
-  dev's `--review` names a depth, the script marks the head reviewed itself, so no `act review`
-  comes.
+  When the Review is clean, or skipped under `references/review.md`, run
+  `node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" pr reviewed <n> --head <head>`; its exit 2
+  says whether the head moved or it cannot run. When it leaves a Finding open, run
+  `node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" pr reviewed <n> --head <head> --findings` on the
+  head it read, the read mark the next Review reads the fix from; then fix each Finding,
+  `git push` and call the script again. At `off`, and over a head that only merged the base in
+  since a success unless the dev's `--review` names a depth, the script marks the head reviewed
+  itself, so no `act review` comes.
 
 - `wait`, when the dev invoked the skill: tell the dev the `reason` in one line, start one background
   wait with the Bash tool's `run_in_background`, and end the turn; its exit wakes the session, and
