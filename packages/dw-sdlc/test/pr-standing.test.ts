@@ -267,7 +267,9 @@ describe("the Review's standing at a pull request's head", () => {
   it("reads from a read mark a force push left behind after the last clean read, and carries nothing past it", () => {
     const leftBehind: History["leftBehind"] = [{ oid: SECOND, posted: "findings", forksAt: 0 }]
     const history = upTo([clean(READ), pushed(PUSHED, true)], { headMerge: true, leftBehind })
-    const unanswered = standingOf(history, inMemory({ [SECOND]: [PAYWALL], [HEAD]: [PAYWALL] }), AWAITS)
+    // The clean read's own changes match the head's, so only the mark keeps the clean read from carrying.
+    const own = { [READ]: [PAYWALL], [SECOND]: [PAYWALL], [HEAD]: [PAYWALL] }
+    const unanswered = standingOf(history, inMemory(own), AWAITS)
     assert.equal(unanswered.carried, false)
     assert.deepEqual(reviewCall(unanswered, FULL), {
       kind: "review",
