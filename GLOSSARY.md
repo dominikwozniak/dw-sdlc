@@ -125,7 +125,8 @@ what it must not do, the proof it is done, where it reports, and the model and e
 _Avoid_: prompt, task, handoff (carries the conversation; a Brief points at a source)
 
 **Start line**:
-A shell command the dev pastes into a new terminal to start a Worker or a Lead, its Brief or first message quoted.
+What the dev pastes to start a Worker or a Lead in a session of its own: a shell command, its Brief or first
+message quoted, or that message and a session name.
 _Avoid_: kickoff line
 
 **Way out**:
@@ -158,7 +159,7 @@ _Avoid_: remedy (the line a Check prints)
 
 **Disable directive**:
 A comment that turns a lint rule or a type check off for the code it marks.
-_Avoid_: suppression, waiver, ignore
+_Avoid_: suppression, waiver
 
 **Drift**:
 A file a Step creates, changes or deletes while the Gate runs, such as a stale generated file; never an edit made before the run.
@@ -189,7 +190,7 @@ The skills that plan, build and review the work, `mattpocock/skills` here. dw-sd
 _Avoid_: framework, base plugin
 
 **Marketplace**:
-The catalogue Claude Code installs plugins from. This repository is one.
+The catalogue Claude Code installs plugins from.
 
 **Plugin**:
 One installable unit the marketplace lists: hooks and skills under one version.
