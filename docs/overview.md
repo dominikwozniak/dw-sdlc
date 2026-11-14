@@ -422,23 +422,22 @@ runs on the dev's word, from the main checkout. It never forces and never writes
 | another branch | Landed: its work is on the base                                | its work is on no base commit (forced delete)                                  |
 | a stale lock   | Claude Code's, its process gone, just before its worktree goes | a live lock, named by its pid                                                  |
 
-It always keeps the default branch, the base branch, a protected branch and a branch a kept worktree
-has checked out or is rebasing. When the main checkout sits on a Landed branch, clean and with nothing paused,
-the Sweep names `git switch <base> && git pull --rebase` for it; the next Sweep then removes the branch. It fetches origin first, so a branch squash-merged since the last fetch counts.
-It reads each worktree again just before it removes it, and keeps one whose HEAD moved since it was
-judged. A branch goes only while it points at the commit judged Landed. A removal that git refuses, or
-that outlives its time limit, keeps that item and the Sweep goes on.
+It keeps the default branch, the base branch, a protected branch and a branch a kept worktree has
+checked out or is rebasing. When the main checkout sits on a Landed branch, clean and unpaused, the Sweep names `git switch <base> && git pull --rebase` for it; the next Sweep then removes the branch.
+It fetches origin first, so a branch squash-merged since the last fetch counts. It reads each worktree
+again just before it removes it, and keeps one whose HEAD moved since it was judged. A branch goes only
+while it points at the commit judged Landed, checked one git call before `git branch -D`; a commit
+inside that call is lost to the branch. A removal git refuses, or that outlives its limit, is kept.
 
-In herdr it also cleans up the session's own Workers. It never stops a terminal next to work that
+In herdr it also cleans up the session's own Workers, never stopping a terminal next to work that
 could still be committed.
 
-- A Worker that is not working, blocked or yet to report is stopped and removed, in the same Sweep that
-  removes its worktree.
+- A Worker that is not working, blocked or yet to report is stopped and removed with its worktree.
 - A finished Worker is removed.
 - Another session's terminal keeps its worktree. The Sweep names it, with `hc kill` for the dev.
 - The Sweep's own terminal is never stopped.
-- When `hc` fails while the Sweep reads terminals, it ends with exit 2 before it removes anything. A
-  stop or removal that fails later keeps the Worker's worktree, with `hc`'s words, and the Sweep goes on.
+- When `hc` fails while the Sweep reads terminals, it exits 2 before it removes anything. A later
+  failed stop or removal keeps the Worker's worktree, with `hc`'s words, and the Sweep goes on.
 
 Landed means the same to the Sweep and to the branch-delete guard: `packages/dw-sdlc/src/landed.ts`
 and `lib-git.sh` follow one rule, held to one table of scenarios both test suites read. Locks, the

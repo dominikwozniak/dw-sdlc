@@ -56,8 +56,10 @@ Action took effect, whatever gh's exit status; gh's exit status and stderr stand
 false with exit 0 is an Action gh accepted that the read does not show yet. An update counts when
 the head carries the base it read. When the read after an Action fails, the call exits 2 and names
 each Action that ran with gh's exit, under performed too with --json: it may have landed, so do not
-run it blind again. --dry-run performs nothing: it parks at the first Action the script would
-perform, under performed with ok null.
+run it blind again. It exits 2 too when GitHub refuses the compare it reads after a read mark: that
+compare decides whether the mark's Findings still stand, so the script stops and posts nothing.
+--dry-run performs nothing: it parks at the first Action the script would perform, under performed
+with ok null.
 One line, or one document with --json; --verbose adds the state as read to the document under
 facts. Needs an authenticated gh.
 

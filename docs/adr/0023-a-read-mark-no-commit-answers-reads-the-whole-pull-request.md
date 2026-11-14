@@ -29,6 +29,10 @@ which names only the fix. The walk finds the mark again, and it counts.
 
 ## Consequences
 
+The compare after a read mark decides whether the mark's Findings still stand: it shows whether a fix
+came after them. When GitHub refuses it, the script cannot tell a fix from none, so `pr ship` exits 2
+naming the compare and posts no success.
+
 The narrowest reads were weighed and rejected. A Review from the read before the mark finds the mark's
 Findings again only when the mark's Review read that same range. A dev's `--review` over a carry reads
 the whole diff, and a Review from the clean read then reads nothing. Naming the mark while keeping
