@@ -4,7 +4,7 @@
 
 import { existsSync, readFileSync } from "node:fs"
 import { homedir } from "node:os"
-import { dirname, join, relative } from "node:path"
+import { join, relative } from "node:path"
 import { pathToFileURL } from "node:url"
 
 import {
@@ -19,13 +19,14 @@ import {
   SCHEMA_FILE,
   STRICTNESS,
   inferConfig,
+  mainCheckout,
   repositoryRoot,
   resolveConfig,
   schemaId,
   validateDocument
 } from "../agentic-config.ts"
 import { readArgs, usageError } from "../cannot-run.ts"
-import { exec } from "../exec.ts"
+import { gitDirs } from "../git.ts"
 import { isObject, type JsonObject, parseObject, render } from "../json-text.ts"
 import { withGate, withPackage } from "../setup-gate.ts"
 import { GLOBAL_DENY, LEASE_RULE, RETIRED_DENY, repositoryDeny } from "../setup-rules.ts"
@@ -99,12 +100,6 @@ const PLUGIN = "sdlc"
 const PACKAGE_LINK = "dw-sdlc"
 /** The two plugins the sdlc plugin replaced, which the marketplace does not list (ADR 0010). */
 const RETIRED_PLUGINS = ["guardrails", "references"].map((name) => `${name}@${MARKETPLACE}`)
-
-/** A read-only git command, the one thing the setup runs in the repository. */
-function git(root: string, args: string[]): string | undefined {
-  const result = exec("git", ["-C", root, ...args])
-  return result.status === 0 ? result.stdout.trim() : undefined
-}
 
 /** The committed layer when it is valid; an absent or invalid one sets nothing, as the resolver drops it. */
 function committedConfig(root: string): AgenticConfig {
@@ -277,20 +272,17 @@ function enabledPluginsEdit(settings: JsonObject): string | undefined {
 
 /**
  * Where the repository's files live: the main checkout for a linked worktree, since every worktree reads
- * the local config from there when it has none of its own, and Claude Code reads the local settings there.
+ * the local config from there when it has none of its own, and Claude Code reads the local settings there;
+ * the excludes go to the git dir every worktree shares.
  */
-function mainCheckout(root: string): { checkout: string; gitDir: string } {
-  const common = git(root, ["rev-parse", "--path-format=absolute", "--git-common-dir"])
-  if (common === undefined) {
-    return { checkout: root, gitDir: join(root, ".git") }
-  }
-  return { checkout: dirname(common), gitDir: common }
+function repositoryFiles(root: string): { checkout: string; gitDir: string } {
+  return { checkout: mainCheckout(root) ?? root, gitDir: gitDirs(root)?.commonDir ?? join(root, ".git") }
 }
 
 export function setup(options: SetupOptions): Step[] {
   const writer = new Writer(options.dryRun)
   const root = repositoryRoot(options.root)
-  const { checkout, gitDir } = mainCheckout(root)
+  const { checkout, gitDir } = repositoryFiles(root)
   const claudeDir = options.claudeDir ?? join(options.home, ".claude")
 
   // 1. The local config: inference, the convention (the flag's, else the file's pin), the guardrails block

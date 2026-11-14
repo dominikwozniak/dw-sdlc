@@ -5,8 +5,8 @@
 import { existsSync, readFileSync, symlinkSync } from "node:fs"
 import { join } from "node:path"
 
+import { repositoryRoot } from "../agentic-config.ts"
 import { readArgs } from "../cannot-run.ts"
-import { exec } from "../exec.ts"
 import { parseObject, removeKey, render } from "../json-text.ts"
 import {
   CONFIG,
@@ -145,12 +145,6 @@ function source(root: string): Source | { problem: string; file?: Change } {
   }
 }
 
-/** The repository `dir` sits in, or `dir` itself outside one. */
-function toplevel(dir: string): string {
-  const result = exec("git", ["-C", dir, "rev-parse", "--show-toplevel"])
-  return result.status === 0 ? result.stdout.trim() : dir
-}
-
 function setup(root: string, dryRun: boolean): Step[] {
   const writer = new Writer(dryRun)
   /** `file` of the repository, under its own name, as `change` leaves it. */
@@ -198,7 +192,7 @@ export function run(argv: string[]): number {
 
   const check = values.check === true
   const dryRun = values["dry-run"] === true || check
-  const steps = setup(toplevel(values.root ?? process.cwd()), dryRun)
+  const steps = setup(repositoryRoot(values.root ?? process.cwd()), dryRun)
   for (const line of stepLines(steps, dryRun)) {
     console.log(line)
   }

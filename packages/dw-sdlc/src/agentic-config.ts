@@ -6,7 +6,7 @@ import { existsSync, readFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 
 import { messageOf } from "./cannot-run.ts"
-import { exec } from "./exec.ts"
+import { asked, gitDirs } from "./git.ts"
 import { validate } from "./json-schema.ts"
 
 export const COMMITTED_FILE = ".ai/agentic.config.json"
@@ -266,8 +266,7 @@ function readLayer(checkouts: string[], file: string): Layer {
 
 /** The top level of the repository holding `dir`, or undefined outside one. */
 export function findRepository(dir: string): string | undefined {
-  const toplevel = exec("git", ["-C", dir, "rev-parse", "--show-toplevel"])
-  return toplevel.status === 0 ? toplevel.stdout.trim() : undefined
+  return asked(dir, ["rev-parse", "--show-toplevel"])
 }
 
 /** The top level of the repository holding `dir`, or `dir` itself outside one. */
@@ -280,13 +279,8 @@ export function repositoryRoot(dir: string): string {
  * repository: a linked worktree's git dir differs from the common one, which sits in the main checkout.
  */
 export function mainCheckout(root: string): string | undefined {
-  const args = ["-C", root, "rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir"]
-  const result = exec("git", args)
-  if (result.status !== 0) {
-    return undefined
-  }
-  const [gitDir, commonDir] = result.stdout.trim().split("\n")
-  return gitDir === undefined || commonDir === undefined || gitDir === commonDir ? undefined : dirname(commonDir)
+  const dirs = gitDirs(root)
+  return dirs === undefined || dirs.gitDir === dirs.commonDir ? undefined : dirname(dirs.commonDir)
 }
 
 function inferPackageManagers(root: string): ResolvedConfig["packageManagers"] {

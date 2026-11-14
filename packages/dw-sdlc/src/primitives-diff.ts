@@ -5,7 +5,7 @@
 import { resolveConfig } from "./agentic-config.ts"
 import { type Catalogue, type CatalogueRead, parseCatalogue, type Primitive, primitivesNaming } from "./catalogue.ts"
 import { catalogueFile } from "./checks/primitives.ts"
-import { asked, git } from "./working-tree.ts"
+import { asked, git } from "./git.ts"
 
 export type PrimitiveClass = "removes" | "adds" | "extends"
 

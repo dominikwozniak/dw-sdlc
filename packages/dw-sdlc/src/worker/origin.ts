@@ -3,9 +3,8 @@
 // day without a fetch, so a Worker could otherwise begin from a ref that is hours or days behind.
 
 import { CannotRun } from "../cannot-run.ts"
-import { exec, SLOW_LIMIT_MS, TimedOut } from "../exec.ts"
-import { repositoryFreeEnv } from "../git-env.ts"
-import { asked } from "../working-tree.ts"
+import { SLOW_LIMIT_MS, TimedOut } from "../exec.ts"
+import { asked, git, type GitAnswer } from "../git.ts"
 
 const REMOTE_HEAD = "refs/remotes/origin/HEAD"
 const PREFIX = "refs/remotes/origin/"
@@ -29,7 +28,7 @@ export function freshenOrigin(root: string, baseBranch: string): void {
     return
   }
   const branch = defaultBranch(root, baseBranch)
-  const args = ["-C", root, "fetch", "--quiet", "origin", ...(branch === undefined ? [] : [branch])]
+  const args = ["fetch", "--quiet", "origin", ...(branch === undefined ? [] : [branch])]
   const fetched = `git fetch origin${branch === undefined ? "" : ` ${branch}`}`
   const stale = (why: string): CannotRun =>
     new CannotRun(
@@ -37,14 +36,13 @@ export function freshenOrigin(root: string, baseBranch: string): void {
       "check the network and the access to origin; when origin/HEAD names a branch the remote no longer has, " +
         "run `git remote set-head origin --auto`; then start the Worker again"
     )
-  let result: ReturnType<typeof exec>
+  let result: GitAnswer
   try {
-    result = exec("git", args, { env: repositoryFreeEnv(), limitMs: SLOW_LIMIT_MS })
+    result = git(root, args, { limitMs: SLOW_LIMIT_MS })
   } catch (error) {
     throw error instanceof TimedOut ? stale(error.message) : error
   }
-  if (result.status !== 0) {
-    const said = result.stderr.split("\n").find((line) => line.trim() !== "")
-    throw stale(said?.trim() ?? `exited ${result.status ?? "on a signal"}`)
+  if ("error" in result) {
+    throw stale(result.said)
   }
 }

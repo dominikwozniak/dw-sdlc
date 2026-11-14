@@ -272,7 +272,7 @@
       "code": [
         "packages/dw-sdlc/src/commands/references-sync.ts",
         "packages/dw-sdlc/src/pins.ts",
-        "packages/dw-sdlc/src/git-env.ts"
+        "packages/dw-sdlc/src/git.ts"
       ],
       "docs": ["plugins/sdlc/README.md#the-sync", "plugins/sdlc/README.md#failures", "GLOSSARY.md"]
     },
@@ -569,7 +569,7 @@
         "packages/dw-sdlc/src/gate-cache.ts",
         "packages/dw-sdlc/src/working-tree.ts",
         "packages/dw-sdlc/src/drift.ts",
-        "packages/dw-sdlc/src/git-env.ts",
+        "packages/dw-sdlc/src/git.ts",
         "packages/dw-sdlc/src/package-version.ts"
       ],
       "docs": ["docs/overview.md#how-the-gate-runs", "GLOSSARY.md"]

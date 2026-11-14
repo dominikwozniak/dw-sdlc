@@ -4,21 +4,9 @@
 import { existsSync } from "node:fs"
 import { join } from "node:path"
 
-import { CannotRun } from "./cannot-run.ts"
-import { exec } from "./exec.ts"
-import { repositoryFreeEnv } from "./git-env.ts"
+import { asked, git, must } from "./git.ts"
 import { isLanded } from "./landed.ts"
 import { shellLine } from "./pr/decide.ts"
-import { asked, git } from "./working-tree.ts"
-
-/** `git <args>` at `root`, or a stop naming its problem. */
-export function must(root: string, args: string[]): string {
-  const result = git(root, args)
-  if ("error" in result) {
-    throw new CannotRun(result.error, "check the repository with git status")
-  }
-  return result.out
-}
 
 /** The local branches of the repository at `root`. */
 export function branchesOf(root: string): string[] {
@@ -58,14 +46,12 @@ export function worktreesOf(root: string): Tree[] {
 
 /** The files `git status` lists in the worktree at `path`, ignored ones aside, or why it cannot be read. */
 export function dirtyFiles(path: string): string[] | { error: string } {
-  const args = ["-C", path, "status", "--porcelain=v1", "-z", "--untracked-files=all"]
-  const result = exec("git", args, { env: repositoryFreeEnv() })
-  if (result.status !== 0) {
-    const said = result.stderr.split("\n").find((line) => line.trim() !== "")
-    return { error: `git status: ${said?.trim() ?? `exited ${result.status ?? "on a signal"}`}` }
+  const status = git(path, ["status", "--porcelain=v1", "-z", "--untracked-files=all"], { raw: true })
+  if ("error" in status) {
+    return status
   }
   const files: string[] = []
-  const entries = result.stdout.split("\0").filter((entry) => entry !== "")
+  const entries = status.out.split("\0").filter((entry) => entry !== "")
   for (let index = 0; index < entries.length; index++) {
     const entry = entries[index] ?? ""
     files.push(entry.slice(3))

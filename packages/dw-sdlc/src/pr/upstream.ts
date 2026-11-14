@@ -2,7 +2,7 @@
 // its pull request neither through `@{push}` nor by the local name, so `pr ship` and recap ask by the name
 // the upstream gives, and take that pull request only when its commits hold the local head.
 
-import { asked } from "../working-tree.ts"
+import { asked } from "../git.ts"
 import type { PrState } from "./state.ts"
 
 /**

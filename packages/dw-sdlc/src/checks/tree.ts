@@ -5,18 +5,18 @@ import { existsSync, lstatSync, realpathSync } from "node:fs"
 import { join, matchesGlob, posix, relative } from "node:path"
 
 import { CannotRun } from "../cannot-run.ts"
-import { exec } from "../exec.ts"
+import { git } from "../git.ts"
 
 /** Every file under `pathspecs`, the whole tree when there are none, that git tracks or would track and that is on disk; sorted. */
 export function treeFiles(root: string, pathspecs: string[] = []): string[] {
-  const args = ["-C", root, "ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", ...pathspecs]
-  const listed = exec("git", args)
-  if (listed.status !== 0) {
+  const args = ["ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", ...pathspecs]
+  const listed = git(root, args, { raw: true })
+  if ("error" in listed) {
     const under = pathspecs.length === 0 ? "" : ` under ${pathspecs.join(", ")}`
     const message = `cannot list the files${under}: not a git repository`
     throw new CannotRun(message, "run the Gate inside a git repository")
   }
-  return [...new Set(listed.stdout.split("\0").filter((path) => path !== ""))]
+  return [...new Set(listed.out.split("\0").filter((path) => path !== ""))]
     .filter((path) => existsSync(join(root, path)))
     .toSorted()
 }

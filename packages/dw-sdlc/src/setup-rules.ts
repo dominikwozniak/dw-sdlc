@@ -2,7 +2,7 @@
 // file, and a repository's deny backstop for a machine without jq.
 
 import { DEFAULT_GUARDRAILS, type EnvFiles, matchesEnvGlob, resolveConfig } from "./agentic-config.ts"
-import { exec } from "./exec.ts"
+import { asked } from "./git.ts"
 
 /** The auto-mode exception that lets a lease push through the classifier's default force-push block. */
 export const LEASE_RULE =
@@ -65,11 +65,6 @@ export const RETIRED_DENY = ["Bash(git branch -D *)", "Bash(rtk git branch -D *)
 
 const ENV_NAME = /^\.env(\..+)?$|^\.envrc$/
 
-function git(root: string, args: string[]): string | undefined {
-  const result = exec("git", ["-C", root, ...args])
-  return result.status === 0 ? result.stdout.trim() : undefined
-}
-
 function listedIn(globs: string[], file: string): boolean {
   return globs.some((glob) => matchesEnvGlob(glob, file))
 }
@@ -79,7 +74,7 @@ function isEnvName(file: string): boolean {
 }
 
 function gitFiles(root: string, ...flags: string[]): string[] {
-  const listed = git(root, ["-c", "core.quotePath=false", "ls-files", ...flags, "--exclude-standard"]) ?? ""
+  const listed = asked(root, ["-c", "core.quotePath=false", "ls-files", ...flags, "--exclude-standard"]) ?? ""
   return listed.split("\n").filter((file) => file !== "")
 }
 

@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "no
 import { dirname, join, matchesGlob } from "node:path"
 
 import { CannotRun, messageOf } from "../cannot-run.ts"
-import { exec } from "../exec.ts"
+import { asked } from "../git.ts"
 import { type Check, type Finding } from "./check.ts"
 import { matching, treeFiles } from "./tree.ts"
 
@@ -89,7 +89,7 @@ function keyLines(text: string, path: string): number[] {
 function readBaseline(root: string): BaselineRead {
   const path = join(root, BASELINE)
   if (!existsSync(path)) {
-    const committed = exec("git", ["-C", root, "cat-file", "-e", `HEAD:${BASELINE}`]).status === 0
+    const committed = asked(root, ["cat-file", "-e", `HEAD:${BASELINE}`]) !== undefined
     return { state: "missing", committed }
   }
   const text = readFileSync(path, "utf8")

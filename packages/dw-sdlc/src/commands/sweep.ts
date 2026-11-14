@@ -5,8 +5,8 @@ import { existsSync } from "node:fs"
 
 import { findRepository, mainCheckout, resolveConfig } from "../agentic-config.ts"
 import { CannotRun, readArgs, usageError } from "../cannot-run.ts"
-import { exec, SLOW_LIMIT_MS } from "../exec.ts"
-import { repositoryFreeEnv } from "../git-env.ts"
+import { SLOW_LIMIT_MS } from "../exec.ts"
+import { asked, git } from "../git.ts"
 import { isCommitLanded, isLanded } from "../landed.ts"
 import { shellLine } from "../pr/decide.ts"
 import {
@@ -25,7 +25,6 @@ import {
   whyHeld
 } from "../sweep-terminals.ts"
 import { branchesOf, dirtyFiles, pausedOperation, switchOff, type Tree, worktreesOf } from "../sweep-trees.ts"
-import { asked, git } from "../working-tree.ts"
 import { type LockVerdict, lockVerdict, type StaleLock } from "../worktree-lock.ts"
 
 export const summary = "removes Landed branches and clean worktrees whose work has landed, names what it keeps"
@@ -95,16 +94,9 @@ function fetchOrigin(root: string): void {
   if (asked(root, ["remote", "get-url", "origin"]) === undefined) {
     return
   }
-  const result = exec("git", ["-C", root, "fetch", "--quiet", "origin"], {
-    env: repositoryFreeEnv(),
-    limitMs: SLOW_LIMIT_MS
-  })
-  if (result.status !== 0) {
-    const said = result.stderr.split("\n").find((line) => line.trim() !== "")
-    throw new CannotRun(
-      `git fetch origin failed: ${said?.trim() ?? `exited ${result.status}`}`,
-      "check the network, then call again"
-    )
+  const fetched = git(root, ["fetch", "--quiet", "origin"], { limitMs: SLOW_LIMIT_MS })
+  if ("error" in fetched) {
+    throw new CannotRun(`git fetch origin failed: ${fetched.said}`, "check the network, then call again")
   }
 }
 
