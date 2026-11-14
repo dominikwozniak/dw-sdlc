@@ -12,7 +12,8 @@ commands is [ADR 0017](../adr/0017-guards-catch-ordinary-commands-not-deliberate
 
 1. **The scan.** `hooks/bash-guard.sh` reads the payload once, drops each heredoc body but the
    substitutions an unquoted one runs (`guard_strip_heredocs`) and joins continuation lines
-   (`guard_join_continuations`). Every guard it spawns reads that scan.
+   (`guard_join_continuations`). Every guard it spawns reads that scan, but the commit guard, which
+   reads the command as typed: [The commit guard's reading](#the-commit-guards-reading).
 2. **Quotes.** `guard_quote_walk` cuts the text into quoted and unquoted pieces, and the mask makes a
    separator inside a quote plain text, so a quoted `;` cuts nothing.
 3. **Scopes.** `guard_scopes` cuts the masked scan into the commands the shell runs, one a line, with
@@ -77,6 +78,19 @@ in place.
   `git reset`.
 - **Edges.** A `case` pattern's `)` inside a substitution ends no substitution. A substitution left
   open hands back the scan as typed, cut at each parenthesis and backtick.
+
+### The commit guard's reading
+
+`hooks/enforce-commit-hygiene.sh` reads the command as typed, since a heredoc body is where a commit
+message is most often written. It uses the same readers, in another order:
+
+1. `guard_split_heredocs`, in `hooks/lib-lines.sh`, splits every body out. Each opener becomes `<`
+   and a delimiter tagged with its body's index, `HD__HD0`, so a `-m "$(cat <<'EOF' …)"` names its
+   own body.
+2. `guard_top_level`, in `hooks/lib-text.sh`, cuts the text at each `;`, `&`, `|`, `(`, `)` and
+   newline of its top level. A quote, a substitution and a comment stay whole in their command, so a
+   commit inside a substitution or another shell is out of its reach.
+3. `guard_split_words` splits each command into words, with their live marks.
 
 ## The quote walker
 
@@ -175,6 +189,10 @@ shell does, so `-C 'my repo'` stays one word. It reads the walk's pieces:
   included, with the quotes and backslashes inside it read the same way;
 - a comment's text splits as the command's does, and a heredoc operator reads as `<<EOF`, the
   delimiter one word with its quotes dropped, `<<'END OF'` as `<<END OF`.
+
+Each word carries its live marks in `GUARD_WORD_LIVE`: a backtick for a backtick substitution, and a
+`$` for a `$(…)`, a `${…}` or a `$name`, each outside single quotes and unescaped. A mark says the
+shell changes the word before the command gets it, as the commit guard reads a `-m` value.
 
 ## Paths in a command
 

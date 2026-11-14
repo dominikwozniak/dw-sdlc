@@ -215,6 +215,35 @@ guard_replace_set() {
   GUARD_REPLACED=${GUARD_REPLACED%.}
 }
 
+# guard_top_level <text> — GUARD_TOP, the text cut at each `;`, `&`, `|`, `(`, `)` and newline of its
+# top level, a cut an entry of \001 and its character, a newline's `;`: a quote, a substitution and a
+# comment stay whole in their command, which runs nothing inside them. For a command read as typed.
+GUARD_TOP=()
+GUARD_TOP_CUT=$'[;&|()\n]'
+# Through a name: bash 3.2 doubles a literal \001 inside an array's list.
+GUARD_TOP_MARK=$'\001'
+guard_top_level() {
+  local i n piece run ch buf=""
+  GUARD_TOP=()
+  guard_quote_walk "$1"
+  n=${#GUARD_QW_KIND[@]}
+  for ((i = 0; i < n; i++)); do
+    piece=${GUARD_QW_TEXT[i]}
+    if [[ "${GUARD_QW_KIND[i]}" == tP ]]; then
+      while [[ "$piece" == *$GUARD_TOP_CUT* ]]; do
+        run=${piece%%$GUARD_TOP_CUT*}
+        ch=${piece:${#run}:1}
+        [[ "$ch" == $'\n' ]] && ch=';'
+        GUARD_TOP+=("$buf$run" "$GUARD_TOP_MARK$ch")
+        buf=""
+        piece=${piece:${#run}+1}
+      done
+    fi
+    buf+=$piece
+  done
+  GUARD_TOP+=("$buf")
+}
+
 # --- the text -----------------------------------------------------------------------------------
 
 # guard_strip_quoted <command> — the words a path check scans, prose and heredoc bodies off, by the

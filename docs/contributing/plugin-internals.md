@@ -12,7 +12,7 @@ Paths are relative to `plugins/sdlc/`.
 | `.claude-plugin/plugin.json`                         | the manifest; its `hooks` key wires each hook to its event                                                                     |
 | `hooks/lib.sh`                                       | the library every guard sources: payload reader, git helpers, refusal, config lookup                                           |
 | `hooks/lib-lines.sh`                                 | the line scanners: heredoc openers and bodies, continuation lines                                                              |
-| `hooks/lib-text.sh`                                  | the text scanners: the one quote walker every scanner reads, substitutions, plain words                                        |
+| `hooks/lib-text.sh`                                  | the text scanners: the one quote walker every scanner reads, the top-level cut, substitutions, plain words                     |
 | `hooks/lib-live.sh`                                  | the live-quote readers: a quote handed to a shell, ended where the outer shell ends it                                         |
 | `hooks/lib-mask.sh`                                  | the quote mask: separators inside a quote made text                                                                            |
 | `hooks/lib-words.sh`                                 | the word readers: shell words, the two readers of the [launcher table](bash-guard.md#the-command-position), the boundary       |

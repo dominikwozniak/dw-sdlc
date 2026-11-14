@@ -8,14 +8,16 @@ guard_tokens() {
   printf '%s\n' "$1" | tr -s "[:space:];|&()<>=\`\"'" '\n' | sed '/^$/d'
 }
 
-# guard_split_words <segment> — GUARD_WORDS, the segment's words as docs/contributing/bash-guard.md#words splits them; a
-# segment holds no newline. Returns 1 when a quote or substitution is left open, with what it read.
-# Runs in the caller's shell, so a segment costs no fork, and overwrites the walk's pieces.
+# guard_split_words <segment> — GUARD_WORDS, the words as docs/contributing/bash-guard.md#words splits
+# them, and GUARD_WORD_LIVE, a backtick and a `$` for each one's live substitution or expansion. Returns 1
+# when a quote or substitution is left open, with what it read. Runs in the caller's shell: no fork.
 GUARD_WORDS=()
+GUARD_WORD_LIVE=()
 guard_split_words() {
-  local i n kind piece word="" have=0 depth=0 cut=0 delim="" status=0 noglob=0 run k
+  local i n kind piece word="" have=0 depth=0 cut=0 delim="" status=0 noglob=0 run k live=""
   local -a parts
   GUARD_WORDS=()
+  GUARD_WORD_LIVE=()
   guard_quote_walk "$1" || status=1
   # Top-level text splits on the shell's own rule: IFS whitespace, no glob.
   local IFS=$' \t'
@@ -64,6 +66,7 @@ guard_split_words() {
       t?)
         word+=$piece
         have=1
+        [[ "$kind" != t[SH] && "$piece" == *'$'[A-Za-z_]* ]] && live+='$'
         continue
         ;;
       oD)
@@ -95,6 +98,10 @@ guard_split_words() {
         word+=$piece
         depth=$((depth + 1))
         have=1
+        case "$kind" in
+          oB) live+='`' ;;
+          o[UEe]) live+='$' ;;
+        esac
         continue
         ;;
       c?)
@@ -107,26 +114,23 @@ guard_split_words() {
     if [[ "$piece" != *[[:blank:]]* ]]; then
       word+=$piece$delim
       have=1
+      [[ "$kind" == tP && "$piece" == *'$'[A-Za-z_]* ]] && live+='$'
       continue
     fi
     if [[ "$piece" == [[:blank:]]* ]]; then
-      ((have)) && GUARD_WORDS+=("$word")
-      word=""
-      have=0
+      ((have)) && guard_push_word
+      word="" live="" have=0
     fi
     parts=($piece)
     for ((k = 0; k < ${#parts[@]}; k++)); do
-      if ((k > 0)); then
-        GUARD_WORDS+=("$word")
-        word=""
-      fi
+      ((k > 0)) && guard_push_word
       word+=${parts[k]}
       have=1
+      [[ "$kind" == tP && "${parts[k]}" == *'$'[A-Za-z_]* ]] && live+='$'
     done
     if [[ "$piece" == *[[:blank:]] ]]; then
-      ((have)) && GUARD_WORDS+=("$word")
-      word=""
-      have=0
+      ((have)) && guard_push_word
+      word="" live="" have=0
     fi
     if [[ -n "$delim" ]]; then
       word+=$delim
@@ -134,8 +138,15 @@ guard_split_words() {
     fi
   done
   ((noglob)) || set +f
-  ((have)) && GUARD_WORDS+=("$word")
+  ((have)) && guard_push_word
   return $status
+}
+
+# guard_push_word — guard_split_words ends its word: the word and its live marks pushed, both reset.
+guard_push_word() {
+  GUARD_WORDS+=("$word")
+  GUARD_WORD_LIVE+=("$live")
+  word="" live=""
 }
 
 # guard_words <segment> — guard_split_words' words, one per line, for a pipe.

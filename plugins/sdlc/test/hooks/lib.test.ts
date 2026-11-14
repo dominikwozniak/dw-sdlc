@@ -60,6 +60,16 @@ function opened(text: string): string {
   return lib(`guard_quote_walk "$2" 1 P "$3"; printf '%s' "\${GUARD_QW_KIND[0]}"`, [text, String(text.indexOf("'"))])
 }
 
+/** guard_split_words' live marks, one per word behind a `=`, joined by `,`. */
+function marks(text: string): string {
+  return lib(`guard_split_words "$2"; printf '%s,' "\${GUARD_WORD_LIVE[@]/#/=}"`, [text]).replace(/,$/, "")
+}
+
+/** guard_top_level's entries joined by `|`, a cut's \001 shown as `^` and a newline as `~`. */
+function top(text: string): string {
+  return lib(`guard_top_level "$2"; printf '%s|' "\${GUARD_TOP[@]}" | tr '\\001\\n' '^~'`, [text]).replace(/\|$/, "")
+}
+
 function unwrap(words: string): string {
   return lib(`WORDS=(${words}); guard_unwrap_words; printf '%s' "\${WORDS[*]}"`)
 }
@@ -522,6 +532,15 @@ describe("text helpers", () => {
     )
     assert.equal(lib(`guard_words "$2" | paste -sd, -`, ["git push # it's"]), "git,push,#,it's")
     assert.equal(lib(`guard_words "$2" | paste -sd, -`, ["cat <<'EOF' x << \"END\""]), "cat,<<EOF,x,<<,END")
+  })
+  it("each word carries a backtick and a $ for what the shell substitutes or expands in it", () => {
+    assert.equal(marks('a "`x` $HOME" b$c $(d) ${e}'), "=,=`$,=$,=$,=$")
+    assert.equal(marks("'`x` $HOME' \"\\`x\\` \\$y\" $1 $$ $'$z'"), "=,=,=,=,=")
+  })
+  it("guard_top_level cuts at the top level alone, a quote, a substitution and a comment whole", () => {
+    assert.equal(top("(cd a && git add -A)"), "|^(|cd a |^&||^&| git add -A|^)|")
+    assert.equal(top('git commit -m "a; b\nc" $(x | y) # d; e\nls'), 'git commit -m "a; b~c" $(x | y) # d; e|^;|ls')
+    assert.equal(top("a\\;b 'c|d' `e&f`"), "a\\;b 'c|d' `e&f`")
   })
 })
 
