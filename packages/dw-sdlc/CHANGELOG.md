@@ -1,5 +1,15 @@
 # dw-sdlc
 
+## 0.21.0
+
+### Minor Changes
+
+- e1963f5: The `markdown-refs` Check judges a URL into the GitHub repository `origin` names, at its default branch: a `github.com/<owner>/<name>/blob|tree/<branch>/` or `raw.githubusercontent.com/<owner>/<name>/<branch>/` URL fails when its path, or its heading anchor, does not resolve in the tree. It reads such a URL inside a code fence too, where a config example's `$schema` lives. The default branch is the one `origin/HEAD` names, else `main`.
+
+### Patch Changes
+
+- 2cb342d: `pr ship` keeps a Review's read across a rebase. When the history holds no head a Review read, it takes the newest head a force push left behind that a Review read, from the pull request's timeline. A clean read whose own changes match the head's carries its success. Any other read becomes `details.since`, with `details.paths` naming the files whose own change moved. The read marks on left-behind heads count toward the three-Review limit.
+
 ## 0.20.0
 
 ### Minor Changes
