@@ -93,6 +93,13 @@ describe("wrappers and other repositories resolve to the same commit", () => {
   blocked("git-c-commit", 'git -c commit.gpgsign=false commit -m "nope, no type prefix"')
 })
 
+describe("a newline ends a command, as bash reads it", () => {
+  allowed("a -m on the line after git commit is a command of its own", "git commit\n-m bad")
+  blocked("a backslash-newline goes on with the commit", "git commit \\\n-m bad")
+  allowed("a cd after a newline moves the commit", `git status\ncd ${TICKETS}\ngit commit -m "[ABC-1] fix: x"`)
+  blocked("the commit after it is judged there", `git status\ncd ${TICKETS}\ngit commit -m "fix: x"`)
+})
+
 describe("a message the guard cannot read passes", () => {
   allowed("editor-commit", "git commit")
   allowed("amend-no-edit", "git commit --amend --no-edit")
@@ -221,6 +228,7 @@ describe("git add — the other spellings of the whole tree", () => {
   blocked("add-pwd-unquoted", "git add $PWD")
   blocked("add-pwd-braces", 'git add "${PWD}"')
   blocked("add-subst-pwd", 'git add "$(pwd)"')
+  blocked("add-subst-pwd-unquoted", "git add $(pwd)")
   blocked("add-star-after-separator", "git add -- *")
   blocked("add-star-then-commit", `git add * && git commit -m "${GOOD_MSG}"`)
   blocked("add-star-with-a-name", "git add AGENTS.md *")
