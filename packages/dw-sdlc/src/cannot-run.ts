@@ -2,6 +2,7 @@
 // remedy. The bin alone prints it, as `dw-sdlc <command>: <problem> — <remedy>`; the Gate reports a
 // Check's as one of its failures. A command line the command cannot read carries its usage below.
 
+import { statSync } from "node:fs"
 import { parseArgs, type ParseArgsConfig } from "node:util"
 
 /** Where the problem sits, and what the bin prints below its line. */
@@ -46,4 +47,18 @@ export function readArgs<T extends ParseArgsConfig>(config: T, usage: string): R
   } catch (error) {
     throw usageError(messageOf(error), usage)
   }
+}
+
+/**
+ * The directory `--root` names, or the current one without it. A `--root` that names no directory
+ * stops the command, which would otherwise read the empty repository a typo leaves.
+ */
+export function rootDir(root: string | undefined): string {
+  if (root === undefined) {
+    return process.cwd()
+  }
+  if (statSync(root, { throwIfNoEntry: false })?.isDirectory() !== true) {
+    throw new CannotRun(`--root ${root} is not a directory`, "pass --root a directory inside the repository")
+  }
+  return root
 }

@@ -1,11 +1,12 @@
-// What stops a command before its verdict, as the bin answers it in this process: exit 2, the line
+// What stops a command before its verdict, as the bin answers it: exit 2, the line
 // `dw-sdlc <command>: <problem> — <remedy>`, and the command's usage under a command line it cannot read.
 
 import assert from "node:assert/strict"
+import { join } from "node:path"
 import { describe, it } from "node:test"
 
 import { CannotRun, readArgs, usageError } from "../src/cannot-run.ts"
-import { lines, repo, runInProcess } from "./harness.ts"
+import { lines, repo, runBin, runInProcess, scratch, write } from "./harness.ts"
 
 const OPTIONS = { help: { type: "boolean", short: "h" } } as const
 
@@ -78,5 +79,34 @@ describe("dw-sdlc when a command cannot run, in this process", () => {
     const run = runInProcess(["config", "missing.json"], repo())
     assert.equal(run.status, 1)
     assert.match(lines(run.stderr)[0] ?? "", /^dw-sdlc config: ENOENT: no such file or directory/)
+  })
+})
+
+describe("dw-sdlc at a --root that names no directory", () => {
+  const ROOT_REMEDY = "pass --root a directory inside the repository"
+  /** Each command that takes --root, by name, with the arguments it needs beside it. */
+  const COMMANDS: [string, string[]][] = [
+    ["gate", []],
+    ["check", ["markdown-refs"]],
+    ["primitives", ["--paths", "README.md"]],
+    ["config", []],
+    ["doctor", []],
+    ["setup", ["--dry-run"]],
+    ["references setup", ["--dry-run"]]
+  ]
+
+  it("stops every command that takes --root, exit 2, before it judges or writes anything", () => {
+    const file = join(scratch("root"), "file")
+    write(file, "")
+    for (const root of [join(scratch("root"), "no-such-dir"), file]) {
+      for (const [name, args] of COMMANDS) {
+        const run = runBin([...name.split(" "), ...args, "--root", root], repo())
+        assert.deepEqual(
+          [run.status, run.stdout, lines(run.stderr)],
+          [2, "", [`dw-sdlc ${name}: --root ${root} is not a directory — ${ROOT_REMEDY}`]],
+          `${name} --root ${root}`
+        )
+      }
+    }
   })
 })

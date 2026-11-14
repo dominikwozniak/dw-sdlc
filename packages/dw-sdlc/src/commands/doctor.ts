@@ -7,7 +7,7 @@ import { homedir } from "node:os"
 import { join } from "node:path"
 
 import { findRepository, invalidLayerEffect, resolveConfig } from "../agentic-config.ts"
-import { readArgs } from "../cannot-run.ts"
+import { readArgs, rootDir } from "../cannot-run.ts"
 import {
   checkPackage,
   checkPlugin,
@@ -311,7 +311,7 @@ const USAGE = `Usage: dw-sdlc doctor [--root <dir>] [--home <dir>]
   or:  pnpm guardrails:doctor [--root <dir>] [--home <dir>], in a checkout of dw-sdlc
 
 One PASS / WARN / FAIL line per machine check the sdlc plugin relies on; read-only. Exit 1 when any
-check fails. Claude Code's settings are read from $CLAUDE_CONFIG_DIR, or ~/.claude without it; a
+check fails, 2 when --root names no directory. Claude Code's settings are read from $CLAUDE_CONFIG_DIR, or ~/.claude without it; a
 --home reads <home>/.claude.`
 
 function repositoryConfig(root: string): RepositoryConfig {
@@ -337,7 +337,7 @@ export function run(argv: string[]): number {
     console.log(USAGE)
     return 0
   }
-  const dir = values.root ?? process.cwd()
+  const dir = rootDir(values.root)
   const root = findRepository(dir)
   const checks = diagnose({
     root: root ?? dir,

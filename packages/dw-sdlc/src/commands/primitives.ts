@@ -6,7 +6,7 @@ import { existsSync, realpathSync } from "node:fs"
 import { basename, dirname, join, relative, resolve } from "node:path"
 
 import { repositoryRoot, resolveConfig } from "../agentic-config.ts"
-import { readArgs, usageError } from "../cannot-run.ts"
+import { readArgs, rootDir, usageError } from "../cannot-run.ts"
 import { type Primitive, primitivesNaming, readCatalogue } from "../catalogue.ts"
 import { catalogueFile } from "../checks/primitives.ts"
 import { blockOf, primitivesDiff } from "../primitives-diff.ts"
@@ -29,8 +29,8 @@ for a pull request body, which a later run replaces. --json prints instead, per 
 class, file count, summary and docs, each doc with whether the change touches its file, and the count of
 changed files outside every Primitive. It takes no --paths.
 
-Exit 0 with an answer, 2 when there is no catalogue to read or it is not one, and for --diff when <base>
-does not resolve.`
+Exit 0 with an answer, 2 when --root names no directory, when there is no catalogue to read or it is
+not one, and for --diff when <base> does not resolve.`
 
 const REMEDIES = {
   missing: "create it, or point gate.checks.primitives.file at the catalogue",
@@ -124,7 +124,7 @@ export function run(argv: string[]): number {
     return 0
   }
 
-  const root = repositoryRoot(cli.root ?? process.cwd())
+  const root = repositoryRoot(rootDir(cli.root))
   if (cli.diff !== undefined) {
     return runDiff(root, cli.diff, cli.json)
   }

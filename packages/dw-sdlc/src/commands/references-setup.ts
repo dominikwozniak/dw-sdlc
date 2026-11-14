@@ -6,7 +6,7 @@ import { existsSync, readFileSync, symlinkSync } from "node:fs"
 import { join } from "node:path"
 
 import { repositoryRoot } from "../agentic-config.ts"
-import { readArgs } from "../cannot-run.ts"
+import { readArgs, rootDir } from "../cannot-run.ts"
 import { parseObject, removeKey, render } from "../json-text.ts"
 import {
   CONFIG,
@@ -192,7 +192,7 @@ export function run(argv: string[]): number {
 
   const check = values.check === true
   const dryRun = values["dry-run"] === true || check
-  const steps = setup(repositoryRoot(values.root ?? process.cwd()), dryRun)
+  const steps = setup(repositoryRoot(rootDir(values.root)), dryRun)
   for (const line of stepLines(steps, dryRun)) {
     console.log(line)
   }

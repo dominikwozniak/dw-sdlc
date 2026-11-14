@@ -11,7 +11,7 @@ import {
   stepCommand,
   stepHint
 } from "../agentic-config.ts"
-import { CannotRun, messageOf, readArgs, usageError } from "../cannot-run.ts"
+import { CannotRun, messageOf, readArgs, rootDir, usageError } from "../cannot-run.ts"
 import { findingOf } from "../checks/check.ts"
 import { CHECK_NAMES, type EnabledCheck, enabledChecks, shippedCheck } from "../checks/index.ts"
 import { watchDrift } from "../drift.ts"
@@ -70,8 +70,9 @@ Untracked files count and ignored files do not. Each worktree keeps its own stam
 hash runs the whole Gate.
 
 Exit 0 when everything passes, 1 when a Step or a Check fails or a Step drifts, 2 when the Gate
-cannot run: an invalid config layer, a Step or Check whose command the shell cannot find or execute,
-a Check missing an input it reads, or a tree it cannot record for Drift.`
+cannot run: a --root that names no directory, an invalid config layer, a Step or Check whose command
+the shell cannot find or execute, a Check missing an input it reads, or a tree it cannot record for
+Drift.`
 
 type Outcome = { status: Status | "skipped"; exitCode: number | null; tail: string[] | null }
 /** `hint` is what the Step carries to try when it fails, null where it has none. */
@@ -458,6 +459,6 @@ export async function run(argv: string[]): Promise<number> {
   }
 
   const { json, verbose, mode } = cli
-  const report = await runGate(repositoryRoot(cli.root ?? process.cwd()), { json, verbose, mode })
+  const report = await runGate(repositoryRoot(rootDir(cli.root)), { json, verbose, mode })
   return printReport(report, json, "gate")
 }

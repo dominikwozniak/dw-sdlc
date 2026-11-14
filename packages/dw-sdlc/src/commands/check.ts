@@ -1,7 +1,7 @@
 // `dw-sdlc check <name>`: one Check of the Gate by its name, without the Steps and the other Checks.
 
 import { repositoryRoot, resolveConfig } from "../agentic-config.ts"
-import { CannotRun, readArgs, usageError } from "../cannot-run.ts"
+import { CannotRun, readArgs, rootDir, usageError } from "../cannot-run.ts"
 import { CHECK_NAMES, shippedCheck } from "../checks/index.ts"
 import { TAIL_LINES } from "../run-command.ts"
 import { printReport, runGate } from "./gate.ts"
@@ -25,9 +25,9 @@ skill-sections writes each part of a skill from its README section.
 A Ratchet's baseline is refreshed by dw-sdlc gate --update-baseline, which needs every other Check to
 pass.
 
-Exit 0 when the Check passes, 1 when it fails, 2 when it cannot run: no Check of that name, an
-invalid config layer, a command the shell cannot find or execute, or an input the Check reads
-missing.`
+Exit 0 when the Check passes, 1 when it fails, 2 when it cannot run: a --root that names no
+directory, no Check of that name, an invalid config layer, a command the shell cannot find or
+execute, or an input the Check reads missing.`
 
 type Cli = { help: boolean; json: boolean; write: boolean; root: string | undefined; name: string | undefined }
 
@@ -93,7 +93,7 @@ export async function run(argv: string[]): Promise<number> {
   }
 
   const { json, name } = cli
-  const root = repositoryRoot(cli.root ?? process.cwd())
+  const root = repositoryRoot(rootDir(cli.root))
   if (cli.write) {
     writeDerived(root, name, json)
   }

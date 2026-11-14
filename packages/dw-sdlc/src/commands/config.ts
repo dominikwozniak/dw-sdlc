@@ -13,7 +13,7 @@ import {
   resolveConfig,
   validateDocument
 } from "../agentic-config.ts"
-import { messageOf, readArgs, usageError } from "../cannot-run.ts"
+import { messageOf, readArgs, rootDir, usageError } from "../cannot-run.ts"
 
 export const summary = "resolve the repository's agentic config, or validate one file against the schema"
 
@@ -22,7 +22,8 @@ const USAGE = `Usage: dw-sdlc config [--root <dir>] [file]
 
 Without a file: resolves the agentic config of the repository holding --root (default: the current
 directory) — local over committed over inferred — and prints what the guards see. With a file:
-validates that one document against the schema. Exit 1 on any problem.`
+validates that one document against the schema. Exit 1 on any problem, 2 when --root names no
+directory.`
 
 /** A problem the check reports beside the config's own: exit 1, as for an invalid layer. */
 function failed(message: string): number {
@@ -74,7 +75,7 @@ export function run(argv: string[]): number {
     return 0
   }
 
-  const root = cli.root === undefined ? findRepository(process.cwd()) : repositoryRoot(cli.root)
+  const root = cli.root === undefined ? findRepository(process.cwd()) : repositoryRoot(rootDir(cli.root))
   if (root === undefined) {
     return failed("not inside a git repository; pass --root <dir>")
   }

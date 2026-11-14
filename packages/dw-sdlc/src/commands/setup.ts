@@ -25,7 +25,7 @@ import {
   schemaId,
   validateDocument
 } from "../agentic-config.ts"
-import { readArgs, usageError } from "../cannot-run.ts"
+import { readArgs, rootDir, usageError } from "../cannot-run.ts"
 import { gitDirs } from "../git.ts"
 import { isObject, type JsonObject, parseObject, render } from "../json-text.ts"
 import { withGate, withPackage } from "../setup-gate.ts"
@@ -413,7 +413,7 @@ export function run(argv: string[]): number {
     throw usageError(`--commit-on-protected must be ${allowed}, not '${commitOnProtected}'`, USAGE)
   }
   const steps = setup({
-    root: values.root ?? process.cwd(),
+    root: rootDir(values.root),
     home: values.home ?? homedir(),
     claudeDir: values.home === undefined ? process.env.CLAUDE_CONFIG_DIR : undefined,
     force: values.force === true,
