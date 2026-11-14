@@ -5,8 +5,8 @@
 import { readFileSync } from "node:fs"
 import { join, posix } from "node:path"
 
+import { asked } from "../git.ts"
 import { type Anchors, anchorsOf, type Link, links } from "../markdown.ts"
-import { asked } from "../working-tree.ts"
 import type { Check, Finding } from "./check.ts"
 import { directoriesOf, matching, treeFiles } from "./tree.ts"
 
