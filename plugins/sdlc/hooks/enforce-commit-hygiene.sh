@@ -34,21 +34,58 @@ policies() {
 # --- the words ----------------------------------------------------------------------------------
 # TOKENS, the command as typed read as docs/contributing/bash-guard.md#the-commit-guards-reading
 # says, each cut a token of its own, and TOKEN_LIVE each word's live marks.
-guard_split_heredocs "$RAW"
-COMMAND=$(printf '%s' "$GUARD_HD_SPLIT" | guard_join_continuations)
 TOKENS=()
 TOKEN_LIVE=()
-guard_top_level "$COMMAND"
-for top in "${GUARD_TOP[@]}"; do
-  if [[ "$top" == "$GUARD_TOP_MARK"? ]]; then
-    TOKENS+=("${top:1}")
-    TOKEN_LIVE+=("")
-    continue
-  fi
-  guard_split_words "$top"
-  TOKENS+=("${GUARD_WORDS[@]+"${GUARD_WORDS[@]}"}")
-  TOKEN_LIVE+=("${GUARD_WORD_LIVE[@]+"${GUARD_WORD_LIVE[@]}"}")
-done
+
+# read_commands <text> — the commands of the text onto TOKENS. The shell runs each `$(…)` and backtick
+# span in a subshell before the command that holds it, so its body goes first, between `(` and `)`.
+read_commands() {
+  local top i kind level body
+  local -a tops bodies
+  guard_top_level "$1"
+  tops=("${GUARD_TOP[@]}")
+  for top in "${tops[@]}"; do
+    if [[ "$top" == "$GUARD_TOP_MARK"? ]]; then
+      TOKENS+=("${top:1}")
+      TOKEN_LIVE+=("")
+      continue
+    fi
+    bodies=()
+    if [[ "$top" == *'$('* || "$top" == *'`'* ]]; then
+      guard_quote_walk "$top"
+      level=0
+      for ((i = 0; i < ${#GUARD_QW_KIND[@]}; i++)); do
+        kind=${GUARD_QW_KIND[i]}
+        if ((level == 0)); then
+          [[ "$kind" == o[UB] ]] && level=1 body=""
+          continue
+        fi
+        case "$kind" in
+          o?) level=$((level + 1)) ;;
+          c?) level=$((level - 1)) ;;
+        esac
+        if ((level == 0)); then
+          bodies+=("$body")
+        else
+          body+=${GUARD_QW_TEXT[i]}
+        fi
+      done
+    fi
+    for body in "${bodies[@]+"${bodies[@]}"}"; do
+      TOKENS+=("(")
+      TOKEN_LIVE+=("")
+      read_commands "$body"
+      TOKENS+=(")")
+      TOKEN_LIVE+=("")
+    done
+    guard_split_words "$top"
+    TOKENS+=("${GUARD_WORDS[@]+"${GUARD_WORDS[@]}"}")
+    TOKEN_LIVE+=("${GUARD_WORD_LIVE[@]+"${GUARD_WORD_LIVE[@]}"}")
+  done
+}
+
+guard_split_heredocs "$RAW"
+read_commands "$(printf '%s' "$GUARD_HD_SPLIT" | guard_join_continuations)"
 
 # heredoc_index <delimiter> — HD_INDEX becomes the body a tagged delimiter names; 1 when it names none.
 HD_INDEX=-1

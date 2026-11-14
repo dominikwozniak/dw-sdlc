@@ -247,8 +247,9 @@ with 'pnpm exec vitest > <file> 2>&1' and read the file.
 - a live backtick in `-m` or an unquoted heredoc is refused, since the shell runs it;
 - `git add` of the whole tree is refused: `-A` or `--all` with no path, `.`, `*`, `:/`, `$PWD`.
 
-A commit inside a substitution or another shell is out of reach; the [Commit hook](#commit-hook)
-checks its subject.
+A commit inside a substitution, `x=$(git commit …)` or a backtick span, is judged too, since the shell
+runs it before the command that holds it. A commit inside another shell, `bash -c '…'`, is out of
+reach; the [Commit hook](#commit-hook) checks its subject.
 
 ```text
 BLOCKED: commit subject "wip" does not match this repository's commit pattern.

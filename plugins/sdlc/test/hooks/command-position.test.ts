@@ -170,8 +170,6 @@ const AROUND = new Set([
 
 // Combinations that read differently on purpose, each with its reason.
 const EXEMPT: Array<{ probe: string; launcher: string; want: Want; reason: string }> = [
-  "substitution",
-  "backticks",
   "bash-c-single",
   "bash-c-assignment",
   "sh-c-double",
@@ -184,7 +182,7 @@ const EXEMPT: Array<{ probe: string; launcher: string; want: Want; reason: strin
   launcher,
   want: "pass",
   reason:
-    "the commit guard reads a message as typed, and a commit a substitution or another shell runs is out of its reach; the subject is a convention, not lost work, and git's commit-msg hook checks it there"
+    "the commit guard reads a message as typed, and a commit another shell runs is out of its reach; the subject is a convention, not lost work, and git's commit-msg hook checks it there"
 }))
 
 // Rules that judge the words guard_read_words and guard_unwrap_words leave, as a probe kept does: a

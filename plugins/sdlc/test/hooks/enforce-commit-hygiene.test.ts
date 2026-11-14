@@ -93,6 +93,20 @@ describe("wrappers and other repositories resolve to the same commit", () => {
   blocked("git-c-commit", 'git -c commit.gpgsign=false commit -m "nope, no type prefix"')
 })
 
+describe("a substitution runs its commands before the command holding it, and each is judged", () => {
+  blocked("commit in an assignment", "x=$(git commit -m bad)")
+  blocked("commit in an argument", "echo $(git commit -m bad)")
+  blocked("commit in a quoted argument", 'echo "$(git commit -m bad)"')
+  blocked("commit in backticks", "echo `git commit -m bad`")
+  blocked("commit in a nested substitution", 'echo "$(echo $(git commit -m bad))"')
+  blocked("add -A in a substitution", "x=$(git add -A)")
+  allowed("a good commit in a substitution", `x=$(git commit -m "${GOOD_MSG}")`)
+  allowed("a git read as the -m value commits nothing", 'git commit -m "$(git log -1 --format=%s)"')
+  allowed("a cd before the substitution moves its commit", `cd ${TICKETS} && x=$(git commit -m "[ABC-1] fix: x")`)
+  blocked("the moved commit is judged there", `cd ${TICKETS} && x=$(git commit -m "fix: x")`)
+  blocked("a cd inside a substitution ends with it", `x=$(cd ${TICKETS}); git commit -m "[ABC-1] fix: x"`)
+})
+
 describe("a newline ends a command, as bash reads it", () => {
   allowed("a -m on the line after git commit is a command of its own", "git commit\n-m bad")
   blocked("a backslash-newline goes on with the commit", "git commit \\\n-m bad")
