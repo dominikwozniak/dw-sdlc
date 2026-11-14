@@ -50,6 +50,19 @@ function compared(commit: string, files: File[]): Record<string, Response> {
   return { [compare(commit).join(" ")]: { stdout: JSON.stringify({ status: "ahead", behind_by: 0, files }) } }
 }
 
+/** The compare from the read mark the rewritten history holds to the head, the changes since it. */
+const SINCE_MARK = ["api", `repos/byarcadia-app/foundation/compare/${REWRITTEN}...${HEAD}?per_page=1`]
+/** A fix pushed since that mark: one file changed. */
+const FIXED: Record<string, Response> = {
+  [SINCE_MARK.join(" ")]: {
+    stdout: JSON.stringify({
+      status: "ahead",
+      behind_by: 0,
+      files: [{ filename: "src/retry.ts", status: "modified", additions: 1, deletions: 0, patch: "@@ -1 +1,2 @@\n+a" }]
+    })
+  }
+}
+
 const PAYWALL = "packages/payments/src/paywall.tsx"
 /** The change as the Review read it. */
 const READ_THEN: File = {
@@ -169,7 +182,7 @@ describe("dw-sdlc pr ship after a rebase left the head a Review read behind", ()
       { oid: "c0ffee00c0ffee0ddba11c0de5ca1ab1e0ddba11", ...MARK }
     ]
     const pr = rebased(rewritten, { history: [{ oid: REWRITTEN, ...MARK }] })
-    const run = ship([], [pr], { ...compared(OLD, [READ_THEN]), ...compared(HEAD, [SHIFTED, ADDED]) })
+    const run = ship([], [pr], { ...compared(OLD, [READ_THEN]), ...compared(HEAD, [SHIFTED, ADDED]), ...FIXED })
     assert.equal(run.status, 30, run.stderr)
     assert.deepEqual(answered(run.answer, ["action", "reason"]), {
       action: "review-limit",
@@ -192,7 +205,7 @@ describe("dw-sdlc pr ship after a rebase left the head a Review read behind", ()
       }
     ]
     const pr = rebased(rewritten, { history: [{ oid: REWRITTEN, ...MARK }] })
-    const run = ship([], [pr], { ...compared(FIRST_MARK, [READ_THEN]), ...compared(HEAD, [SHIFTED, ADDED]) })
+    const run = ship([], [pr], { ...compared(FIRST_MARK, [READ_THEN]), ...compared(HEAD, [SHIFTED, ADDED]), ...FIXED })
     assert.equal(run.status, 30, run.stderr)
     assert.deepEqual(answered(run.answer, ["action", "reason"]), {
       action: "review-limit",
@@ -200,15 +213,15 @@ describe("dw-sdlc pr ship after a rebase left the head a Review read behind", ()
     })
   })
 
-  it("takes a read the history still holds over a head a force push left behind, reading no compare", () => {
+  it("takes a read the history still holds over a head a force push left behind, comparing only from it", () => {
     const pr = rebased([{ oid: OLD, review: "SUCCESS" }], { history: [{ oid: REWRITTEN, ...MARK }] })
-    const run = ship([], [pr])
+    const run = ship([], [pr], FIXED)
     assert.equal(run.status, 10, run.stderr)
     assert.deepEqual(answered(run.answer, ["action", "details"]), {
       action: "review",
       details: { ...REVIEW, since: REWRITTEN }
     })
-    assert.deepEqual(run.calls, [AUTH, READ])
+    assert.deepEqual(run.calls, [AUTH, READ, SINCE_MARK])
   })
 
   it("reads the whole diff under the dev's --review full over a head that would carry", () => {

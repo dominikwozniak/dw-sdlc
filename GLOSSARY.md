@@ -104,7 +104,7 @@ _Avoid_: nit, smell (a judgement call the agent may decline), issue (a GitHub Is
 
 **Read mark**:
 The `dw-sdlc/review` failure "read, findings open" that pins a Review with a Finding open to the
-head it read; the next Review reads the fix from it. A merge or rebase with no fix after leaves it
+head it read; the next Review reads the fix from it. Commits after it that show no fix leave it
 open: the Review reads the whole pull request. It never carries. Three with no success between them
 park.
 _Avoid_: review marker (it does not say whether the Review was clean), failure status

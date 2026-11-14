@@ -115,17 +115,30 @@ describe("the Review's standing at a pull request's head", () => {
     assert.deepEqual(compares.asked, [])
   })
 
-  it("reads the fix from the last read, clean or a read mark, after a commit of the branch's own", () => {
-    for (const read of [clean(READ), marked(READ)]) {
-      const compares = inMemory()
+  it("reads the fix from the last read after a commit of the branch's own, comparing from a read mark alone", () => {
+    const cases: [Commit, string[]][] = [
+      [clean(READ), []],
+      [marked(READ), [`${READ}...${HEAD}`]]
+    ]
+    for (const [read, asked] of cases) {
+      const compares = inMemory({}, { [READ]: [RETRY] })
       const call = reviewCall(standingOf(upTo([read, pushed(PUSHED)]), compares, AWAITS), FULL)
       assert.deepEqual(
         call,
         { kind: "review", depth: "full", source: "config", since: READ, paths: null, open: null },
         String(read.posted)
       )
-      assert.deepEqual(compares.asked, [], String(read.posted))
+      assert.deepEqual(compares.asked, asked, String(read.posted))
     }
+    const unchanged = standingOf(upTo([marked(READ), pushed(PUSHED)]), inMemory({}, { [READ]: [] }), AWAITS)
+    assert.deepEqual(reviewCall(unchanged, FULL), {
+      kind: "review",
+      depth: "full",
+      source: "config",
+      since: null,
+      paths: null,
+      open: READ
+    })
   })
 
   it("carries a clean read over merges of the base that leave the own changes as they were", () => {
@@ -188,7 +201,8 @@ describe("the Review's standing at a pull request's head", () => {
       paths: null,
       open: null
     })
-    const fourth = standingOf(upTo([...history.commits.slice(0, -2), marked(PUSHED)]), inMemory(), AWAITS)
+    const fixed = inMemory({}, { [PUSHED]: [RETRY] })
+    const fourth = standingOf(upTo([...history.commits.slice(0, -2), marked(PUSHED)]), fixed, AWAITS)
     assert.deepEqual(reviewCall(fourth, flag("light")), { kind: "limit", count: 4, since: CLEAN })
   })
 

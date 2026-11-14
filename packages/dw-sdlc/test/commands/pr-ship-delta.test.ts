@@ -352,8 +352,35 @@ describe("dw-sdlc pr ship after a push to a reviewed pull request", () => {
 /** The read mark `pr reviewed --findings` posts: a Review read the commit and left a Finding open. */
 const MARK: Pick<Commit, "review" | "described"> = { review: "FAILURE", described: "read, findings open" }
 
+/** The compare from `from` to the head, the call that reads the changes since a read mark. */
+function sinceMark(from: string): string[] {
+  return ["api", `repos/byarcadia-app/foundation/compare/${from}...${HEAD}?per_page=1`]
+}
+
+/** What the compare from `from` to the head answers: `files` the files changed since, a line added to each. */
+function changedSince(from: string, files: File[]): Record<string, Response> {
+  const sized = files.map((file) => ({ ...file, additions: 1, deletions: 0 }))
+  return { [sinceMark(from).join(" ")]: { stdout: JSON.stringify({ status: "ahead", behind_by: 0, files: sized }) } }
+}
+
 describe("dw-sdlc pr ship after a Review that left a Finding open", () => {
-  it("names the marked commit in details.since once a fix is pushed, over an earlier success", () => {
+  it("names open a read mark commits of the branch's own came after with no change since it", () => {
+    const history: Commit[] = [
+      { oid: EARLIER, review: "SUCCESS" },
+      { oid: REVIEWED, ...MARK },
+      { oid: PUSHED, review: null }
+    ]
+    const run = ship(["--json"], [{ ...PUSHED_ON, history }], changedSince(REVIEWED, []))
+    assert.equal(run.status, 10, run.stderr)
+    assert.deepEqual(documentOf(run.stdout, ["action", "details", "performed"]), {
+      action: "review",
+      details: { depth: "full", source: "config", reviewCommand: "/code-review", open: REVIEWED },
+      performed: []
+    })
+    assert.deepEqual(run.calls, [AUTH, READ, sinceMark(REVIEWED)])
+  })
+
+  it("names the marked commit in details.since once a fix is pushed, over an earlier success, by the changes since it", () => {
     const histories: [string, Commit[]][] = [
       ["a mark alone", [{ oid: EARLIER }, { oid: REVIEWED, ...MARK }]],
       [
@@ -365,7 +392,8 @@ describe("dw-sdlc pr ship after a Review that left a Finding open", () => {
       ]
     ]
     for (const [name, history] of histories) {
-      const run = ship(["--json"], [{ ...PUSHED_ON, history: [...history, { oid: PUSHED, review: null }] }])
+      const fixed = { ...PUSHED_ON, history: [...history, { oid: PUSHED, review: null }] }
+      const run = ship(["--json"], [fixed], changedSince(REVIEWED, [ADDED]))
       assert.equal(run.status, 10, `${name}: ${run.stderr}`)
       assert.deepEqual(
         documentOf(run.stdout, ["action", "details"]),
@@ -375,7 +403,7 @@ describe("dw-sdlc pr ship after a Review that left a Finding open", () => {
         },
         name
       )
-      assert.deepEqual(run.calls, [AUTH, READ], name)
+      assert.deepEqual(run.calls, [AUTH, READ, sinceMark(REVIEWED)], name)
     }
   })
 

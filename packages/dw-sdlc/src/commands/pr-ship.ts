@@ -46,8 +46,8 @@ the last commit a Review read under details.since, where the Review reads from a
 one with a ${REVIEW} success not posted under off, or the read mark pr reviewed --findings
 posts. It carries a success over a head whose only commits since are merges of the base, unless
 --review names a depth for the call; a read mark never carries. A read mark no later commit answers,
-on the head or before only merges or a rebase, is named under details.open: the Review then reads
-the whole pull request, and nothing carries over it. After a merge or a rebase, details.paths names
+on the head or before commits that leave the own changes as it read them, is named under
+details.open: the Review then reads the whole pull request, and nothing carries over it. After a merge or a rebase, details.paths names
 the files whose own change moved, the only ones the Review reads. Three Reviews that left a Finding
 open with no success between them park as review-limit at every depth, pr reviewed --accept the
 dev's command: the dev's --review <depth> buys one more Review, and their --review off posts past it.

@@ -362,8 +362,8 @@ the same depth.
 - **A merge of the base carries a success.** Two tests must both pass: every commit since the reviewed
   one is a merge, and the pull request's own changes are the same at both commits, compared through
   GitHub. A read mark never carries.
-- **A read mark no commit answers stays open.** A read mark on the head, or one a merge of the base or
-  a rebase came after with the own changes as it read them, is named in `details.open`. The
+- **A read mark no commit answers stays open.** A read mark on the head, or one the commits since leave with
+  the own changes as it read them, merges and rebases too, is named in `details.open`. The
   Review reads the whole pull request, and nothing carries. A session that holds the mark's Findings
   fixes them first.
 - **A merge of the base keeps its other files out of a fix's Review.** When a merge came after the head

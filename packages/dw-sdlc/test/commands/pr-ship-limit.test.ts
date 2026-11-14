@@ -55,9 +55,24 @@ function compare(from: string): string {
   return `api repos/byarcadia-app/foundation/compare/${from}...${HEAD}?per_page=1`
 }
 
+/** What the compare from a read mark to the head answers once a fix is pushed: one file changed since. */
+const FIX: Response = {
+  stdout: JSON.stringify({
+    status: "ahead",
+    behind_by: 0,
+    files: [
+      { filename: "src/paywall.tsx", status: "modified", additions: 1, deletions: 1, patch: "@@ -1 +1 @@\n-a\n+b" }
+    ]
+  })
+}
+/** A fix since each commit a test marks, the head's own read mark aside. */
+const FIXED: Record<string, Response> = Object.fromEntries(
+  [FIRST, SECOND, THIRD, FOURTH, PUSHED].map((oid) => [compare(oid), FIX])
+)
+
 /** `dw-sdlc pr ship` on the one `pr` read; `pr.review` is full unless `files` say otherwise. */
 function ship(args: string[], pr: Pr, files: Record<string, string | object> = FULL) {
-  const gh = fakeGh({ graphql: [served(pr)] })
+  const gh = fakeGh({ graphql: [served(pr)], commands: FIXED })
   const run = runBin(["pr", "ship", ...TARGET, "--json", ...args], repo({ files }), gh.env)
   return {
     ...run,
@@ -87,7 +102,7 @@ describe("dw-sdlc pr ship after three Reviews with no success between them", () 
         },
         args.join(" ")
       )
-      assert.deepEqual(run.calls, [AUTH, READ])
+      assert.deepEqual(run.calls, [AUTH, READ, compare(THIRD).split(" ")])
     }
   })
 
@@ -155,7 +170,7 @@ describe("dw-sdlc pr ship after three Reviews with no success between them", () 
       ["auto past five marks", pushed(fifth), {}, lockfiles]
     ]
     for (const [name, pr, files, commands] of cases) {
-      const gh = fakeGh({ graphql: [served(pr)], commands })
+      const gh = fakeGh({ graphql: [served(pr)], commands: { ...FIXED, ...commands } })
       const run = runBin(["pr", "ship", ...TARGET, "--json"], repo({ files }), gh.env)
       assert.equal(run.status, 30, `${name}: ${run.stderr}`)
       const answer = JSON.parse(run.stdout) as Record<string, unknown>

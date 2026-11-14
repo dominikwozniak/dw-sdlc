@@ -66,8 +66,9 @@ export type Standing = {
   /** The last commit before the head a Review read, else a commit force pushes left behind that one read. */
   lastRead: LastRead | null
   /**
-   * A read mark whose Findings no later commit answers: the head's own, or one a merge of the base or a
-   * rebase came after with no fix showing. Then `lastRead` is null and nothing carries (ADR 0023).
+   * A read mark whose Findings no later commit answers: the head's own, or one the commits since leave with
+   * no fix showing, merges of the base and rebases among them. Then `lastRead` is null and nothing carries
+   * (ADR 0023).
    */
   open: string | null
   /** The read marks posted since the last success, on the history and on the commits force pushes left behind. */
@@ -150,12 +151,22 @@ function leftBehindRead({ leftBehind }: History): LastRead | null {
 }
 
 /**
- * The read mark `read` left open: a merge of the base or a rebase came after it and no fix shows, the own
- * changes as it read them or a compare that cannot show them whole (ADR 0023). Null for any other read.
+ * The read mark `read` left open, no fix showing after it (ADR 0023): no change since it after the branch's
+ * own commits alone, else the same own changes at both commits or a compare that cannot show them whole.
+ * Null for any other read.
  */
-function openAt(read: LastRead | null, own: (commit: string) => OwnChange[] | null, head: string): string | null {
-  if (read === null || read.clean || !read.baseMoved) {
+function openAt(
+  read: LastRead | null,
+  { changed }: Compares,
+  own: (commit: string) => OwnChange[] | null,
+  head: string
+): string | null {
+  if (read === null || read.clean) {
     return null
+  }
+  if (!read.baseMoved) {
+    const since = changed(read.commit, head)
+    return since !== "unsized" && since.length === 0 ? read.commit : null
   }
   const atRead = own(read.commit)
   const atHead = own(head)
@@ -207,7 +218,7 @@ export function standingOf(
   }
   const { head, base } = history
   const own = (commit: string): OwnChange[] | null => compares.ownChanges(base, commit)
-  const open = inHistory.open ?? openAt(read, own, head)
+  const open = inHistory.open ?? openAt(read, compares, own, head)
   const lastRead = open === null ? read : null
   const reads = { lastRead, open, marks }
   // A clean read carries over the base's changes alone.
