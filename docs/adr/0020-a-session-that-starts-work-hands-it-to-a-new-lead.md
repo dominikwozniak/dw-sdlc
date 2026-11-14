@@ -24,8 +24,10 @@ The kickoff has three ways out: `start`, a new Lead; `issue`, filed for later; `
 which is the way outside herdr and in a linked worktree, where `lead start` refuses. No way pastes a
 Brief into a running Lead: a new Lead takes that role, and the dev pastes into a Lead by hand. Work with
 nothing filed is filed before its Lead starts, so a Lead always reads its tickets as issues. One Worker
-costs two sessions, the Lead and the Worker. The Lead routes each Worker by the template; a model or an
-effort the dev names follows the tickets.
+costs two sessions, the Lead and the Worker. The Lead routes each Worker by the template. A kickoff of one
+ticket passes the model and effort it showed, and a model or an effort the dev names follows the tickets.
+A Recap follow-up the dev routes alone, as "go, but 1 on fable", gets a Lead of its own, since a Lead
+runs every Worker on the one model it was given.
 
 The skill keeps `disable-model-invocation`, since it starts sessions, and only the dev's word does that.
 A Recap starts the Lead itself and calls no skill. The template's first line, the `/implement #<n>` a

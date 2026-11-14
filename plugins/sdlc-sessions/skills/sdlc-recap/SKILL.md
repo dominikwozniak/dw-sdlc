@@ -95,7 +95,8 @@ the Sweep could not be read, with its reason.
 
 End this section with one line telling the dev that "go" carries out every recommendation, and that
 "go, but 2 issue" changes one. When a follow-up is `worker`, add that "go" files it and starts one new
-Lead for every `worker` follow-up and the next session, which carries them to the end. Outside herdr,
+Lead for all `worker` follow-ups and the next session together, which carries them to the end; with no
+next session, the Lead is named after the first follow-up's issue. Outside herdr,
 where `workers` is null, or in a linked worktree, say instead that "go" hands them its start line.
 
 **Next session.** Write it only when `close.verdict` is `yes`, or your verdict is `done` or `park`, and
@@ -107,7 +108,8 @@ lines:
 - the issue, linked, with its title;
 - why it comes next, in one line;
 - the start line: `/sdlc-delegate #<n>` in a new Lead session named `lead-<n>-<slug>`, the slug a word or
-  two of its title, the whole name 1-32 of `a-z`, `0-9`, `-` and `_`.
+  two of its title, the whole name 1-32 of `a-z`, `0-9`, `-` and `_`. The `worker` follow-ups' issues
+  follow `#<n>` in the same Lead.
 
 End it with one line telling the dev that "go" starts that Lead in a herdr terminal of its own, and that
 "go, but #<m>" starts another of `next` instead. Outside herdr, where `workers` is null, or in a linked
@@ -121,8 +123,8 @@ they named; a question they did not answer stays open. A command the document na
 branch, stays theirs to run. The Sweep follow-up is the exception: "go" on it runs `/sdlc-sweep`, which
 runs the Sweep and reports it.
 
-The new Lead is the other: "go" starts it last, after every follow-up, as the new Lead in
-`${CLAUDE_PLUGIN_ROOT}/templates/brief.md` says, and one Lead takes every ticket: the next session's
+The new Lead is the other: "go" starts it last, after every follow-up, as the section The new
+Lead of `${CLAUDE_PLUGIN_ROOT}/templates/brief.md` says, and one Lead takes every ticket: the next session's
 issue first, then the issue each `worker` follow-up was filed as. With neither, start none. Never start it
 without the dev's go, and "go, but #<m>" puts #<m> in the next session's place, named the same way. Run,
 from the repository, `#<m> ...` the follow-ups' issues:

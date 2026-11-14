@@ -55,7 +55,7 @@ Without the engineering skills every part of dw-sdlc still runs but three: a Bri
 | way                                   | where it runs                                   | needs herdr | pick it when                                      |
 | ------------------------------------- | ----------------------------------------------- | ----------- | ------------------------------------------------- |
 | `/implement #<n>` in this session     | the current branch; a pull request when you ask | no          | one issue, here and now                           |
-| `/sdlc-kickoff`                       | a new Lead, which starts one Worker for it      | yes         | one issue, in parallel; this session can close    |
+| `/sdlc-kickoff`, `start`              | a new Lead, which starts one Worker for it      | yes         | one issue, in parallel; this session can close    |
 | a Brief's start line, in any terminal | a new session in its own worktree               | no          | one issue, in parallel, outside herdr             |
 | `/sdlc-delegate`                      | a Worker per ticket, each in its own worktree   | yes         | a spec cut into tickets: the usual way            |
 | `implement-spec`                      | one pull request on an integration branch       | no          | rarely: a spec that must land as one pull request |

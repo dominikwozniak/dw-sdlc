@@ -6,8 +6,8 @@ status: accepted
 
 This marketplace publishes `sdlc-sessions@dw-sdlc` beside `sdlc`. It carries the skills the dev starts
 to run sessions. `sdlc-recap` answers "where do we stand" with a Recap. `sdlc-kickoff` turns an issue, a
-spec, a follow-up or an idea into a Brief and starts a new Lead for it, as ADR 0020 decides. `sdlc-delegate` has a Lead hand Briefs to Workers and gather
-their Recaps; the Workers run in terminals of herdr, the terminal manager the dev runs sessions in,
+spec, a follow-up or an idea into a Brief and starts a new Lead for it, as ADR 0020 decides.
+`sdlc-delegate` has a Lead hand Briefs to Workers and gather their Recaps; the Workers run in terminals of herdr, the terminal manager the dev runs sessions in,
 through its CLI `hc`. What needs no judgement lives in the `dw-sdlc` package, which the plugin links to
 as `sdlc` does (ADR 0008), the way the Ship script decides a pull request's Action. `dw-sdlc recap`
 reads the facts a Recap rests on and whether the session can be closed. `dw-sdlc worker start`, `ls`
