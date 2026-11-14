@@ -8,6 +8,7 @@ import { behindOf, changedOf, changesOf, compareArgs } from "./delta.ts"
 import { ReplyError } from "./reply.ts"
 import { type Compares, standingOf } from "./standing.ts"
 import { awaitsReview, parseDefaultBranch, parsePr, parseView, type PrState, QUERY } from "./state.ts"
+import { holds, renamedUpstream } from "./upstream.ts"
 
 /** The pull request a command line names; what it leaves out, `gh pr view` resolves. */
 export type Named = { number: number | undefined; repo: string | undefined }
@@ -89,17 +90,20 @@ function requireAuth(): void {
   }
 }
 
-/** The pull request `gh pr view` resolves for the head branch `branch`, else the current one; null when none. */
-function viewed(branch: string | undefined): Target | null {
+/** The pull request `gh pr view` resolves for the head branch `branch`, else the current one, or what gh said of none. */
+function viewed(branch: string | undefined): Target | { none: string } {
   const view = gh(["pr", "view", ...(branch === undefined ? [] : [branch]), "--json", "url"])
   if (view.status === 0) {
     return parseOrCannotRun(() => parseView(view.stdout))
   }
   if (said(view.stderr).startsWith("no pull requests found")) {
-    return null
+    return { none: said(view.stderr) }
   }
   throw new CannotRun(`gh pr view failed: ${said(view.stderr)}`, REMEDIES.read)
 }
+
+/** Why this checkout names no pull request to read; `lacksHead` when the one its upstream's name finds lacks HEAD. */
+export type NoPr = { problem: string; lacksHead: boolean }
 
 /** The default branch of the repository gh resolves from the current directory. */
 export function defaultBranch(): string {
@@ -164,10 +168,10 @@ export type Reads = {
   /** The state of the pull request `named`; `command`, as `pr ship`, names the call in a remedy. */
   named: (named: Named, command: string) => PrState
   /**
-   * The current branch's pull request, open or not, or null. gh tries `@{push}`, else the local name, which
-   * misses a branch pushed under another name; then `upstreamName` is asked, and `byUpstream` says so.
+   * The pull request of the branch checked out at `root`, open or not. gh tries `@{push}`, else the local
+   * name, which misses a branch pushed under another name: then it asks by the name the upstream gives.
    */
-  branch: (upstreamName: string | undefined) => { pr: PrState; byUpstream: boolean } | null
+  checkout: (root: string) => PrState | NoPr
   /** The state of `pr` once more, after an action the script performed on it. */
   again: (pr: PrState) => PrState
   /** Whether the head of `after` carries the base `before` read: the compare shows it behind by none. */
@@ -193,17 +197,27 @@ export function ghReads(sized: boolean): Reads {
       requireAuth()
       return query(targetOf(named, command))
     },
-    branch: (upstreamName) => {
+    checkout: (root) => {
       requireAuth()
       const own = viewed(undefined)
-      if (own !== null) {
-        return { pr: query(own), byUpstream: false }
+      if (!("none" in own)) {
+        return query(own)
       }
-      if (upstreamName === undefined) {
-        return null
+      const renamed = renamedUpstream(root)
+      if (renamed === undefined) {
+        return { problem: `gh pr view found no pull request: ${own.none}`, lacksHead: false }
       }
-      const found = viewed(upstreamName)
-      return found === null ? null : { pr: query(found), byUpstream: true }
+      const { branch, head, upstream } = renamed
+      const named = `${upstream}, the name its upstream gives`
+      const found = viewed(upstream)
+      if ("none" in found) {
+        return { problem: `gh pr view found no pull request for ${branch}, nor for ${named}`, lacksHead: false }
+      }
+      // A branch started from another tracks that branch until its first push: its pull request is not this one.
+      const pr = query(found)
+      return holds(pr, head)
+        ? pr
+        : { problem: `${pr.url}, found by ${named}, lacks HEAD ${short(head)}`, lacksHead: true }
     },
     again: query,
     carriesBase: (before, after) => comparesOn(after).behind(before.baseOid, after.head) === 0

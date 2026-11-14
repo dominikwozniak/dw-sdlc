@@ -875,6 +875,15 @@ describe("dw-sdlc pr ship when it cannot run", () => {
     }
   })
 
+  it("exits 2 naming what gh said when gh pr view fails for any reason but no pull request, as recap does", () => {
+    const run = ship([], { commands: { "pr view": { exit: 1, stderr: "could not connect to api.github.com\n" } } })
+    assert.equal(run.status, 2)
+    assert.deepEqual(lines(run.stderr), [
+      "dw-sdlc pr ship: gh pr view failed: could not connect to api.github.com — check gh auth status and the network, then call again"
+    ])
+    assert.deepEqual(run.calls, [AUTH, ["pr", "view", "--json", "url"]])
+  })
+
   it("exits 2 with the usage on a bad argument, before any gh call", () => {
     const cases: [string[], string][] = [
       [["--frobnicate"], "dw-sdlc pr ship: Unknown option '--frobnicate'"],

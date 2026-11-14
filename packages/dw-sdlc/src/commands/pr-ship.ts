@@ -20,7 +20,6 @@ import {
 } from "../pr/decide.ts"
 import { gh, ghReads, namedProblem, nameItRemedy, now, type Reads, said } from "../pr/read.ts"
 import type { PrState } from "../pr/state.ts"
-import { holds, renamedUpstream } from "../pr/upstream.ts"
 import { shellLine } from "../shell-line.ts"
 
 export const summary = "decide the Action one pull request needs next, as a line or JSON"
@@ -199,30 +198,20 @@ function handedOver(pr: PrState, policy: Policy, answer: Answer, action: ScriptA
   return { ...answer, status: "park", actor: "dev", reason, command: devCommand(pr, action, policy) }
 }
 
-/**
- * The pull request the call names, else the current branch's as `gh pr view` resolves it. Where gh finds
- * none for a branch whose upstream has another name, the one of that name, taken only when its commits
- * hold the local head: a branch started from another tracks that branch until its first push.
- */
+/** The pull request the call names, else this checkout's; none found stops the call with what to name. */
 function readTarget(cli: Cli, root: string, reads: Reads): PrState {
-  const renamed = cli.number === undefined && cli.repo === undefined ? renamedUpstream(root) : undefined
-  if (renamed === undefined) {
+  if (cli.number !== undefined || cli.repo !== undefined) {
     return reads.named(cli, "pr ship")
   }
-  const { branch, head, upstream } = renamed
-  const found = reads.branch(upstream)
-  const upstreamNamed = `${upstream}, the name its upstream gives`
-  if (found === null) {
+  const found = reads.checkout(root)
+  if ("problem" in found) {
+    const nameIt = nameItRemedy("pr ship")
     throw new CannotRun(
-      `gh pr view found no pull request for ${branch}, nor for ${upstreamNamed}`,
-      nameItRemedy("pr ship")
+      found.problem,
+      found.lacksHead ? `push HEAD if it is this branch's pull request, else ${nameIt}` : nameIt
     )
   }
-  if (found.byUpstream && !holds(found.pr, head)) {
-    const lacks = `${found.pr.url}, found by ${upstreamNamed}, lacks HEAD ${head.slice(0, 7)}`
-    throw new CannotRun(lacks, `push HEAD if it is this branch's pull request, else ${nameItRemedy("pr ship")}`)
-  }
-  return found.pr
+  return found
 }
 
 /**
