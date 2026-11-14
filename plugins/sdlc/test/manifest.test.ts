@@ -130,6 +130,13 @@ describe("the sdlc plugin", () => {
     assert.doesNotMatch(description, /: /, "a colon and a space end a plain YAML value")
   })
 
+  it("has sdlc-pr-ship keep a Review to details.paths, the files whose own change moved past a merge of the base", () => {
+    const text = readFileSync(join(PLUGIN_ROOT, "skills", "sdlc-pr-ship", "SKILL.md"), "utf8")
+    assert.match(text, /When\s+the\s+answer\s+has\s+`details\.paths`/)
+    assert.match(text, /`--\s+<paths>`\s+on\s+each\s+`git\s+diff`/)
+    assert.match(text, /An\s+empty\s+list\s+leaves\s+nothing\s+to\s+read/)
+  })
+
   it("lets the model reach sdlc-pr-open, its description triggering on opening a pull request and on its body", () => {
     const frontmatter = skillFrontmatter(SELF_STARTED_SKILL)
     assert.doesNotMatch(frontmatter, /^disable-model-invocation:/m)

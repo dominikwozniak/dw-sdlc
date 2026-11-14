@@ -341,7 +341,8 @@ const ROWS: Row[] = [
           source,
           // The agent may raise a routed depth to full, so auto names the command at any depth.
           ...(depth === "full" || source === "auto" ? { reviewCommand: policy.reviewCommand } : {}),
-          ...after
+          ...after,
+          ...(pr.scope === null ? {} : { paths: pr.scope })
         }
       }
     }

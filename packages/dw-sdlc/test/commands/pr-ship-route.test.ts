@@ -228,6 +228,36 @@ describe("dw-sdlc pr ship under pr.review auto", () => {
     assert.deepEqual(run.calls, [AUTH, READ, compare(BASE_OID, REVIEWED), compare(BASE_OID)])
   })
 
+  it("routes a fix the base was merged in after on the files whose own change moved, named in details.paths", () => {
+    const FIX = "f1a5f1a5c0ffee0ddba11c0de5ca1ab1e0ddba11"
+    const history: Commit[] = [
+      { oid: REVIEWED, review: "FAILURE", described: "read, findings open" },
+      { oid: FIX, review: null }
+    ]
+    const fixed: File = { ...file("src/a.ts", 4, 1), patch: "@@ -1 +1 @@\n-a\n+fixed" }
+    const merged: Pr = { ...UNREVIEWED, history, headParents: 2 }
+    const own = {
+      ...compared(BASE_OID, [file("src/a.ts", 3)], REVIEWED),
+      ...compared(BASE_OID, [fixed])
+    }
+    const since = compared(REVIEWED, [fixed, file("src/base.ts", 400, 200), file(".github/workflows/ci.yaml", 2)])
+
+    const routed = ship(["--json"], [merged], { ...own, ...since })
+    assert.equal(routed.status, 10, routed.stderr)
+    assert.deepEqual(documentOf(routed.stdout, ["action", "details"]), {
+      action: "review",
+      details: { depth: "light", source: "auto", reviewCommand: "/code-review", since: REVIEWED, paths: ["src/a.ts"] }
+    })
+    assert.deepEqual(routed.calls, [AUTH, READ, compare(BASE_OID, REVIEWED), compare(BASE_OID), compare(REVIEWED)])
+
+    const flagged = ship(["--json", "--review", "light"], [merged], own)
+    assert.equal(flagged.status, 10, flagged.stderr)
+    assert.deepEqual(documentOf(flagged.stdout, ["details"]), {
+      details: { depth: "light", source: "flag", since: REVIEWED, paths: ["src/a.ts"] }
+    })
+    assert.deepEqual(flagged.calls, [AUTH, READ, compare(BASE_OID, REVIEWED), compare(BASE_OID)])
+  })
+
   it("reads no compare for another author's pull request, which parks for the dev", () => {
     const run = ship(["--json"], [{ ...UNREVIEWED, viewerDidAuthor: false }])
     assert.equal(run.status, 30, run.stderr)

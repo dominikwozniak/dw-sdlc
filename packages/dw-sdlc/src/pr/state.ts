@@ -114,6 +114,11 @@ export type PrState = {
    * auto` to route on: `unsized` when the compare cannot list them all, null when not read.
    */
   changed: ChangedFile[] | "unsized" | null
+  /**
+   * The files whose own change moved since `lastRead`, when a merge of the base came after it: the files
+   * a fix touched, the base's own left out. Null with no such merge, or when a compare cannot show them.
+   */
+  scope: string[] | null
 }
 
 /**
@@ -126,7 +131,7 @@ export type ChangedFile = { path: string; previous: string | null; lines: number
  * A commit a Review read; `clean` when that Review left a success on it, not a read mark; and whether
  * every commit after it, the head included, is a merge.
  */
-export type LastRead = { commit: string; clean: boolean; mergesOnly: boolean }
+export type LastRead = { commit: string; clean: boolean; mergesOnly: boolean; merges: boolean }
 
 /**
  * The Reviews that left a Finding open since the last review success, a success under off and the dev's
@@ -385,7 +390,12 @@ function lastReadOf(history: Posted[], head: string): LastRead | null {
   if (last === undefined) {
     return null
   }
-  return { commit: last.oid, clean: last.read === "clean", mergesOnly: mergesOnlyAfter(index) }
+  return {
+    commit: last.oid,
+    clean: last.read === "clean",
+    mergesOnly: mergesOnlyAfter(index),
+    merges: commits.slice(index + 1).some(({ merge }) => merge)
+  }
 }
 
 /**
@@ -433,7 +443,7 @@ export function parseDefaultBranch(reply: string): string {
 }
 
 /** The state of the pull request in `reply`, the text `gh api graphql` printed for QUERY on `repo`. */
-export function parsePr(reply: string, repo: string): Omit<PrState, "carried" | "changed"> {
+export function parsePr(reply: string, repo: string): Omit<PrState, "carried" | "changed" | "scope"> {
   const pr = child(child(child(rootOf(reply, "the reply"), "data"), "repository"), "pullRequest")
   const commit = child(firstNode(pr, "commits"), "commit")
   const rollup = childOrNull(commit, "statusCheckRollup")

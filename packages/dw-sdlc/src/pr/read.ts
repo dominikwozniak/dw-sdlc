@@ -216,7 +216,7 @@ export function carriesBase(before: PrState, after: PrState): boolean {
 }
 
 /** The own changes of `pr` at `commit`, from the compare with its base; null when it cannot show them whole. */
-function ownChanges(pr: Omit<PrState, "carried" | "changed">, commit: string): string[] | null {
+function ownChanges(pr: Omit<PrState, "carried" | "changed" | "scope">, commit: string): string[] | null {
   const reply = compared(pr, pr.baseOid, commit, `the compare with ${commit.slice(0, 7)}`)
   return parseOrCannotRun(() => changesOf(reply))
 }
@@ -226,7 +226,7 @@ function ownChanges(pr: Omit<PrState, "carried" | "changed">, commit: string): s
  * merges since it, and the same own changes at both. A read mark never carries. The compares run only
  * when a Review awaits the head.
  */
-function withCarried(pr: Omit<PrState, "carried" | "changed">): Omit<PrState, "changed"> {
+function withCarried(pr: Omit<PrState, "carried" | "changed" | "scope">): Omit<PrState, "changed" | "scope"> {
   const last = pr.lastRead
   if (last === null || !last.clean || !last.mergesOnly || pr.state !== "OPEN" || !awaitsReview(pr)) {
     return { ...pr, carried: false }
@@ -235,16 +235,50 @@ function withCarried(pr: Omit<PrState, "carried" | "changed">): Omit<PrState, "c
 }
 
 /**
- * `pr` and, when `sized` and a Review awaits a head that carries none, the files the Review would read:
- * the compare from the last commit a Review read, else from the base, to the head.
+ * The files whose own change differs between `from` and the head of `pr`, a rename under both names:
+ * what a fix touched, without the files a merge of the base brought in. Null when a compare cannot show
+ * the own changes whole.
  */
-function withChanged(pr: Omit<PrState, "changed">, sized: boolean): PrState {
-  if (!sized || pr.carried || pr.state !== "OPEN" || !awaitsReview(pr)) {
-    return { ...pr, changed: null }
+function ownScope(pr: Omit<PrState, "carried" | "changed" | "scope">, from: string): string[] | null {
+  const before = ownChanges(pr, from)
+  const after = ownChanges(pr, pr.head)
+  if (before === null || after === null) {
+    return null
+  }
+  const moved = [
+    ...after.filter((change) => !before.includes(change)),
+    ...before.filter((change) => !after.includes(change))
+  ]
+  const names = moved.flatMap((change) => {
+    const [path, , previous] = JSON.parse(change) as [string, string, string | null]
+    return previous === null ? [path] : [path, previous]
+  })
+  return [...new Set(names)].toSorted()
+}
+
+/**
+ * `pr` and, when a Review awaits a head that carries none, its `scope` after a merge of the base, and
+ * when `sized`, the files the Review would read: the compare from the last commit a Review read, else
+ * from the base, to the head, kept to the scope when there is one.
+ */
+function withChanged(pr: Omit<PrState, "changed" | "scope">, sized: boolean): PrState {
+  if (pr.carried || pr.state !== "OPEN" || !awaitsReview(pr)) {
+    return { ...pr, changed: null, scope: null }
+  }
+  const scope = pr.lastRead?.merges === true ? ownScope(pr, pr.lastRead.commit) : null
+  if (!sized) {
+    return { ...pr, changed: null, scope }
   }
   const from = pr.lastRead?.commit ?? pr.baseOid
   const reply = compared(pr, from, pr.head, `the compare of ${from.slice(0, 7)}...${pr.head.slice(0, 7)}`)
-  return { ...pr, changed: parseOrCannotRun(() => changedOf(reply)) }
+  const changed = parseOrCannotRun(() => changedOf(reply))
+  if (scope === null || changed === "unsized") {
+    return { ...pr, changed, scope }
+  }
+  const within = changed.filter(
+    ({ path, previous }) => scope.includes(path) || (previous !== null && scope.includes(previous))
+  )
+  return { ...pr, changed: within, scope }
 }
 
 /** The state of pull request `number` of `repo`, from one GraphQL request and the compares a Review needs. */

@@ -43,8 +43,12 @@ push makes.
   saying why in one line; never lower one. A depth the dev or the config set stands: when you think
   it wrong, say so in one line and review at it. The Review reads the changes since `<since>`:
   `details.since`, the last head a Review read, clean or not, when the answer has it, else
-  `origin/<base>`. At `full`, run the slash command `details.reviewCommand` names, with its
-  arguments, on those changes, naming that range to it: `<since>..<head>`. It is the config's
+  `origin/<base>`. When the answer has `details.paths`, a merge of the base came after `<since>`,
+  and the Review reads only those files, the ones whose own change moved: `-- <paths>` on each
+  `git diff` below, and the paths named to the command at `full`. An empty list leaves nothing to
+  read: a Finding an earlier Review left open stays open, and with none the Review is clean. At
+  `full`, run the slash command `details.reviewCommand` names, with its arguments, on those
+  changes, naming that range to it: `<since>..<head>`. It is the config's
   `pr.reviewCommand`, `/code-review` by default, the review skill of the engineering skills
   (`mattpocock/skills`). A command this session does not have ends the run: name it, say that
   `pr.reviewCommand` in `.ai/agentic.config.json` names the reviewer this repository has, and stop.
