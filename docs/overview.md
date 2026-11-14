@@ -306,8 +306,8 @@ code says whose turn it is:
 The script runs its own Actions in the same call, each at most once, then reads again.
 
 - **It updates a branch only when GitHub reports it `BEHIND`.** GitHub does so only under a rule that a
-  branch be up to date. A branch only behind its base merges as it is: CI already ran on its merge with
-  the base, and an update would spend GitHub Actions minutes on a rule no one set.
+  branch be up to date. A branch only behind its base merges as it is: CI ran on its merge with the
+  base, and an update would spend GitHub Actions minutes on a rule no one set.
 - **It squash merges with `--match-head-commit`**, so a push during the decision never merges blind.
   Who merges follows `pr.merge`: the script under `auto`, the dev under `ask`, the default. `--merge`
   lets the script merge for one call.
@@ -319,7 +319,7 @@ The script runs its own Actions in the same call, each at most once, then reads 
 It parks the pull request for the dev when:
 
 - it is closed;
-- no check reports within 120 s of the head's commit, or CI runs past 40 minutes;
+- no check reports within 120 s of the head's commit or its ready, or CI runs past 40 minutes;
 - a thread or a review that requests changes waits for its reviewer (`awaiting-reply`, `awaiting-review`);
 - it is another author's draft, or it needs an approval;
 - three Reviews in a row left Findings open (`review-limit`);

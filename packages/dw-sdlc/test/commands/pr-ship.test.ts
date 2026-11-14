@@ -441,7 +441,27 @@ describe("dw-sdlc pr ship while no check has answered", () => {
       status: "park",
       action: "unverified",
       actor: "dev",
-      reason: "no check reported on e36732e within 120 s of its commit",
+      reason: "no check reported on e36732e within 120 s of its commit or its ready",
+      command: merge,
+      blockers: [],
+      performed: []
+    })
+  })
+
+  it("counts the grace of a head no check reported on from its ready, an hour after its commit", () => {
+    const readied = { ...UNCHECKED, readyAt: READY_AT }
+    const waiting = json(readied, [], clockAt(READY_AT, 60))
+    assert.equal(waiting.status, 20, waiting.stderr)
+    const parked = json(readied, [], clockAt(READY_AT, 121))
+    assert.equal(parked.status, 30, parked.stderr)
+    assert.deepEqual(parked.document, {
+      pr: URL,
+      head: HEAD,
+      base: "main",
+      status: "park",
+      action: "unverified",
+      actor: "dev",
+      reason: "no check reported on e36732e within 120 s of its commit or its ready",
       command: merge,
       blockers: [],
       performed: []
@@ -568,7 +588,7 @@ describe("dw-sdlc pr ship while no check has answered", () => {
         UNCHECKED,
         clockAt(GREEN.committedAt, 121),
         30,
-        `park unverified: no check reported on e36732e within 120 s of its commit — ${merge}`
+        `park unverified: no check reported on e36732e within 120 s of its commit or its ready — ${merge}`
       ],
       [PENDING, clockAt(STARTED, 10 * 60), 20, "wait: ci-pending, recheck in 60 s"],
       [PENDING, clockAt(STARTED, 41 * 60), 30, "park ci-stuck: 1 check(s) pending for 41 min, past the 40 min budget"]

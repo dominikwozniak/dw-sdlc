@@ -310,7 +310,7 @@ const ROWS: Row[] = [
             actor: "dev",
             reason:
               ciOf(pr).length === 0
-                ? `no check reported on ${pr.head.slice(0, 7)} within ${GRACE_SECONDS} s of its commit`
+                ? `no check reported on ${pr.head.slice(0, 7)} within ${GRACE_SECONDS} s of its commit or its ready`
                 : `every check on ${pr.head.slice(0, 7)} was skipped, ${GRACE_SECONDS} s after its commit or its ready`,
             command: devCommand(pr, "merge", policy)
           }
