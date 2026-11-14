@@ -10,7 +10,7 @@
   "plugins": [
     {
       "name": "sdlc",
-      "version": "0.27.0",
+      "version": "0.28.0",
       "source": "./plugins/sdlc",
       "description": "Guards on every tool call and the road from a pull request to merged, beside the engineering skills and replacing none: refuses destructive git, unvouched env files, the wrong package manager and sloppy commits; routes Bash through rtk when present; syncs References; skills to set a repository up, check a machine, open, ship and sweep pull requests. Needs jq and Node 24.",
       "keywords": ["guardrails", "hooks", "skills", "git", "env", "pnpm", "worktree", "references"],
