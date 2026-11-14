@@ -1,12 +1,12 @@
 # sdlc-sessions
 
 The session skills of [dw-sdlc](../../README.md), beside the [`sdlc`](../sdlc/README.md) plugin that
-guards a session. They tell you where a session stands, write the start of the next one, and let one
-session hand tickets to others running in parallel:
+guards a session. They tell you where a session stands, kick off new work in a session of its own, and
+let one session hand tickets to others running in parallel:
 
 - `/sdlc-recap` writes a Recap: where a session stands, in one fixed shape, and whether it can close.
-- `/sdlc-brief` writes a Brief: the fixed-shape first message of a Worker, a Claude Code session that
-  works on one ticket in a worktree of its own.
+- `/sdlc-kickoff` writes a Brief, the fixed-shape first message of a Worker, a Claude Code session that
+  works on one ticket in a worktree of its own, and starts a new Lead to carry it to the end.
 - `/sdlc-delegate` makes the session a Lead, a session that starts Workers in herdr terminals and gathers
   their Recaps. herdr is a terminal manager whose `hc` command starts and reads terminals.
 
@@ -18,6 +18,7 @@ ship. The decision to ship it apart from `sdlc` is
 ```mermaid
 flowchart LR
     T[tickets] --> L[Lead: /sdlc-delegate]
+    K[/sdlc-kickoff or a Recap's go/] -- new Lead --> L
     L -- Brief --> W1[Worker]
     L -- Brief --> W2[Worker]
     W1 -- /sdlc-pr-ship --> P1[pull request]
@@ -36,7 +37,7 @@ the guards too.
 | skill            | needs                                                                    |
 | ---------------- | ------------------------------------------------------------------------ |
 | `/sdlc-recap`    | nothing; an authenticated `gh` for the pull request and the next session |
-| `/sdlc-brief`    | nothing                                                                  |
+| `/sdlc-kickoff`  | nothing; herdr's `hc` to start the Lead                                  |
 | `/sdlc-delegate` | herdr's `hc` on the agent's PATH, and a terminal herdr started           |
 
 `/sdlc-doctor` reports the plugin on its `sessions` line, a drift between its copy of the `dw-sdlc`
@@ -44,12 +45,12 @@ package and the one `sdlc` runs included, and herdr on its `hc` line.
 
 ## What it carries
 
-| part             | kind     | runs                                                                     | section                 |
-| ---------------- | -------- | ------------------------------------------------------------------------ | ----------------------- |
-| `/sdlc-recap`    | skill    | you type it, or a Brief tells a Worker to end with it                    | [The Recap](#the-recap) |
-| `/sdlc-brief`    | skill    | you type it                                                              | [The Brief](#the-brief) |
-| `/sdlc-delegate` | skill    | you type it or ask in your words; offered after tickets in a set-up repo | [The Lead](#the-lead)   |
-| `brief.md`       | template | read by every skill that writes a Brief                                  | [The Brief](#the-brief) |
+| part             | kind     | runs                                                                     | section                     |
+| ---------------- | -------- | ------------------------------------------------------------------------ | --------------------------- |
+| `/sdlc-recap`    | skill    | you type it, or a Brief tells a Worker to end with it                    | [The Recap](#the-recap)     |
+| `/sdlc-kickoff`  | skill    | you type it                                                              | [The kickoff](#the-kickoff) |
+| `/sdlc-delegate` | skill    | you type it or ask in your words; offered after tickets in a set-up repo | [The Lead](#the-lead)       |
+| `brief.md`       | template | read by every skill that writes a Brief                                  | [The Brief](#the-brief)     |
 
 ## The Recap
 
@@ -131,7 +132,8 @@ blocker. The skill picks one, since only the session knows the topic it worked o
 leaves the section out: a Worker's Lead names what comes next.
 
 Nothing starts before the dev's "go", and "go, but #<m>" starts another candidate. "go" runs the
-follow-ups first, then:
+follow-ups first, filing each `worker` follow-up as an issue with a Brief as its body, then starts one
+Lead for the candidate and those issues, the candidate first:
 
 ```bash
 dw-sdlc lead start --name lead-<n>-<slug> --prompt "/sdlc-delegate #<n>" [--wait <seconds>] [--json]
@@ -141,21 +143,29 @@ It starts the Lead in a new herdr terminal in the main checkout; `dw-sdlc lead s
 it runs and when it refuses. A Lead's terminal is no Worker's, so the closing session's `recap` and Sweep
 leave it alone.
 
+## The kickoff
+
+`/sdlc-kickoff` takes an issue, a spec, a Recap's follow-up or an idea from the conversation, writes its
+Brief and, on the dev's word, kicks the work off in a session of its own. Only the dev invokes it. The
+session that kicks work off does not care for it: a new Lead does, so the session can close. Work this
+conversation holds, carried on as it is, goes with `/handoff` of the Engineering skills instead.
+
+| word    | what you get                                                                                              | when                                   |
+| ------- | --------------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| `start` | a new Lead in herdr, `/sdlc-delegate` with the work, which starts the Worker and stays with it to the end | the work starts now                    |
+| `issue` | a new issue with the Brief as its body, started later with `/implement #N`                                | the work waits                         |
+| `line`  | `worker.command` with `--worktree`, `--model`, `--effort` and the Brief, to paste into a new terminal     | outside herdr, or in a linked worktree |
+
+An idea or a follow-up with nothing filed is filed as an issue before the Lead starts, so the Lead reads it
+as one.
+
 ## The Brief
 
-`/sdlc-brief` takes an issue, a spec, a Recap's follow-up or an idea from the conversation and gives the
-start of a Worker session. Only the dev invokes it, it works without herdr, and it starts nothing itself.
-
 `templates/brief.md` holds what every Brief shares: its fields, its rules, the Worker's name
-(`worker-<issue>-<slug>`), the routing of model and effort, and the start line. A Brief is in English and
+(`worker-<issue>-<slug>`), the routing of model and effort, the start line, and how a session starts the
+new Lead that carries the work. A Brief is in English and
 points at its source without retelling it. Its kind sets the model and effort, never the size of the
 change, and the dev's word wins over both.
-
-| way out    | what you get                                                                                          | when                         |
-| ---------- | ----------------------------------------------------------------------------------------------------- | ---------------------------- |
-| start line | `worker.command` with `--worktree`, `--model`, `--effort` and the Brief, to paste into a new terminal | the work starts now, by hand |
-| issue      | a new issue with the Brief as its body, started later with `/implement #N`                            | the work waits               |
-| Lead       | a Lead in herdr starts the Worker; the Brief names the Lead's terminal                                | several tickets in parallel  |
 
 A Worker carries its pull request through [`/sdlc-pr-ship`](../sdlc/README.md#shipping-a-pull-request),
 which it may start because its Brief tells it to; `pr.merge` decides whether it ends merged or parked for

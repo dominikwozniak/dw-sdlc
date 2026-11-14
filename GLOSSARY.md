@@ -123,13 +123,13 @@ _Avoid_: subagent (a helper inside one session), child, agent
 **Brief**:
 What a Worker starts from: the goal, a pointer to its source rather than a retelling, what it may write,
 what it must not do, the proof it is done, where it reports, and the model and effort it runs on.
-_Avoid_: prompt, task
+_Avoid_: prompt, task, handoff (carries the conversation; a Brief points at a source)
 
 **Recap**:
 What a session tells a dev who did not follow it: where its work stands in Action words, what happened, what
-it decided alone, whether it can close, its questions, follow-ups and next session. A Worker reports to its
-Lead with one.
-_Avoid_: status report, summary
+it decided alone, whether it can close, its questions, follow-ups and next session. Any session ends with
+one, alone or under a Lead; a Worker reports to its Lead with one.
+_Avoid_: status report, summary, handoff (context for the next agent)
 
 ### Gate
 

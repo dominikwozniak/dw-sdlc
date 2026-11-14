@@ -21,7 +21,7 @@
       "name": "sdlc-sessions",
       "version": "0.7.0",
       "source": "./plugins/sdlc-sessions",
-      "description": "Session skills beside sdlc: /sdlc-recap says where a session stands and whether it can close, /sdlc-brief writes a Brief, the start of a Worker session, and /sdlc-delegate makes the session a Lead that runs Workers in herdr terminals and gathers their Recaps. It depends on sdlc, so every session keeps its guards.",
+      "description": "Session skills beside sdlc: /sdlc-recap says where a session stands and whether it can close, /sdlc-kickoff writes a Brief and starts a new Lead to carry it, and /sdlc-delegate makes the session a Lead that runs Workers in herdr terminals and gathers their Recaps. It depends on sdlc, so every session keeps its guards.",
       "keywords": ["sessions", "recap", "skills"],
       "category": "utilities",
       "tags": ["sessions", "recap"]

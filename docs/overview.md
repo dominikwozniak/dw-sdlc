@@ -8,17 +8,17 @@ is built and released is under [`contributing/`](contributing/development.md).
 
 ## The parts at a glance
 
-| part                                           | runs when                                     | started by                                                  | detail                                                                   |
-| ---------------------------------------------- | --------------------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------ |
-| the guards                                     | on every Bash command, file tool and Grep     | Claude Code, as hooks                                       | [How a guard judges a call](#how-a-guard-judges-a-call)                  |
-| the session hooks                              | when a session starts                         | Claude Code, as hooks                                       | [plugin README](../plugins/sdlc/README.md#session-start)                 |
-| the `commit-msg` hook                          | on a commit typed in a terminal               | git, once a repository wires it                             | [plugin README](../plugins/sdlc/README.md#commit-hook)                   |
-| the Gate, `pnpm check`                         | before a change lands, locally and in CI      | you, a Brief's Proof, CI                                    | [How the Gate runs](#how-the-gate-runs)                                  |
-| `/sdlc-setup`, `/sdlc-doctor`                  | once per repository and machine, then at will | you                                                         | [Adopting it](#adopting-it-in-your-repository)                           |
-| `/sdlc-pr-open`                                | when a pull request is wanted                 | the agent, once you or a Brief want one                     | [plugin README](../plugins/sdlc/README.md#opening-a-pull-request)        |
-| `/sdlc-pr-ship` and the Ship script            | from an open pull request to merged           | you, or a Brief                                             | [How the Ship script merges](#how-the-ship-script-merges-a-pull-request) |
-| `/sdlc-recap`, `/sdlc-brief`, `/sdlc-delegate` | at a session's end, or to hand work on        | you, or a Brief; offered where `.ai/` is set up, then waits | [How a Lead runs Workers](#how-a-lead-runs-workers)                      |
-| `/sdlc-sweep`                                  | once work has landed                          | you, or your "go" on a Recap follow-up                      | [How a Sweep removes](#how-a-sweep-removes-what-finished-work-leaves)    |
+| part                                             | runs when                                     | started by                                                  | detail                                                                   |
+| ------------------------------------------------ | --------------------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------ |
+| the guards                                       | on every Bash command, file tool and Grep     | Claude Code, as hooks                                       | [How a guard judges a call](#how-a-guard-judges-a-call)                  |
+| the session hooks                                | when a session starts                         | Claude Code, as hooks                                       | [plugin README](../plugins/sdlc/README.md#session-start)                 |
+| the `commit-msg` hook                            | on a commit typed in a terminal               | git, once a repository wires it                             | [plugin README](../plugins/sdlc/README.md#commit-hook)                   |
+| the Gate, `pnpm check`                           | before a change lands, locally and in CI      | you, a Brief's Proof, CI                                    | [How the Gate runs](#how-the-gate-runs)                                  |
+| `/sdlc-setup`, `/sdlc-doctor`                    | once per repository and machine, then at will | you                                                         | [Adopting it](#adopting-it-in-your-repository)                           |
+| `/sdlc-pr-open`                                  | when a pull request is wanted                 | the agent, once you or a Brief want one                     | [plugin README](../plugins/sdlc/README.md#opening-a-pull-request)        |
+| `/sdlc-pr-ship` and the Ship script              | from an open pull request to merged           | you, or a Brief                                             | [How the Ship script merges](#how-the-ship-script-merges-a-pull-request) |
+| `/sdlc-recap`, `/sdlc-kickoff`, `/sdlc-delegate` | at a session's end, or to hand work on        | you, or a Brief; offered where `.ai/` is set up, then waits | [How a Lead runs Workers](#how-a-lead-runs-workers)                      |
+| `/sdlc-sweep`                                    | once work has landed                          | you, or your "go" on a Recap follow-up                      | [How a Sweep removes](#how-a-sweep-removes-what-finished-work-leaves)    |
 
 ## Where dw-sdlc sits beside the engineering skills
 
@@ -29,22 +29,22 @@ dw-sdlc extends the engineering skills and replaces none
 where it asks the dev. dw-sdlc holds them where they are loose: the guards judge every tool call a
 skill makes, the Gate proves the change, and dw-sdlc carries the delivery from a Brief to the merge.
 
-| stage                                | carried by                                  | invoked by                                              | whose      |
-| ------------------------------------ | ------------------------------------------- | ------------------------------------------------------- | ---------- |
-| chart a large effort                 | `wayfinder`                                 | the dev                                                 | mattpocock |
-| settle a plan, gather facts          | `grilling`, `research`                      | the dev, or a skill                                     | mattpocock |
-| write the spec and tickets           | `to-spec`, `to-tickets`, `triage`           | the dev                                                 | mattpocock |
-| hand the work to a session           | `/sdlc-brief` writes a Brief                | the dev                                                 | dw-sdlc    |
-| implement                            | `implement`, `tdd`, `code-review`           | the dev, or the start line of a Brief                   | mattpocock |
-| implement a spec as one pull request | `implement-spec`                            | the dev                                                 | mattpocock |
-| implement tickets in parallel        | `/sdlc-delegate` starts a Worker per ticket | the dev                                                 | dw-sdlc    |
-| keep an agent from harm              | the guards, the session hooks, `commit-msg` | a hook, on every call or commit it judges               | dw-sdlc    |
-| prove a change                       | the Gate, `pnpm check`                      | the dev, a Brief's Proof, CI                            | dw-sdlc    |
-| open the pull request                | `/sdlc-pr-open`                             | the agent, once the dev or a Brief wants a pull request | dw-sdlc    |
-| review, fix CI, merge                | `/sdlc-pr-ship` and the Ship script         | the dev, or a Brief                                     | dw-sdlc    |
-| say where a session stands           | `/sdlc-recap`                               | the dev, or a Brief                                     | dw-sdlc    |
-| pass context to the next agent       | `handoff`                                   | the dev                                                 | mattpocock |
-| remove what landed                   | `/sdlc-sweep`                               | the dev                                                 | dw-sdlc    |
+| stage                                | carried by                                    | invoked by                                              | whose      |
+| ------------------------------------ | --------------------------------------------- | ------------------------------------------------------- | ---------- |
+| chart a large effort                 | `wayfinder`                                   | the dev                                                 | mattpocock |
+| settle a plan, gather facts          | `grilling`, `research`                        | the dev, or a skill                                     | mattpocock |
+| write the spec and tickets           | `to-spec`, `to-tickets`, `triage`             | the dev                                                 | mattpocock |
+| hand the work to a session           | `/sdlc-kickoff` writes a Brief, starts a Lead | the dev                                                 | dw-sdlc    |
+| implement                            | `implement`, `tdd`, `code-review`             | the dev, or the start line of a Brief                   | mattpocock |
+| implement a spec as one pull request | `implement-spec`                              | the dev                                                 | mattpocock |
+| implement tickets in parallel        | `/sdlc-delegate` starts a Worker per ticket   | the dev                                                 | dw-sdlc    |
+| keep an agent from harm              | the guards, the session hooks, `commit-msg`   | a hook, on every call or commit it judges               | dw-sdlc    |
+| prove a change                       | the Gate, `pnpm check`                        | the dev, a Brief's Proof, CI                            | dw-sdlc    |
+| open the pull request                | `/sdlc-pr-open`                               | the agent, once the dev or a Brief wants a pull request | dw-sdlc    |
+| review, fix CI, merge                | `/sdlc-pr-ship` and the Ship script           | the dev, or a Brief                                     | dw-sdlc    |
+| say where a session stands           | `/sdlc-recap`                                 | the dev, or a Brief                                     | dw-sdlc    |
+| pass context to the next agent       | `handoff`                                     | the dev                                                 | mattpocock |
+| remove what landed                   | `/sdlc-sweep`                                 | the dev                                                 | dw-sdlc    |
 
 Without the engineering skills every part of dw-sdlc still runs but three: a Brief's start line names
 `/implement`, a `full` Review runs `/code-review` unless `pr.reviewCommand` names another command, and
@@ -55,20 +55,30 @@ Without the engineering skills every part of dw-sdlc still runs but three: a Bri
 | way                                   | where it runs                                   | needs herdr | pick it when                                      |
 | ------------------------------------- | ----------------------------------------------- | ----------- | ------------------------------------------------- |
 | `/implement #<n>` in this session     | the current branch; a pull request when you ask | no          | one issue, here and now                           |
-| a Brief's start line, in any terminal | a new session in its own worktree               | no          | one issue, in parallel with this session          |
+| `/sdlc-kickoff`                       | a new Lead, which starts one Worker for it      | yes         | one issue, in parallel; this session can close    |
+| a Brief's start line, in any terminal | a new session in its own worktree               | no          | one issue, in parallel, outside herdr             |
 | `/sdlc-delegate`                      | a Worker per ticket, each in its own worktree   | yes         | a spec cut into tickets: the usual way            |
 | `implement-spec`                      | one pull request on an integration branch       | no          | rarely: a spec that must land as one pull request |
 
 Claude Code creates a Worker's worktree from the `--worktree <name>` flag of its start line. The Sweep
 removes it once the Worker's work has landed.
 
-### A Brief and a Recap beside `triage` and `handoff`
+### Which session skill, and what it adds beside `triage` and `handoff`
+
+| you want                                                     | skill            |
+| ------------------------------------------------------------ | ---------------- |
+| new work to run in a session of its own, cared for by a Lead | `/sdlc-kickoff`  |
+| this session to start and watch Workers itself               | `/sdlc-delegate` |
+| to know where this session stands, or to close it            | `/sdlc-recap`    |
+| the same work carried on in a fresh session                  | `handoff`        |
 
 - **A Brief beside `triage`'s agent brief.** The agent brief in the issue says what to build. A Brief
   says how the session runs: what it may write, what proves it done, how it ships and whom it reports
   to. It points at the issue and retells none of it.
 - **A Recap beside `handoff`.** A Recap tells the dev where a session stands and whether it can close.
-  A `handoff` document gives the next agent the context to carry on.
+  A `handoff` document gives the next agent the context to carry on. A Brief carries none of the
+  conversation: it points at a source the Worker reads itself, so work only the conversation holds
+  goes with `handoff`.
 
 ## How a guard judges a call
 
@@ -370,13 +380,16 @@ address.
 | `dw-sdlc worker start --brief <file> --name <n>` | starts a Worker in the background with the Brief as its first message, three at most by default |
 | `dw-sdlc worker ls`                              | lists the Lead's Workers: name, state, status, folder                                           |
 | `dw-sdlc worker report --to <lead> --recap <f>`  | sends a Worker's Recap to its Lead, retried while the Lead sits on a dialog                     |
-| `dw-sdlc lead start --name <n> --prompt <msg>`   | starts the next session as a Lead, from a Recap                                                 |
+| `dw-sdlc lead start --name <n> --prompt <msg>`   | starts a new Lead, from a Recap or `/sdlc-kickoff`                                              |
 
 - **A Worker starts from origin's tip.** `worker start` fetches origin's default branch first, since
   Claude Code branches the worktree from a cached `origin/<default>` it refetches only once a day.
 - **herdr's `done` means a turn ended, not the task.** The Worker's Recap says whether the task is done.
-- **The next Lead comes from a Recap.** `dw-sdlc recap --json` lists the open `ready-for-agent` issues
-  with no assignee and no open blocker. On the dev's "go", `lead start` runs `/sdlc-delegate #<n>`.
+- **A new Lead comes from a Recap or a kickoff.** `dw-sdlc recap --json` lists the open `ready-for-agent`
+  issues with no assignee and no open blocker. On the dev's "go", `lead start` runs `/sdlc-delegate`
+  with the next one and the Recap's `worker` follow-ups, filed as issues. On "start", `/sdlc-kickoff`
+  runs it with the work it kicked off. The session that started the Lead does not care for the work.
+  It can close.
 
 Every flag and exit code is in each command's `--help`. How a Lead plans and gathers its Workers is in
 the [`sdlc-sessions` README](../plugins/sdlc-sessions/README.md#the-lead).

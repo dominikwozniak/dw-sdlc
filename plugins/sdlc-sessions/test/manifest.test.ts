@@ -10,12 +10,12 @@ import { describe, it } from "node:test"
 const PLUGIN_ROOT = join(import.meta.dirname, "..")
 const PLUGINS = join(PLUGIN_ROOT, "..")
 const REPO_ROOT = join(PLUGINS, "..")
-const SKILLS = ["sdlc-brief", "sdlc-delegate", "sdlc-recap"]
+const SKILLS = ["sdlc-delegate", "sdlc-kickoff", "sdlc-recap"]
 const BRIEF_TEMPLATE = "templates/brief.md"
 /** The skills that write a Brief, each reading the one template rather than a copy of its rules. */
-const BRIEF_WRITERS = ["sdlc-brief", "sdlc-delegate", "sdlc-recap"]
+const BRIEF_WRITERS = ["sdlc-delegate", "sdlc-kickoff", "sdlc-recap"]
 /** The skills only the dev starts, by typing them. */
-const DEV_ONLY = ["sdlc-brief"]
+const DEV_ONLY = ["sdlc-kickoff"]
 
 type Manifest = { name: string; version: string; dependencies?: unknown; hooks?: unknown }
 type Listed = { name: string; source: string; version: string }
@@ -84,7 +84,7 @@ describe("the sdlc-sessions plugin", () => {
     assert.doesNotMatch(description, / #/, "a space and a hash start a YAML comment")
   })
 
-  it("leaves sdlc-brief for the dev to invoke, never the model", () => {
+  it("leaves sdlc-kickoff for the dev to invoke, never the model", () => {
     for (const name of DEV_ONLY) {
       const frontmatter = frontmatterOf(skillText(name))
       assert.match(frontmatter, /^disable-model-invocation: true$/m, name)
@@ -94,14 +94,22 @@ describe("the sdlc-sessions plugin", () => {
     }
   })
 
-  it("ends sdlc-brief in The answer, its Next line the word that picks a way and written only for the dev", () => {
-    const text = skillText("sdlc-brief")
+  it("has sdlc-kickoff point work this conversation holds at /handoff", () => {
+    const description = /^description: (.+)$/m.exec(frontmatterOf(skillText("sdlc-kickoff")))?.[1] ?? ""
+    assert.match(description, /^Kick off new work in a session of its own\./)
+    assert.match(description, /goes with \/handoff\.$/)
+  })
+
+  it("ends sdlc-kickoff in The answer, its ways start, issue and line, and its Next line the word that picks one", () => {
+    const text = skillText("sdlc-kickoff")
     const headings = [...text.matchAll(/^## (.+)$/gm)].map((match) => match[1])
     assert.equal(headings.at(-1), "The answer")
     const answer = text.slice(text.lastIndexOf("## The answer"))
+    assert.match(answer, /which word picks each way, `start`, `issue` or `line`/)
+    assert.match(answer, /the start line, when this session cannot start a Lead/)
     assert.match(answer, /`Next: <word>` in a code span as the last line, the word that picks the way/)
     assert.match(answer, /The closed list:/)
-    assert.match(answer, /Write the `Next:` line only when the dev invoked the skill/)
+    assert.doesNotMatch(answer, /called by another skill/, "only the dev invokes it")
   })
 
   it("has sdlc-delegate refuse in a Worker, list its Workers, start each by the command within its limit and wait only a bounded time", () => {
@@ -128,7 +136,7 @@ describe("the sdlc-sessions plugin", () => {
     assert.match(text, /`\/sdlc-sweep`/, "the follow-up names the skill the dev's go runs")
   })
 
-  it("has sdlc-recap name the next session, and start it as a Lead only on the dev's go", () => {
+  it("has sdlc-recap name the next session, and start one Lead for it and the worker follow-ups only on the dev's go", () => {
     const text = skillText("sdlc-recap")
     assert.match(
       text,
@@ -142,6 +150,16 @@ describe("the sdlc-sessions plugin", () => {
       "go runs lead start"
     )
     assert.doesNotMatch(text, /lead start[^\n]*--dangerously-skip-permissions/)
+    assert.match(
+      text,
+      /one Lead takes every ticket: the next session's\s+issue first, then the issue each `worker` follow-up was filed as/
+    )
+    assert.match(text, /a `worker` goes on to the new Lead/)
+  })
+
+  it("has sdlc-recap point carrying the work on at /handoff", () => {
+    const description = /^description: (.+)$/m.exec(frontmatterOf(skillText("sdlc-recap")))?.[1] ?? ""
+    assert.match(description, /Carrying this work on in a fresh session goes with \/handoff\./)
   })
 
   it("has the combined Recap of sdlc-delegate carry the Sweep follow-up, which the dev's go runs", () => {
@@ -165,7 +183,7 @@ describe("the sdlc-sessions plugin", () => {
     }
   })
 
-  it("ships a Brief template with every field, the routing, the name and the start line", () => {
+  it("ships a Brief template with every field, the routing, the name, the start line and the new Lead", () => {
     const template = readFileSync(join(PLUGIN_ROOT, BRIEF_TEMPLATE), "utf8")
     const required = [
       "/implement #<n>",
@@ -190,7 +208,12 @@ describe("the sdlc-sessions plugin", () => {
       "worker.command",
       "--worktree",
       "--model",
-      "--effort"
+      "--effort",
+      "## The new Lead",
+      'lead start --name <name> --prompt "/sdlc-delegate <tickets>" --json',
+      "lead-<n>-<slug>",
+      "without `--dangerously-skip-permissions`",
+      "hc read <address> --lines 60"
     ]
     for (const piece of required) {
       assert.ok(template.includes(piece), `the template holds ${piece}`)
