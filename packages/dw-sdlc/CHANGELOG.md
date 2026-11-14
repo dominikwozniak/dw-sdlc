@@ -1,5 +1,17 @@
 # dw-sdlc
 
+## 0.21.0
+
+### Minor Changes
+
+- e1963f5: The `markdown-refs` Check judges a URL into the GitHub repository `origin` names, at its default branch: a `github.com/<owner>/<name>/blob|tree/<branch>/` or `raw.githubusercontent.com/<owner>/<name>/<branch>/` URL fails when its path, or its heading anchor, does not resolve in the tree. It reads such a URL inside a code fence too, where a config example's `$schema` lives. The default branch is the one `origin/HEAD` names, else `main`.
+
+### Patch Changes
+
+- 09c1f1c: `pr ship --help` names `details.open`, the read mark no later commit answers, over which the Review reads the whole pull request, and `details.paths`, the files a Review after a merge or a rebase reads.
+- c019a30: `pr ship` keeps a read mark binding across a merge or a rebase. A read mark on the head, or one a merge of the base or a rebase came after with no fix showing in the own changes, is named in `details.open` on the `review` answer. The Review then reads the whole pull request, with no `details.since` or `details.paths`, and no success carries over the mark. The three-Review count also reads the commits under each head a force push left behind, along its first parents, so a read mark with a fix pushed after it, then a rebase, still counts.
+- 2cb342d: `pr ship` keeps a Review's read across a rebase. When the history holds no head a Review read, it takes the newest head a force push left behind that a Review read, from the pull request's timeline. A clean read whose own changes match the head's carries its success. Any other read becomes `details.since`, with `details.paths` naming the files whose own change moved. The read marks on left-behind heads count toward the three-Review limit.
+
 ## 0.20.0
 
 ### Minor Changes
