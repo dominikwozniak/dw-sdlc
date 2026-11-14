@@ -51,7 +51,12 @@ push makes.
   When the answer has `details.paths`, a merge of the base or a rebase came after `<since>`,
   and the Review reads only those files, the ones whose own change moved: `-- <paths>` on each
   `git diff` below, and the paths named to the command at `full`. An empty list leaves nothing to
-  read: a Finding an earlier Review left open stays open, and with none the Review is clean. At
+  read: a Finding an earlier Review left open stays open, and with none the Review is clean.
+  When the answer has `details.open`, the read mark on that head left Findings no later commit
+  answers, and a merge of the base or a rebase came after it. The answer names no `since`: the
+  Review reads the whole pull request from `origin/<base>`, and its Findings stand in for the
+  mark's, unless this conversation holds the mark's own, which `references/review.md` has fixed
+  first. At
   `full`, run the slash command `details.reviewCommand` names, with its arguments, on those
   changes, naming that range to it: `<since>..<head>`. It is the config's
   `pr.reviewCommand`, `/code-review` by default, the review skill of the engineering skills
@@ -79,7 +84,8 @@ push makes.
   `node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" pr reviewed <n> --head <head> --findings` on the
   head it read, the read mark the next Review reads the fix from; then fix each Finding,
   `git push` and call the script again. At `off`, and over a head that only merged the base in
-  since a success, or that a rebase left with the own changes that success read, unless the dev's
+  since a success, or that a rebase left with the own changes that success read, with no read mark
+  open after it, unless the dev's
   `--review` names a depth, the script marks the head reviewed itself, so no `act review` comes.
 
 - `wait`, when the dev invoked the skill: tell the dev the `reason` in one line, start one background

@@ -139,19 +139,14 @@ describe("dw-sdlc pr ship after a rebase left the head a Review read behind", ()
     })
   })
 
-  it("passes over a read mark the rebase left as it read it, and reads from the read before it, carrying none", () => {
+  it("names open a read mark the rebase left as it read it, and reads the whole pull request, carrying none", () => {
     const older: Commit = { oid: OLDER, review: "SUCCESS" }
-    const cases: [string, (Commit | null)[], File[], { since?: string; paths?: string[] }][] = [
-      ["a success before it", [older, { oid: OLD, ...MARK }], [], { since: OLDER, paths: [PAYWALL] }],
-      [
-        "a success on the same own changes before it",
-        [older, { oid: OLD, ...MARK }],
-        [READ_THEN],
-        { since: OLDER, paths: [] }
-      ],
-      ["no read before it", [{ oid: OLD, ...MARK }], [], {}]
+    const cases: [string, (Commit | null)[], File[]][] = [
+      ["a success before it", [older, { oid: OLD, ...MARK }], []],
+      ["a success on the same own changes before it", [older, { oid: OLD, ...MARK }], [READ_THEN]],
+      ["no read before it", [{ oid: OLD, ...MARK }], []]
     ]
-    for (const [name, rewritten, atOlder, since] of cases) {
+    for (const [name, rewritten, atOlder] of cases) {
       const run = ship([], [rebased(rewritten)], {
         ...compared(OLDER, atOlder),
         ...compared(OLD, [READ_THEN]),
@@ -160,9 +155,10 @@ describe("dw-sdlc pr ship after a rebase left the head a Review read behind", ()
       assert.equal(run.status, 10, `${name}: ${run.stderr}`)
       assert.deepEqual(
         answered(run.answer, ["action", "details", "performed"]),
-        { action: "review", details: { ...REVIEW, ...since }, performed: [] },
+        { action: "review", details: { ...REVIEW, open: OLD }, performed: [] },
         name
       )
+      assert.deepEqual(run.calls, [AUTH, READ, compare(OLD), compare(HEAD)], name)
     }
   })
 
@@ -174,6 +170,29 @@ describe("dw-sdlc pr ship after a rebase left the head a Review read behind", ()
     ]
     const pr = rebased(rewritten, { history: [{ oid: REWRITTEN, ...MARK }] })
     const run = ship([], [pr], { ...compared(OLD, [READ_THEN]), ...compared(HEAD, [SHIFTED, ADDED]) })
+    assert.equal(run.status, 30, run.stderr)
+    assert.deepEqual(answered(run.answer, ["action", "reason"]), {
+      action: "review-limit",
+      reason: `3 Reviews since the success on ${OLDER.slice(0, 7)} left a Finding open: accepting the head is the dev's`
+    })
+  })
+
+  it("counts a read mark under a head a force push left behind, as a fix pushed after it leaves it", () => {
+    /** The mark the fix pushed after it hid from the force push's event, which names only the fix. */
+    const FIRST_MARK = "b01dfacec0ffee0ddba11c0de5ca1ab1e0ddba11"
+    const rewritten: Commit[] = [
+      {
+        oid: "d00dfacec0ffee0ddba11c0de5ca1ab1e0ddba11",
+        under: [
+          { oid: FIRST_MARK, ...MARK },
+          { oid: "c0ffee00c0ffee0ddba11c0de5ca1ab1e0ddba11", ...MARK },
+          { oid: OLDER, review: "SUCCESS" },
+          { oid: "a11faceec0ffee0ddba11c0de5ca1ab1e0ddba11", ...MARK }
+        ]
+      }
+    ]
+    const pr = rebased(rewritten, { history: [{ oid: REWRITTEN, ...MARK }] })
+    const run = ship([], [pr], { ...compared(FIRST_MARK, [READ_THEN]), ...compared(HEAD, [SHIFTED, ADDED]) })
     assert.equal(run.status, 30, run.stderr)
     assert.deepEqual(answered(run.answer, ["action", "reason"]), {
       action: "review-limit",
