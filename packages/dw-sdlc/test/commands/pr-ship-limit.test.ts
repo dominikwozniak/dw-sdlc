@@ -182,6 +182,25 @@ describe("dw-sdlc pr ship after three Reviews with no success between them", () 
     assert.deepEqual(answered(run.answer, ["action", "actor"]), { action: "review", actor: "agent" })
   })
 
+  it("counts the read marks of heads an amend left behind on the success, and none left behind before it", () => {
+    const success: Commit = { oid: CLEAN, review: "SUCCESS" }
+    const amended: Commit[] = [FIRST, SECOND, THIRD].map((oid) => ({ oid, ...MARK, under: [success] }))
+    const run = ship([], pushed([success], { rewritten: amended }))
+    assert.equal(run.status, 30, run.stderr)
+    assert.deepEqual(answered(run.answer, ["action", "reason"]), {
+      action: "review-limit",
+      reason: `3 Reviews since the success on ${CLEAN.slice(0, 7)} left a Finding open: accepting the head is the dev's`
+    })
+    const before: Commit = { oid: PUSHED }
+    const history: Commit[] = [before, success, { oid: SECOND, ...MARK }, { oid: THIRD, ...MARK }]
+    const earlier = ship([], pushed(history, { rewritten: [{ oid: FIRST, ...MARK, under: [before] }] }))
+    assert.equal(earlier.status, 10, earlier.stderr)
+    assert.deepEqual(answered(earlier.answer, ["action", "details"]), {
+      action: "review",
+      details: { depth: "full", source: "config", reviewCommand: "/code-review", since: THIRD }
+    })
+  })
+
   it("counts the read mark the head itself carries", () => {
     const run = ship([], pushed(THREE_MARKS.slice(0, -2), { headReview: MARK }))
     assert.equal(run.status, 30, run.stderr)

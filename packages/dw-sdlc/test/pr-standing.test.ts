@@ -231,8 +231,8 @@ describe("the Review's standing at a pull request's head", () => {
 
   it("names open a read mark a rebase left with the own changes as it read them, and carries a clean one", () => {
     const leftBehind: History["leftBehind"] = [
-      { oid: READ, posted: "findings" },
-      { oid: CLEAN, posted: "clean" }
+      { oid: READ, posted: "findings", forksAt: -1 },
+      { oid: CLEAN, posted: "clean", forksAt: -1 }
     ]
     const compares = inMemory({ [READ]: [PAYWALL], [HEAD]: [PAYWALL] })
     const standing = standingOf(upTo([pushed(PUSHED)], { leftBehind }), compares, AWAITS)
@@ -248,6 +248,17 @@ describe("the Review's standing at a pull request's head", () => {
     const same = inMemory({ [CLEAN]: [PAYWALL], [HEAD]: [PAYWALL] })
     const carried = standingOf(upTo([pushed(PUSHED)], { leftBehind: leftBehind.slice(1) }), same, AWAITS)
     assert.deepEqual(reviewCall(carried, FULL), { kind: "carry", from: CLEAN })
+  })
+
+  it("counts the marks posted after the newest success, a line an amend left behind after the commit it was pushed on", () => {
+    const amended: History["leftBehind"] = [
+      { oid: THIRD, posted: "findings", forksAt: 1 },
+      { oid: SECOND, posted: "clean", forksAt: 1 },
+      { oid: READ, posted: "findings", forksAt: 0 }
+    ]
+    const history = upTo([marked(PUSHED), clean(CLEAN)], { leftBehind: amended })
+    const standing = standingOf(history, inMemory(), { awaits: false, sized: false })
+    assert.deepEqual(standing.marks, { count: 1, since: SECOND })
   })
 
   it("asks no compare for a head no Review awaits", () => {

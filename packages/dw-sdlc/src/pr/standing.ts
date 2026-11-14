@@ -16,13 +16,18 @@ const REVIEW_LIMIT = 3
 export type Posted = "clean" | "findings" | "off" | null
 /** A commit of the history and the review status it carries; `merge` when it has more than one parent. */
 export type Commit = { oid: string; posted: Posted; merge: boolean }
+/**
+ * A commit a force push left behind and its review status; `forksAt` the index in the history of the
+ * commit its line was pushed on, as under an amend, -1 when its line holds none, as after a rebase.
+ */
+export type LeftBehind = { oid: string; posted: Posted; forksAt: number }
 
 /** What the standing is read from. */
 export type History = {
   /** The pull request's last 100 commits, oldest first, the head last. */
   commits: Commit[]
   /** The commits the last force pushes left behind, newest push first, none of them among `commits`. */
-  leftBehind: Omit<Commit, "merge">[]
+  leftBehind: LeftBehind[]
   head: string
   /** The commit the base branch points at, the one the own changes are compared with. */
   base: string
@@ -52,7 +57,7 @@ export type LastRead = { commit: string; clean: boolean; baseOnly: boolean; base
 /**
  * The Reviews that left a Finding open since the last review success, a success under off and the dev's
  * acceptance included: `count` their read marks, the head's own among them, and `since` that success's
- * commit, null when none of the last 100 holds one.
+ * commit, null when no commit read holds one.
  */
 export type ReadMarks = { count: number; since: string | null }
 
@@ -65,7 +70,7 @@ export type Standing = {
    * rebase came after with no fix showing. Then `lastRead` is null and nothing carries (ADR 0023).
    */
   open: string | null
-  /** The read marks since the last success, of the history, then of the commits force pushes left behind. */
+  /** The read marks posted since the last success, on the history and on the commits force pushes left behind. */
   marks: ReadMarks
   /** Whether the head carries the success of `lastRead`, which two compares decide. */
   carried: boolean
@@ -168,19 +173,21 @@ function findings(marked: { posted: Posted }[]): number {
 }
 
 /**
- * The read marks since the last success, the history's first; with no success there, the marks on the
- * heads force pushes left behind go on the count, newest first, up to the first success among them.
+ * The commits in the order their review statuses were posted: each line a force push left behind just
+ * after the commit of the history it was pushed on, older pushes first, and a line that holds none of
+ * the history before all of it.
  */
-function readMarksOf({ commits, leftBehind }: History): ReadMarks {
-  const success = commits.findLastIndex(isSuccess)
-  const count = findings(commits.slice(success + 1))
-  const lastSuccess = commits[success]
-  if (lastSuccess !== undefined) {
-    return { count, since: lastSuccess.oid }
-  }
-  const pushedSuccess = leftBehind.findIndex(isSuccess)
-  const sincePushed = pushedSuccess < 0 ? leftBehind : leftBehind.slice(0, pushedSuccess)
-  return { count: count + findings(sincePushed), since: leftBehind[pushedSuccess]?.oid ?? null }
+function inPostedOrder({ commits, leftBehind }: History): { oid: string; posted: Posted }[] {
+  const oldestFirst = leftBehind.toReversed()
+  const pushedOn = (index: number): LeftBehind[] => oldestFirst.filter(({ forksAt }) => forksAt === index)
+  return [...pushedOn(-1), ...commits.flatMap((commit, index) => [commit, ...pushedOn(index)])]
+}
+
+/** The read marks posted after the last success, of the history and of the commits force pushes left behind. */
+function readMarksOf(history: History): ReadMarks {
+  const posted = inPostedOrder(history)
+  const success = posted.findLastIndex(isSuccess)
+  return { count: findings(posted.slice(success + 1)), since: posted[success]?.oid ?? null }
 }
 
 /**

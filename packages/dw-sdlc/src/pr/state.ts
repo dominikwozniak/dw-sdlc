@@ -20,7 +20,7 @@ import {
   time,
   timeOrNull
 } from "./reply.ts"
-import type { Commit, History, Posted, Standing } from "./standing.ts"
+import type { Commit, History, LeftBehind, Posted, Standing } from "./standing.ts"
 
 /** The commit status a clean review of the head leaves on it. */
 export const REVIEW = "dw-sdlc/review"
@@ -255,9 +255,9 @@ function historyOf(pr: Node): Commit[] {
  * The commits a force push left behind: the head, then down its first parents within the history the
  * read holds of it. A merge's first parent is the branch, so the walk stays off the base's side.
  */
-function lineOf(left: Node): History["leftBehind"] {
+function lineOf(left: Node): Omit<LeftBehind, "forksAt">[] {
   const held = new Map(nodes(left, "history").map((commit) => [string(commit, "oid"), commit]))
-  const line: History["leftBehind"] = []
+  const line: Omit<LeftBehind, "forksAt">[] = []
   let commit = held.get(string(left, "oid"))
   while (commit !== undefined && line.length < held.size) {
     line.push({ oid: string(commit, "oid"), posted: postedOn(commit) })
@@ -269,19 +269,21 @@ function lineOf(left: Node): History["leftBehind"] {
 
 /**
  * The commits the force pushes left behind, newest push first, each once and none the history still
- * holds: a line stops where it meets the history, as under an amend, or a newer push's line.
+ * holds: a line stops where it meets the history, as under an amend, or a newer push's line, and forks
+ * where the commit it meets does.
  */
-function leftBehindOf(pr: Node, history: Commit[]): History["leftBehind"] {
-  const seen = new Set(history.map(({ oid }) => oid))
-  const left: History["leftBehind"] = []
+function leftBehindOf(pr: Node, history: Commit[]): LeftBehind[] {
+  const forks = new Map(history.map(({ oid }, index) => [oid, index]))
+  const left: LeftBehind[] = []
   for (const event of nodes(pr, "rewritten").toReversed()) {
     const head = childOrNull(event, "beforeCommit")
-    for (const commit of head === null ? [] : lineOf(head)) {
-      if (seen.has(commit.oid)) {
-        break
-      }
-      seen.add(commit.oid)
-      left.push(commit)
+    const line = head === null ? [] : lineOf(head)
+    const met = line.findIndex(({ oid }) => forks.has(oid))
+    const meets = line[met]
+    const forksAt = meets === undefined ? -1 : (forks.get(meets.oid) ?? -1)
+    for (const commit of meets === undefined ? line : line.slice(0, met)) {
+      forks.set(commit.oid, forksAt)
+      left.push({ ...commit, forksAt })
     }
   }
   return left
