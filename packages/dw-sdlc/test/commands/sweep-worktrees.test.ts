@@ -149,6 +149,25 @@ describe("a worktree that stays", () => {
     assert.equal(run.status, 1)
   })
 
+  it("keeps the Landed branch a rebase paused in a kept worktree holds, with no command", () => {
+    const root = clone()
+    const tree = addTree(root, join(scratch("rebase-landed"), "tree"), "topic")
+    // An interactive rebase whose list is a single break stops at once, its HEAD detached.
+    const rebase = runCommand("git", ["-C", tree, "rebase", "-i", "main"], tree, {
+      GIT_SEQUENCE_EDITOR: `sh -c 'echo break > "$1"' -`
+    })
+    assert.equal(rebase.status, 0, rebase.stderr)
+    const dry = documentOf(runBin(["sweep", "--dry-run", "--json"], root).stdout)
+    assert.deepEqual(namesOf(dry.removed, "branch"), [])
+    const item = dry.kept.find(({ name }) => name === "topic")
+    assert.equal(item?.reason, `a rebase paused in the worktree at ${tree} holds it`)
+    assert.equal(item?.command, null)
+    const run = runBin(["sweep", "--json"], root)
+    assert.deepEqual(documentOf(run.stdout), { ...dry, dryRun: false })
+    assert.ok(branches(root).includes("topic"))
+    assert.equal(run.status, 1)
+  })
+
   it("keeps a worktree at a commit that is not Landed, and removes a detached one at a Landed commit", () => {
     const root = clone()
     const landed = join(scratch("detached"), "landed")

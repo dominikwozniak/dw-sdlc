@@ -2,7 +2,7 @@
 // out, its lock, the files that hold it and the operation paused in it, and the way off the main checkout's;
 // beside them, the commands the dev runs for what the Sweep keeps.
 
-import { existsSync } from "node:fs"
+import { existsSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 
 import { asked, git, must } from "./git.ts"
@@ -111,6 +111,33 @@ const OPERATIONS = [
 export function pausedOperation(path: string): string | undefined {
   const dir = asked(path, ["rev-parse", "--absolute-git-dir"])
   return dir === undefined ? undefined : OPERATIONS.find(([file]) => existsSync(join(dir, file)))?.[1]
+}
+
+/** The branch a rebase paused in the worktree at `path` works on; git lists that worktree as detached. */
+function rebasedBranch(path: string): string | undefined {
+  const dir = asked(path, ["rev-parse", "--absolute-git-dir"])
+  if (dir === undefined) {
+    return undefined
+  }
+  for (const state of ["rebase-merge", "rebase-apply"]) {
+    const file = join(dir, state, "head-name")
+    const name = existsSync(file) ? readFileSync(file, "utf8").trim() : ""
+    if (name.startsWith("refs/heads/")) {
+      return name.slice("refs/heads/".length)
+    }
+  }
+  return undefined
+}
+
+/** The branch git keeps from a delete for the worktree `tree`, and why: checked out there, or a rebase of it paused there. */
+export function heldBranch(tree: Tree): { branch: string; reason: string } | undefined {
+  if (tree.branch !== undefined) {
+    return { branch: tree.branch, reason: `checked out in the worktree at ${tree.path}` }
+  }
+  const branch = rebasedBranch(tree.path)
+  return branch === undefined
+    ? undefined
+    : { branch, reason: `a rebase paused in the worktree at ${tree.path} holds it` }
 }
 
 /** The dev's way off `branch`, checked out in the main checkout at `root`: null until it is Landed and nothing there could be lost. */

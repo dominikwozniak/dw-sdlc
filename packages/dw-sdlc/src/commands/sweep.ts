@@ -25,6 +25,7 @@ import {
 import {
   branchesOf,
   forcedDelete,
+  heldBranch,
   switchOff,
   tipOf,
   type Tree,
@@ -49,7 +50,8 @@ config, else the branch origin/HEAD names) and removes, never forcing:
 It keeps, and names with the reason and the command to run yourself:
   a worktree that fails the set: the files that hold it with the forced removal, the paused operation, the
   lock's reason with git worktree unlock, a live Claude Code lock named by its pid, a HEAD that is not Landed;
-  the default branch, the base branch, a protected branch and a branch a kept worktree has checked out; a
+  the default branch, the base branch, a protected branch and a branch a kept worktree has checked out or a
+  rebase paused there works on; a
   Landed branch the main checkout has checked out, clean and with nothing paused, with git switch to the base;
   a branch whose work is on no commit of the base, with the forced delete.
 It reads each worktree again just before it goes, its Worker stopped: one whose HEAD, branch or lock changed
@@ -162,7 +164,8 @@ type Footing = {
   head: string | undefined
   baseBranch: string
   protectedBranches: string[]
-  held: Map<string, string>
+  /** Each branch a worktree holds: the main checkout's, or one a kept worktree has, with why. */
+  held: Map<string, { path: string; reason: string }>
 }
 
 /** A branch kept for what it is, never the dev's to decide. */
@@ -184,8 +187,8 @@ function stays(
   if (protectedBranches.includes(branch)) {
     return standing("a protected branch")
   }
-  const path = held.get(branch)
-  return path === undefined ? null : { reason: `checked out in the worktree at ${path}`, command: null, dev: true }
+  const hold = held.get(branch)
+  return hold === undefined ? null : { reason: hold.reason, command: null, dev: true }
 }
 
 /** Fetches origin, then sorts each linked worktree, local branch and Worker's terminal into what goes and what stays. */
@@ -215,10 +218,11 @@ function judge(root: string, terminals: Terminals | undefined): Judged {
     return { tree, lock, here, why, workerLock }
   })
   const staying = verdicts.filter(({ why }) => why !== null).map(({ tree }) => tree)
-  const held = new Map<string, string>()
-  for (const { path, branch } of [checkout, ...staying]) {
-    if (branch !== undefined) {
-      held.set(branch, path)
+  const held: Footing["held"] = new Map()
+  for (const tree of [checkout, ...staying]) {
+    const hold = heldBranch(tree)
+    if (hold !== undefined) {
+      held.set(hold.branch, { path: tree.path, reason: hold.reason })
     }
   }
   const footing: Footing = {
@@ -236,7 +240,7 @@ function judge(root: string, terminals: Terminals | undefined): Judged {
     }
     judged.add(name)
     const why = stays(name, footing)
-    const off = why?.dev === true && held.get(name) === checkout.path ? switchOff(root, base, name) : null
+    const off = why?.dev === true && held.get(name)?.path === checkout.path ? switchOff(root, base, name) : null
     if (why !== null) {
       kept.push({ kind: "branch", name, ...why, ...off })
       return
