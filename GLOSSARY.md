@@ -125,11 +125,11 @@ what it must not do, the proof it is done, where it reports, and the model and e
 _Avoid_: prompt, task, handoff (carries the conversation; a Brief points at a source)
 
 **Start line**:
-One shell command the dev pastes into a new terminal to start a Worker or a Lead, its Brief or first message quoted.
+A shell command the dev pastes into a new terminal to start a Worker or a Lead, its Brief or first message quoted.
 _Avoid_: kickoff line, launch command
 
 **Way out**:
-One of the three ways a session that kicks off new work hands its Brief on: a new Lead, an issue, a start line.
+One of the three ways a session kicking off new work hands its Brief on: a new Lead, an issue, a start line.
 _Avoid_: option, exit
 
 **Recap**:
