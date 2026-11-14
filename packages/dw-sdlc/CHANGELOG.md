@@ -1,5 +1,17 @@
 # dw-sdlc
 
+## 0.20.0
+
+### Minor Changes
+
+- 47c6bc7: Inference no longer names a commit convention. A repository whose config sets neither `commit.convention` nor `commit.pattern` resolves with no pattern, so its commit subjects go unchecked, and `dw-sdlc doctor` reports `commit unchecked`.
+
+### Patch Changes
+
+- b5e1dd9: The doctor names `/sdlc-kickoff` among the skills a missing `sdlc-sessions` leaves out.
+- 8acac51: `pr ship --review <depth>` buys one Review past the limit of three, and only one: a fourth Review that leaves a Finding open parks the pull request as `review-limit` under the flag too, which the skill repeats on every later call.
+- c31e29c: `pr ship` keeps the Review of a fix to the pull request's own changes when the base was merged in after the head a Review read: `details.paths` names the files whose own change moved, and `pr.review: auto` routes the depth on those files alone, so a merge of the base no longer routes a small fix to `full`.
+
 ## 0.19.0
 
 ### Minor Changes

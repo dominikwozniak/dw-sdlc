@@ -1,6 +1,6 @@
 {
   "name": "dw-sdlc",
-  "version": "0.19.0",
+  "version": "0.20.0",
   "description": "The Gate and the agentic config behind the sdlc Claude Code plugin: a bin with the Gate and its Checks, the setup, the doctor, the Sync of References, the Ship script that drives a pull request to merged, the Sweep, and Lead and Worker sessions in herdr; the resolver of a repository's .ai/agentic.config.json layers and its JSON Schema.",
   "license": "MIT",
   "repository": {
