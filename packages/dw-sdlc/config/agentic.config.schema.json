@@ -264,7 +264,7 @@
               "additionalProperties": false
             },
             "markdown-refs": {
-              "description": "Every relative link and image in the markdown files resolves: its path to a file or directory git tracks or would track, its heading anchor to a heading of the markdown file it names, and `#anchor` alone to a heading of its own file. A link with a scheme, such as `https:`, and a link inside code are not judged.",
+              "description": "Every relative link and image in the markdown files resolves: its path to a file or directory git tracks or would track, its heading anchor to a heading of the markdown file it names, and `#anchor` alone to a heading of its own file. A URL into the GitHub repository `origin` names, at its default branch (the one `origin/HEAD` names, else `main`), as a `blob`, `tree` or raw file URL, resolves the same way, inside code too. Any other link with a scheme, such as `https:`, and a relative link inside code are not judged.",
               "type": ["boolean", "object"],
               "properties": {
                 "files": {

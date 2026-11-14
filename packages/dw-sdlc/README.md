@@ -65,19 +65,19 @@ line; a `gate.checks.run` entry takes a `hint` beside `name` and `command`.
 Under `gate.checks`, a Check is `true` for its defaults, an object of its options, or `false`. The
 schema's description of each one names its options and defaults.
 
-| Check                | fails                                                                       | reads first               |
-| -------------------- | --------------------------------------------------------------------------- | ------------------------- |
-| `markdown-refs`      | a relative link or image whose path or heading anchor does not resolve      | nothing                   |
-| `temporal-language`  | a changelog phrase in a durable document, outside code                      | nothing                   |
-| `comment-budget`     | a comment block over 3 lines of prose in JS, TS or shell                    | nothing                   |
-| `disable-directives` | a linter or type-checker disable comment with no reason                     | nothing                   |
-| `agents-map`         | an `AGENTS.md` over budget, missing the Gate command or pointing at nothing | `AGENTS.md`               |
-| `primitives`         | a catalogue entry out of step with the tree, or a file no entry owns        | `.ai/primitives.json`     |
-| `routed-docs`        | a document under `docs/` no Task Router row or Primitive leads to           | the map, the catalogue    |
-| `markdown-budget`    | a markdown file over the byte budget of its glob                            | the files its globs match |
-| `decision-records`   | a decision record misnamed, misnumbered or without a valid status           | a records directory       |
-| `file-size-ratchet`  | a code file over its line limit that the baseline does not allow            | its baseline              |
-| `skill-sections`     | a README section a skill copies that differs from its source                | the catalogue             |
+| Check                | fails                                                                          | reads first               |
+| -------------------- | ------------------------------------------------------------------------------ | ------------------------- |
+| `markdown-refs`      | a relative link, image or repository URL whose path or anchor does not resolve | nothing                   |
+| `temporal-language`  | a changelog phrase in a durable document, outside code                         | nothing                   |
+| `comment-budget`     | a comment block over 3 lines of prose in JS, TS or shell                       | nothing                   |
+| `disable-directives` | a linter or type-checker disable comment with no reason                        | nothing                   |
+| `agents-map`         | an `AGENTS.md` over budget, missing the Gate command or pointing at nothing    | `AGENTS.md`               |
+| `primitives`         | a catalogue entry out of step with the tree, or a file no entry owns           | `.ai/primitives.json`     |
+| `routed-docs`        | a document under `docs/` no Task Router row or Primitive leads to              | the map, the catalogue    |
+| `markdown-budget`    | a markdown file over the byte budget of its glob                               | the files its globs match |
+| `decision-records`   | a decision record misnamed, misnumbered or without a valid status              | a records directory       |
+| `file-size-ratchet`  | a code file over its line limit that the baseline does not allow               | its baseline              |
+| `skill-sections`     | a README section a skill copies that differs from its source                   | the catalogue             |
 
 Each Check's options and defaults:
 [its description in the schema](https://github.com/dominikwozniak/dw-sdlc/blob/main/packages/dw-sdlc/config/agentic.config.schema.json).
