@@ -7,6 +7,8 @@ import { closeSync, fstatSync, mkdtempSync, openSync, readSync, rmSync } from "n
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
+import { signalGroup } from "./exec.ts"
+
 export type Status = "pass" | "fail" | "error"
 
 /**
@@ -53,17 +55,8 @@ function release(): void {
 
 /** Sends `signal` to every process of the running command's group. */
 function signalCommand(signal: NodeJS.Signals): void {
-  // A pid of 0 would make the kill reach the Gate's own group.
-  if (running === undefined || running <= 0) {
-    return
-  }
-  try {
-    process.kill(-running, signal)
-  } catch (error) {
-    // ESRCH: no process is left in the group.
-    if (!(error instanceof Error && "code" in error && error.code === "ESRCH")) {
-      throw error
-    }
+  if (running !== undefined) {
+    signalGroup(running, signal)
   }
 }
 

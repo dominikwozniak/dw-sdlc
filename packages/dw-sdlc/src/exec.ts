@@ -31,14 +31,14 @@ function shown(tool: string, args: string[]): string {
   return [tool, ...args].join(" ").replaceAll(/\s+/g, " ").trim().slice(0, SHOWN)
 }
 
-/** Every process left in the group the tool led; the tool itself is stopped and reaped by now. */
-function stopGroup(pid: number): void {
+/** Sends `signal` to every process of the group `pid` leads; nothing when the group is gone. */
+export function signalGroup(pid: number, signal: NodeJS.Signals): void {
   // A pid of 0 would make the kill reach this process's own group.
   if (pid <= 0) {
     return
   }
   try {
-    process.kill(-pid, "SIGKILL")
+    process.kill(-pid, signal)
   } catch (error) {
     // ESRCH: no process is left in the group.
     if (!(error instanceof Error && "code" in error && error.code === "ESRCH")) {
@@ -63,7 +63,8 @@ export function exec(tool: string, args: string[], options: ExecOptions = {}): S
   }
   const result = spawnSync(tool, args, spawnOptions)
   if (result.error !== undefined && "code" in result.error && result.error.code === "ETIMEDOUT") {
-    stopGroup(result.pid)
+    // Every process left in the group the tool led; the tool itself is stopped and reaped by now.
+    signalGroup(result.pid, "SIGKILL")
     throw new TimedOut(`${shown(tool, args)} did not answer within ${limitMs / 1000} s`)
   }
   return result
