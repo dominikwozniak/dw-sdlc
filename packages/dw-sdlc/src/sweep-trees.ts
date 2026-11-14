@@ -7,6 +7,7 @@ import { join } from "node:path"
 
 import { asked, git, must } from "./git.ts"
 import { isLanded } from "./landed.ts"
+import { pausedIn } from "./paused-operation.ts"
 import { shellLine } from "./shell-line.ts"
 
 /** The forced delete of `branch`, the dev's to run. */
@@ -98,19 +99,10 @@ export function whyUnclean(path: string, locked: boolean): { reason: string; com
     : { reason: `modified or untracked: ${files.join(", ")}`, command: forcedRemoval(path, locked) }
 }
 
-const OPERATIONS = [
-  ["rebase-merge", "rebase"],
-  ["rebase-apply", "rebase or am"],
-  ["MERGE_HEAD", "merge"],
-  ["CHERRY_PICK_HEAD", "cherry-pick"],
-  ["REVERT_HEAD", "revert"],
-  ["BISECT_LOG", "bisect"]
-] as const
-
 /** The operation paused in the worktree at `path`: its git dir holds the state git resumes it from. */
 export function pausedOperation(path: string): string | undefined {
   const dir = asked(path, ["rev-parse", "--absolute-git-dir"])
-  return dir === undefined ? undefined : OPERATIONS.find(([file]) => existsSync(join(dir, file)))?.[1]
+  return dir === undefined ? undefined : pausedIn(dir)
 }
 
 /** The branch a rebase paused in the worktree at `path` works on; git lists that worktree as detached. */

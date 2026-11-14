@@ -1,12 +1,10 @@
 // `dw-sdlc recap`: the facts a Recap rests on and whether the session can be closed, read from git and
 // gh. It writes nothing: the Action of the branch's pull request is the Ship script's decision, read.
 
-import { existsSync } from "node:fs"
-import { join } from "node:path"
-
 import { findRepository, mainCheckout, resolveConfig } from "../agentic-config.ts"
 import { CannotRun, readArgs, usageError } from "../cannot-run.ts"
 import { asked, must } from "../git.ts"
+import { pausedIn } from "../paused-operation.ts"
 import { type Answer, decide, declaredPolicy, labelOf, lineOf } from "../pr/decide.ts"
 import { defaultBranch, ghReads, now } from "../pr/read.ts"
 import type { PrState } from "../pr/state.ts"
@@ -115,22 +113,6 @@ function upstreamOf(root: string, branch: string): string | null {
   return ref.startsWith(prefix) && track !== "[gone]" ? ref.slice(prefix.length) : null
 }
 
-/** Git's own record of each paused operation, in the git directory a linked worktree keeps apart. */
-const PAUSES = [
-  { record: "rebase-merge", name: "rebase" },
-  { record: "rebase-apply", name: "rebase or am" },
-  { record: "MERGE_HEAD", name: "merge" },
-  { record: "CHERRY_PICK_HEAD", name: "cherry-pick" },
-  { record: "REVERT_HEAD", name: "revert" },
-  { record: "sequencer", name: "cherry-pick or revert" },
-  { record: "BISECT_LOG", name: "bisect" }
-]
-
-function pausedIn(root: string): string | null {
-  const gitDir = must(root, ["rev-parse", "--absolute-git-dir"])
-  return PAUSES.find(({ record }) => existsSync(join(gitDir, record)))?.name ?? null
-}
-
 function readLocal(root: string): Local {
   const branch = asked(root, ["symbolic-ref", "--quiet", "--short", "HEAD"]) ?? null
   const head = asked(root, ["rev-parse", "--verify", "--quiet", "HEAD"]) ?? null
@@ -144,7 +126,7 @@ function readLocal(root: string): Local {
     uncommitted: status === "" ? 0 : status.split("\n").length,
     upstream,
     unpushed: head === null ? 0 : count(root, pushed),
-    paused: pausedIn(root),
+    paused: pausedIn(must(root, ["rev-parse", "--absolute-git-dir"])) ?? null,
     worktree: { linked: mainCheckout(root) !== undefined, path: root }
   }
 }
