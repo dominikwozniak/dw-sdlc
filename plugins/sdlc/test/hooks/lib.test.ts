@@ -758,8 +758,8 @@ describe("guard_config_load — inference with no file", () => {
   it("root found", () => {
     assert.equal(loaded(r, `printf '%s' "$GUARD_CONFIG_ROOT"`), r)
   })
-  it("conventional under any remote", () => {
-    assert.equal(get(r, ".commit.convention"), "conventional")
+  it("no commit convention under any remote", () => {
+    assert.equal(get(r, ".commit.convention // empty"), "")
   })
   it("the Node package manager from the lockfile, nothing from Ruby files", () => {
     assert.equal(loaded(r, `jq -c .packageManagers <<<"$GUARD_CONFIG"`), '{"node":"pnpm"}')
@@ -770,8 +770,8 @@ describe("guard_config_load — inference with no file", () => {
   it("default guardrails", () => {
     assert.equal(guardrails(r), "lease,git,master main production")
   })
-  it("conventional commit pattern", () => {
-    assert.equal(patternSplits(r, "feat(scope)!: x", "[ABC-12] docs: x"), "yes")
+  it("no commit pattern, so any subject goes unchecked", () => {
+    assert.equal(get(r, ".commit.pattern // empty"), "")
   })
   it("no trailer by default", () => {
     assert.equal(get(r, ".commit.trailer // empty"), "")
@@ -792,8 +792,8 @@ describe("guard_config_load — inference with no file", () => {
 
   const plain = join(TMP, "plain")
   mkdirSync(plain)
-  it("outside git: conventional", () => {
-    assert.equal(get(plain, ".commit.convention"), "conventional")
+  it("outside git: no commit convention", () => {
+    assert.equal(get(plain, ".commit.convention // empty"), "")
   })
 
   const lockfiles: [string, string][] = [
@@ -831,8 +831,9 @@ describe("guard_config_load — the committed file", () => {
   it("commit merged", () => {
     assert.equal(get(r, ".commit.trailer"), "Co-Authored-By")
   })
-  it("convention still inferred", () => {
-    assert.equal(get(r, ".commit.convention"), "conventional")
+  it("no convention, no pattern, when the file names neither", () => {
+    assert.equal(get(r, ".commit.convention // empty"), "")
+    assert.equal(get(r, ".commit.pattern // empty"), "")
   })
   it("no problems", () => {
     assert.equal(problems(r), "")

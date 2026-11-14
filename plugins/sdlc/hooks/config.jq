@@ -44,7 +44,7 @@ def defaults($inferred): {
     envFiles: {policy: "git", allow: ["**/.env.example", "**/.env.sample", "**/.env.template"], deny: []},
     protectedBranches: ["master", "main", "production"]
   },
-  commit: {convention: $inferred.commit.convention},
+  commit: {},
   gate: ({steps: [], drift: "fail", checks: {run: []}} + ($inferred.gate // {})),
   pr: {merge: "ask", review: "auto", reviewCommand: "/code-review"},
   worker: {command: "claude", model: "sonnet", effort: "high"},
@@ -113,8 +113,9 @@ def pr_loosenings($base; $local):
     | _problem("pr.\($key)";
         "\($local[$key] | tojson) loosens \($base[$key] | tojson); the local file may tighten pr.\($key), never loosen it")];
 
-# commit.pattern from the convention's preset when no layer set one; a set pattern wins.
-def finalize: .commit.pattern //= commit_patterns[.commit.convention];
+# commit.pattern from the convention's preset when no layer set one; a set pattern wins. Neither set,
+# no pattern: the subject goes unchecked.
+def finalize: if .commit.convention != null then .commit.pattern //= commit_patterns[.commit.convention] else . end;
 
 # resolve($inferred; $committed; $local) — {config, problems}, the problems the local loosenings; a
 # layer is null when absent or invalid. On any problem the caller runs `on_strictest`.

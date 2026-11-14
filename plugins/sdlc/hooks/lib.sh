@@ -418,8 +418,8 @@ guard_config_get() {
   jq -r "$1 // empty" <<<"$GUARD_CONFIG"
 }
 
-# guard_config_infer <root> — the bottom layer on stdout: the conventional commit preset, the Node
-# package manager from the lockfile, and the Gate command from the manifest's `check` script.
+# guard_config_infer <root> — the bottom layer on stdout: the Node package manager from the lockfile
+# and the Gate command from the manifest's `check` script. No commit convention: only a file sets one.
 guard_config_infer() {
   local root="$1" node="" manifest=(--arg manifest "")
   if [[ -f "$root/pnpm-lock.yaml" ]]; then
@@ -434,10 +434,7 @@ guard_config_infer() {
   [[ -f "$root/package.json" ]] && manifest=(--rawfile manifest "$root/package.json")
   jq -cn --arg node "$node" "${manifest[@]}" '
     (try ($manifest | fromjson | .scripts.check) catch null) as $check
-    | {
-        commit: {convention: "conventional"},
-        packageManagers: (if $node != "" then {node: $node} else {} end)
-      }
+    | {packageManagers: (if $node != "" then {node: $node} else {} end)}
     + if ($check | type) == "string" then {gate: {command: "pnpm check"}} else {} end'
 }
 

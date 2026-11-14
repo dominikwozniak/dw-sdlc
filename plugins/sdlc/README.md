@@ -229,8 +229,8 @@ with 'pnpm exec vitest > <file> 2>&1' and read the file.
 
 `enforce-commit-hygiene.sh`. On an agent's `git commit` and `git add`:
 
-- the subject must match `commit.pattern`, or the preset `commit.convention` names (`conventional` by
-  default, or `ticket-key`); the message is read from `-m` and from a heredoc handed to git;
+- the subject must match `commit.pattern`, or the preset `commit.convention` names (`conventional` or
+  `ticket-key`), when a file sets either; with neither, the subject goes unchecked; the message is read from `-m` and from a heredoc handed to git;
 - the message must carry `commit.trailer` when one is declared; a `--trailer` counts;
 - a live backtick in `-m` or an unquoted heredoc is refused, since the shell runs it;
 - `git add` of the whole tree is refused: `-A` or `--all` with no path, `.`, `*`, `:/`, `$PWD`.
@@ -580,7 +580,7 @@ to loosest.
 | `guardrails.envFiles`                 | policy `git`, the example files allowed | the env guard, the setup's deny rules                      |
 | `guardrails.filteredOutput`           | `deny`                                  | the filtered-output guard                                  |
 | `packageManagers.node`                | from the lockfile                       | the package-manager guard, the setup                       |
-| `commit.convention`, `commit.pattern` | `conventional`                          | the commit guard, the Commit hook, `/sdlc-pr-open`'s title |
+| `commit.convention`, `commit.pattern` | none, the subject unchecked             | the commit guard, the Commit hook, `/sdlc-pr-open`'s title |
 | `commit.trailer`                      | none                                    | the commit guard                                           |
 | `baseBranch`                          | `auto`, the branch `origin/HEAD` names  | the branch-delete guard, the Sweep                         |
 | `gate.*`                              | `gate.command` from the `check` script  | the Gate, the filtered-output guard, the setup             |

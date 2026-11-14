@@ -239,8 +239,8 @@ function localConfig(
   if (worker !== undefined) {
     config.worker = worker
   }
-  // Only one asked for, by `--convention` or the file's pin: inference always gives `conventional`, and
-  // pinning it here would override a convention the repository commits later.
+  // Only one asked for, by `--convention` or the file's pin: pinning one here would override a
+  // convention the repository commits later.
   if (convention !== undefined) {
     config.commit = { convention }
   }

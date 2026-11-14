@@ -49,8 +49,8 @@ _Avoid_: parser
 One source of a repository's agent rules: inferred, committed or local, each winning over the one before.
 
 **Inferred layer**:
-The values read from the repository itself when no file sets them: the package manager from the lockfile,
-the conventional commit convention, and the Gate command from the manifest's `check` script.
+The values read from the repository itself when no file sets them: the package manager from the lockfile
+and the Gate command from the manifest's `check` script. It never names a commit convention.
 
 **Strictest set**:
 The fixed guardrails in force while any layer is invalid: every force push, every env file and every

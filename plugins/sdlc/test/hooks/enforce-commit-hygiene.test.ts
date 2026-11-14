@@ -86,7 +86,7 @@ describe("wrappers and other repositories resolve to the same commit", () => {
   blocked("rtk-wrapper", 'rtk git commit -m "nope, no type prefix"')
   blocked("rtk-proxy-wrapper", 'rtk proxy git commit -m "nope, no type prefix"')
   blocked("sudo-wrapper", 'sudo git commit -m "nope, no type prefix"')
-  blocked("dash-C-other-repo", 'git -C ../other commit -m "nope, no type prefix"')
+  blocked("dash-C-other-repo", 'git -C ../conventional commit -m "nope, no type prefix"')
   blocked("after-chain", 'pnpm test && git commit -m "nope, no type prefix"')
   blocked("second-of-two-commits", `git commit -m "${GOOD_MSG}" && git commit -m "nope"`)
   blocked("subshell-commit", '(git commit -m "nope, no type prefix")')
@@ -254,17 +254,18 @@ describe("a literal cd or git -C moves a commit to that repository's config", ()
   blocked("cd-to-a-missing-directory", 'cd /nonexistent/x; git commit -m "[ABC-1] fix: x"')
 })
 
-describe("with no convention set, Conventional Commits under any remote", () => {
-  allowed("conventional-good", 'git commit -m "fix(hook): a thing"', OTHER)
-  blocked("conventional-no-type", 'git commit -m "a thing with no type prefix"', OTHER)
-  blocked("conventional-ticket-style", 'git commit -m "[ABC-12] docs: x"', OTHER)
-  allowed("org-remote-conventional", 'git commit -m "fix(hook): a thing"', ORG)
-  blocked("org-remote-ticket-style", 'git commit -m "[ABC-12] docs: x"', ORG)
+describe("with no convention set, any subject under any remote", () => {
+  allowed("unset-conventional", 'git commit -m "fix(hook): a thing"', OTHER)
+  allowed("unset-no-type", 'git commit -m "whatever"', OTHER)
+  allowed("unset-ticket-style", 'git commit -m "[VER-1] feat: x"', OTHER)
+  allowed("org-remote-ticket-style", 'git commit -m "[ABC-12] docs: x"', ORG)
+  blocked("unset-still-catches-add-A", "git add -A", OTHER)
 })
 
-describe("commit.convention conventional names the default outright", () => {
+describe("commit.convention conventional refuses any other shape", () => {
   allowed("convention-set-good", 'git commit -m "fix(hook): a thing"', CONVENTIONAL)
-  blocked("convention-set-ticket", 'git commit -m "[ABC-12] docs: x"', CONVENTIONAL)
+  blocked("convention-set-ticket", 'git commit -m "[VER-1] feat: x"', CONVENTIONAL)
+  blocked("convention-set-no-type", 'git commit -m "whatever"', CONVENTIONAL)
 })
 
 describe("commit.pattern .+ accepts any subject, the other checks stay", () => {
@@ -273,7 +274,7 @@ describe("commit.pattern .+ accepts any subject, the other checks stay", () => {
   blocked("any-still-catches-add-A", "git add -A", ANY)
 })
 
-describe("outside a repository the inferred defaults apply", () => {
+describe("outside a repository no convention applies", () => {
   allowed("plain-conventional", 'git commit -m "fix(hook): a thing"', PLAIN)
-  blocked("plain-no-type", 'git commit -m "a thing with no type prefix"', PLAIN)
+  allowed("plain-no-type", 'git commit -m "a thing with no type prefix"', PLAIN)
 })

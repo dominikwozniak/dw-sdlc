@@ -108,7 +108,8 @@ The rules live in the repository, not in the plugin. Three layers set them, the 
 | committed | `.ai/agentic.config.json`                        | the repository                |
 | inferred  | none                                             | the guards, from the checkout |
 
-- A key no file sets is inferred: pnpm from the lockfile, the `conventional` commit convention.
+- A key no file sets is inferred: pnpm from the lockfile. No commit convention is inferred: with none
+  set, a commit subject goes unchecked.
 - The local layer may tighten `guardrails`, `pr.merge` and `pr.review`. It never loosens them.
 - `pr.reviewCommand` and `worker` have no strictness order, so any layer sets them.
 - A linked worktree with no layer of its own reads the main checkout's.
