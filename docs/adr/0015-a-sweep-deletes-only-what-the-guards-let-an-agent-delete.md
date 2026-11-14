@@ -31,5 +31,5 @@ nothing to lose, and a live lock or another session's terminal keeps it off work
 A branch goes with `git branch -D`, the one delete the guard lets an agent make, and `-D` takes no
 expected tip. The Sweep reads the tip right before the delete and deletes only a branch still at the
 commit it judged Landed, which leaves a window of one git call. A commit made to the branch inside that
-window is lost from the branch, though the reflog keeps it. `git update-ref -d`, which names the tip it
+window is lost from the branch, which no longer exists to hold it. `git update-ref -d`, which names the tip it
 expects, closes the window, and the guard refuses it. The Sweep does not use what the guard refuses.
