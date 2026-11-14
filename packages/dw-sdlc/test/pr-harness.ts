@@ -143,6 +143,11 @@ export type Pr = {
   headParents?: number
   /** The review status of the head's own commit node, as `history` gives a commit's; none when left out. */
   headReview?: Pick<Commit, "review" | "described">
+  /**
+   * The heads force pushes left behind, oldest first, as the timeline lists their events: null an event
+   * whose commit GitHub no longer has. None when left out.
+   */
+  rewritten?: (Commit | null)[]
 }
 
 /**
@@ -212,11 +217,20 @@ function threadOf(thread: Thread): object {
   }
 }
 
-/** A commit node of the history the reply carries: no status, a status without the review, or the review's state. */
-function commitOf({ oid, review, described = "a clean review of this head", parents = 1 }: Commit): object {
+/** A commit's status node: none, a status without the review, or the review's state. */
+function statusOf({ review, described = "a clean review of this head" }: Commit): object | null {
   const context = review === null || review === undefined ? null : { state: review, description: described }
-  const status = review === undefined ? null : { context }
-  return { commit: { oid, parents: { totalCount: parents }, status } }
+  return review === undefined ? null : { context }
+}
+
+/** A commit node of the history the reply carries. */
+function commitOf(commit: Commit): object {
+  return { commit: { oid: commit.oid, parents: { totalCount: commit.parents ?? 1 }, status: statusOf(commit) } }
+}
+
+/** A force push's event as the timeline lists it: the head it left behind, with that head's status. */
+function forcePushOf(commit: Commit | null): object {
+  return { beforeCommit: commit === null ? null : { oid: commit.oid, status: statusOf(commit) } }
 }
 
 /** The `pullRequest` node of the reply, an object a test may break before serving it. */
@@ -252,7 +266,8 @@ export function pullRequestOf(pr: Pr): Record<string, unknown> {
       }))
     },
     commits: { nodes: [{ commit: { committedDate: pr.committedAt, statusCheckRollup: rollup } }] },
-    history: { nodes: [...pr.history, { oid: pr.head, parents: pr.headParents ?? 1, ...pr.headReview }].map(commitOf) }
+    history: { nodes: [...pr.history, { oid: pr.head, parents: pr.headParents ?? 1, ...pr.headReview }].map(commitOf) },
+    rewritten: { nodes: (pr.rewritten ?? []).map(forcePushOf) }
   }
 }
 

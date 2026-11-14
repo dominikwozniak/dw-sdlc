@@ -137,6 +137,13 @@ describe("the sdlc plugin", () => {
     assert.match(text, /An\s+empty\s+list\s+leaves\s+nothing\s+to\s+read/)
   })
 
+  it("has sdlc-pr-ship fetch a <since> a rebase left behind and diff it with two dots", () => {
+    const text = readFileSync(join(PLUGIN_ROOT, "skills", "sdlc-pr-ship", "SKILL.md"), "utf8")
+    assert.match(text, /`git\s+fetch\s+origin\s+<since>`\s+when\s+the\s+checkout\s+lacks\s+it/)
+    assert.match(text, /two\s+dots,\s+`<since>\.\.<head>`,\s+on\s+each\s+`git\s+diff`/)
+    assert.match(text, /a\s+merge\s+of\s+the\s+base\s+or\s+a\s+rebase\s+came\s+after\s+`<since>`/)
+  })
+
   it("lets the model reach sdlc-pr-open, its description triggering on opening a pull request and on its body", () => {
     const frontmatter = skillFrontmatter(SELF_STARTED_SKILL)
     assert.doesNotMatch(frontmatter, /^disable-model-invocation:/m)

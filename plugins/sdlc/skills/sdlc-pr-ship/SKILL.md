@@ -45,7 +45,10 @@ push makes.
   saying why in one line; never lower one. A depth the dev or the config set stands: when you think
   it wrong, say so in one line and review at it. The Review reads the changes since `<since>`:
   `details.since`, the last head a Review read, clean or not, when the answer has it, else
-  `origin/<base>`. When the answer has `details.paths`, a merge of the base came after `<since>`,
+  `origin/<base>`. After a rebase `<since>` is a head the branch left behind:
+  `git fetch origin <since>` when the checkout lacks it, and two dots, `<since>..<head>`, on each
+  `git diff` below.
+  When the answer has `details.paths`, a merge of the base or a rebase came after `<since>`,
   and the Review reads only those files, the ones whose own change moved: `-- <paths>` on each
   `git diff` below, and the paths named to the command at `full`. An empty list leaves nothing to
   read: a Finding an earlier Review left open stays open, and with none the Review is clean. At
@@ -76,8 +79,8 @@ push makes.
   `node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" pr reviewed <n> --head <head> --findings` on the
   head it read, the read mark the next Review reads the fix from; then fix each Finding,
   `git push` and call the script again. At `off`, and over a head that only merged the base in
-  since a success unless the dev's `--review` names a depth, the script marks the head reviewed
-  itself, so no `act review` comes.
+  since a success, or that a rebase left with the own changes that success read, unless the dev's
+  `--review` names a depth, the script marks the head reviewed itself, so no `act review` comes.
 
 - `wait`, when the dev invoked the skill: tell the dev the `reason` in one line, start one background
   wait with the Bash tool's `run_in_background`, and end the turn; its exit wakes the session, and
