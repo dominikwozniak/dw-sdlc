@@ -219,6 +219,21 @@ describe("the sdlc plugin", () => {
     assert.match(text, /at\s+`full`,\s+each\s+scope-creep\s+item\s+`code-review`\s+reports/)
   })
 
+  it("has sdlc-pr-ship wait in the background on the dev's run, the script the only loop, and name no Next for a wait", () => {
+    const text = readFileSync(join(PLUGIN_ROOT, "skills", "sdlc-pr-ship", "SKILL.md"), "utf8")
+    assert.match(text, /`wait`,\s+when\s+the\s+dev\s+invoked\s+the\s+skill/)
+    assert.match(text, /`run_in_background`/)
+    assert.match(text, /`gh\s+pr\s+checks\s+<n>\s+--watch\s+--fail-fast`/)
+    assert.match(text, /`sleep\s+<recheckAfter>`/)
+    assert.match(text, /The\s+script\s+is\s+the\s+only\s+loop/)
+    assert.match(
+      text,
+      /Under\s+`\/loop`,\s+run\s+from\s+a\s+Brief,\s+or\s+called\s+by\s+another\s+skill,\s+start\s+no\s+wait/
+    )
+    const answer = text.slice(text.lastIndexOf("## The answer"))
+    assert.doesNotMatch(answer, /- `wait`:/, "a dev's run never stops at a wait")
+  })
+
   it("ends each skill in The answer, with a closed Next list and the rule for when no line is written", () => {
     for (const name of SKILLS) {
       const text = readFileSync(join(PLUGIN_ROOT, "skills", name, "SKILL.md"), "utf8")

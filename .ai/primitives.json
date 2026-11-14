@@ -432,7 +432,7 @@
       "id": "skills.pr-ship",
       "name": "sdlc-pr-ship",
       "group": "skills",
-      "summary": "Calls the Ship script and does the agent's Action until a wait, a park or done; the dev or a Worker's Brief starts it.",
+      "summary": "Runs the Ship script and the agent's Action, waiting in the background, to a park or done; the dev or a Brief starts it.",
       "code": ["plugins/sdlc/skills/sdlc-pr-ship/SKILL.md"],
       "docs": [
         "plugins/sdlc/README.md#shipping-a-pull-request",
