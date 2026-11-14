@@ -46,8 +46,8 @@ BUN_OWN=' build bun outdated audit info why publish whoami list pm repl upgrade 
 BUN_OPT='-([^[:space:];&|()<>"'"'"']|"[^"]*"|'"'"'[^'"'"']*'"'"')*'
 BUN_LEAD="([[:space:]]+(${BUN_OPT}|${NPM_REDIRECT}))*"
 BUN_FIRST="${GUARD_BOUNDARY}bun${BUN_LEAD}[[:space:]]+[^-[:space:];&|()<>][^[:space:];&|()<>]*"
-# `-e`, `--eval`, `-p` and `--print` run their code, alone or after a short flag that takes no value.
-BUN_EVAL="${GUARD_BOUNDARY}bun${BUN_LEAD}"'[[:space:]]+(--(eval|print)([=[:space:];&|()<>]|$)|-[bhv]*[ep])'
+# `-e`, `--eval`, `-p` and `--print` run their code, alone, after a short flag that takes no value, or `repl`.
+BUN_EVAL="${GUARD_BOUNDARY}bun${BUN_LEAD}([[:space:]]+repl${BUN_LEAD})?"'[[:space:]]+(--(eval|print)([=[:space:];&|()<>]|$)|-[bhv]*[ep])'
 
 # bun_runs <text> — 0 when a bun command of the text runs code, or leads with a word not on BUN_OWN once
 # its quotes are off.
