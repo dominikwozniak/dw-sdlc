@@ -58,7 +58,10 @@ file outside lockfiles with no patch, full; the rest light. After a push it name
 the last commit a Review read under details.since, where the Review reads from and auto routes from:
 one with a ${REVIEW} success not posted under off, or the read mark pr reviewed --findings
 posts. It carries a success over a head whose only commits since are merges of the base, unless
---review names a depth for the call; a read mark never carries.
+--review names a depth for the call; a read mark never carries. A read mark no later commit answers,
+on the head or before only merges or a rebase, is named under details.open: the Review then reads
+the whole pull request, and nothing carries over it. After a merge or a rebase, details.paths names
+the files whose own change moved, the only ones the Review reads.
 Each Action the call runs is listed under performed. Its ok says whether the read after it shows the
 Action took effect, whatever gh's exit status; gh's exit status and stderr stand beside it, so an ok
 false with exit 0 is an Action gh accepted that the read does not show yet. An update counts when
