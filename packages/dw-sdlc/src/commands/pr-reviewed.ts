@@ -4,7 +4,7 @@
 
 import { CannotRun, readArgs, usageError } from "../cannot-run.ts"
 import { REVIEW, REVIEW_STATE, reviewStatusArgs } from "../pr/decide.ts"
-import { gh, ghReads, namedProblem, said } from "../pr/read.ts"
+import { gh, namedProblem, pullRequestNamed, said } from "../pr/read.ts"
 import { ACCEPTED, MARK_STATE, READ_MARK } from "../pr/state.ts"
 
 export const summary = "pin a Review to the head it read, as a commit status"
@@ -85,7 +85,7 @@ function parseCli(argv: string[]): Cli | { help: true } {
 
 /** Posts the review status on `head` once the read shows it is still the pull request's head. */
 function post({ number, repo, head, status }: Cli): void {
-  const pr = ghReads(false).named({ number, repo }, "pr reviewed")
+  const pr = pullRequestNamed({ number, repo }, "pr reviewed")
   if (pr.head !== head) {
     throw new CannotRun(
       `${pr.repo}#${number}: the head is ${pr.head}, not ${head}: a push landed since the review`,

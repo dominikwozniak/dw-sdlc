@@ -7,7 +7,7 @@ import { type Called, firstLine, need } from "../exec.ts"
 import { behindOf, changedOf, changesOf, compareArgs } from "./delta.ts"
 import { ReplyError } from "./reply.ts"
 import { type Compares, standingOf } from "./standing.ts"
-import { awaitsReview, parseDefaultBranch, parsePr, parseView, type PrState, QUERY } from "./state.ts"
+import { awaitsReview, parseDefaultBranch, parsePr, parseView, type PrState, type PullRequest, QUERY } from "./state.ts"
 import { holds, renamedUpstream } from "./upstream.ts"
 
 /** The pull request a command line names; what it leaves out, `gh pr view` resolves. */
@@ -161,6 +161,13 @@ function ghCompares(target: Target): GhCompares {
       parseOrCannotRun(() => changedOf(replyOf(from, head, `the compare of ${short(from)}...${short(head)}`))),
     behind: (base, head) => parseOrCannotRun(() => behindOf(replyOf(base, head, `the compare with ${short(base)}`)))
   }
+}
+
+/** The pull request `named` from the one GraphQL request alone, without the compares the Review's standing reads. */
+export function pullRequestNamed(named: Named, command: string): PullRequest {
+  requireAuth()
+  const target = targetOf(named, command)
+  return parseOrCannotRun(() => parsePr(graphql(target), target.repo)).pr
 }
 
 /** The reads of pull requests one command makes through gh, each one's compares kept for the reads' life. */

@@ -17,3 +17,5 @@
 `pr ship --help` names the three-Review limit: `review-limit` parks at every depth, `pr.review: off` included, and only the dev's `--review off` posts past it.
 
 `pr ship` names a read mark in `details.open` when commits of the branch's own came after it with no change since, as an empty commit that runs CI again, so a fresh session reads the whole pull request instead of an empty diff and never posts a success over the mark's Findings. A push after a read mark now reads one compare, the changes since the mark.
+
+`pr reviewed` reads the pull request without the compares a Review's standing needs, so a compare GitHub refuses, as a 502 on a large diff, no longer stops it posting the status.

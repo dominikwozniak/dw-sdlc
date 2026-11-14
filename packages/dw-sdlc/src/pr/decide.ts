@@ -130,7 +130,11 @@ function listed({ id, path, line, author, body }: Thread): Record<string, unknow
  * `description` saying how it was read. The path names the repository, so the call reads the same from
  * any checkout.
  */
-export function reviewStatusArgs(pr: PrState, description: string, state: string = REVIEW_STATE): string[] {
+export function reviewStatusArgs(
+  pr: Pick<PrState, "url" | "repo" | "head">,
+  description: string,
+  state: string = REVIEW_STATE
+): string[] {
   const fields = { state, context: REVIEW, target_url: pr.url, description }
   const flags = Object.entries(fields).flatMap(([key, value]) => ["-f", `${key}=${value}`])
   return ["api", `repos/${pr.repo}/statuses/${pr.head}`, "--method", "POST", "--silent", ...flags]
