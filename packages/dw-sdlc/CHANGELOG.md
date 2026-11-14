@@ -1,5 +1,11 @@
 # dw-sdlc
 
+## 0.21.2
+
+### Patch Changes
+
+- 4c281e2: `pr ship --help` names the second case of exit 2: GitHub refuses the compare it reads after a read mark, which decides whether the mark's Findings still stand.
+
 ## 0.21.1
 
 ### Patch Changes
