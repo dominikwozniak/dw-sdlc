@@ -88,10 +88,12 @@ message is most often written. It uses the same readers, in another order:
    and a delimiter tagged with its body's index, `HD__HD0`, so a `-m "$(cat <<'EOF' …)"` names its
    own body.
 2. `guard_top_level`, in `hooks/lib-text.sh`, cuts the text at each `;`, `&`, `|`, `(`, `)` and
-   newline of its top level. A quote, a substitution and a comment stay whole in their command; the
-   commit guard reads each `$(…)` or backtick span the words mark as a command of its own, so only a
-   commit inside another shell is out of its reach.
-3. `guard_split_words` splits each command into words, with their live marks.
+   newline of its top level. A quote, a substitution and a comment stay whole in their command.
+3. Each `$(…)` or backtick span the quote walker opens in a command, an `oU` or `oB` piece, is read
+   as a command of its own, just before it. So is each span of an unquoted heredoc body the command
+   opens, as `guard_heredoc_substitutions` cuts it from the body's lines, one body read once. A
+   commit another shell or `eval` reads from a quote or a heredoc is out of the guard's reach.
+4. `guard_split_words` splits each command into words, with their live marks.
 
 ## The quote walker
 

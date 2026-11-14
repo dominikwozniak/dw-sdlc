@@ -107,6 +107,28 @@ describe("a substitution runs its commands before the command holding it, and ea
   blocked("a cd inside a substitution ends with it", `x=$(cd ${TICKETS}); git commit -m "[ABC-1] fix: x"`)
 })
 
+describe("an unquoted heredoc body runs its substitutions, and each is judged", () => {
+  blocked("commit in a body", "cat <<EOF\n$(git commit -m bad)\nEOF")
+  blocked("commit in a backtick of a body", "cat <<EOF\n`git commit -m bad`\nEOF")
+  blocked("commit after text on a line of a body", "cat > notes.md <<EOF\nsee $(git commit -m bad) here\nEOF")
+  blocked("commit in a <<- body", "cat <<-EOF\n\t$(git commit -m bad)\n\tEOF")
+  blocked("add -A in a body", "cat > notes.md <<EOF\n$(git add -A)\nEOF")
+  blocked("commit in the body a -F - message reads", `git commit -F - <<EOF\n${GOOD_MSG}\n$(git commit -m bad)\nEOF`)
+  blocked(
+    "commit in the body of a -m heredoc substitution",
+    `git commit -m "$(cat <<EOF\n${GOOD_MSG}\n$(git commit -m bad)\nEOF\n)"`
+  )
+  allowed("a quoted body runs nothing", "cat <<'EOF'\n$(git commit -m bad)\nEOF")
+  allowed("a body quoted by a backslash runs nothing", "cat <<\\EOF\n$(git commit -m bad)\nEOF")
+  allowed("a good commit in a body", `cat <<EOF\n$(git commit -m "${GOOD_MSG}")\nEOF`)
+  allowed("a git read in a body commits nothing", "cat <<EOF\n$(git log -1 --format=%s)\nEOF")
+  allowed(
+    "a cd before the heredoc moves its commit",
+    `cd ${TICKETS} && cat <<EOF\n$(git commit -m "[ABC-1] fix: x")\nEOF`
+  )
+  blocked("the moved commit is judged there", `cd ${TICKETS} && cat <<EOF\n$(git commit -m "fix: x")\nEOF`)
+})
+
 describe("a newline ends a command, as bash reads it", () => {
   allowed("a -m on the line after git commit is a command of its own", "git commit\n-m bad")
   blocked("a backslash-newline goes on with the commit", "git commit \\\n-m bad")

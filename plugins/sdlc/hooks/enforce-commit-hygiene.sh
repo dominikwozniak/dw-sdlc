@@ -37,10 +37,25 @@ policies() {
 TOKENS=()
 TOKEN_LIVE=()
 
+# heredoc_substitutions <index> — HD_SUBS, the `$(…)` and backtick spans that unquoted body runs, as
+# typed, each line of one kept, blank ones included.
+HD_SUBS=""
+heredoc_substitutions() {
+  local line state=H
+  HD_SUBS=""
+  while IFS= read -r line; do
+    guard_heredoc_substitutions "$line" "$state"
+    [[ "$state" != H || -n "$GUARD_HD_SUBS" ]] && HD_SUBS+="$GUARD_HD_SUBS"$'\n'
+    state="$GUARD_QW_STATE"
+  done <<<"${GUARD_HD_BODIES[$1]}"
+}
+
 # read_commands <text> — the commands of the text onto TOKENS. The shell runs each `$(…)` and backtick
-# span in a subshell before the command that holds it, so its body goes first, between `(` and `)`.
+# span in a subshell before the command that holds it, so its body goes first, between `(` and `)`, and
+# so do the spans of an unquoted heredoc body the command opens, each body read once.
+HD_READ=" "
 read_commands() {
-  local top i kind level body
+  local top i kind level body rest index
   local -a tops bodies
   guard_top_level "$1"
   tops=("${GUARD_TOP[@]}")
@@ -71,6 +86,15 @@ read_commands() {
         fi
       done
     fi
+    rest=$top
+    while [[ "$rest" =~ HD__HD([0-9]+) ]]; do
+      index=${BASH_REMATCH[1]}
+      rest=${rest#*HD__HD"$index"}
+      [[ "${GUARD_HD_LITERAL[index]:-1}" == 0 && "$HD_READ" != *" $index "* ]] || continue
+      HD_READ+="$index "
+      heredoc_substitutions "$index"
+      [[ -n "$HD_SUBS" ]] && bodies+=("$HD_SUBS")
+    done
     for body in "${bodies[@]+"${bodies[@]}"}"; do
       TOKENS+=("(")
       TOKEN_LIVE+=("")
