@@ -16,6 +16,11 @@ writeJson(join(CONFIGURED, ".ai", "agentic.config.json"), {
     checks: { run: [{ name: "docs", command: "node scripts/docs-check.js" }] }
   }
 })
+// Steps written with a package manager's `run` verb and without it.
+const RUN_SPELLED = initRepo(join(TMP, "run-spelled"))
+writeJson(join(RUN_SPELLED, ".ai", "agentic.config.json"), {
+  gate: { steps: ["pnpm run lint", "npm test", "yarn run typecheck"] }
+})
 const BARE = initRepo(join(TMP, "bare"))
 const OPTED_OUT = initRepo(join(TMP, "opted-out"))
 writeJson(join(OPTED_OUT, ".ai", "agentic.config.json"), {
@@ -49,6 +54,21 @@ describe("a check command of the config piped into each filter is refused", () =
     blocked(`a gate.checks.run command into ${filter}`, `node scripts/docs-check.js | ${filter} x`)
   }
   blocked("a config command with arguments", "pnpm check --fix | tail -20")
+})
+
+describe("a package manager's run verb runs the script its bare name runs", () => {
+  blocked("pnpm run of gate.command", "pnpm run check | tail -5")
+  blocked("pnpm run of a Step", "pnpm run lint:all 2>&1 | tail")
+  allowed("pnpm run behind an option is matched as written", "pnpm -r run check | tail")
+  blocked("the bare name of a Step written with run", "pnpm lint | tail", RUN_SPELLED)
+  blocked("pnpm run of a Step written with run", "pnpm run lint | tail", RUN_SPELLED)
+  blocked("npm run of a Step written bare", "npm run test | tail", RUN_SPELLED)
+  blocked("yarn's bare name of a Step written with run", "yarn typecheck | grep error", RUN_SPELLED)
+  allowed("pnpm run of a script no check names", "pnpm run build | tail")
+  allowed("pnpm run of a script no check names, with a config spelled run", "pnpm run build | tail", RUN_SPELLED)
+  it("names the command as typed", () => {
+    assert.match(run("pnpm run check | tail -5", CONFIGURED).stderr, /'pnpm run check' is piped into 'tail'/)
+  })
 })
 
 describe("dw-sdlc gate and check are check commands", () => {

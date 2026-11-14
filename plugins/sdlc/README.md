@@ -221,6 +221,8 @@ BLOCKED: 'npm install' uses npm, npx, yarn or bun, and this repository's package
 - A check command is `gate.command`, each `gate.steps` command and `gate.checks.run` script, `dw-sdlc
   gate`, `dw-sdlc check`, or a runner of the built-in list: `vitest`, `jest`, `tsc`, `oxlint`, `eslint`,
   `vp check`, `rspec`, `rubocop`, `pytest`, `cargo test`, `go test`.
+- A package manager's `run` verb names the script its bare name does, so `pnpm run check` is
+  `pnpm check`, and so for npm, yarn and bun.
 - `| tee` and a redirect pass; a filter behind the `tee` is refused.
 - `guardrails.filteredOutput: "allow"` turns it off; the default is `"deny"`.
 
