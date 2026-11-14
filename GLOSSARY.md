@@ -52,8 +52,8 @@ The values read from the repository itself when no file sets them: the package m
 and the Gate command from the manifest's `check` script. It never names a commit convention.
 
 **Strictest set**:
-The fixed guardrails in force while any layer is invalid: every force push, every env file and every
-commit on a protected branch refused, and master, main and production protected.
+The guardrails in force while any layer is invalid: every force push, env file, filtered check output
+and commit on a protected branch refused, and master, main and production protected.
 
 **Convention**:
 The preset a commit subject follows: `ticket-key` (`[KEY-123] type: subject`) or `conventional`; a pattern wins.
@@ -126,7 +126,7 @@ _Avoid_: prompt, task, handoff (carries the conversation; a Brief points at a so
 
 **Start line**:
 A shell command the dev pastes into a new terminal to start a Worker or a Lead, its Brief or first message quoted.
-_Avoid_: kickoff line, launch command
+_Avoid_: kickoff line
 
 **Way out**:
 One of the three ways a session kicking off new work hands its Brief on: a new Lead, an issue, a start line.
