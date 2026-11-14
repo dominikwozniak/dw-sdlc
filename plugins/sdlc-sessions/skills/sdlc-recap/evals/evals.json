@@ -55,12 +55,12 @@
     {
       "id": 4,
       "name": "go-sends-follow-ups-out-as-briefs",
-      "prompt": "Here is the session so far, in place of a conversation you lived through. The dev writes English. You gave this Recap through /sdlc-recap:\n\ndone Pull request #91 merged.\n\nFollow-ups\nA new session\n1. The admin API has no rate limiting, a larger piece of work with a design to settle. worker.\n2. The rate limit docs need a section on the headers it sends. issue.\n\nSay \"go\" to carry out every recommendation, or \"go, but 2 issue\" to change one.\n\nThe dev now writes: go\n\nIn place of running them, take these as what the commands printed. `dw-sdlc config`, exit 0:\ncommitted  .ai/agentic.config.json  valid\nlocal      .ai/agentic.config.local.json  valid\n{\"gate\":{\"command\":\"pnpm check\"},\"worker\":{\"command\":\"cswap run -- --dangerously-skip-permissions\",\"model\":\"sonnet\",\"effort\":\"high\"}}\n\n`git worktree list --porcelain` first line: worktree /repo/api\n\nDo not run `gh`: write the exact title and body you would file for follow-up 2 to issue-body.md, and your answer to the dev to answer.md. Carry out nothing else.",
-      "expected_output": "Follow-up 2's issue body is a Brief with no kickoff line, and follow-up 1 goes back as a Brief inside the template's start line on opus and high, nothing started.",
+      "prompt": "Here is the session so far, in place of a conversation you lived through. The dev writes English. You gave this Recap through /sdlc-recap:\n\ndone Pull request #91 merged.\n\nFollow-ups\nA new session\n1. The admin API has no rate limiting, a larger piece of work with a design to settle. worker.\n2. The rate limit docs need a section on the headers it sends. issue.\n\nSay \"go\" to carry out every recommendation, or \"go, but 2 issue\" to change one.\n\nThe dev now writes: go\n\nIn place of running them, take these as what the commands printed. `dw-sdlc config`, exit 0:\ncommitted  .ai/agentic.config.json  valid\nlocal      .ai/agentic.config.local.json  valid\n{\"gate\":{\"command\":\"pnpm check\"},\"worker\":{\"command\":\"cswap run -- --dangerously-skip-permissions\",\"model\":\"sonnet\",\"effort\":\"high\"}}\n\n`git worktree list --porcelain` first line: worktree /repo/api\n\nThe `dw-sdlc recap` document this Recap read had `workers` null: this session runs outside herdr.\n\nDo not run `gh`: write the exact title and body you would file for follow-up 2 to issue-body.md, and your answer to the dev to answer.md. Carry out nothing else.",
+      "expected_output": "Follow-up 2's issue body is a Brief with no implement line, and follow-up 1, outside herdr, goes back unfiled as a Brief inside the template's start line on opus and high, nothing started.",
       "files": [],
       "expectations": [
         "issue-body.md has the Brief's lines for Goal, May write, Must not, Proof, Report and Model and effort",
-        "issue-body.md has no kickoff line, since its issue has no number yet",
+        "issue-body.md has no implement line, since its issue has no number yet",
         "issue-body.md tells the Worker: You are the Worker: do it yourself, start no other session",
         "answer.md gives follow-up 1 as one start line: cd /repo/api, then cswap run -- --dangerously-skip-permissions, then --worktree worker-, --model, --effort and the Brief in single quotes",
         "Follow-up 1 runs on opus and high, because its design is unsettled",
@@ -104,6 +104,22 @@
         "It gives the start line /sdlc-delegate #327 and a Lead name that starts with lead-327-",
         "A line says go starts that Lead in its own herdr terminal, and that go, but #<m> starts another",
         "The lead start command was not run and no session was started: the Recap is the only thing done"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "go-in-herdr-starts-one-lead-for-worker-follow-ups-and-the-next-session",
+      "prompt": "Here is the session so far, in place of a conversation you lived through. The dev writes English. You gave this Recap through /sdlc-recap:\n\ndone Pull request #120 merged.\n\nCan close: yes, because nothing is uncommitted, unpushed or open; pull request #120 merged.\n\nFollow-ups\nA new session\n1. The admin API has no rate limiting, a larger piece of work with a design to settle. worker.\n2. The rate limit docs need a section on the headers it sends. issue.\n\nSay \"go\" to carry out every recommendation, or \"go, but 2 issue\" to change one. Go files follow-up 1 and starts one new Lead for it and the next session.\n\nNext session\n- #327 guards: a substitution and a heredoc keep the command whole\n- it continues #318, the topic of this session\n- /sdlc-delegate #327 in a new Lead session named lead-327-guards\n\nThe dev now writes: go\n\nIn place of running them, take these as what the commands printed. `dw-sdlc config`, exit 0:\ncommitted  .ai/agentic.config.json  valid\nlocal      .ai/agentic.config.local.json  valid\n{\"gate\":{\"command\":\"pnpm check\"},\"worker\":{\"command\":\"claude\",\"model\":\"sonnet\",\"effort\":\"high\"}}\n\n`git worktree list --porcelain` first line: worktree /repo/api\n\nThe `dw-sdlc recap` document this Recap read had `workers` [] and `worktree.linked` false: this session runs in herdr, in the main checkout.\n\nDo not run `gh` or `dw-sdlc`: take #401 as the number follow-up 1 is filed under and #402 as follow-up 2's. Write the title and body you would file for follow-up 1 to issue-1.md, the one command you would run to start the Lead to lead.sh, and your answer to the dev to answer.md. Carry out nothing else.",
+      "expected_output": "Follow-up 1 is filed with a Brief as its body, and one lead start command starts a Lead named lead-327-<slug> whose first message is /sdlc-delegate #327 #401; no start line goes back for follow-up 1.",
+      "files": [],
+      "expectations": [
+        "issue-1.md has the Brief's lines for Goal, May write, Must not, Proof, Report and Model and effort, and no implement line",
+        "lead.sh holds one dw-sdlc lead start command, run by a path ending in dw-sdlc/src/cli.ts",
+        "Its --name starts with lead-327-",
+        "Its --prompt is /sdlc-delegate #327 #401: the next session's issue first, then follow-up 1's, and not #402",
+        "lead.sh holds no --dangerously-skip-permissions and no --worktree",
+        "answer.md gives no start line for follow-up 1",
+        "Only one Lead is started: lead.sh holds no second lead start"
       ]
     }
   ]

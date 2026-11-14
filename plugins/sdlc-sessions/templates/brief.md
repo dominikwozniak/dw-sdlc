@@ -8,7 +8,7 @@ these rules, so a Brief has one shape wherever it comes from.
 Fill each `<...>`, keep the words around it, and leave out a line the note below lets you drop.
 
 ```text
-<kickoff line>
+<implement line>
 
 Goal: <one or two sentences: what is true when this is done>
 Source: <the pointer>. Read it with `<the command that reads it>`.
@@ -23,10 +23,10 @@ Report: <the report instruction>
 Model and effort: `<model>`, `<effort>`: <the reason, one clause>.
 ```
 
-- **Kickoff line.** `/implement #<n>` when the source is an issue, `/implement <path>` when it is a spec in
+- **Implement line.** `/implement #<n>` when the source is an issue, `/implement <path>` when it is a spec in
   a file, and for anything else `/implement` alone, the Goal being its work. `/implement` and `code-review`
   are skills of the engineering skills, `mattpocock/skills`, which a Brief runs beside. When this session
-  lists no `implement` skill, the kickoff line is `Implement #<n>.`, `Implement <path>.` or nothing, and
+  lists no `implement` skill, the implement line is `Implement #<n>.`, `Implement <path>.` or nothing, and
   with no `code-review` skill the Commit line drops `/code-review` and keeps the commit.
 - **Goal.** What the work achieves, never how. It holds no acceptance criteria, design or background.
 - **Source.** A Brief points at its source and never retells it, so the Worker reads the source itself and
@@ -54,7 +54,7 @@ Model and effort: `<model>`, `<effort>`: <the reason, one clause>.
 A Brief is in English whatever the conversation's language, since an issue's body can be one. It holds no
 single quote, so the start line can quote it whole: write "do not", never "don't".
 
-In an issue's body, leave out the kickoff line: `/implement #<that issue>` starts it, and it cannot name its
+In an issue's body, leave out the implement line: `/implement #<that issue>` starts it, and it cannot name its
 own number before it is filed. Its Source line points at the source issue when there is one. Its Questions
 and Report lines take the form without a Lead, since a filed Brief outlives a Lead and this machine's paths.
 
@@ -94,3 +94,30 @@ cd <main checkout> && <worker.command> --worktree <name> --model <model> --effor
 ```
 
 The flags are always there, because they win over the account's settings.
+
+## The new Lead
+
+A session that starts work hands its care to a new Lead: a session in a herdr terminal of its own, in the
+main checkout, whose first message is `/sdlc-delegate` with the tickets. The Lead writes each Worker's
+Brief by these rules, starts it and stays with it to the end, so the session that started it can close.
+Run, from the repository, with the path the skill runs `dw-sdlc` by:
+
+```bash
+dw-sdlc lead start --name <name> --prompt "/sdlc-delegate <tickets>" --json
+```
+
+- **Tickets.** `#<n>` for each issue, or a spec's path. Work with no source is filed first as an issue,
+  with its Brief as the body, so the Lead reads it as an issue. A model and an effort follow the tickets,
+  as `/sdlc-delegate #<n> fable xhigh`, and the Lead runs every Worker it starts on them.
+- **Name.** `lead-<n>-<slug>`, `<n>` the first ticket's issue and the slug a word or two of its title, or
+  `lead-<slug>` for a spec: 1-32 of `a-z`, `0-9`, `-` and `_`.
+- **Exit 0**: started, and the Lead took its first message. Tell the dev its name and address in one line.
+- **Exit 1**: started, but the first message is not confirmed. Run `hc read <address> --lines 60` and tell
+  the dev. Never run the command again or send the message twice.
+- **Exit 2**: nothing started. Say why, and hand the dev the first message, `/sdlc-delegate <tickets>`, to
+  type into a session they start in herdr, in the main checkout.
+
+The command takes `worker.command` of the config without `--dangerously-skip-permissions` and without
+`--worktree`: never add either, or start the Lead any other way. It refuses outside herdr, where
+`HC_TERMINAL_ID` is unset, and in a linked worktree, where `git rev-parse --path-format=absolute
+--git-dir --git-common-dir` prints two different paths: there the start line is the way.

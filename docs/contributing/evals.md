@@ -2,7 +2,7 @@
 
 A skill's evals run a real agent on its prompts, through `/skill-creator`, outside `pnpm test` and the
 Gate. Run them when the skill changes. Four skills keep them, each under its own `evals/`:
-`sdlc-pr-open`, `sdlc-recap`, `sdlc-brief` and `sdlc-delegate`. `evals.json` holds the behaviours, and
+`sdlc-pr-open`, `sdlc-recap`, `sdlc-kickoff` and `sdlc-delegate`. `evals.json` holds the behaviours, and
 `trigger.json` the queries that must start the skill and the near misses that must not.
 
 ## The skills of `sdlc`
@@ -40,8 +40,8 @@ a way to reach GitHub. Delete the clone after the run.
 
 | skill           | `evals.json` holds                                                                                                                                                                                                                                                                                  | `trigger.json` fires on, and not on                                                                     |
 | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `sdlc-recap`    | the Recap's shape, a follow-up going out as a Brief, the next session named but not started                                                                                                                                                                                                         | `/sdlc-recap` and a Brief's instruction; not "co dalej?"                                                |
-| `sdlc-brief`    | the Brief's shape and its routing of model and effort                                                                                                                                                                                                                                               | none: only the dev invokes it                                                                           |
+| `sdlc-recap`    | the Recap's shape, a follow-up going out as a Brief, one Lead for the next session and the `worker` follow-ups                                                                                                                                                                                      | `/sdlc-recap` and a Brief's instruction; not "co dalej?"                                                |
+| `sdlc-kickoff`  | the Brief's shape, its routing of model and effort, the new Lead recommended in herdr                                                                                                                                                                                                               | none: only the dev invokes it                                                                           |
 | `sdlc-delegate` | the Lead's rules: the first Worker alone and the rest after it, a blocked ticket queued until a Worker's end frees it, its turn ended after starting Workers, plain-text questions, no split that must merge into one diff, no merge, a refusal outside herdr, in a Worker and in a linked worktree | `/sdlc-delegate` and the dev's words handing work to Workers; not "implement #N" or a Worker's own work |
 
 Run a trigger set with the plugin loaded through `--plugin-dir`, since a typed `/sdlc-recap` resolves only

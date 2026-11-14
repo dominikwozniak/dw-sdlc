@@ -48,10 +48,10 @@ system prompt names one, else under `mktemp -d`. `gh` reads it with `--body-file
 the command is never the way.
 
 **The `Closes` line.** `Closes #<n>` goes first when the work has an issue, and `<n>` is the issue the
-kickoff line of a Brief names: `/implement #<n>`, or `Implement #<n>.` where the repository has no
+implement line of a Brief names: `/implement #<n>`, or `Implement #<n>.` where the repository has no
 `/implement`. Never take it from a `Source:` line, which may point
 at a parent issue, a spec or another issue the work only reads. With no Brief, `<n>` is the issue the
-dev names. A kickoff line that names no issue, and no issue named, leave the body without the line. A
+dev names. An implement line that names no issue, and no issue named, leave the body without the line. A
 rewrite keeps the `Closes` line of the body it replaces.
 
 **With a template**, fill every section of it, in its order, and drop a section only when the

@@ -182,6 +182,12 @@ describe("the sdlc plugin", () => {
     assert.match(text, /Never run a kept item's command/)
   })
 
+  it("has sdlc-sweep take dry-run as its argument, the dev's ask to look first", () => {
+    const text = readFileSync(join(PLUGIN_ROOT, "skills", WORD_STARTED_SKILL, "SKILL.md"), "utf8")
+    assert.match(skillFrontmatter(WORD_STARTED_SKILL), /^argument-hint: "\[dry-run\]"$/m)
+    assert.match(text, /Add `--dry-run` only when the dev asked to look first, as `\/sdlc-sweep dry-run`/)
+  })
+
   it("ships each subagent under its name, at medium effort on the session's model, with no tool that edits a file", () => {
     assert.deepEqual(
       readdirSync(join(PLUGIN_ROOT, "agents")).toSorted(),

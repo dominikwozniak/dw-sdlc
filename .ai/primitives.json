@@ -373,12 +373,12 @@
       "docs": ["plugins/sdlc-sessions/README.md#the-recap", "GLOSSARY.md"]
     },
     {
-      "id": "skills.brief",
-      "name": "sdlc-brief",
+      "id": "skills.kickoff",
+      "name": "sdlc-kickoff",
       "group": "skills",
-      "summary": "The user-invoked skill that writes a Brief, with the model and effort it runs on and three ways out.",
-      "code": ["plugins/sdlc-sessions/skills/sdlc-brief/"],
-      "docs": ["plugins/sdlc-sessions/README.md#the-brief", "GLOSSARY.md"]
+      "summary": "The user-invoked skill that writes a Brief and, on the dev's word, starts a new Lead for it or files it.",
+      "code": ["plugins/sdlc-sessions/skills/sdlc-kickoff/"],
+      "docs": ["plugins/sdlc-sessions/README.md#the-kickoff", "GLOSSARY.md"]
     },
     {
       "id": "skills.delegate",
@@ -392,7 +392,7 @@
       "id": "skills.brief-template",
       "name": "Brief template",
       "group": "skills",
-      "summary": "The one form and rules of a Brief: its fields, the Worker's name, model and effort by kind, the start line.",
+      "summary": "The one form and rules of a Brief: its fields, the Worker's name, model and effort, the start line, the new Lead.",
       "code": ["plugins/sdlc-sessions/templates/brief.md"],
       "docs": ["plugins/sdlc-sessions/README.md#the-brief", "GLOSSARY.md"]
     },

@@ -18,7 +18,7 @@ the skills that run sessions: a Recap, a Brief, a Lead with Workers.
 | stage                       | the engineering skills                                       | dw-sdlc                                              |
 | --------------------------- | ------------------------------------------------------------ | ---------------------------------------------------- |
 | plan, settle, write tickets | `wayfinder`, `grilling`, `research`, `to-spec`, `to-tickets` | nothing                                              |
-| hand work to a session      | nothing                                                      | `/sdlc-brief`, `/sdlc-delegate`                      |
+| hand work to a session      | nothing                                                      | `/sdlc-kickoff`, `/sdlc-delegate`                    |
 | implement                   | `implement`, `implement-spec`, `tdd`                         | the guards judge every tool call; the Gate proves it |
 | open the pull request       | nothing                                                      | `/sdlc-pr-open`                                      |
 | review, fix CI, merge       | `code-review`, the reviewer at `full` depth by default       | `/sdlc-pr-ship`: the Review loop and the Ship script |
@@ -124,7 +124,7 @@ Each rule holds at every command position, within its [known limits](plugins/sdl
 | `/sdlc-pr-ship`        | `sdlc`          | you type it, or a Brief tells a Worker to     | drive one pull request to merged                                |
 | `/sdlc-sweep`          | `sdlc`          | you type it                                   | remove the branches and worktrees finished work leaves          |
 | `/sdlc-recap`          | `sdlc-sessions` | you type it, or a Brief tells a Worker to     | say where a session stands and whether it can close             |
-| `/sdlc-brief`          | `sdlc-sessions` | you type it                                   | write the start of a Worker session                             |
+| `/sdlc-kickoff`        | `sdlc-sessions` | you type it                                   | kick off new work in a session of its own, cared for by a Lead  |
 | `/sdlc-delegate`       | `sdlc-sessions` | you ask for it; the agent offers it and waits | run Workers in herdr terminals, in parallel where tickets allow |
 
 ## Docs

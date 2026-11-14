@@ -247,7 +247,7 @@ describe("diagnose", () => {
       assert.equal(absent.level, "INFO")
       assert.equal(
         absent.detail,
-        "no sdlc-sessions@dw-sdlc, so no /sdlc-recap, /sdlc-brief or /sdlc-delegate. claude plugin install sdlc-sessions@dw-sdlc --scope user"
+        "no sdlc-sessions@dw-sdlc, so no /sdlc-recap, /sdlc-kickoff or /sdlc-delegate. claude plugin install sdlc-sessions@dw-sdlc --scope user"
       )
       const silent = sessions(withCommand(HEALTHY, "claude plugin list --json", undefined))
       assert.equal(silent.level, "INFO")

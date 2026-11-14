@@ -159,7 +159,7 @@ export function checkSessions(probe: Probe, claude: string): Check {
     const detail =
       list === undefined
         ? "claude plugin list did not answer"
-        : `no ${SESSIONS_ID}, so no /sdlc-recap, /sdlc-brief or /sdlc-delegate. claude plugin install ${SESSIONS_ID} --scope user`
+        : `no ${SESSIONS_ID}, so no /sdlc-recap, /sdlc-kickoff or /sdlc-delegate. claude plugin install ${SESSIONS_ID} --scope user`
     return { name, level: "INFO", detail }
   }
   const version = typeof entry.version === "string" ? entry.version : "?"
