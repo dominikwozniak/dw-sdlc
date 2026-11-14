@@ -45,7 +45,7 @@ push makes.
   saying why in one line; never lower one. A depth the dev or the config set stands: when you think
   it wrong, say so in one line and review at it. The Review reads the changes since `<since>`:
   `details.since`, the last head a Review read, clean or not, when the answer has it, else
-  `origin/<base>`. After a rebase `<since>` is a head the branch left behind:
+  `origin/<base>`. After a rebase or an amend `<since>` can be a head the branch left behind:
   `git fetch origin <since>` when the checkout lacks it, and two dots, `<since>..<head>`, on each
   `git diff` below that shows three, the `light` one included.
   When the answer has `details.paths`, a merge of the base or a rebase came after `<since>`,

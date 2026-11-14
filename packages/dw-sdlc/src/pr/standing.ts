@@ -63,7 +63,10 @@ export type ReadMarks = { count: number; since: string | null }
 
 /** The Review's standing at the head, as the decision reads it and `pr ship --verbose` shows it. */
 export type Standing = {
-  /** The last commit before the head a Review read, else a commit force pushes left behind that one read. */
+  /**
+   * A read mark force pushes left behind after every read of the history, else the last commit before the
+   * head a Review read, else a commit force pushes left behind that one read.
+   */
   lastRead: LastRead | null
   /**
    * A read mark whose Findings no later commit answers: the head's own, or one the commits since leave with
