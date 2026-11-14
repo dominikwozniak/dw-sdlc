@@ -44,12 +44,12 @@ package and the one `sdlc` runs included, and herdr on its `hc` line.
 
 ## What it carries
 
-| part             | kind     | runs                                                                        | section                 |
-| ---------------- | -------- | --------------------------------------------------------------------------- | ----------------------- |
-| `/sdlc-recap`    | skill    | you type it, or a Brief tells a Worker to end with it                       | [The Recap](#the-recap) |
-| `/sdlc-brief`    | skill    | you type it                                                                 | [The Brief](#the-brief) |
-| `/sdlc-delegate` | skill    | you type it or ask in your words; offered in one line after tickets are cut | [The Lead](#the-lead)   |
-| `brief.md`       | template | read by every skill that writes a Brief                                     | [The Brief](#the-brief) |
+| part             | kind     | runs                                                                     | section                 |
+| ---------------- | -------- | ------------------------------------------------------------------------ | ----------------------- |
+| `/sdlc-recap`    | skill    | you type it, or a Brief tells a Worker to end with it                    | [The Recap](#the-recap) |
+| `/sdlc-brief`    | skill    | you type it                                                              | [The Brief](#the-brief) |
+| `/sdlc-delegate` | skill    | you type it or ask in your words; offered after tickets in a set-up repo | [The Lead](#the-lead)   |
+| `brief.md`       | template | read by every skill that writes a Brief                                  | [The Brief](#the-brief) |
 
 ## The Recap
 
@@ -164,8 +164,9 @@ the dev.
 ## The Lead
 
 `/sdlc-delegate` makes the session a Lead, and is how a session starts a Worker. The dev types it or asks
-in their own words; after tickets are published, the model offers it in one line and waits. It refuses
-outside herdr, in a Worker (a terminal labelled `role=worker`) and in a linked worktree.
+in their own words; after tickets are published in a repository with `.ai/agentic.config.json`, the
+model offers it in one line and waits. It refuses outside herdr, in a Worker (a terminal labelled
+`role=worker`) and in a linked worktree.
 
 - **Tickets.** An issue or its open sub-issues, a list of issues, a spec in a file, or a split of the work
   when each piece is its own pull request. Closed tickets and those a triage label keeps for a human are
