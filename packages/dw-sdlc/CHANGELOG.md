@@ -1,5 +1,17 @@
 # dw-sdlc
 
+## 0.19.0
+
+### Minor Changes
+
+- 728d74d: `dw-sdlc sweep` names `git switch <base> && git pull --rebase` for a Landed branch the main checkout has checked out, when its tree is clean and nothing is paused there, so the next Sweep can remove the branch. A linked worktree's branch keeps no command.
+
+### Patch Changes
+
+- 9f4ba1a: The doctor's `jq` FAIL links the install page for every platform, https://jqlang.org/download/, in place of `brew install jq`.
+- 9f4ba1a: The config schema's `$id` names its path on `main`, `packages/dw-sdlc/config/agentic.config.schema.json`, so a `$schema` the setup writes without a marketplace clone resolves again.
+- a9cdd8c: The config schema's description names `pr.review` beside `guardrails` and `pr.merge` among the keys the local layer may tighten and never loosen, as the resolver enforces.
+
 ## 0.18.0
 
 ### Minor Changes
