@@ -306,7 +306,8 @@
       "code": [
         "packages/dw-sdlc/src/commands/pr-ship.ts",
         "packages/dw-sdlc/src/commands/pr-reviewed.ts",
-        "packages/dw-sdlc/src/pr/"
+        "packages/dw-sdlc/src/pr/",
+        "packages/dw-sdlc/src/shell-line.ts"
       ],
       "docs": ["docs/overview.md#how-the-ship-script-merges-a-pull-request", "GLOSSARY.md", "AGENTS.md#commands"]
     },

@@ -7,7 +7,7 @@ import { join } from "node:path"
 
 import { asked, git, must } from "./git.ts"
 import { isLanded } from "./landed.ts"
-import { shellLine } from "./pr/decide.ts"
+import { shellLine } from "./shell-line.ts"
 
 /** The forced delete of `branch`, the dev's to run. */
 export function forcedDelete(branch: string): string {

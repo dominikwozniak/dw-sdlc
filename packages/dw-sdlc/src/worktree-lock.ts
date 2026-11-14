@@ -3,7 +3,7 @@
 // stale once no process N runs or N started at another time. Any other reason is the dev's to lift.
 
 import { exec } from "./exec.ts"
-import { shellLine } from "./pr/decide.ts"
+import { shellLine } from "./shell-line.ts"
 
 const CLAUDE_LOCK = /^claude session .* \(pid (?<pid>\d{1,10}) start (?<start>.+)\)$/
 const MAX_PID = 2 ** 31 - 1

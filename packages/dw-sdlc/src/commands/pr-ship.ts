@@ -16,12 +16,12 @@ import {
   readyToMerge,
   REVIEW,
   type ScriptAction,
-  shellLine,
   type Status
 } from "../pr/decide.ts"
 import { carriesBase, gh, namedProblem, nameItRemedy, now, read, readAgain, readBranch, said } from "../pr/read.ts"
 import type { PrState } from "../pr/state.ts"
 import { holds, renamedUpstream } from "../pr/upstream.ts"
+import { shellLine } from "../shell-line.ts"
 
 export const summary = "decide the Action one pull request needs next, as a line or JSON"
 

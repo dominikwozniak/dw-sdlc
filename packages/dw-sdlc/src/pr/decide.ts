@@ -3,6 +3,7 @@
 // blockers. The last rows say who merges what no row before them holds back.
 
 import type { PrMerge, PrReview, ResolvedConfig, ReviewDepth } from "../agentic-config.ts"
+import { shellLine } from "../shell-line.ts"
 import { route } from "./route.ts"
 import { awaitsReview, type CiCheck, OFF_PREFIX, type PrState, REVIEW, type Thread } from "./state.ts"
 
@@ -89,11 +90,6 @@ const OWN_PREFIX = "dw-sdlc/"
  * head the fix then leaves behind. A pending status would turn the pull request unstable.
  */
 export const REVIEW_STATE = "success"
-
-/** The words as one POSIX shell command line, each word that needs it single-quoted. */
-export function shellLine(words: string[]): string {
-  return words.map((word) => (/^[\w./:=@%+,-]+$/.test(word) ? word : `'${word.replaceAll("'", `'\\''`)}'`)).join(" ")
-}
 
 function ciOf(pr: PrState): CiCheck[] {
   return pr.checks.filter((check) => !check.name.startsWith(OWN_PREFIX))

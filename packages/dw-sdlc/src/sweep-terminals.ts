@@ -4,7 +4,7 @@
 import { existsSync, realpathSync } from "node:fs"
 
 import { CannotRun } from "./cannot-run.ts"
-import { shellLine } from "./pr/decide.ts"
+import { shellLine } from "./shell-line.ts"
 import { worktreesOf } from "./sweep-trees.ts"
 import {
   isLive,
