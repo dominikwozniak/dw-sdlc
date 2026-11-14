@@ -13,3 +13,5 @@
 `pr ship` counts the read marks on heads an amend left behind after the last success toward the three-Review limit, so a fix amended and force-pushed after each Review with a Finding open parks as `review-limit` at the third, as after a rebase, instead of asking for a Review again.
 
 `pr ship` names the ready beside the commit when it parks a head no check reported on as `unverified`, since the grace counts from the later of the two.
+
+`pr ship --help` names the three-Review limit: `review-limit` parks at every depth, `pr.review: off` included, and only the dev's `--review off` posts past it.
