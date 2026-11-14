@@ -8,8 +8,11 @@ import { lines, scratch, write, writeJson } from "./harness.ts"
 
 const FAKE = join(import.meta.dirname, "fake-hc.ts")
 
-/** What one call prints and exits with; an empty one prints nothing and exits 0. `kill` is a process the call ends first. */
-export type Reply = { stdout?: string; stderr?: string; exit?: number; kill?: number }
+/**
+ * What one call prints and exits with; an empty one prints nothing and exits 0. `kill` is a process the call
+ * ends first; `run` a command it runs before it answers, as a Worker that commits while it is stopped.
+ */
+export type Reply = { stdout?: string; stderr?: string; exit?: number; kill?: number; run?: string[] }
 /** A tool's table: a call's first two words, else its first, to one reply or to the replies served in order. */
 export type Table = Record<string, Reply | Reply[]>
 export type Scenario = { hc?: Table; "herdr-app"?: Table }

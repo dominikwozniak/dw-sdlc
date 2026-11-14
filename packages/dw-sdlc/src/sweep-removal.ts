@@ -3,13 +3,17 @@
 
 import { git } from "./git.ts"
 import { byHand, lockAfterStop, removeTerminal } from "./sweep-terminals.ts"
-import { forcedDelete, forcedRemoval, unlockCommand } from "./sweep-trees.ts"
+import { forcedDelete, forcedRemoval, tipOf, unlockCommand, whyUnclean, worktreesOf } from "./sweep-trees.ts"
 import type { StaleLock } from "./worktree-lock.ts"
 
 export type Item = { kind: "branch" | "worktree" | "lock" | "terminal"; name: string; reason: string }
 export type Kept = Item & { command: string | null; dev: boolean }
-/** An item to remove: a worktree's `holds` branch, `stale` lock, `workerLock` its Worker's program holds; a terminal's `stop`, `tree`. */
+/**
+ * An item to remove: `at` the commit it was judged at, a worktree's HEAD or a branch's tip; a worktree's
+ * `holds` branch, `stale` lock, `workerLock` its Worker's program holds; a terminal's `stop`, `tree`.
+ */
 export type Planned = Item & {
+  at?: string
   holds?: string
   stale?: StaleLock
   stop?: boolean
@@ -17,6 +21,25 @@ export type Planned = Item & {
   workerLock?: { pid: number }
 }
 export type Judged = { base: string; removed: Planned[]; kept: Kept[] }
+
+/** Why the worktree `item` stays after all, read again just before it goes: what changed since it was judged. */
+function whyChanged(root: string, item: Planned): Pick<Kept, "reason" | "command"> | null {
+  const now = worktreesOf(root).find(({ path }) => path === item.name)
+  if (now === undefined) {
+    return { reason: "git no longer lists it", command: null }
+  }
+  if (now.head !== item.at) {
+    return { reason: `its HEAD moved to ${now.head.slice(0, 9)} since the Sweep judged it`, command: null }
+  }
+  if (now.branch !== item.holds) {
+    const on = now.branch === undefined ? "a detached HEAD" : `${now.branch} checked out`
+    return { reason: `it has ${on} since the Sweep judged it`, command: null }
+  }
+  if (now.lock !== item.stale?.held) {
+    return { reason: "its lock changed since the Sweep judged it", command: null }
+  }
+  return whyUnclean(item.name, item.stale !== undefined)
+}
 
 /** Removes `item`; the item kept when git refuses it, with git's words, or undefined once it is gone. */
 function removal(
@@ -63,6 +86,10 @@ function removal(
       }
       delete item.workerLock
     }
+    const changed = whyChanged(root, item)
+    if (changed !== null) {
+      return refusedWith(changed.reason, changed.command)
+    }
     if (item.stale !== undefined) {
       const lifted = git(root, ["worktree", "unlock", "--", item.name])
       if ("error" in lifted) {
@@ -84,6 +111,11 @@ function removal(
   const path = heldBy.get(item.name)
   if (path !== undefined) {
     return refused(`checked out in the worktree at ${path}`, null)
+  }
+  // Read just before the delete: git branch -D, the delete the guard lets an agent make, takes no expected tip.
+  const now = tipOf(root, item.name)
+  if (now !== undefined && now !== item.at) {
+    return refused(`it moved to ${now.slice(0, 9)} since the Sweep judged it`, null)
   }
   const result = git(root, ["branch", "-D", "--", item.name])
   return "error" in result ? refused(result.error, forcedDelete(item.name)) : undefined

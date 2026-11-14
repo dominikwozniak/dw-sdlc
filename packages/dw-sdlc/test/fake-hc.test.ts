@@ -2,6 +2,8 @@
 // repeated, a call past the last reply or with no scenario failing loudly, every call logged per tool.
 
 import assert from "node:assert/strict"
+import { existsSync } from "node:fs"
+import { join } from "node:path"
 import { describe, it } from "node:test"
 
 import { runCommand, scratch } from "./harness.ts"
@@ -32,5 +34,18 @@ describe("the fake hc", () => {
       [["send", "t2"], ["send", "t3"], ["send", "t2"], ["send", "t2"], ["ls"], ["ls"], ["kill", "t2"]]
     )
     assert.deepEqual(herdr.appCalls(), [["do", "tab.rename", "--id", "tb1"]])
+  })
+
+  it("runs a reply's command before it answers, and fails loudly when the command fails", () => {
+    const cwd = scratch("fake-hc-run")
+    const mark = join(cwd, "ran")
+    const herdr = fakeHerdr({
+      hc: { kill: [{ run: ["touch", mark], stdout: "killed" }, { run: ["false"] }] }
+    })
+    assert.deepEqual(runCommand("hc", ["kill", "t2"], cwd, herdr.env), { status: 0, stdout: "killed", stderr: "" })
+    assert.ok(existsSync(mark))
+    const failed = runCommand("hc", ["kill", "t2"], cwd, herdr.env)
+    assert.equal(failed.status, 99)
+    assert.match(failed.stderr, /fake hc: false failed/)
   })
 })

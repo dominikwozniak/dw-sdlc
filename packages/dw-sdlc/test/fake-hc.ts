@@ -2,6 +2,7 @@
 // appends the args to `<dir>/<tool>.jsonl` and answers from the tool's table in `<dir>/scenario.json`.
 // A call is answered by its first two words, else by its first; a list of replies is served in order.
 
+import { spawnSync } from "node:child_process"
 import { appendFileSync, existsSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 
@@ -40,6 +41,16 @@ if (key === undefined) {
 }
 if (reply.kill !== undefined) {
   process.kill(reply.kill, "SIGKILL")
+}
+if (reply.run !== undefined) {
+  const [command = "", ...rest] = reply.run
+  const ran = spawnSync(command, rest, { encoding: "utf8" })
+  if (ran.status !== 0) {
+    reply = {
+      exit: 99,
+      stderr: `fake ${tool}: ${reply.run.join(" ")} failed: ${ran.stderr}${ran.error?.message ?? ""}\n`
+    }
+  }
 }
 process.stdout.write(reply.stdout ?? "")
 process.stderr.write(reply.stderr ?? "")

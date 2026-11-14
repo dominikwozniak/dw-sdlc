@@ -24,6 +24,11 @@ export function unlockCommand(path: string): string {
   return shellLine(["git", "worktree", "unlock", path])
 }
 
+/** The commit the local `branch` points at, or undefined once it is gone. */
+export function tipOf(root: string, branch: string): string | undefined {
+  return asked(root, ["rev-parse", "--verify", "-q", `refs/heads/${branch}^{commit}`])
+}
+
 /** The local branches of the repository at `root`. */
 export function branchesOf(root: string): string[] {
   return must(root, ["for-each-ref", "--format=%(refname:lstrip=2)", "refs/heads"])
@@ -76,6 +81,21 @@ export function dirtyFiles(path: string): string[] | { error: string } {
     }
   }
   return files
+}
+
+/** What in the worktree at `path` a removal could lose, a paused operation or a file git status lists, or null. */
+export function whyUnclean(path: string, locked: boolean): { reason: string; command: string | null } | null {
+  const operation = pausedOperation(path)
+  if (operation !== undefined) {
+    return { reason: `a ${operation} is paused in it`, command: null }
+  }
+  const files = dirtyFiles(path)
+  if ("error" in files) {
+    return { reason: files.error, command: null }
+  }
+  return files.length === 0
+    ? null
+    : { reason: `modified or untracked: ${files.join(", ")}`, command: forcedRemoval(path, locked) }
 }
 
 const OPERATIONS = [

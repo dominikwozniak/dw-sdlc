@@ -7,7 +7,7 @@ import { findRepository, mainCheckout, resolveConfig } from "../agentic-config.t
 import { CannotRun, readArgs, usageError } from "../cannot-run.ts"
 import { SLOW_LIMIT_MS } from "../exec.ts"
 import { asked, git } from "../git.ts"
-import { isCommitLanded, isLanded } from "../landed.ts"
+import { isCommitLanded } from "../landed.ts"
 import { shellLine } from "../pr/decide.ts"
 import { apply, type Item, type Judged, type Kept, type Planned } from "../sweep-removal.ts"
 import {
@@ -24,13 +24,12 @@ import {
 } from "../sweep-terminals.ts"
 import {
   branchesOf,
-  dirtyFiles,
   forcedDelete,
-  forcedRemoval,
-  pausedOperation,
   switchOff,
+  tipOf,
   type Tree,
   unlockCommand,
+  whyUnclean,
   worktreesOf
 } from "../sweep-trees.ts"
 import { type LockVerdict, lockVerdict } from "../worktree-lock.ts"
@@ -53,6 +52,9 @@ It keeps, and names with the reason and the command to run yourself:
   the default branch, the base branch, a protected branch and a branch a kept worktree has checked out; a
   Landed branch the main checkout has checked out, clean and with nothing paused, with git switch to the base;
   a branch whose work is on no commit of the base, with the forced delete.
+It reads each worktree again just before it goes, its Worker stopped: one whose HEAD, branch or lock changed
+since it was judged, or that holds a file or a paused operation by then, stays. A branch goes only while it
+points at the commit judged Landed; one that moved since stays.
 It never changes anything on a remote: the fetch only writes remote-tracking refs. A removal git refuses is
 kept with git's words, and the sweep goes on.
 
@@ -144,19 +146,9 @@ function whyTreeStays(
       command: lock.state === "stale" ? `${unlockCommand(path)} && ${prune}` : prune
     }
   }
-  const operation = pausedOperation(path)
-  if (operation !== undefined) {
-    return { reason: `a ${operation} is paused in it`, command: null }
-  }
-  const files = dirtyFiles(path)
-  if ("error" in files) {
-    return { reason: files.error, command: null }
-  }
-  if (files.length > 0) {
-    return {
-      reason: `modified or untracked: ${files.join(", ")}`,
-      command: forcedRemoval(path, lock.state === "stale")
-    }
+  const unclean = whyUnclean(path, lock.state === "stale")
+  if (unclean !== null) {
+    return unclean
   }
   if (!isCommitLanded(root, baseRef, tree.head)) {
     const at = tree.branch === undefined ? `its detached HEAD ${tree.head.slice(0, 9)}` : `its HEAD on ${tree.branch}`
@@ -247,8 +239,12 @@ function judge(root: string, terminals: Terminals | undefined): Judged {
     const off = why?.dev === true && held.get(name) === checkout.path ? switchOff(root, base, name) : null
     if (why !== null) {
       kept.push({ kind: "branch", name, ...why, ...off })
-    } else if (isLanded(root, base.ref, name)) {
-      removed.push({ kind: "branch", name, reason: `Landed on ${baseName}` })
+      return
+    }
+    // The tip read once, so the branch goes only while it still points at the commit judged Landed.
+    const tip = tipOf(root, name)
+    if (tip !== undefined && isCommitLanded(root, base.ref, tip)) {
+      removed.push({ kind: "branch", name, reason: `Landed on ${baseName}`, at: tip })
     } else {
       const reason = `its work is on no commit of ${baseName} since it forked`
       kept.push({ kind: "branch", name, reason, command: forcedDelete(name), dev: true })
@@ -274,6 +270,7 @@ function judge(root: string, terminals: Terminals | undefined): Judged {
       kind: "worktree",
       name: tree.path,
       reason,
+      at: tree.head,
       ...(tree.branch === undefined ? {} : { holds: tree.branch }),
       ...(lock.state === "stale" ? { stale: lock } : {}),
       ...(workerLock === undefined ? {} : { workerLock })
