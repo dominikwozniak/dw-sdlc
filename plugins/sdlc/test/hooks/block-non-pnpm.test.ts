@@ -86,10 +86,19 @@ const NPM_INSTALL_TEST = ["install-test", "it", "install-ci-test", "cit", "clean
 const NPM_CHANGE = ["uninstall", "unlink", "remove", "rm", "r", "un", "update", "u", "up", "upgrade", "udpate"]
 const NPM_TREE = ["dedupe", "ddp", "prune", "link", "ln", "rebuild", "rb"]
 const NPM_RUN = ["run", "run-script", "rum", "urn", "test", "tst", "t", "start", "stop", "restart"]
-const NPM_EXEC = ["exec", "x", "init", "create", "innit"]
+const NPM_EXEC = ["exec", "x", "init", "create", "innit", "explore"]
 const NPM_VERBS = [NPM_INSTALL, NPM_CI, NPM_INSTALL_TEST, NPM_CHANGE, NPM_TREE, NPM_RUN, NPM_EXEC].flat()
-const BUN_INSTALL = ["install", "i", "add", "remove", "rm", "uninstall", "r", "update", "up"]
-const BUN_VERBS = [BUN_INSTALL, ["link", "unlink", "patch", "run", "x", "create"]].flat()
+// bun's own commands, as its root command matcher (src/runtime/cli/mod.rs) reads the first word. Any
+// other word runs a package.json script, a bin or a file, and `check`, `lint`, `fmt` and `compile` run
+// the project's script of that name when it has one.
+const BUN_INSTALL = ["install", "i", "ci", "add", "a", "remove", "rm", "uninstall", "r", "update", "up"]
+const BUN_TREE = ["link", "unlink", "patch", "patch-commit", "dedupe", "prune"]
+const BUN_RUN = ["run", "x", "exec", "test", "init", "create", "c", "check", "lint", "fmt", "compile"]
+const BUN_VERBS = [BUN_INSTALL, BUN_TREE, BUN_RUN].flat()
+const BUN_OWN = [
+  ["build", "bun", "outdated", "audit", "info", "why", "publish", "whoami", "list", "pm", "repl"],
+  ["upgrade", "help", "completions", "getcompletes", "discord"]
+].flat()
 
 describe("a pnpm repository — every npm and bun verb that installs or runs", () => {
   for (const verb of NPM_VERBS) {
@@ -111,10 +120,30 @@ describe("a pnpm repository — every npm and bun verb that installs or runs", (
   allowed("npm outdated reads", "npm outdated")
   allowed("npm help names a verb", "npm help install")
   allowed("npm pkg get reads", "npm pkg get name")
-  allowed("bun test runs bun's own runner", "bun test")
-  allowed("bun runs a file", "bun scripts/x.ts")
+  blocked("npm explore runs a command in a package", "npm explore x -- ls")
   allowed("bun build bundles", "bun build ./src/index.ts")
   allowed("bun version", "bun --version")
+})
+
+describe("a pnpm repository — bun runs any word that is not its own command", () => {
+  for (const word of BUN_OWN) {
+    allowed(`bun ${word}`, `bun ${word}`)
+  }
+  blocked("a package.json script", "bun dev")
+  blocked("a file by path", "bun ./x.ts")
+  blocked("a file in a folder", "bun scripts/x.ts")
+  blocked("a name the shell expands", 'bun "$SCRIPT"')
+  blocked("a quoted script name", "bun 'dev'")
+  blocked("bun test runs code", "bun test")
+  blocked("bun pm trust runs lifecycle scripts", "bun pm trust x")
+  blocked("a script after a chain", "pnpm build && bun dev")
+  blocked("a script behind a wrapper", 'rtk run "bun dev"')
+  blocked("a script after a cd into a pnpm repository", "cd app && bun dev", OUTSIDE)
+  allowed("bun pm ls reads", "bun pm ls")
+  allowed("bun pm untrusted reads", "bun pm untrusted")
+  allowed("bare bun prints its help", "bun")
+  allowed("a script name in prose", 'git commit -m "docs: bun dev is banned"')
+  allowed("bun dev in an npm repository", "bun dev", NPM)
 })
 
 describe("a pnpm repository — wrappers seen through", () => {

@@ -210,9 +210,14 @@ or a redirect before the verb does not hide it, and a `cd` moves the repository 
 
 - `npx`, `bunx` and `yarn` are refused in every form.
 - An `npm` or `bun` verb is refused when it installs, removes, updates, links or rebuilds a
-  dependency, or runs a script or a package, under each alias npm and bun accept: `npm i`,
-  `npm test`, `npm uninstall`, `npm audit fix`, `npm rebuild`, `npm x`, `bun add`.
-- A read passes: `npm view`, `npm ls`, `npm audit`, and bun's own `bun test` and `bun build`.
+  dependency, or runs a script, a package or code, under each alias npm and bun accept: `npm i`,
+  `npm test`, `npm uninstall`, `npm audit fix`, `npm rebuild`, `npm x`, `npm explore`, `bun add`,
+  `bun test`, `bun pm trust`.
+- bun runs any word that is not one of its own commands as a script, a bin or a file, so
+  `bun dev` and `bun ./x.ts` are refused. So are `bun check`, `lint`, `fmt` and `compile`, which run
+  the project's script of that name when it has one.
+- A read passes: `npm view`, `npm ls`, `npm audit`, and bun's `bun build`, `bun outdated`, `bun info`,
+  `bun why`, `bun audit` and `bun pm ls`.
 
 ```text
 BLOCKED: 'npm install' uses npm, npx, yarn or bun, and this repository's package manager is pnpm
