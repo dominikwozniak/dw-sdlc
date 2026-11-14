@@ -325,8 +325,10 @@ const ROWS: Row[] = [
         return { ...head, action: "mark-reviewed", actor: "script", details: after }
       }
       const { depth, source } = depthOf(pr, policy)
-      // The dev's own depth buys one Review past the limit; a Review under off needs none.
-      if (depth !== "off" && source !== "flag" && pr.marks.count >= REVIEW_LIMIT) {
+      // The dev's own depth buys one Review past the limit, and only one: the flag rides on every
+      // later call. A Review under off needs none.
+      const limit = source === "flag" ? REVIEW_LIMIT + 1 : REVIEW_LIMIT
+      if (depth !== "off" && pr.marks.count >= limit) {
         return reviewLimit(pr)
       }
       const byScript = depth === "off"
