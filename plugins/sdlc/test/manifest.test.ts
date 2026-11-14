@@ -224,8 +224,18 @@ describe("the sdlc plugin", () => {
     assert.match(text, /leaves\s+undone\s+stays\s+a\s+Finding,\s+never\s+an\s+`added:`\s+line/)
   })
 
+  it("has sdlc-pr-ship read references/review.md before a Review, which holds what a Finding is and when a Review is skipped", () => {
+    const skill = readFileSync(join(PLUGIN_ROOT, "skills", "sdlc-pr-ship", "SKILL.md"), "utf8")
+    assert.match(skill, /Read\s+`references\/review\.md`\s+before\s+the\s+Review\s+starts/)
+    const review = readFileSync(join(PLUGIN_ROOT, "skills", "sdlc-pr-ship", "references", "review.md"), "utf8")
+    assert.match(review, /A\s+Review\s+is\s+clean\s+when\s+it\s+reports\s+no\s+Finding/)
+    assert.match(review, /Never\s+post\s+a\s+success\s+over\s+an\s+open\s+Finding/)
+    assert.match(review, /Skip\s+the\s+Review\s+when\s+one\s+earlier\s+in\s+this\s+conversation/)
+    assert.match(review, /name\s+each\s+of\s+those\s+Findings\s+to\s+the\s+Review/)
+  })
+
   it("has sdlc-pr-ship carry added: lines and scope creep into Decisions without you at every Review depth", () => {
-    const text = readFileSync(join(PLUGIN_ROOT, "skills", "sdlc-pr-ship", "SKILL.md"), "utf8")
+    const text = readFileSync(join(PLUGIN_ROOT, "skills", "sdlc-pr-ship", "references", "review.md"), "utf8")
     assert.match(text, /Whatever\s+the\s+Review\s+depth,\s+carry\s+what\s+no\s+one\s+asked\s+for/)
     assert.match(text, /Recap's\s+"Decisions\s+without\s+you"/)
     assert.match(text, /at\s+`light`,\s+each\s+`added:`\s+line/)

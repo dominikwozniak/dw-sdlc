@@ -66,42 +66,18 @@ push makes.
   Put in the prompt, for each Primitive of its `primitives`, the `id`, the `class`, the `summary`
   and each `docs` entry whose `touched` is false, nothing else of the catalogue; "none" when the
   list is empty. Exit 2, a repository with no catalogue included, sends "not read" and the one line it
-  printed, never "none". Its report's first line, `clean` or `findings: <n>`, is the result. When the
-  changes since `<since>` are a fix for Findings an earlier Review in this conversation left open,
-  name each of those Findings to the Review, in the command's arguments at `full` and in the
-  subagent's prompt at `light`: it checks each one is fixed and that the fix breaks nothing.
-  Findings still open in this conversation with no fix pushed yet: fix them and push first.
+  printed, never "none". Its report's first line, `clean` or `findings: <n>`, is the result.
 
-  A Review is clean when it reports no Finding. A Finding is a concrete harm the pull request's own
-  changes cause, a bug in old code they start calling included; a doc or a Primitive summary the
-  changes make false, so the next agent would act on a falsehood; a miss against the spec; or a bug
-  fix without its regression test. A doc that only leaves new behaviour unmentioned is no Finding. A
-  known limit the dev accepted in this conversation is no Finding. Decline everything else, naming,
-  duplication, comments, style rules and judgement-call smells among them, each with one line in the
-  answer, or in the Recap when the session ends with one. A harm in code the pull request neither
-  changes nor reaches is a follow-up: one line in the answer, or under the Recap's follow-ups. The
-  Recap is the session report of `/sdlc-recap`, in the `sdlc-sessions` plugin; without that plugin
-  the answer carries these lines. Never post a success over an open Finding.
-
-  Whatever the Review depth, carry what no one asked for into the Recap's "Decisions without you",
-  or into the answer without a Recap, one line each, not into the declined lines above: at `light`,
-  each `added:` line of the subagent's report, and at `full`, each scope-creep item `code-review`
-  reports. This holds for a
-  Review skipped below too: carry the lines of the earlier Review it reuses. These never count as
-  Findings and never hold the merge.
-
-  Skip either Review when one earlier in this conversation read the changes since `<since>` at
-  `<head>`, was clean, and nothing changed after it: no edit, no commit, no pull. Only a clean run
-  of `details.reviewCommand`, or at `light` of `sdlc-reviewer` too, whose range ended at `<head>`
-  counts as that earlier Review; an informal read of the diff never counts. A Review whose head the
-  conversation does not show needs a fresh Review. After the skip, or a fresh Review that is clean,
+  Read `references/review.md` before the Review starts: it says which earlier Findings the Review
+  checks, when an earlier Review stands in for it, and how to judge its report, what is a Finding
+  and what is declined or carried. Then mark the head it read. Clean, or skipped under that file,
   run `node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" pr reviewed <n> --head <head>`; its exit 2
-  says whether the head moved or it cannot run. After a Review that left a Finding open, run
-  `node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" pr reviewed <n> --head <head> --findings` on the
-  head it read, the read mark: the head the next Review reads the fix from; then fix each Finding,
-  `git push` and call the script again. At `off`, and over a head that only merged the base in
-  since a success unless the dev's `--review` names a depth, the script marks the head reviewed
-  itself, so no `act review` comes.
+  says whether the head moved or it cannot run. A Finding left open, run
+  `node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" pr reviewed <n> --head <head> --findings`, the
+  read mark the next Review reads the fix from; then fix each Finding, `git push` and call the
+  script again. At `off`, and over a head that only merged the base in since a success unless the
+  dev's `--review` names a depth, the script marks the head reviewed itself, so no `act review`
+  comes.
 
 - `wait`, when the dev invoked the skill: tell the dev the `reason` in one line, start one background
   wait with the Bash tool's `run_in_background`, and end the turn; its exit wakes the session, and
