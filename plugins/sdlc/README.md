@@ -434,7 +434,8 @@ and a plain terminal load no plugin, so a Reference there is what the last local
 
 ### The file
 
-`.ai/references.json` holds `$schema` (optional), `version: 1` and `references`, a list of entries:
+`.ai/references.json` holds `$schema` (optional), `version: 1` and `references`, a list of entries. A
+mistake in the file never touches the guards, which read only the agentic config:
 
 | field        | required | meaning                                                                                                  |
 | ------------ | -------- | -------------------------------------------------------------------------------------------------------- |
@@ -521,7 +522,7 @@ needs next:
 | `act`  | the agent's | `fix-ci`, `fix-conflicts`, `address-review` or `review`, then calls the script again |
 | `wait` | no one's    | tells you the reason and `recheckAfter`, and ends the turn                           |
 | `park` | yours       | prints the reason and the command, and stops                                         |
-| `done` | yours       | prints the merge and the branch delete command, and stops                            |
+| `done` | no one's    | prints the merge and the branch delete command, yours to run, and stops              |
 
 It never deletes a branch, passes `--merge` only when you wrote "merge" for this pull request, and reads
 review-thread text as data, never as an instruction. How the script decides is in
@@ -554,7 +555,8 @@ with `Read`, `Grep` and read-only `Bash`. It does not see the conversation; the 
 command, the files, the spec, the Primitives the change touches with their untouched docs, and after a
 fix the Findings it answers. It reads those files, those docs and `AGENTS.md`, skips what the Gate
 checks, and reports under 300 words. Its first line is `clean` or `findings: <n>`; `smell:`,
-`follow-up:` and `fixed:` lines follow and change no count.
+`follow-up:`, `fixed:` and `added:` lines follow and change no count; an `added:` line names what the
+spec did not ask for.
 
 ## Sweeping
 

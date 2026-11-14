@@ -79,8 +79,8 @@ schema's description of each one names its options and defaults.
 | `file-size-ratchet`  | a code file over its line limit that the baseline does not allow            | its baseline              |
 | `skill-sections`     | a README section a skill copies that differs from its source                | the catalogue             |
 
-Every Check in full:
-[The Checks the package ships](https://github.com/dominikwozniak/dw-sdlc/blob/main/docs/overview.md#the-checks-the-package-ships).
+Each Check's options and defaults:
+[its description in the schema](https://github.com/dominikwozniak/dw-sdlc/blob/main/packages/dw-sdlc/config/agentic.config.schema.json).
 
 ## The Ship script
 

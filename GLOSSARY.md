@@ -13,7 +13,7 @@ One hook that judges a tool call and answers with a verdict, before the call run
 _Avoid_: rule
 
 **Dispatcher**:
-The guard that reads a shell command once and runs the others in order; the first deny ends it, and an ask waits for the rest, since a later deny wins.
+The guard that reads a shell command once and runs only the guards it could trip; the first deny ends it, and an ask waits for the rest, since a later deny wins.
 
 **Verdict**:
 A guard's answer to a tool call: deny, ask or pass.

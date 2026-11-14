@@ -21,6 +21,7 @@ Paths are relative to `plugins/sdlc/`.
 | `hooks/bash-guard.sh`                                | the dispatcher, below                                                                                                          |
 | `hooks/<guard>.sh`                                   | one guard each, as the README's [Guards](../../plugins/sdlc/README.md#guards) lists                                            |
 | `hooks/session-start.sh`, `hooks/references-sync.sh` | the two session hooks                                                                                                          |
+| `hooks/rtk-rewrite.sh`                               | no guard: it rewrites a command through `rtk` to trim its output                                                               |
 | `hooks/commit-msg.sh`                                | a git hook, not a Claude Code one                                                                                              |
 | `dw-sdlc`                                            | a link to `packages/dw-sdlc`, the package the hooks and skills run; `claude plugin install` copies it as a real directory      |
 | `skills/sdlc-<name>/`                                | the six skills                                                                                                                 |

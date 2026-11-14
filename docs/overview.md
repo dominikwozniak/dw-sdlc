@@ -88,9 +88,9 @@ sequenceDiagram
     participant G as guard
     participant C as config layers
     CC->>D: tool call (JSON on stdin)
-    D->>C: resolve local > committed > inferred
-    C-->>D: rules, or strictest set if a layer is invalid
-    D->>G: command + rules
+    D->>G: the command, to each guard it could trip
+    G->>C: resolve local > committed > inferred
+    C-->>G: rules, or strictest set if a layer is invalid
     G-->>CC: deny (exit 2) / ask / pass
 ```
 
@@ -218,6 +218,12 @@ gate: failed — 1 failure
 | `dw-sdlc gate --cache`           | skips the run when the tree matches the last green run in this checkout    |
 | `dw-sdlc gate --update-baseline` | after a green run, tightens each Ratchet's baseline                        |
 | `dw-sdlc check <name> [--write]` | runs one Check alone; `--write` first writes what `skill-sections` derives |
+
+The Quality Gate workflow runs `--verbose`, so the log of a job that times out shows how far the
+tests got. `--cache` hashes the working tree only: what a Step or a Check reads outside it, such as
+`node_modules`, the environment or `HEAD`, and an uncommitted edit inside a submodule, never changes
+the hash, so a cached green can hide a failure they would cause. The stamp holds the hash taken before
+the run, so a Gate that changes the tree runs again next time.
 
 Exit 0 is green, 1 a failure or Drift, 2 a Gate that cannot run. Signals, the JSON fields and every
 exit-2 case are in `dw-sdlc gate --help`. Why a Check is a named unit turned on in the config is
@@ -398,7 +404,8 @@ could still be committed.
 - A finished Worker is removed.
 - Another session's terminal keeps its worktree. The Sweep names it, with `hc kill` for the dev.
 - The Sweep's own terminal is never stopped.
-- When `hc` fails, the Sweep ends with exit 2 before it removes anything.
+- When `hc` fails while the Sweep reads terminals, it ends with exit 2 before it removes anything. A
+  stop or removal that fails later keeps the Worker's worktree, with `hc`'s words, and the Sweep goes on.
 
 Landed means the same to the Sweep and to the branch-delete guard: `packages/dw-sdlc/src/landed.ts`
 and `lib-git.sh` follow one rule, held to one table of scenarios both test suites read. Locks, the

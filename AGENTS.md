@@ -28,7 +28,7 @@ extends those skills and replaces none. `README.md` is the front page, `docs/ove
   `.claude/skills/` links them
 - `docs/agents/` — how those skills use this repo: issue tracker, domain docs
 - `docs/overview.md` — how it works, for a user; `docs/contributing/` — development, how a change lands,
-  releasing, the bash guard's parser, evals
+  releasing, the bash guard's parser, the plugin's internals, evals
 - `docs/adr/` — decision records; `docs/specs/` — a built feature's design record;
   `docs/research/<feature>/` — the dated outside facts it rests on. New work goes in GitHub Issues
 - `GLOSSARY.md` — what a word means here

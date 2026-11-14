@@ -113,11 +113,14 @@ Why it answers as it does:
 - **It leans to "no".** An open pull request blocks even when parked on the dev, and a live Worker blocks
   even when its turn ended: a wrong "no" costs less than a wrong "yes".
 - **It never fetches.** A branch force-pushed or deleted since the last fetch can read as holding the
-  head. Run `git fetch --prune` first to be exact. A remote out of reach holds nothing, so it answers no.
+  head. Run `git fetch --prune` first to be exact. Treating every moved branch as stale would answer no
+  each time the base moves on. A remote out of reach holds nothing, so it answers no.
 - **A commit a pull request holds counts as pushed**, so a branch whose pull request merged and whose
   remote ref is gone still closes.
 - **The pull request comes from `gh pr view`**, then from the head branch the upstream names. It counts
   only when its commits hold the local `HEAD`, so a parent branch's pull request is never this one's.
+  The limit follows: a branch pushed under another name, with commits its pull request lacks, gets no
+  pull request, and those commits read as `unpushed` and `no-pull-request`.
 - **A detached HEAD or no remote asks `gh` nothing**: the `pull request` line reads `gh not asked`. A
   remote on another host exits 2, and so does a failed `hc` in herdr.
 
