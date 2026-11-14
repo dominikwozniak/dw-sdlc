@@ -212,7 +212,8 @@ or a redirect before the verb does not hide it, and a `cd` moves the repository 
 - An `npm` or `bun` verb is refused when it installs, removes, updates, links or rebuilds a
   dependency, or runs a script, a package or code, under each alias npm and bun accept: `npm i`,
   `npm test`, `npm uninstall`, `npm audit fix`, `npm rebuild`, `npm x`, `npm explore`, `bun add`,
-  `bun test`, `bun pm trust`.
+  `bun test`, `bun pm trust`. `npm publish`, `bun publish`, `bun pm pack` and `bun pm version` pass,
+  though they run the package's lifecycle scripts.
 - bun runs any word that is not one of its own commands as a script, a bin or a file, so
   `bun dev` and `bun ./x.ts` are refused. So are `bun check`, `lint`, `fmt` and `compile`, which run
   the project's script of that name when it has one.
