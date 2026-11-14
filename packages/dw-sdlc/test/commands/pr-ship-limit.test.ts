@@ -117,6 +117,15 @@ describe("dw-sdlc pr ship after three Reviews with no success between them", () 
     }
   })
 
+  it("parks under the dev's --review once the one Review it buys left a Finding open", () => {
+    const history: Commit[] = [...THREE_MARKS.slice(0, -1), { oid: FOURTH, ...MARK }, { oid: PUSHED, review: null }]
+    for (const depth of ["light", "full"]) {
+      const run = ship(["--review", depth], pushed(history))
+      assert.equal(run.status, 30, `${depth}: ${run.stderr}`)
+      assert.deepEqual(answered(run.answer, ["action", "actor"]), { action: "review-limit", actor: "dev" }, depth)
+    }
+  })
+
   it("parks again after a fourth Review that left a Finding open", () => {
     const history: Commit[] = [...THREE_MARKS.slice(0, -1), { oid: FOURTH, ...MARK }, { oid: PUSHED, review: null }]
     const run = ship([], pushed(history))
