@@ -21,13 +21,21 @@ NPM_VALUE='("[^"]*"|'"'"'[^'"'"']*'"'"'|[^[:space:]]+)'
 # \003 once guard_scopes has read the line, so both spell it.
 NPM_REDIRECT=$'[0-9]*[&\003]?[<>][^[:space:]]+|[0-9]*(>>?|<)[[:space:]]+'"${NPM_VALUE}"
 NPM_OPTS="([[:space:]]+(--?[A-Za-z][-A-Za-z0-9]*=${NPM_VALUE}|--?(${NPM_VALUE_OPTS})[[:space:]]+${NPM_VALUE}|--?[A-Za-z][-A-Za-z0-9]*|${NPM_REDIRECT}))*"
-# Bare `npx` and bare `yarn` have no subcommand list: every form of them is the wrong package
+# The verbs that install, remove, update, link or rebuild a dependency, or run a script or a package,
+# under every alias npm 11's lib/utils/cmd-list.js gives them and bun documents. A read passes:
+# `npm view`, `npm ls`, an `npm audit` without `fix`, and bun's own `bun test` and `bun build`.
+NPM_INSTALL='install|add|i|in|ins|inst|insta|instal|isnt|isnta|isntal|isntall|ci|clean-install|ic|install-clean|isntall-clean|install-test|it|install-ci-test|cit|clean-install-test|sit'
+NPM_CHANGE='uninstall|unlink|remove|rm|r|un|update|u|up|upgrade|udpate|dedupe|ddp|prune|link|ln|rebuild|rb|audit'"$NPM_OPTS"'[[:space:]]+fix'
+NPM_RUN='run|run-script|rum|urn|test|tst|t|start|stop|restart|exec|x|init|create|innit'
+BUN_VERBS='install|i|add|remove|rm|uninstall|r|update|up|link|unlink|patch|run|x|create'
+# Bare `npx`, `bunx` and `yarn` have no subcommand list: every form of them is the wrong package
 # manager. `pnpm dlx` does not match — the boundary fires on a whole word, and `dlx` is not `npx`.
 BLOCKED_PATTERNS=(
-  'npm'"$NPM_OPTS"'[[:space:]]+(install|i|add|ci|update|upgrade|exec|run)'"$END"
+  'npm'"$NPM_OPTS"'[[:space:]]+('"$NPM_INSTALL|$NPM_CHANGE|$NPM_RUN"')'"$END"
   'yarn([[:space:]]|$)'
   'npx([[:space:]]|$)'
-  'bun[[:space:]]+(install|i|add|remove|update|run|x)'"$END"
+  'bunx([[:space:]]|$)'
+  'bun[[:space:]]+('"$BUN_VERBS"')'"$END"
 )
 
 # blocked_in <text> — 0 when one command of the text is a blocked one.

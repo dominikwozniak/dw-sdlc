@@ -78,6 +78,45 @@ describe("a pnpm repository — yarn, bun and npx refused", () => {
   blocked("npx-chained", "cd sub && npx tsc --noEmit")
 })
 
+// Each verb that installs, removes, updates, links or rebuilds a dependency, or runs a script or a
+// package, under every alias npm 11's lib/utils/cmd-list.js gives it and bun documents.
+const NPM_INSTALL = ["install", "add", "i", "in", "ins", "inst", "insta", "instal", "isnt", "isnta", "isntal"]
+const NPM_CI = ["isntall", "ci", "clean-install", "ic", "install-clean", "isntall-clean"]
+const NPM_INSTALL_TEST = ["install-test", "it", "install-ci-test", "cit", "clean-install-test", "sit"]
+const NPM_CHANGE = ["uninstall", "unlink", "remove", "rm", "r", "un", "update", "u", "up", "upgrade", "udpate"]
+const NPM_TREE = ["dedupe", "ddp", "prune", "link", "ln", "rebuild", "rb"]
+const NPM_RUN = ["run", "run-script", "rum", "urn", "test", "tst", "t", "start", "stop", "restart"]
+const NPM_EXEC = ["exec", "x", "init", "create", "innit"]
+const NPM_VERBS = [NPM_INSTALL, NPM_CI, NPM_INSTALL_TEST, NPM_CHANGE, NPM_TREE, NPM_RUN, NPM_EXEC].flat()
+const BUN_INSTALL = ["install", "i", "add", "remove", "rm", "uninstall", "r", "update", "up"]
+const BUN_VERBS = [BUN_INSTALL, ["link", "unlink", "patch", "run", "x", "create"]].flat()
+
+describe("a pnpm repository — every npm and bun verb that installs or runs", () => {
+  for (const verb of NPM_VERBS) {
+    blocked(`npm ${verb}`, `npm ${verb} lodash`)
+  }
+  for (const verb of BUN_VERBS) {
+    blocked(`bun ${verb}`, `bun ${verb} lodash`)
+  }
+  blocked("npm audit fix", "npm audit fix")
+  blocked("npm audit fix behind an option", "npm audit --json fix --force")
+  blocked("npm test alone", "npm test")
+  blocked("bunx", "bunx prettier --write .")
+  blocked("bunx bare", "bunx")
+  blocked("sudo-bunx", "sudo bunx tsc")
+  blocked("bunx-chained", "cd sub && bunx tsc --noEmit")
+  allowed("npm audit reads", "npm audit")
+  allowed("npm audit signatures reads", "npm audit signatures")
+  allowed("npm ls reads", "npm ls lodash")
+  allowed("npm outdated reads", "npm outdated")
+  allowed("npm help names a verb", "npm help install")
+  allowed("npm pkg get reads", "npm pkg get name")
+  allowed("bun test runs bun's own runner", "bun test")
+  allowed("bun runs a file", "bun scripts/x.ts")
+  allowed("bun build bundles", "bun build ./src/index.ts")
+  allowed("bun version", "bun --version")
+})
+
 describe("a pnpm repository — wrappers seen through", () => {
   blocked("rtk-npm-install", "rtk npm install")
   blocked("rtk-proxy-npm", "rtk proxy npm ci")
@@ -153,7 +192,7 @@ describe("a pnpm repository — pnpm and the near-misses pass", () => {
   allowed("npm-bare-version", "npm --version")
   allowed("npm-unknown-subcommand", "npm whoami")
   allowed("bundle-not-bun", "bundle exec rspec")
-  allowed("bunx-not-bun-space", "bunx tsc")
+  allowed("bunx-in-a-name", "bunxfoo --help")
   allowed("grep-for-yarn", "grep -rn yarn plugins/")
   allowed("empty-input", "")
   allowed("plain-ls", "ls -la")

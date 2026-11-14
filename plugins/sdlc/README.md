@@ -208,6 +208,12 @@ credentials and .netrc are the user's, not the agent's, and reading one puts it 
 inferred from the lockfile when nothing declares it. It is silent in every other repository. An option
 or a redirect before the verb does not hide it, and a `cd` moves the repository whose manager counts.
 
+- `npx`, `bunx` and `yarn` are refused in every form.
+- An `npm` or `bun` verb is refused when it installs, removes, updates, links or rebuilds a
+  dependency, or runs a script or a package, under each alias npm and bun accept: `npm i`,
+  `npm test`, `npm uninstall`, `npm audit fix`, `npm rebuild`, `npm x`, `bun add`.
+- A read passes: `npm view`, `npm ls`, `npm audit`, and bun's own `bun test` and `bun build`.
+
 ```text
 BLOCKED: 'npm install' uses npm, npx, yarn or bun, and this repository's package manager is pnpm
 (packageManagers.node). Use 'pnpm install', 'pnpm add <pkg>', or 'pnpm dlx <cmd>' …
@@ -300,7 +306,7 @@ spellings get past a rule; each is listed, not caught.
   `git 2>/dev/null push --force`.
 - git's own option parsing: a unique prefix of a long option (`--har`, `--forc`), the last of
   `--dry-run` and `--no-dry-run`, `-on` as `-o n`, and the value of `--config-env` or
-  `--attr-source` read as the verb.
+  `--attr-source` read as the verb. npm's own, too: a unique prefix of a verb, `npm uninst`.
 - A heredoc a shell reads another way: `bash /dev/stdin`, `. /dev/stdin`, `{ cat <<EOF … } | bash`,
   a pipe to a shell on a later line, `eval "$(cat <<EOF …)"`.
 - A `<<` inside `$(( ))` or `(( ))`, which the guard opens as a heredoc, dropping every later line.
