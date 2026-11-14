@@ -4,7 +4,7 @@
 
 import { CannotRun } from "../cannot-run.ts"
 import { type Called, firstLine, need } from "../exec.ts"
-import { behindOf, changedOf, changesOf, compareArgs, sameChanges } from "./delta.ts"
+import { behindOf, changedOf, changesOf, compareArgs, movedFiles, type OwnChange, sameChanges } from "./delta.ts"
 import { ReplyError } from "./reply.ts"
 import {
   awaitsReview,
@@ -196,7 +196,7 @@ export function carriesBase(before: PrState, after: PrState): boolean {
 }
 
 /** The own changes of `pr` at `commit`, from the compare with its base; null when it cannot show them whole. */
-function ownChanges(pr: Parsed, commit: string): string[] | null {
+function ownChanges(pr: Parsed, commit: string): OwnChange[] | null {
   const reply = compared(pr, pr.baseOid, commit, `the compare with ${commit.slice(0, 7)}`)
   return parseOrCannotRun(() => changesOf(reply))
 }
@@ -249,18 +249,7 @@ function withCarried(pr: Parsed): Omit<PrState, "changed" | "scope"> {
 function ownScope(pr: Parsed, from: string): string[] | null {
   const before = ownChanges(pr, from)
   const after = ownChanges(pr, pr.head)
-  if (before === null || after === null) {
-    return null
-  }
-  const moved = [
-    ...after.filter((change) => !before.includes(change)),
-    ...before.filter((change) => !after.includes(change))
-  ]
-  const names = moved.flatMap((change) => {
-    const [path, , previous] = JSON.parse(change) as [string, string, string | null]
-    return previous === null ? [path] : [path, previous]
-  })
-  return [...new Set(names)].toSorted()
+  return before === null || after === null ? null : movedFiles(before, after)
 }
 
 /**
