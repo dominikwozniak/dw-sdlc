@@ -1,6 +1,6 @@
 // What stops a command before it reaches a verdict: exit 2, one problem and, where there is one, its
-// remedy. The bin alone prints it, as `dw-sdlc <command>: <problem> — <remedy>`; the Gate reports a
-// Check's as one of its failures. A command line the command cannot read carries its usage below.
+// remedy. The bin prints it, as `dw-sdlc <command>: <problem> — <remedy>`; `gate` and `check` report one,
+// their own or a Check's, as a failure of their report. A command line it cannot read carries its usage below.
 
 import { statSync } from "node:fs"
 import { parseArgs, type ParseArgsConfig } from "node:util"

@@ -36,7 +36,7 @@ guard, so a later refusal still wins.
 
 Inside the `dw-sdlc` link, `src/cli.ts` is the bin and each subcommand is a module under
 `src/commands/`. A command that cannot run throws the `CannotRun` of `src/cannot-run.ts`, which the bin
-alone prints and turns into exit 2. `src/git.ts` runs the package's git commands from the directory each names,
+prints and turns into exit 2; `gate` and `check` report theirs as a failure of the Gate's report, exit 2 too. `src/git.ts` runs the package's git commands from the directory each names,
 never in the repository a git hook's `GIT_DIR` names, and words what went wrong in git's own line; only the
 doctor's `git config --global` and the patch-id pipeline of `src/landed.ts` run outside it. `src/agentic-config.ts` resolves the layers, `src/json-schema.ts` is the
 dependency-free schema validator, and `src/pr/` holds the read and the decision of the Ship script.

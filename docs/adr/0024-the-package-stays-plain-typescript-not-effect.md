@@ -16,8 +16,8 @@ across the two. The package stays plain TypeScript.
 - **The parts a CLI needs are not stable yet.** Effect 4 is stable, but its `cli` and `process`
   modules are marked unstable and can break in a minor release.
 - **The bin keeps its exit codes and help text.** Tests pin both. Effect's CLI exits 1 on help.
-- **Most of the gain is in reach without Effect.** One error type that the bin alone turns into
-  exit 2, and one module that owns how git runs, give the package that shape in plain TypeScript.
+- **Most of the gain is in reach without Effect.** One error type that the bin turns into exit 2,
+  and one module that owns how git runs, give the package that shape in plain TypeScript.
 
 ## Consequences
 
