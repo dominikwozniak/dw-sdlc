@@ -127,8 +127,8 @@ _Avoid_: prompt, task, handoff (carries the conversation; a Brief points at a so
 
 **Recap**:
 What a session tells a dev who did not follow it: where its work stands in Action words, what happened, what
-it decided alone, whether it can close, its questions, follow-ups and next session. Any session ends with
-one, alone or under a Lead; a Worker reports to its Lead with one.
+it decided alone, whether it can close, its questions, follow-ups and next session. Any session can end
+with one, alone or under a Lead; a Worker reports to its Lead with one.
 _Avoid_: status report, summary, handoff (context for the next agent)
 
 ### Gate

@@ -146,7 +146,9 @@ describe("the sdlc-sessions plugin", () => {
     assert.match(text, /"go, but #<m>" starts another/)
     assert.match(text, /Never start it\s+without the dev's go/)
     assert.ok(
-      text.includes('dw-sdlc/src/cli.ts" lead start --name lead-<n>-<slug> --prompt "/sdlc-delegate #<n>" --json'),
+      text.includes(
+        'dw-sdlc/src/cli.ts" lead start --name lead-<n>-<slug> --prompt "/sdlc-delegate #<n> #<m> ..." --json'
+      ),
       "go runs lead start"
     )
     assert.doesNotMatch(text, /lead start[^\n]*--dangerously-skip-permissions/)

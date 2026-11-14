@@ -121,15 +121,18 @@ they named; a question they did not answer stays open. A command the document na
 branch, stays theirs to run. The Sweep follow-up is the exception: "go" on it runs `/sdlc-sweep`, which
 runs the Sweep and reports it.
 
-The new Lead is the other: "go" starts it last, after every follow-up, as The new Lead in
+The new Lead is the other: "go" starts it last, after every follow-up, as the new Lead in
 `${CLAUDE_PLUGIN_ROOT}/templates/brief.md` says, and one Lead takes every ticket: the next session's
 issue first, then the issue each `worker` follow-up was filed as. With neither, start none. Never start it
 without the dev's go, and "go, but #<m>" puts #<m> in the next session's place, named the same way. Run,
-from the repository, with each ticket after `#<n>`:
+from the repository, `#<m> ...` the follow-ups' issues:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" lead start --name lead-<n>-<slug> --prompt "/sdlc-delegate #<n>" --json
+node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" lead start --name lead-<n>-<slug> --prompt "/sdlc-delegate #<n> #<m> ..." --json
 ```
+
+The Lead routes each Worker by the template. A model or an effort the dev names for one follow-up, as "go,
+but 1 on fable", goes to a Lead of its own, `/sdlc-delegate #<m> fable`, named after `#<m>`.
 
 An `issue` or a `worker` follow-up goes out as a Brief, written by the rules of the template, so that a
 session started from either has one shape. Each is filed with the Brief as its body, the way the template

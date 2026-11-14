@@ -136,7 +136,7 @@ follow-ups first, filing each `worker` follow-up as an issue with a Brief as its
 Lead for the candidate and those issues, the candidate first:
 
 ```bash
-dw-sdlc lead start --name lead-<n>-<slug> --prompt "/sdlc-delegate #<n>" [--wait <seconds>] [--json]
+dw-sdlc lead start --name lead-<n>-<slug> --prompt "/sdlc-delegate #<n> #<m> ..." [--wait <seconds>] [--json]
 ```
 
 It starts the Lead in a new herdr terminal in the main checkout; `dw-sdlc lead start --help` gives what

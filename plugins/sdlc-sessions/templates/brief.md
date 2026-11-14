@@ -107,14 +107,15 @@ dw-sdlc lead start --name <name> --prompt "/sdlc-delegate <tickets>" --json
 ```
 
 - **Tickets.** `#<n>` for each issue, or a spec's path. Work with no source is filed first as an issue,
-  with its Brief as the body, so the Lead reads it as an issue. A model or an effort in the dev's words
-  follows the tickets, as `/sdlc-delegate #<n> fable xhigh`.
+  with its Brief as the body, so the Lead reads it as an issue. A model and an effort follow the tickets,
+  as `/sdlc-delegate #<n> fable xhigh`, and the Lead runs every Worker it starts on them.
 - **Name.** `lead-<n>-<slug>`, `<n>` the first ticket's issue and the slug a word or two of its title, or
   `lead-<slug>` for a spec: 1-32 of `a-z`, `0-9`, `-` and `_`.
 - **Exit 0**: started, and the Lead took its first message. Tell the dev its name and address in one line.
 - **Exit 1**: started, but the first message is not confirmed. Run `hc read <address> --lines 60` and tell
   the dev. Never run the command again or send the message twice.
-- **Exit 2**: nothing started. Say why, and hand the dev the start line.
+- **Exit 2**: nothing started. Say why, and hand the dev the first message, `/sdlc-delegate <tickets>`, to
+  type into a session they start in herdr, in the main checkout.
 
 The command takes `worker.command` of the config without `--dangerously-skip-permissions` and without
 `--worktree`: never add either, or start the Lead any other way. It refuses outside herdr, where

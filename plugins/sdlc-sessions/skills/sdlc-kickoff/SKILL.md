@@ -41,8 +41,10 @@ Worker, its model and effort with the reason, then the three ways out. Recommend
 - the Lead otherwise.
 
 1. **Lead.** A new Lead, named and started as the template's new Lead says, its ticket the source: an issue
-   or a spec as it is, and an idea or a follow-up filed first as an issue whose body is the Brief. Say its
-   name and that it takes the work from here.
+   or a spec as it is, and an idea or a follow-up filed first as an issue whose body is the Brief. The
+   model and effort of this Brief follow the ticket, so the Worker runs on what the dev saw. Say the Lead's
+   name and that it takes the work from here. An issue with open sub-issues runs as its sub-issues, a
+   Worker each: say so.
 2. **Issue.** A new issue whose body is the Brief, startable later with `/implement #N`, the implement line
    the template names. When the source is already an issue, the new one points at it.
 3. **Start line.** The block the template describes, at the left margin, since an indent would enter the
