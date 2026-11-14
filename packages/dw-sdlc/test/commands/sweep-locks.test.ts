@@ -100,6 +100,24 @@ describe("a worktree locked by a Claude Code session whose process is gone", () 
     assert.equal(run.status, 0)
   })
 
+  it("is unlocked and removed when its session's name holds a letter git quotes", () => {
+    const root = clone()
+    const tree = addTree(root, join(scratch("quoted"), "tree"), "topic")
+    lock(root, tree, `claude session café "x" (pid ${exitedPid()} start Sat Nov  7 20:44:18 2026)`)
+    const run = runBin(["sweep", "--json"], root)
+    const { removed } = documentOf(run.stdout)
+    assert.deepEqual(
+      removed.map(({ kind, name }) => [kind, name]),
+      [
+        ["lock", tree],
+        ["worktree", tree],
+        ["branch", "topic"]
+      ]
+    )
+    assert.deepEqual(trees(root), [root])
+    assert.equal(run.status, 0)
+  })
+
   it("is unlocked and removed when a live pid started at another time", () => {
     const root = clone()
     const tree = addTree(root, join(scratch("reused"), "tree"), "topic")

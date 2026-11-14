@@ -44,11 +44,11 @@ export type Tree = {
   prunable: boolean
 }
 
-/** Every worktree of the repository, the main checkout first. */
+/** Every worktree of the repository, the main checkout first; -z leaves a path or a lock's reason unquoted. */
 export function worktreesOf(root: string): Tree[] {
   const trees: Tree[] = []
   let tree: Tree | undefined
-  for (const line of must(root, ["worktree", "list", "--porcelain"]).split("\n")) {
+  for (const line of must(root, ["worktree", "list", "--porcelain", "-z"]).split("\0")) {
     if (line.startsWith("worktree ")) {
       tree = { path: line.slice("worktree ".length), head: "", branch: undefined, lock: undefined, prunable: false }
       trees.push(tree)
