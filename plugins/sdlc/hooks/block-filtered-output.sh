@@ -26,10 +26,10 @@ LEAD=$' \t\003'
 # the table are dropped.
 CORE_WORDS=()
 stage_words() {
-  local stage="$1" word
+  local stage="$1"
   stage=${stage#"${stage%%[!$LEAD]*}"}
-  WORDS=()
-  while IFS= read -r word; do WORDS+=("$word"); done < <(guard_words "$stage")
+  guard_split_words "$stage"
+  WORDS=("${GUARD_WORDS[@]+"${GUARD_WORDS[@]}"}")
   guard_unwrap_words
   CORE_WORDS=("${WORDS[@]+"${WORDS[@]}"}")
   drop_run_verb
