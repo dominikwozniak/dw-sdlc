@@ -37,10 +37,9 @@ BLOCKED_PATTERNS=(
   'bun[[:space:]]+pm[[:space:]]+trust'"$END"
 )
 
-# bun's own commands that install no dependency and run no script, as its root command matcher
-# (src/runtime/cli/mod.rs) reads the first word. bun runs any other word as a package.json script, a
-# bin or a file: `bun dev`, `bun ./x.ts`. `check`, `lint`, `fmt` and `compile` are its own as well, but
-# run the project's script of that name when it has one, so they stay off the list.
+# bun's own first words that install nothing and run no script (its src/runtime/cli/mod.rs); any other runs
+# a script, a bin or a file, as `bun dev`. `check`, `lint`, `fmt` and `compile` stay off: bun runs the
+# project's script of that name when it has one.
 BUN_OWN=' build bun outdated audit info why publish whoami list pm repl upgrade help completions getcompletes discord '
 BUN_FIRST="${GUARD_BOUNDARY}bun[[:space:]]+[^-[:space:];&|()<>][^[:space:];&|()<>]*"
 
