@@ -353,8 +353,8 @@ changes one the dev or the config set. No config key moves the rules, so the sam
 the same depth.
 
 - **A Finding** is a concrete harm the pull request's own changes cause, a doc or Primitive summary
-  they make false, a miss against the spec, or a bug fix without its regression test. A Review with
-  none is clean. The agent declines the rest with a line each in the Recap.
+  they make false, a miss against the spec, a bug fix without its regression test, or a broken rule
+  of the Coding standards. A Review with none is clean. The agent declines the rest with a line each in the Recap.
 - **The marks.** `dw-sdlc pr reviewed <n> --head <sha>` posts a `dw-sdlc/review` success on the head a
   clean Review read. `--findings` posts a failure there instead, the read mark. Contexts under
   `dw-sdlc/` never count as CI.
