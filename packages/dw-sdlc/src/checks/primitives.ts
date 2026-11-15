@@ -1,10 +1,11 @@
 // `primitives`: the catalogue says what is true of the tree. Unique ids that start with their group, a
-// one-line summary, real code and docs paths, no decision record out of force, every file named.
+// one-line summary, real code and docs paths, no decision record out of force, every file named, and
+// every id `pr.reviewFull` lists.
 
 import { existsSync } from "node:fs"
 import { join } from "node:path"
 
-import type { Gate } from "../agentic-config.ts"
+import { type Gate, resolveConfig } from "../agentic-config.ts"
 import { CannotRun } from "../cannot-run.ts"
 import { type Catalogue, CATALOGUE_FILE, type Primitive, primitivesNaming, readCatalogue } from "../catalogue.ts"
 import { type Anchors, anchorsOf } from "../markdown.ts"
@@ -30,7 +31,8 @@ const REMEDIES = {
   group: "add the group to groups, or move the Primitive into one listed there",
   summary: `keep the summary to one line of ${MAX_SUMMARY} characters or fewer`,
   path: "fix the path or drop it",
-  anchor: "point the entry at a heading the file has"
+  anchor: "point the entry at a heading the file has",
+  reviewFull: "add the Primitive to the catalogue, or drop the id from pr.reviewFull"
 }
 
 function show(value: string): string {
@@ -116,6 +118,11 @@ function run(root: string, { file, roots }: PrimitivesOptions, gate: Gate): Find
       })
     }
     findings.push(...judge(root, catalogue, primitive, at, cache, records))
+  }
+  const known = new Set(catalogue.primitives.map(({ id }) => id))
+  for (const id of resolveConfig(root).config.pr.reviewFull.filter((listed) => !known.has(listed))) {
+    const message = `pr.reviewFull lists ${show(id)}, which the catalogue lacks`
+    findings.push({ file, message, remedy: REMEDIES.reviewFull })
   }
   for (const path of treeFiles(root, roots)) {
     if (!TEST_FILE.test(path) && primitivesNaming(catalogue, path).length === 0) {

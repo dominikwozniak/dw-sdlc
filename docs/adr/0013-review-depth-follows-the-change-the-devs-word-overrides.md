@@ -13,7 +13,8 @@ medium effort over the diff and the files it touches; `off` has the script post 
 itself, its description naming why. `pr.review` sets a depth or `auto`, strictest first full, auto,
 light, off; the local layer only tightens it and an invalid layer runs `full`. Under `auto` built-in
 rules route the depth from the changes: lockfiles alone are off, a file under `.github/workflows/` or
-more than 100 changed lines outside lockfiles is full, the rest light. After a push the depth is
+more than 100 changed lines outside lockfiles is full, a Primitive the config names takes full whatever
+its size (ADR 0026), the rest light. After a push the depth is
 routed on the changes since the head the last Review read. A clean Review's status carries over a merge
 or a rebase of the base that leaves the own changes as it read them. A commit of the branch's own that
 leaves them as they were routes as the rules say, and after a read mark names the mark open. A clean

@@ -1,8 +1,9 @@
-// The built-in rules `pr.review: auto` routes a Review depth by, from the files the Review would read:
-// lockfiles alone are off while no Finding is open; a workflow file, more than 100 changed lines outside
-// lockfiles, or a change the compare cannot size is full; the rest is light. No config key moves them.
+// The rules `pr.review: auto` routes a Review depth by, from the files the Review would read: lockfiles
+// alone are off while no Finding is open; a workflow file, a file a `pr.reviewFull` Primitive owns, more
+// than 100 changed lines outside lockfiles, or a change the compare cannot size is full; the rest light.
 
 import type { ReviewDepth } from "../agentic-config.ts"
+import type { ReviewFull } from "./review-full.ts"
 
 /**
  * A file a Review would read: its name, its name before a rename, and the lines it adds and removes,
@@ -46,11 +47,21 @@ function isWorkflow({ path, previous }: ChangedFile): boolean {
   return [path, previous].some((name) => name?.startsWith(WORKFLOWS) === true)
 }
 
+/** Whether `pr.reviewFull` reads the file in full: its name or its name before a rename is a listed Primitive's. */
+function isListed({ path, previous }: ChangedFile, owns: (path: string) => boolean): boolean {
+  return owns(path) || (previous !== null && owns(previous))
+}
+
 /**
  * The depth the rules route `changed` to. A change not read or not sized reads in full, as does a file
- * outside lockfiles the compare shows no patch for. With `findingsOpen` someone reads even lockfiles alone.
+ * outside lockfiles the compare shows no patch for, and every change where `reviewFull` is closed. With
+ * `findingsOpen` someone reads even lockfiles alone.
  */
-export function route(changed: ChangedFile[] | "unsized" | null, findingsOpen: boolean): Routed {
+export function route(
+  changed: ChangedFile[] | "unsized" | null,
+  findingsOpen: boolean,
+  reviewFull: ReviewFull = null
+): Routed {
   if (changed === null || changed === "unsized") {
     return { depth: "full" }
   }
@@ -58,8 +69,9 @@ export function route(changed: ChangedFile[] | "unsized" | null, findingsOpen: b
   if (!findingsOpen && changed.length > 0 && code.length === 0) {
     return { depth: "off", why: "lockfiles only" }
   }
+  const listed = typeof reviewFull === "function" && code.some((file) => isListed(file, reviewFull))
   const lines = code.map((file) => file.lines)
-  if (changed.some(isWorkflow) || lines.includes(null)) {
+  if (reviewFull === "closed" || listed || changed.some(isWorkflow) || lines.includes(null)) {
     return { depth: "full" }
   }
   const total = lines.reduce<number>((sum, count) => sum + (count ?? 0), 0)

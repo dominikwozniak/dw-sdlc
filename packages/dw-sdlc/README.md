@@ -104,6 +104,7 @@ branch. `--dry-run` performs nothing.
 | `pr.merge`         | who merges: the script under `auto`, the dev under `ask`, the default                          |
 | `pr.review`        | the Review depth of an unreviewed head: `full`, `light`, `off`, or `auto` from the change size |
 | `pr.reviewCommand` | the slash command a `full` Review runs, `/code-review` by default                              |
+| `pr.reviewFull`    | Primitive ids whose change `auto` always reads in `full`; the local layer adds, never removes  |
 
 ```json
 { "pr": { "merge": "auto", "review": "full" } }

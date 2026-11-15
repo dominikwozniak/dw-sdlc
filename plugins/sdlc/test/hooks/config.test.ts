@@ -335,6 +335,31 @@ describe("hooks/lib.sh agrees with resolveConfig", () => {
         })
     ],
     [
+      "on a committed pr.reviewFull, and a local one added to it, an id once",
+      () =>
+        repo({
+          files: {
+            [COMMITTED_FILE]: { pr: { reviewFull: ["guards.lib", "tools.ship"] } },
+            [LOCAL_FILE]: { pr: { reviewFull: ["tools.ship", "guards.dispatcher"] } }
+          }
+        })
+    ],
+    ["on a local pr.reviewFull alone", () => repo({ files: { [LOCAL_FILE]: { pr: { reviewFull: ["guards.lib"] } } } })],
+    [
+      "on a committed pr.reviewFull beside a local file loosening pr.review",
+      () =>
+        repo({
+          files: {
+            [COMMITTED_FILE]: { pr: { reviewFull: ["guards.lib"] } },
+            [LOCAL_FILE]: { pr: { review: "off", reviewFull: ["tools.ship"] } }
+          }
+        })
+    ],
+    [
+      "on a committed pr.reviewFull with a duplicate id the schema refuses",
+      () => repo({ files: { [COMMITTED_FILE]: { pr: { reviewFull: ["guards.lib", "guards.lib"] } } } })
+    ],
+    [
       "on a committed pr.reviewCommand in a file the schema refuses",
       () => repo({ files: { [COMMITTED_FILE]: { pr: { reviewCommand: "/review", draft: true } } } })
     ]
