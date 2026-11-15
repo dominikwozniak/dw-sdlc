@@ -72,7 +72,8 @@ nothing added. Its reasons are facts; do not argue with them or soften them.
 one recommended disposition, the lightest that closes it:
 
 - `now`: do it here. The default when it fits this session, since small things filed are small things lost.
-- `issue`: file it, with a short description here and a Brief as its body.
+- `issue`: file it, with a short description here and a Brief as its body. Work that needs a grilling and
+  may land as several pull requests is always `issue`.
 - `worker`: a session of its own, with a short description here, filed with a Brief as its body and
   handed to a new Lead when it goes out.
 - `drop`: not worth doing, and say why.
@@ -138,7 +139,8 @@ but 1 on fable", goes to a Lead of its own, `/sdlc-delegate #<m> fable`, named a
 
 An `issue` or a `worker` follow-up goes out as a Brief, written by the rules of the template, so that a
 session started from either has one shape. Each is filed with the Brief as its body, the way the template
-says for an issue, and a `worker` goes on to the new Lead. Where this session cannot start a Lead, a
+says for an issue, and a `worker` goes on to the new Lead. The `issue` of work that needs a grilling and may
+land as several pull requests is the one exception: its body holds its open questions and no Brief. Where this session cannot start a Lead, a
 `worker` goes back to the dev as the template's start line, unfiled. The config the template asks for
 comes from `node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" config`.
 

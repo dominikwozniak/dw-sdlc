@@ -241,19 +241,26 @@ describe("the sdlc-sessions plugin", () => {
       "a Lead relays no grilling"
     )
     assert.ok(section.includes("`## Open questions, for the grilling`"), "a filed follow-up carries its questions")
-    assert.match(section, /When the source or the dev says the work may land as several, it gets\s+no Brief/)
+    assert.match(
+      section,
+      /Work that needs a grilling and may land as several pull requests, as the\s+source or the dev says, gets no Brief/
+    )
     assert.match(section, /cuts it into tickets with `\/to-tickets`/)
-    assert.match(section, /A Recap lists such work as an\s+`issue` follow-up/)
-    assert.match(template, /all it stops on goes to the Lead, but a round of a grilling/)
+    assert.match(section, /A Recap lists such work as an `issue` follow-up/)
+    assert.match(section, /Work already cut, as an issue with open sub-issues, is no such work/)
+    assert.match(template, /all it stops on goes to the Lead, except a round of a grilling/)
   })
 
-  it("has sdlc-kickoff and the Lead treat a grilling Worker as one waiting on the dev in its own terminal", () => {
+  it("has kickoff write no Brief for a grilling that may cut the work, the Lead point the dev at a grilling Worker once, and the Recap file it as an issue", () => {
     const kickoff = skillText("sdlc-kickoff")
-    assert.match(kickoff, /may land as several pull requests gets no Brief, as the template's A grilling says/)
-    assert.match(kickoff, /- work that may land as several pull requests: no line\./, "the closed list")
+    assert.match(kickoff, /Work that needs a grilling and may land as several pull requests gets no Brief/)
+    assert.match(kickoff, /- work that needs a grilling and may land as several pull requests: no line\./)
     const delegate = skillText("sdlc-delegate")
-    assert.match(delegate, /A Worker whose Brief grills the dev ends a turn/, "the Lead knows a grilling Worker")
+    assert.match(delegate, /For each Worker whose Brief grills the dev, say it grills them in its own terminal/)
     assert.match(delegate, /relay none of its rounds/)
+    const recap = skillText("sdlc-recap")
+    assert.match(recap, /may land as several pull requests is always `issue`/)
+    assert.match(recap, /its body holds its open questions and no Brief/)
     const readme = readFileSync(join(PLUGIN_ROOT, "README.md"), "utf8")
     assert.match(readme, /Work that needs a grilling/)
   })

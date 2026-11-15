@@ -31,8 +31,9 @@ Worker and stays with it to the end. Caring for the work is the Lead's: this ses
 When you cannot tell what the work is, ask one question and stop. A model or an effort in the dev's words,
 in `$ARGUMENTS` or the conversation, is their word on the routing.
 
-Work that may land as several pull requests gets no Brief, as the template's A grilling says. Say so in one
-line, recommend what it says this session does, grilling it and cutting it with `/to-tickets`, and stop.
+Work that needs a grilling and may land as several pull requests gets no Brief, as the template's section A
+grilling says. Say so in one line, recommend what that section has this session do, a grilling and a cut
+with `/to-tickets`, and stop.
 
 ## The answer
 
@@ -67,4 +68,4 @@ The closed list:
 
 - the way you recommended: its word;
 - a question asked because the work is unclear: no line;
-- work that may land as several pull requests: no line.
+- work that needs a grilling and may land as several pull requests: no line.
