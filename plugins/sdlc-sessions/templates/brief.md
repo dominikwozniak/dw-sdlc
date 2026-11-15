@@ -41,11 +41,12 @@ Model and effort: `<model>`, `<effort>`: <the reason, one clause>.
   second `full` Review of a clean, unchanged head. Drop this line for read-only work.
 - **Ship.** Drop this line for read-only work. The skill `/sdlc-pr-open` writes the pull request body, so the
   Brief states no rule of it.
+- **A grilling.** A Brief that needs one takes the lines of [A grilling](#a-grilling) too.
 - **Questions and Report, without a Lead.**
   - `on a question outside this Brief, commit nothing more, ask, and end your turn. The answer comes from the dev in this terminal.`
   - `when the work is done, end with /sdlc-recap and stop. A wait from /sdlc-pr-ship is no end: tell the dev what it waits on and end your turn, and the next message from the dev resumes it.`
 - **Questions and Report, with a Lead.** When the Brief names its Lead's terminal. A Worker that ends its
-  turn looks finished to its Lead, so all it stops on goes to the Lead.
+  turn looks finished to its Lead, so all it stops on goes to the Lead, except a round of a grilling.
   - In the lines, replace `dw-sdlc` with the command the skill runs it by, such as
     `node "<path>/dw-sdlc/src/cli.ts"`, since a Worker may have no `dw-sdlc` on PATH.
   - `on a question outside this Brief, commit nothing more, deliver it to the Lead the way Report says, and end your turn. The answer comes from the Lead, which relays the word of the dev, or from the dev in this terminal.`
@@ -66,11 +67,35 @@ The Brief's kind decides, never the size of the change.
 | --------------------------------------------------- | -------------- | --------------- |
 | a clear spec: the work is decided, its proof stated | `worker.model` | `worker.effort` |
 | it needs decisions, design or reading unclear code  | `opus`         | `high`          |
+| it needs a grilling: the dev decides open questions | `opus`         | `high`          |
 | the dev named a model or an effort                  | as they said   | as they said    |
 
-`xhigh`, `max` or `fable` only on the dev's word, which overrides either row, up or down, one value or
+`xhigh`, `max` or `fable` only on the dev's word, which overrides any row, up or down, one value or
 both. The reason names the row in a few words and retells nothing: "a clear spec", "needs a design
-decision", "unclear code" or "the word of the dev".
+decision", "unclear code", "needs a grilling" or "the word of the dev".
+
+## A grilling
+
+A Brief needs a grilling when its source holds open questions for the dev, as a section of them in an
+issue, or when the dev asks for one. Decisions the Worker may take alone keep the routing's row "it needs
+decisions". Its Worker settles the open questions with the dev, in its own terminal, before any code:
+
+- **Must not** opens with
+  `decide the open questions alone: before any code, grill the dev in this terminal with /grill-with-docs, questions in <the conversation's language>;`.
+  `grill-with-docs` is a skill of the engineering skills. Where this session lists none, the line names
+  `/grilling`, and with neither, no skill.
+- **Proof** opens with `every decision of the grilling carried out`.
+- **Questions**, with a Lead, ends with
+  `The grilling itself is with the dev in this terminal, not through the Lead.`
+- **Open questions only this conversation holds**, for an idea or a Recap follow-up, go into the issue the
+  work is filed as, after the Brief, under `## Open questions, for the grilling`. The Worker and its Lead
+  read them there.
+
+A Worker carries one pull request. Work that needs a grilling and may land as several pull requests, as the
+source or the dev says, gets no Brief. The session that holds it grills it, as the Must not line names the
+skill, and cuts it into tickets with `/to-tickets`, or files each ticket by hand where it lists no such
+skill, then kicks off the tickets. A Recap lists such work as an `issue` follow-up, its body the open
+questions and no Brief. Work already cut, as an issue with open sub-issues, is no such work.
 
 ## The Worker's name
 

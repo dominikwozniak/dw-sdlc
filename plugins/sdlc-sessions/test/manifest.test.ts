@@ -222,6 +222,49 @@ describe("the sdlc-sessions plugin", () => {
     }
   })
 
+  it("routes work with open questions for the dev to a Brief that grills the dev before any code", () => {
+    const template = readFileSync(join(PLUGIN_ROOT, BRIEF_TEMPLATE), "utf8")
+    assert.match(template, /\| it needs a grilling: [^|]+\| `opus` +\| `high` +\|/, "the routing has a grilling row")
+    assert.ok(template.includes('"needs a grilling"'), "the reason names the row")
+    assert.match(template, /- \*\*A grilling\.\*\* .*\[A grilling\]\(#a-grilling\)/, "the form points at the section")
+    const section = /^## A grilling\n[\s\S]*?(?=\n## )/m.exec(template)?.[0] ?? ""
+    assert.ok(
+      section.includes(
+        "`decide the open questions alone: before any code, grill the dev in this terminal with /grill-with-docs"
+      ),
+      "Must not opens with the grilling"
+    )
+    assert.match(section, /names\s+`\/grilling`, and with neither, no skill/, "a session without the skill")
+    assert.ok(section.includes("`every decision of the grilling carried out`"), "Proof holds every decision")
+    assert.ok(
+      section.includes("`The grilling itself is with the dev in this terminal, not through the Lead.`"),
+      "a Lead relays no grilling"
+    )
+    assert.ok(section.includes("`## Open questions, for the grilling`"), "a filed follow-up carries its questions")
+    assert.match(
+      section,
+      /Work that needs a grilling and may land as several pull requests, as the\s+source or the dev says, gets no Brief/
+    )
+    assert.match(section, /cuts it into tickets with `\/to-tickets`/)
+    assert.match(section, /A Recap lists such work as an `issue` follow-up/)
+    assert.match(section, /Work already cut, as an issue with open sub-issues, is no such work/)
+    assert.match(template, /all it stops on goes to the Lead, except a round of a grilling/)
+  })
+
+  it("has kickoff write no Brief for a grilling that may cut the work, the Lead point the dev at a grilling Worker once, and the Recap file it as an issue", () => {
+    const kickoff = skillText("sdlc-kickoff")
+    assert.match(kickoff, /Work that needs a grilling and may land as several pull requests gets no Brief/)
+    assert.match(kickoff, /- work that needs a grilling and may land as several pull requests: no line\./)
+    const delegate = skillText("sdlc-delegate")
+    assert.match(delegate, /For each Worker whose Brief grills the dev, say it grills them in its own terminal/)
+    assert.match(delegate, /relay none of its rounds/)
+    const recap = skillText("sdlc-recap")
+    assert.match(recap, /may land as several pull requests is always `issue`/)
+    assert.match(recap, /its body holds its open questions and no Brief/)
+    const readme = readFileSync(join(PLUGIN_ROOT, "README.md"), "utf8")
+    assert.match(readme, /Work that needs a grilling/)
+  })
+
   it("has the Ship line name both skills and leave the rules of the body to /sdlc-pr-open", () => {
     const template = readFileSync(join(PLUGIN_ROOT, BRIEF_TEMPLATE), "utf8")
     const ship = /^Ship: .+$/m.exec(template)?.[0] ?? ""

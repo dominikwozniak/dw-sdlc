@@ -99,7 +99,8 @@ reported their end and are still `live` in `worker ls`. Only the dev's word rais
 the queue.
 
 Tell the dev in a few lines who started, on which model and effort, and which tickets wait in the queue
-and on what. Then end your turn. Each Worker's report wakes you; do not wait for it.
+and on what. For each Worker whose Brief grills the dev, say it grills them in its own terminal, with its
+address; do the same when one starts from the queue. Then end your turn. Each Worker's report wakes you; do not wait for it.
 
 ## On every wake
 
@@ -115,6 +116,10 @@ node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" worker ls --json
   and tell the dev what it asks. Never answer the dialog yourself.
 - `error`, or `finished` with no Recap: read its screen and tell the dev.
 - `done`: a turn ended, not the task. Read the Recap it sent; with none, read its screen.
+
+A Worker whose Brief grills the dev ends a turn on each round of questions and sends no Recap. When a
+wake shows it `done` with its screen on a round, the round waits on the dev in that Worker's terminal,
+where you pointed them when it started: relay none of its rounds.
 
 Read each Recap whole. Its verdict decides:
 

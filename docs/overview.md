@@ -63,6 +63,11 @@ Without the engineering skills every part of dw-sdlc still runs but three: a Bri
 Claude Code creates a Worker's worktree from the `--worktree <name>` flag of its start line. The Sweep
 removes it once the Worker's work has landed.
 
+Work that still needs a grilling goes through `/sdlc-kickoff`, a Recap or `/sdlc-delegate` like any other:
+its Brief has the Worker grill the dev in its own terminal before any code. A Worker carries one pull
+request, so work that may land as several is grilled and cut with `/to-tickets` in the session that
+holds it, then kicked off.
+
 ### Which session skill, and what it adds beside `triage` and `handoff`
 
 | you want                                                     | skill            |
