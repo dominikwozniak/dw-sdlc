@@ -31,10 +31,16 @@ Worker and stays with it to the end. Caring for the work is the Lead's: this ses
 When you cannot tell what the work is, ask one question and stop. A model or an effort in the dev's words,
 in `$ARGUMENTS` or the conversation, is their word on the routing.
 
+Work that needs a grilling, as the template defines it, takes a Brief of that kind: its Worker grills the
+dev in its own terminal before any code. When the source or the dev says the grilling may cut the work into
+several pull requests, write no Brief. Say so in one line, and recommend grilling it here with
+`/grill-with-docs`, cutting it with `/to-tickets`, then kicking off the tickets. Then stop.
+
 ## The answer
 
 Write it in the conversation's language around the Brief; the Brief itself stays English. A line naming the
-Worker, its model and effort with the reason, then the three ways out. Recommend the lightest that fits:
+Worker, its model and effort with the reason, and for a grilling that the Worker grills the dev in its own
+terminal, then the three ways out. Recommend the lightest that fits:
 
 - the issue, when the dev said not now;
 - the start line, when this session cannot start a Lead;
@@ -62,4 +68,5 @@ End with `Next: <word>` in a code span as the last line, the word that picks the
 The closed list:
 
 - the way you recommended: its word;
-- a question asked because the work is unclear: no line.
+- a question asked because the work is unclear: no line;
+- work a grilling may cut into several pull requests: no line.

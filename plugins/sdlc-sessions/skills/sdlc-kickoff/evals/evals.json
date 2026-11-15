@@ -110,6 +110,39 @@
         "The answer ends with the last line Next: in a code span naming start",
         "The lead start command was not run, and nothing was started or filed"
       ]
+    },
+    {
+      "id": 8,
+      "name": "open-questions-take-a-grilling-brief",
+      "prompt": "/sdlc-kickoff #120\n\nThe dev writes Polish. They wrote: \"odpal #120, zamykam potem tę sesję\". In place of running them, take these as what the commands printed.\n\n`gh issue view 120 --comments`:\ntitle: Export: let a repository choose the date format\nbody: ## Why\nThe export command prints dates in one fixed format, and two repositories need another.\n## Open questions, for the grilling\n1. A config key or a flag.\n2. Which formats ship by default.\n## Not in scope\n- Time zones.\ncomments: none\n\n`dw-sdlc config`, exit 0:\ncommitted  .ai/agentic.config.json  valid\nlocal      .ai/agentic.config.local.json  absent\n{\"gate\":{\"command\":\"pnpm check\"},\"pr\":{\"merge\":\"auto\"},\"worker\":{\"command\":\"claude\",\"model\":\"sonnet\",\"effort\":\"high\"}}\n\n`git worktree list --porcelain` first line: worktree /repo/tool\n\n`printenv HC_TERMINAL_ID`: t1, exit 0.\n`git rev-parse --path-format=absolute --git-dir --git-common-dir`: /repo/tool/.git, then /repo/tool/.git.\n\nThe repository has the /implement and /grill-with-docs skills. Give your answer as the skill says, and save it as kickoff.md. Run nothing else.",
+      "expected_output": "A Brief of the grilling kind on opus and high: its Must not opens with grilling the dev in its own terminal with /grill-with-docs before any code, questions in Polish, its Proof holds every decision of the grilling, the open questions are not retold, and the new Lead is recommended.",
+      "files": [],
+      "expectations": [
+        "The Model and effort line says opus and high, with a reason that names the grilling",
+        "The Must not line opens with: decide the open questions alone: before any code, grill the dev in this terminal with /grill-with-docs",
+        "The Must not line asks for the questions in Polish, the language of the conversation",
+        "The Proof line holds every decision of the grilling carried out",
+        "The Questions line says the grilling itself is with the dev in this terminal, not through the Lead",
+        "The Brief does not list the open questions: a config key, a flag and the default formats do not appear in it",
+        "The words around the Brief say the Worker grills the dev in its own terminal",
+        "Three ways out appear, with the Lead recommended, and its first message is /sdlc-delegate #120 opus high",
+        "The answer ends with the last line Next: in a code span naming start",
+        "Nothing was started, filed or commented on"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "a-grilling-that-may-cut-the-work-writes-no-brief",
+      "prompt": "/sdlc-kickoff #130\n\nThe dev writes English. In place of running them, take these as what the commands printed.\n\n`gh issue view 130 --comments`:\ntitle: Notifications: a design to settle\nbody: ## Why\nUsers miss updates. We need email, a web inbox and a digest, each landing on its own.\n## Open questions, for the grilling\n1. Which channel comes first.\n2. Whether the digest is daily or weekly.\n3. How the pieces split into pull requests.\ncomments: none\n\n`dw-sdlc config`, exit 0:\ncommitted  .ai/agentic.config.json  valid\nlocal      .ai/agentic.config.local.json  absent\n{\"gate\":{\"command\":\"pnpm check\"},\"pr\":{\"merge\":\"auto\"},\"worker\":{\"command\":\"claude\",\"model\":\"sonnet\",\"effort\":\"high\"}}\n\n`git worktree list --porcelain` first line: worktree /repo/tool\n\n`printenv HC_TERMINAL_ID`: t1, exit 0.\n`git rev-parse --path-format=absolute --git-dir --git-common-dir`: /repo/tool/.git, then /repo/tool/.git.\n\nThe repository has the /implement and /grill-with-docs skills. Give your answer as the skill says, and save it as kickoff.md. Run nothing else.",
+      "expected_output": "No Brief: the grilling may cut the work into several pull requests, so the answer says so in one line and recommends grilling it in this session with /grill-with-docs and cutting it with /to-tickets, then kicking off the tickets. No Next line.",
+      "files": [],
+      "expectations": [
+        "No Brief is written: no Goal, May write or Proof line appears",
+        "One line says the grilling may cut the work into several pull requests, which one Worker cannot carry",
+        "It recommends grilling the work in this session with /grill-with-docs and cutting it with /to-tickets, then kicking off the tickets",
+        "No way out is offered and no line starts with Next:",
+        "Nothing was started, filed or commented on"
+      ]
     }
   ]
 }

@@ -115,6 +115,9 @@ node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" worker ls --json
   and tell the dev what it asks. Never answer the dialog yourself.
 - `error`, or `finished` with no Recap: read its screen and tell the dev.
 - `done`: a turn ended, not the task. Read the Recap it sent; with none, read its screen.
+- A Worker whose Brief grills the dev ends a turn on each round of questions, with no Recap: the round
+  waits on the dev in that Worker's terminal. Tell the dev once, with its address, that it grills them
+  there, and relay none of its rounds.
 
 Read each Recap whole. Its verdict decides:
 

@@ -41,6 +41,14 @@ Model and effort: `<model>`, `<effort>`: <the reason, one clause>.
   second `full` Review of a clean, unchanged head. Drop this line for read-only work.
 - **Ship.** Drop this line for read-only work. The skill `/sdlc-pr-open` writes the pull request body, so the
   Brief states no rule of it.
+- **A grilling.** A Brief of the grilling kind, as the routing below names it, has the Worker settle the
+  source's open questions with the dev before it writes code. Its Must not opens with
+  `decide the open questions alone: before any code, grill the dev in this terminal with /grill-with-docs, questions in <the conversation's language>;`
+  and its Proof with `every decision of the grilling carried out`. With a Lead, its Questions line ends
+  `The grilling itself is with the dev in this terminal, not through the Lead.` `grill-with-docs` is a
+  skill of the engineering skills: where this session lists none, name `/grilling`, and with neither,
+  drop the skill from the line. When the grilling shows the work wants more than one pull request, the
+  Worker ships the part one pull request holds and lists the rest as follow-ups in its Recap.
 - **Questions and Report, without a Lead.**
   - `on a question outside this Brief, commit nothing more, ask, and end your turn. The answer comes from the dev in this terminal.`
   - `when the work is done, end with /sdlc-recap and stop. A wait from /sdlc-pr-ship is no end: tell the dev what it waits on and end your turn, and the next message from the dev resumes it.`
@@ -66,11 +74,20 @@ The Brief's kind decides, never the size of the change.
 | --------------------------------------------------- | -------------- | --------------- |
 | a clear spec: the work is decided, its proof stated | `worker.model` | `worker.effort` |
 | it needs decisions, design or reading unclear code  | `opus`         | `high`          |
+| it needs a grilling: the dev decides open questions | `opus`         | `high`          |
 | the dev named a model or an effort                  | as they said   | as they said    |
 
-`xhigh`, `max` or `fable` only on the dev's word, which overrides either row, up or down, one value or
+A Brief needs a grilling when its source holds open questions for the dev, as a section of them in an
+issue, or when the dev asks for one; decisions the Worker may take alone are the row above it. A Brief of
+that kind takes the grilling lines of the form.
+
+`xhigh`, `max` or `fable` only on the dev's word, which overrides any row, up or down, one value or
 both. The reason names the row in a few words and retells nothing: "a clear spec", "needs a design
-decision", "unclear code" or "the word of the dev".
+decision", "unclear code", "needs a grilling" or "the word of the dev".
+
+A Worker carries one pull request, so work a grilling may cut into several pull requests gets no Brief:
+it is grilled in the session that holds it, cut with `/to-tickets` into tickets, and the tickets are
+kicked off.
 
 ## The Worker's name
 

@@ -222,6 +222,38 @@ describe("the sdlc-sessions plugin", () => {
     }
   })
 
+  it("routes work with open questions for the dev to a Brief that grills the dev before any code", () => {
+    const template = readFileSync(join(PLUGIN_ROOT, BRIEF_TEMPLATE), "utf8")
+    assert.match(template, /\| it needs a grilling: [^|]+\| `opus` +\| `high` +\|/, "the routing has a grilling row")
+    assert.ok(template.includes('"needs a grilling"'), "the reason names the row")
+    const note = /- \*\*A grilling\.\*\*[\s\S]*?(?=\n- \*\*)/.exec(template)?.[0] ?? ""
+    assert.ok(
+      note.includes(
+        "`decide the open questions alone: before any code, grill the dev in this terminal with /grill-with-docs"
+      ),
+      "Must not opens with the grilling"
+    )
+    assert.ok(note.includes("`every decision of the grilling carried out`"), "Proof holds every decision")
+    assert.ok(
+      note.includes("`The grilling itself is with the dev in this terminal, not through the Lead.`"),
+      "a Lead relays no grilling"
+    )
+    assert.match(template, /grilled in the session that holds it, cut with `\/to-tickets`/)
+  })
+
+  it("has sdlc-kickoff and the Lead treat a grilling Worker as one waiting on the dev in its own terminal", () => {
+    const kickoff = skillText("sdlc-kickoff")
+    assert.match(
+      kickoff,
+      /cut the work into\s+several pull requests, write no Brief[\s\S]*`\/to-tickets`/,
+      "kickoff sends a cut elsewhere"
+    )
+    const delegate = skillText("sdlc-delegate")
+    assert.match(delegate, /A Worker whose Brief grills the dev/, "the Lead knows a grilling Worker")
+    const readme = readFileSync(join(PLUGIN_ROOT, "README.md"), "utf8")
+    assert.match(readme, /needs a grilling/)
+  })
+
   it("has the Ship line name both skills and leave the rules of the body to /sdlc-pr-open", () => {
     const template = readFileSync(join(PLUGIN_ROOT, BRIEF_TEMPLATE), "utf8")
     const ship = /^Ship: .+$/m.exec(template)?.[0] ?? ""
