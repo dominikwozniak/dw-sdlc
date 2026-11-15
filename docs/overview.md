@@ -335,8 +335,7 @@ Every flag and the fields of the answer are in `dw-sdlc pr ship --help`.
 
 ### The Review loop
 
-dw-sdlc owns the Review loop: when a head is reviewed, how deep, what counts as a Finding and when the
-loop stops. At `full` it runs the reviewer you name, `/code-review` of the engineering skills by
+dw-sdlc owns the Review loop: when a head is reviewed, how deep, what is a Finding, when it stops. At `full` it runs the reviewer you name, `/code-review` of the engineering skills by
 default. At `light` it runs its own `sdlc-reviewer`.
 
 | depth   | who reads the change                              | set by                             |
@@ -349,13 +348,15 @@ Under `pr.review: auto`, the default, built-in rules route the depth from the ch
 winning:
 
 - `off`: every changed file is a lockfile, and no Finding is open;
-- `full`: a file under `.github/workflows/`, more than 100 changed lines outside lockfiles, or a change
-  the script cannot size;
+- `full`: a file under `.github/workflows/`, a `pr.reviewFull` Primitive's code, more than 100 changed
+  lines outside lockfiles, or a change the script cannot size;
 - `light`: the rest.
 
+`pr.reviewFull` lists Primitive ids: a change to a listed Primitive's code reads in `full` whatever its
+size. A missing catalogue or an unknown id routes every change `full` (ADR 0026).
+
 The agent may raise an `auto` depth from `light` to `full`, saying why. It never lowers one, and never
-changes one the dev or the config set. No config key moves the rules, so the same change always gets
-the same depth.
+changes one the dev or the config set.
 
 - **A Finding** is a concrete harm the pull request's own changes cause, a doc or Primitive summary
   they make false, a miss against the spec, a bug fix without its regression test, or a broken rule
@@ -365,26 +366,23 @@ the same depth.
   `dw-sdlc/` never count as CI.
 - **After a fix** the Review reads only the changes since the head the last Review read,
   `details.since`, and checks each Finding that fix answers.
-- **A merge of the base carries a success.** Two tests must both pass: every commit since the reviewed
-  one is a merge, and the pull request's own changes are the same at both commits, compared through
-  GitHub. A read mark never carries.
+- **A merge of the base carries a success.** Every commit since the reviewed one is a merge, and
+  the pull request's own changes, compared through GitHub, match at both. A read mark never carries.
 - **A read mark no commit answers stays open.** A read mark on the head, or one the commits since leave with
   the own changes as it read them, merges and rebases too, is named in `details.open`. The
   Review reads the whole pull request, and nothing carries. A session that holds the mark's Findings
   fixes them first.
 - **A merge of the base keeps its other files out of a fix's Review.** When a merge came after the head
   a Review read, the script compares the pull request's own changes at both heads and names the files
-  that moved in `details.paths`. It routes the depth on those files, and the Review reads only them; a
-  file the base changed too still shows and counts the base's lines.
+  that moved in `details.paths`. It routes the depth on those files, and the Review reads only them; a file the base changed too counts the base's lines.
 - **A rebase keeps the read.** A rebase gives every commit a new oid, so the history holds no head a
-  Review read. The script then reads the last 20 force pushes on the pull request's timeline, each
-  with the head it left behind and the commits under it. The newest of them a Review read stands in. A clean read whose own changes match the
+  Review read. The script reads the last 20 force pushes on the timeline, each with the head it
+  left behind and the commits under it; the newest a Review read stands in. A clean read whose own changes match the
   head's carries its success. Otherwise the Review reads from that head, kept to the files whose own
   change moved, as after a merge. A read mark the rebase left as it was stays open, and the
   marks on left-behind heads and the commits under them count toward the limit.
 - **The limit is three.** Three Reviews with no success between them park the pull request as
-  `review-limit`, with `pr reviewed --accept` as the dev's command. The limit is a constant with no
-  config key, so no repository turns the loop back on. The dev's `--review <depth>` buys one more
+  `review-limit`, with `pr reviewed --accept` as the dev's command. No config key moves the limit. The dev's `--review <depth>` buys one more
   Review.
 
 What the skill does at each step is in the plugin README's

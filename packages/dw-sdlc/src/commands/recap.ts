@@ -7,6 +7,7 @@ import { asked, must } from "../git.ts"
 import { pausedIn } from "../paused-operation.ts"
 import { type Answer, decide, declaredPolicy, labelOf, lineOf } from "../pr/decide.ts"
 import { defaultBranch, ghReads, now } from "../pr/read.ts"
+import { reviewFullOf } from "../pr/review-full.ts"
 import type { PrState } from "../pr/state.ts"
 import { holds } from "../pr/upstream.ts"
 import { type Candidate, type Next, READY_LABEL, readNext } from "../recap-next.ts"
@@ -151,7 +152,8 @@ function workersText(workers: Worker[]): string {
 /** This checkout's pull request and the Action the Ship script's decision gives it, or null when it has none. */
 function readShipped(root: string): Shipped | null {
   // An invalid config layer resolves to ask and full, as in the Ship script.
-  const policy = declaredPolicy(resolveConfig(root).config.pr)
+  const { config } = resolveConfig(root)
+  const policy = declaredPolicy(config.pr, reviewFullOf(root, config))
   const found = ghReads(policy.review.depth === "auto").checkout(root)
   return "problem" in found ? null : { pr: found, answer: decide(found, now(), policy) }
 }

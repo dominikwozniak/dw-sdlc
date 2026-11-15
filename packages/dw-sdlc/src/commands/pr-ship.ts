@@ -19,6 +19,7 @@ import {
   type Status
 } from "../pr/decide.ts"
 import { gh, ghReads, namedProblem, nameItRemedy, now, type Reads, said } from "../pr/read.ts"
+import { reviewFullOf } from "../pr/review-full.ts"
 import type { PrState } from "../pr/state.ts"
 import { shellLine } from "../shell-line.ts"
 
@@ -40,8 +41,9 @@ the agent reviews it with the command pr.reviewCommand names, /code-review by de
 one sdlc-reviewer subagent reads the diff; under off the script posts the success itself, its
 description saying why. Under auto, the default, the script routes the depth from the changes the
 Review would read: lockfiles alone off, unless a Finding is open; a file under .github/workflows/,
-more than 100 changed lines outside lockfiles, or a change it cannot size, more files than GitHub's
-compare lists or a file outside lockfiles with no patch, full; the rest light. After a push it names
+a file the code of a Primitive listed in pr.reviewFull names (every change when that list cannot be
+held to the catalogue), more than 100 changed lines outside lockfiles, or a change it cannot size,
+more files than GitHub's compare lists or a file outside lockfiles with no patch, full; the rest light. After a push it names
 the last commit a Review read under details.since, where the Review reads from and auto routes from:
 one with a ${REVIEW} success not posted under off, or the read mark pr reviewed --findings
 posts. It carries a success over a head whose only commits since are merges of the base, unless
@@ -284,9 +286,9 @@ export function run(argv: string[]): number {
   }
   // An invalid config layer resolves to ask and full, like every other strictest setting.
   const root = repositoryRoot(process.cwd())
-  const declared = resolveConfig(root).config.pr
+  const { config } = resolveConfig(root)
   const policy: Policy = {
-    ...declaredPolicy(declared),
+    ...declaredPolicy(config.pr, reviewFullOf(root, config)),
     ...(cli.merge ? { merge: "auto" } : {}),
     ...(cli.review === undefined ? {} : { review: { depth: cli.review, source: "flag" } })
   }

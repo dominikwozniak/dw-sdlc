@@ -3,6 +3,7 @@
 // next Review reads, through a port onto GitHub's compares; and so the Review the head gets.
 
 import type { PrReview, ReviewDepth } from "../agentic-config.ts"
+import type { ReviewFull } from "./review-full.ts"
 import { type ChangedFile, route } from "./route.ts"
 
 /**
@@ -281,24 +282,27 @@ function findingsOpen({ marks, lastRead, open }: Standing): boolean {
 }
 
 /** The depth the head is read at: the dev's or the one `pr.review` sets, else the one the rules route. */
-function depthOf({ depth, source }: ReviewPolicy, standing: Standing): Depth {
+function depthOf({ depth, source }: ReviewPolicy, standing: Standing, reviewFull: ReviewFull): Depth {
   if (depth === "off") {
     return { depth, source, why: source === "flag" ? "--review off" : "pr.review" }
   }
   if (depth !== "auto") {
     return { depth, source }
   }
-  return { ...route(standing.changed, findingsOpen(standing)), source: "auto" }
+  return { ...route(standing.changed, findingsOpen(standing), reviewFull), source: "auto" }
 }
 
-/** The Review the head gets at `standing` under `review`; the dev's word goes over a carry. */
-export function reviewCall(standing: Standing, review: ReviewPolicy): ReviewCall {
+/**
+ * The Review the head gets at `standing` under `review`; the dev's word goes over a carry. `reviewFull`
+ * is the rule `pr.reviewFull` adds to the depth `pr.review: auto` routes.
+ */
+export function reviewCall(standing: Standing, review: ReviewPolicy, reviewFull: ReviewFull = null): ReviewCall {
   const { lastRead, open, marks, carried, scope } = standing
   const flagged = review.source === "flag"
   if (carried && lastRead !== null && !flagged) {
     return { kind: "carry", from: lastRead.commit }
   }
-  const depth = depthOf(review, standing)
+  const depth = depthOf(review, standing, reviewFull)
   // The dev's own depth buys one Review past the limit, and only one: the flag rides on every
   // later call. Their --review off posts past it: no one reads, by their word.
   const limit = flagged ? REVIEW_LIMIT + 1 : REVIEW_LIMIT

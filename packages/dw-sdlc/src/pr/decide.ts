@@ -4,6 +4,7 @@
 
 import type { PrMerge, ResolvedConfig } from "../agentic-config.ts"
 import { shellLine } from "../shell-line.ts"
+import type { ReviewFull } from "./review-full.ts"
 import { type ReadMarks, reviewCall, type ReviewPolicy } from "./standing.ts"
 import { awaitsReview, type CiCheck, OFF_PREFIX, type PrState, REVIEW, type Thread } from "./state.ts"
 
@@ -38,10 +39,10 @@ export type ScriptAction = "update-branch" | "mark-ready" | "mark-reviewed" | "m
  * What the decision reads beside the pull request: who merges it, how closely a Review reads it, the
  * dev's word or `pr.review`, and the slash command a `full` Review runs.
  */
-export type Policy = { merge: PrMerge; review: ReviewPolicy; reviewCommand: string }
-/** The policy a repository's `pr` key declares; a flag for one call goes over it. */
-export function declaredPolicy({ merge, review, reviewCommand }: ResolvedConfig["pr"]): Policy {
-  return { merge, review: { depth: review, source: "config" }, reviewCommand }
+export type Policy = { merge: PrMerge; review: ReviewPolicy; reviewCommand: string; reviewFull: ReviewFull }
+/** The policy a repository's `pr` key declares, `reviewFull` as `reviewFullOf` reads it; a flag for one call goes over it. */
+export function declaredPolicy({ merge, review, reviewCommand }: ResolvedConfig["pr"], reviewFull: ReviewFull): Policy {
+  return { merge, review: { depth: review, source: "config" }, reviewCommand, reviewFull }
 }
 
 /** An Action the pull request needs beside the one its answer names, so one push can fix several. */
@@ -142,7 +143,7 @@ export function reviewStatusArgs(
 
 /** Why the head carries the success the script posts: the Review it carries, else why its depth is off. */
 function markedDescription(pr: PrState, policy: Policy): string {
-  const call = reviewCall(pr, policy.review)
+  const call = reviewCall(pr, policy.review, policy.reviewFull)
   if (call.kind === "carry") {
     return `carried from ${call.from.slice(0, 7)}`
   }
@@ -171,7 +172,7 @@ function reviewLimit(pr: PrState, { count, since }: ReadMarks): Omit<Answer, "bl
  */
 function reviewAnswer(pr: PrState, policy: Policy): Omit<Answer, "blockers"> {
   const head = { status: "act", reason: `no ${REVIEW} success on ${pr.head.slice(0, 7)}` } as const
-  const call = reviewCall(pr, policy.review)
+  const call = reviewCall(pr, policy.review, policy.reviewFull)
   if (call.kind === "carry") {
     return { ...head, action: "mark-reviewed", actor: "script", details: { since: call.from } }
   }

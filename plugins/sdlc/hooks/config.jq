@@ -25,7 +25,7 @@ def strictest: {
 # agent reviews every head in full.
 def strictest_pr: {merge: "ask", review: "full"};
 
-# A resolved config as it runs while any layer is invalid; pr.reviewCommand and worker have no
+# A resolved config as it runs while any layer is invalid; pr.reviewCommand, pr.reviewFull and worker have no
 # strictest value and keep what the valid layers name.
 def on_strictest: .guardrails = strictest | .pr += strictest_pr;
 
@@ -49,13 +49,14 @@ def defaults($inferred): {
   },
   commit: {},
   gate: ({steps: [], drift: "fail", checks: {run: []}} + ($inferred.gate // {})),
-  pr: {merge: "ask", review: "auto", reviewCommand: "/code-review"},
+  pr: {merge: "ask", review: "auto", reviewCommand: "/code-review", reviewFull: []},
   worker: {command: "claude", model: "sonnet", effort: "high"},
   worktree: {setup: []}
 };
 
 # guardrails.envFiles merges key by key, each list wholesale; the other guardrails as one value.
-# gate.checks merges Check by Check, `run` wholesale; gate.steps wholesale.
+# gate.checks merges Check by Check, `run` wholesale; gate.steps wholesale. pr.reviewFull is the union of
+# the layers, in order, an id once.
 def apply($layer):
   . as $base
   | {
@@ -66,7 +67,9 @@ def apply($layer):
         | .envFiles = ($base.guardrails.envFiles + ($layer.guardrails.envFiles // {}))),
       commit: ($base.commit + ($layer.commit // {})),
       gate: (($base.gate + ($layer.gate // {})) | .checks = ($base.gate.checks + ($layer.gate.checks // {}))),
-      pr: ($base.pr + ($layer.pr // {})),
+      pr: (($base.pr + ($layer.pr // {}))
+        | .reviewFull = (reduce (($base.pr.reviewFull + ($layer.pr.reviewFull // []))[]) as $id
+            ([]; if any(.[]; . == $id) then . else . + [$id] end))),
       worker: ($base.worker + ($layer.worker // {})),
       worktree: {setup: ($layer.worktree.setup // $base.worktree.setup)}
     };

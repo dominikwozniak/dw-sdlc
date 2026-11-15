@@ -115,6 +115,23 @@ describe("the primitives Check", () => {
     ])
   })
 
+  it("fails each id pr.reviewFull lists that the catalogue lacks, from either layer", () => {
+    const gate = { checks: { primitives: true } }
+    const files = {
+      [CONFIG]: { version: 1, gate, pr: { reviewFull: ["hooks.hello", "hooks.gone"] } },
+      ".ai/agentic.config.local.json": { pr: { reviewFull: ["distribution.gone"] } }
+    }
+    const run = runBin(["gate"], withCatalogue(catalogue(), files))
+    assert.equal(run.status, 1)
+    const remedy = "add the Primitive to the catalogue, or drop the id from pr.reviewFull"
+    assert.deepEqual(failures(run.stdout), [
+      `${CATALOGUE}: primitives: pr.reviewFull lists "hooks.gone", which the catalogue lacks — ${remedy}`,
+      `${CATALOGUE}: primitives: pr.reviewFull lists "distribution.gone", which the catalogue lacks — ${remedy}`
+    ])
+    const listed = { [CONFIG]: { version: 1, gate, pr: { reviewFull: ["hooks.hello", "distribution.demo"] } } }
+    assert.equal(runBin(["gate"], withCatalogue(catalogue(), listed)).status, 0)
+  })
+
   it("fails an id that does not start with its group and a dot or a dash, and passes either separator", () => {
     const dashed = { ...MANIFEST, id: "distribution-demo" }
     const bare = { ...HOOK, id: "hooks" }

@@ -309,3 +309,110 @@ describe("dw-sdlc pr ship under pr.review auto", () => {
     }
   })
 })
+
+const CATALOGUE_FILE = ".ai/primitives.json"
+const LOCAL_FILE = ".ai/agentic.config.local.json"
+const entry = (id: string, code: string[]) => ({
+  id,
+  name: id,
+  group: id.split(".")[0],
+  summary: id,
+  code,
+  docs: ["README.md"]
+})
+/** A catalogue of three Primitives: `guards.lib` owns a directory, `tools.ship` one file. */
+const CATALOGUE = {
+  version: 1,
+  groups: [
+    { id: "guards", name: "Guards" },
+    { id: "tools", name: "Tools" },
+    { id: "docs", name: "Docs" }
+  ],
+  primitives: [
+    entry("guards.lib", ["plugins/sdlc/hooks/"]),
+    entry("tools.ship", ["src/ship.ts"]),
+    entry("docs.page", ["docs/"])
+  ]
+}
+const GUARD = file("plugins/sdlc/hooks/lib.sh", 15, 5)
+
+/** The routed answer for `files` changed, the layers and flags given. */
+function routedFor(files: File[], tree: Files, args: string[] = []) {
+  const run = ship(["--json", ...args], [UNREVIEWED], compared(BASE_OID, files), tree)
+  assert.equal(run.status, 10, run.stderr)
+  return documentOf(run.stdout, ["action", "details"])
+}
+
+/** The tree of a repository that lists `ids` under `pr.reviewFull`, with the catalogue. */
+const listing = (ids: string[]): Files => ({
+  [COMMITTED_FILE]: { pr: { reviewFull: ids } },
+  [CATALOGUE_FILE]: CATALOGUE
+})
+
+describe("dw-sdlc pr ship under pr.review auto and pr.reviewFull", () => {
+  const full = { depth: "full", source: "auto", reviewCommand: "/code-review" }
+  const light = { depth: "light", source: "auto", reviewCommand: "/code-review" }
+
+  it("routes a small change to a listed Primitive full, whatever its size, and any other light", () => {
+    const tree = listing(["guards.lib", "tools.ship"])
+    const cases: [string, File[], object][] = [
+      ["20 lines in a listed directory", [GUARD], full],
+      ["a listed file", [file("src/ship.ts", 1)], full],
+      ["a listed file among others", [file("src/other.ts", 1), file("src/ship.ts", 1)], full],
+      ["a Primitive the list lacks", [file("docs/a.md", 3)], light],
+      ["no Primitive's code", [file("README.md", 3)], light]
+    ]
+    for (const [name, files, details] of cases) {
+      assert.deepEqual(routedFor(files, tree), { action: "review", details }, name)
+    }
+  })
+
+  it("routes full a rename out of a listed Primitive's path, by the name before it", () => {
+    const renamed = { ...file("docs/lib.sh", 0), status: "renamed", previous_filename: "plugins/sdlc/hooks/lib.sh" }
+    assert.deepEqual(routedFor([renamed], listing(["guards.lib"])), { action: "review", details: full })
+  })
+
+  it("keeps lockfiles alone off, and the dev's depth and a fixed pr.review over the list", () => {
+    const tree = listing(["guards.lib"])
+    const run = ship(["--json"], [UNREVIEWED, GREEN], compared(BASE_OID, LOCKFILES), tree)
+    assert.equal(run.status, 30, run.stderr)
+    assert.deepEqual(documentOf(run.stdout, ["action"]), { action: "ready-to-merge" })
+    assert.deepEqual(routedFor([GUARD], tree, ["--review", "light"]), {
+      action: "review",
+      details: { depth: "light", source: "flag" }
+    })
+    const fixed = { ...tree, [COMMITTED_FILE]: { pr: { review: "light", reviewFull: ["guards.lib"] } } }
+    assert.deepEqual(routedFor([GUARD], fixed), { action: "review", details: { depth: "light", source: "config" } })
+  })
+
+  it("fails closed to full: the catalogue missing or unreadable, or a listed id it lacks", () => {
+    const small = [file("README.md", 1)]
+    const cases: [string, Files][] = [
+      ["no catalogue", { [COMMITTED_FILE]: { pr: { reviewFull: ["guards.lib"] } } }],
+      ["a catalogue that is not one", { ...listing(["guards.lib"]), [CATALOGUE_FILE]: "{" }],
+      ["an unknown id", listing(["guards.lib", "guards.gone"])]
+    ]
+    for (const [name, tree] of cases) {
+      assert.deepEqual(routedFor(small, tree), { action: "review", details: full }, name)
+    }
+  })
+
+  it("reads the catalogue where gate.checks.primitives.file puts it", () => {
+    const tree: Files = {
+      [COMMITTED_FILE]: {
+        gate: { checks: { primitives: { file: "docs/catalogue.json" } } },
+        pr: { reviewFull: ["guards.lib"] }
+      },
+      "docs/catalogue.json": CATALOGUE
+    }
+    assert.deepEqual(routedFor([GUARD], tree), { action: "review", details: full })
+    assert.deepEqual(routedFor([file("README.md", 1)], tree), { action: "review", details: light })
+  })
+
+  it("takes the union of the layers: the local file adds an id and never removes one", () => {
+    const tree: Files = { ...listing(["guards.lib"]), [LOCAL_FILE]: { pr: { reviewFull: ["tools.ship"] } } }
+    assert.deepEqual(routedFor([file("src/ship.ts", 1)], tree), { action: "review", details: full })
+    assert.deepEqual(routedFor([GUARD], tree), { action: "review", details: full })
+    assert.deepEqual(routedFor([file("README.md", 1)], tree), { action: "review", details: light })
+  })
+})

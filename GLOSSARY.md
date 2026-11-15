@@ -93,7 +93,8 @@ The agent's reading of a pull request's changes before the merge, pinned to the 
 _Avoid_: approval (a person's verdict on GitHub), code review (the skill that may carry one out)
 
 **Review depth**:
-How closely a Review reads the changes: full, light, or off, where no one reads them.
+How closely a Review reads the changes: full, light, or off, where no one reads them. A change to a
+Primitive the repository names reads in full whatever its size.
 _Avoid_: tier, level, mode (a permission mode says what the agent may do unasked)
 
 **Finding**:
