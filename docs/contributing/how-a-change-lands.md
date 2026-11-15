@@ -14,6 +14,4 @@ which Dependabot moves.
 
 On GitHub the `main` ruleset asks for a pull request and a green `Check / Check`, the job of
 `quality-gate.yaml`. It allows squash merges only, refuses a force push and a deletion, and lets the
-admin bypass it. A small fix is pushed from Dominik's own terminal: the guards judge only the agent's
-tool calls, and the bypass lets that push through. The bypass also merges the version pull request,
-on which CI never runs.
+admin bypass it. The bypass also merges the version pull request, on which CI never runs.
