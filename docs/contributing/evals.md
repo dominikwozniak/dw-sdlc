@@ -3,7 +3,8 @@
 A skill's evals run a real agent on its prompts, through `/skill-creator`, outside `pnpm test` and the
 Gate. Run them when the skill changes. Four skills keep them, each under its own `evals/`:
 `sdlc-pr-open`, `sdlc-recap`, `sdlc-kickoff` and `sdlc-delegate`. `evals.json` holds the behaviours, and
-`trigger.json` the queries that must start the skill and the near misses that must not.
+`trigger.json` the queries that must start the skill and the near misses that must not. The
+`sdlc-reviewer` agent keeps its own, [below](#the-sdlc-reviewer-agent).
 
 ## The skills of `sdlc`
 
@@ -39,10 +40,11 @@ a way to reach GitHub. Delete the clone after the run.
 ## The `sdlc-reviewer` agent
 
 The agent of the `light` Review has evals too, under `plugins/sdlc/evals/sdlc-reviewer/`, outside
-`plugins/sdlc/agents/`, where Claude Code may read any `.md` as an agent. They measure one thing: whether
-the first line of its report is right. [ADR 0025](../adr/0025-a-broken-coding-standard-is-a-finding.md)
-made a broken Coding standard a Finding; these cases show the reviewer still reports what it must and
-stays quiet on a clean change.
+`plugins/sdlc/agents/`, where Claude Code may read any `.md` as an agent. They measure whether the first
+line of its report is right. A broken Coding standard is a Finding
+([ADR 0025](../adr/0025-a-broken-coding-standard-is-a-finding.md)); the cases check that the reviewer
+reports what it must and stays quiet on a clean change. The `smell:` line of case 5 is the reviewer's own
+output line for a smell that no written rule backs.
 
 Run them when `plugins/sdlc/agents/sdlc-reviewer.md`, `plugins/sdlc/skills/sdlc-pr-ship/references/review.md`
 or the Finding's definition in the ADR changes. They stay out of the Gate and CI: a case runs a real
@@ -56,7 +58,7 @@ model, and its report varies from run to run.
 | `evals.json`                | the six cases: the prompt, and the expectations on the report                                                 |
 
 `build-fixture.sh` makes branch `base` from `fixture/base/`, and one commit on it per case, on branch
-`case-<n>-<name>`. The diffs are written for the evals: a diff from a past pull request depends on a tree
+`case-<n>-<name>`; `CLAUDE.md` links to `AGENTS.md`, as in the repositories the reviewer sees. The diffs are written for the evals: a diff from a past pull request depends on a tree
 that moves. The repository has no remote, no hooks, and `.claude/settings.local.json` turns the installed
 `sdlc` plugin off, so the run measures the tree and not the installed copy.
 
@@ -75,20 +77,20 @@ time from the repository root, with the plugin loaded through `--plugin-dir`:
 
 ```bash
 repo=$PWD
+evals=$repo/plugins/sdlc/evals/sdlc-reviewer/evals.json
 fixture=$(plugins/sdlc/evals/sdlc-reviewer/build-fixture.sh)
 cd "$fixture"
-for n in 1 2 3 4 5 6; do
-  name=$(jq -r ".evals[$((n - 1))].name" "$repo/plugins/sdlc/evals/sdlc-reviewer/evals.json")
+for name in $(jq -r '.evals[].name' "$evals"); do
   git switch -q "case-$name"
   echo "== $name"
-  jq -r ".evals[$((n - 1))].prompt" "$repo/plugins/sdlc/evals/sdlc-reviewer/evals.json" |
+  jq -r --arg name "$name" '.evals[] | select(.name == $name) | .prompt' "$evals" |
     claude -p --plugin-dir "$repo/plugins/sdlc" --allowedTools "Agent Read Grep Bash(git *)"
 done
 ```
 
 The branch of the case is checked out before its run: the reviewer reads the files of the working tree.
 Judge each report against the case's `expectations` in `evals.json`; a case passes when every one holds.
-The first line decides most of them. A failed case is a fact about the agent or the Review rules, not
+The first line decides most of them. A failed case is a fact about the agent or its instructions, not
 about the fixture, until a read of the report says the case itself is unclear. Report how many cases
 passed, and name each one that failed. Delete the fixture afterwards.
 
