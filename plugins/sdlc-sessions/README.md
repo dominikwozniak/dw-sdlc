@@ -162,8 +162,8 @@ as one.
 Work that needs a grilling, its source holding open questions for the dev or the dev asking for one, takes
 the same three ways. Its Brief tells the Worker to grill the dev in its own terminal with
 `/grill-with-docs` before any code, and its Lead points the dev at that terminal once. A Worker carries one
-pull request, so work a grilling may cut into several starts another way: grill it and cut it with
-`/to-tickets` in the session that holds it, then kick off the tickets.
+pull request, so work that may land as several starts another way: grill it and cut it with `/to-tickets`
+in the session that holds it, then kick off the tickets.
 
 ## The Brief
 

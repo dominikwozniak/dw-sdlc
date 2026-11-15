@@ -226,32 +226,36 @@ describe("the sdlc-sessions plugin", () => {
     const template = readFileSync(join(PLUGIN_ROOT, BRIEF_TEMPLATE), "utf8")
     assert.match(template, /\| it needs a grilling: [^|]+\| `opus` +\| `high` +\|/, "the routing has a grilling row")
     assert.ok(template.includes('"needs a grilling"'), "the reason names the row")
-    const note = /- \*\*A grilling\.\*\*[\s\S]*?(?=\n- \*\*)/.exec(template)?.[0] ?? ""
+    assert.match(template, /- \*\*A grilling\.\*\* .*\[A grilling\]\(#a-grilling\)/, "the form points at the section")
+    const section = /^## A grilling\n[\s\S]*?(?=\n## )/m.exec(template)?.[0] ?? ""
     assert.ok(
-      note.includes(
+      section.includes(
         "`decide the open questions alone: before any code, grill the dev in this terminal with /grill-with-docs"
       ),
       "Must not opens with the grilling"
     )
-    assert.ok(note.includes("`every decision of the grilling carried out`"), "Proof holds every decision")
+    assert.match(section, /names\s+`\/grilling`, and with neither, no skill/, "a session without the skill")
+    assert.ok(section.includes("`every decision of the grilling carried out`"), "Proof holds every decision")
     assert.ok(
-      note.includes("`The grilling itself is with the dev in this terminal, not through the Lead.`"),
+      section.includes("`The grilling itself is with the dev in this terminal, not through the Lead.`"),
       "a Lead relays no grilling"
     )
-    assert.match(template, /grilled in the session that holds it, cut with `\/to-tickets`/)
+    assert.ok(section.includes("`## Open questions, for the grilling`"), "a filed follow-up carries its questions")
+    assert.match(section, /When the source or the dev says the work may land as several, it gets\s+no Brief/)
+    assert.match(section, /cuts it into tickets with `\/to-tickets`/)
+    assert.match(section, /A Recap lists such work as an\s+`issue` follow-up/)
+    assert.match(template, /all it stops on goes to the Lead, but a round of a grilling/)
   })
 
   it("has sdlc-kickoff and the Lead treat a grilling Worker as one waiting on the dev in its own terminal", () => {
     const kickoff = skillText("sdlc-kickoff")
-    assert.match(
-      kickoff,
-      /cut the work into\s+several pull requests, write no Brief[\s\S]*`\/to-tickets`/,
-      "kickoff sends a cut elsewhere"
-    )
+    assert.match(kickoff, /may land as several pull requests gets no Brief, as the template's A grilling says/)
+    assert.match(kickoff, /- work that may land as several pull requests: no line\./, "the closed list")
     const delegate = skillText("sdlc-delegate")
-    assert.match(delegate, /A Worker whose Brief grills the dev/, "the Lead knows a grilling Worker")
+    assert.match(delegate, /A Worker whose Brief grills the dev ends a turn/, "the Lead knows a grilling Worker")
+    assert.match(delegate, /relay none of its rounds/)
     const readme = readFileSync(join(PLUGIN_ROOT, "README.md"), "utf8")
-    assert.match(readme, /needs a grilling/)
+    assert.match(readme, /Work that needs a grilling/)
   })
 
   it("has the Ship line name both skills and leave the rules of the body to /sdlc-pr-open", () => {
