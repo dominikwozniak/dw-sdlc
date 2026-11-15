@@ -4,7 +4,7 @@ A skill's evals run a real agent on its prompts, through `/skill-creator`, outsi
 Gate. Run them when the skill changes. Four skills keep them, each under its own `evals/`:
 `sdlc-pr-open`, `sdlc-recap`, `sdlc-kickoff` and `sdlc-delegate`. `evals.json` holds the behaviours, and
 `trigger.json` the queries that must start the skill and the near misses that must not. The
-`sdlc-reviewer` agent keeps its own, [below](#the-sdlc-reviewer-agent).
+`sdlc-reviewer` agent keeps its own, which run through `claude -p` instead: [below](#the-sdlc-reviewer-agent).
 
 ## The skills of `sdlc`
 
@@ -58,9 +58,11 @@ model, and its report varies from run to run.
 | `evals.json`                | the six cases: the prompt, and the expectations on the report                                                 |
 
 `build-fixture.sh` makes branch `base` from `fixture/base/`, and one commit on it per case, on branch
-`case-<n>-<name>`; `CLAUDE.md` links to `AGENTS.md`, as in the repositories the reviewer sees. The diffs are written for the evals: a diff from a past pull request depends on a tree
-that moves. The repository has no remote, no hooks, and `.claude/settings.local.json` turns the installed
-`sdlc` plugin off, so the run measures the tree and not the installed copy.
+`case-<n>-<name>`. `CLAUDE.md` links to `AGENTS.md`, as in the repositories the reviewer sees.
+
+The diffs are written for the evals: a diff from a past pull request depends on a tree that moves. The
+repository has no remote and no hooks. Its `.claude/settings.local.json` turns the installed `sdlc`
+plugin off, so the run measures the tree and not the installed copy.
 
 | case            | the change                                                       | first line of the report                                              |
 | --------------- | ---------------------------------------------------------------- | --------------------------------------------------------------------- |
