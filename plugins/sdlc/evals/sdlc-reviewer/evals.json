@@ -1,0 +1,79 @@
+{
+  "skill_name": "sdlc-reviewer",
+  "evals": [
+    {
+      "id": 1,
+      "name": "1-clean",
+      "prompt": "You are the agent shipping a pull request, at Review depth light. The repository is the current directory, on the branch that holds the change. Spawn the `sdlc:sdlc-reviewer` subagent once. It does not see this conversation, so its prompt holds all it reads:\n\n- the diff command: `git diff base...case-1-clean`\n- the files: docs/cart.md, src/cart.js, test/cart.test.js\n- the spec: Add itemCount(cart), the number of units in a cart, for the cart badge.\n- the Primitives the change touches: none\n\nThen print the subagent's report verbatim, and nothing else. Do not review the change yourself.",
+      "expected_output": "A report whose first line is `clean`.",
+      "files": [],
+      "expectations": [
+        "The first line of the report is exactly `clean`",
+        "The report lists no Finding: no `file:line — ...` entry with a `breaks when:` line"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "2-harm",
+      "prompt": "You are the agent shipping a pull request, at Review depth light. The repository is the current directory, on the branch that holds the change. Spawn the `sdlc:sdlc-reviewer` subagent once. It does not see this conversation, so its prompt holds all it reads:\n\n- the diff command: `git diff base...case-2-harm`\n- the files: docs/cart.md, src/cart.js, test/cart.test.js\n- the spec: Add removeItem(cart, sku) so a shopper can drop a line from the cart.\n- the Primitives the change touches: none\n\nThen print the subagent's report verbatim, and nothing else. Do not review the change yourself.",
+      "expected_output": "A report whose first line is `findings: 1`, with the Finding on removeItem in src/cart.js.",
+      "files": [],
+      "expectations": [
+        "The first line of the report is exactly `findings: 1`",
+        "The Finding cites src/cart.js with a line number inside removeItem",
+        "The Finding names the harm: a sku that is not in the cart gives findIndex -1, and toSpliced(-1, 1) removes the last item",
+        "The Finding carries a `breaks when:` line and a `fix:` line"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "3-false-doc",
+      "prompt": "You are the agent shipping a pull request, at Review depth light. The repository is the current directory, on the branch that holds the change. Spawn the `sdlc:sdlc-reviewer` subagent once. It does not see this conversation, so its prompt holds all it reads:\n\n- the diff command: `git diff base...case-3-false-doc`\n- the files: docs/shipping.md, src/shipping.js, test/shipping.test.js\n- the spec: Raise the free-shipping threshold from 5000 to 7500 cents.\n- the Primitives the change touches: none\n\nThen print the subagent's report verbatim, and nothing else. Do not review the change yourself.",
+      "expected_output": "A report whose first line is `findings: 1`, with the Finding on the stale example in docs/shipping.md.",
+      "files": [],
+      "expectations": [
+        "The first line of the report is exactly `findings: 1`",
+        "The Finding cites docs/shipping.md at the line of the example",
+        "The Finding says the 6000-cent example is false now: that order pays the flat rate, since free shipping starts at 7500",
+        "The report raises no Finding on src/shipping.js or test/shipping.test.js"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "4-standard",
+      "prompt": "You are the agent shipping a pull request, at Review depth light. The repository is the current directory, on the branch that holds the change. Spawn the `sdlc:sdlc-reviewer` subagent once. It does not see this conversation, so its prompt holds all it reads:\n\n- the diff command: `git diff base...case-4-standard`\n- the files: docs/discount.md, src/discount.js, test/discount.test.js\n- the spec: Reject a discount percent outside 0 to 100.\n- the Primitives the change touches: none\n\nThen print the subagent's report verbatim, and nothing else. Do not review the change yourself.",
+      "expected_output": "A report whose first line is `findings: 1`, citing CODING_STANDARDS.md, its rule 2 and src/discount.js:2.",
+      "files": [],
+      "expectations": [
+        "The first line of the report is exactly `findings: 1`",
+        "The Finding cites CODING_STANDARDS.md and the rule: a boolean variable starts with `is` or `has`",
+        "The Finding cites src/discount.js:2, the line that declares the boolean `valid`",
+        "The Finding does not claim a harm: the code behaves right, the rule is the whole Finding"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "5-smell",
+      "prompt": "You are the agent shipping a pull request, at Review depth light. The repository is the current directory, on the branch that holds the change. Spawn the `sdlc:sdlc-reviewer` subagent once. It does not see this conversation, so its prompt holds all it reads:\n\n- the diff command: `git diff base...case-5-smell`\n- the files: docs/receipt.md, src/receipt.js, test/receipt.test.js\n- the spec: Add receipt functions that print a cart's lines, subtotal and total.\n- the Primitives the change touches: none\n\nThen print the subagent's report verbatim, and nothing else. Do not review the change yourself.",
+      "expected_output": "A report whose first line is `clean`, followed by a `smell:` line on the duplicated price formatting in src/receipt.js.",
+      "files": [],
+      "expectations": [
+        "The first line of the report is exactly `clean`",
+        "The report holds a `smell:` line that cites src/receipt.js and names the duplicated dollars-and-cents formatting",
+        "The report lists no Finding: no `breaks when:` line"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "6-fix-no-test",
+      "prompt": "You are the agent shipping a pull request, at Review depth light. The repository is the current directory, on the branch that holds the change. Spawn the `sdlc:sdlc-reviewer` subagent once. It does not see this conversation, so its prompt holds all it reads:\n\n- the diff command: `git diff base...case-6-fix-no-test`\n- the files: src/tax.js\n- the spec: Fix #12: addTax returns fractional cents, for example addTax(999, 7) gives 1068.93; it must return whole cents.\n- the Primitives the change touches: none\n\nThen print the subagent's report verbatim, and nothing else. Do not review the change yourself.",
+      "expected_output": "A report whose first line is `findings: 1`, saying the fix has no test that fails without it.",
+      "files": [],
+      "expectations": [
+        "The first line of the report is exactly `findings: 1`",
+        "The Finding cites src/tax.js and says the bug fix comes with no regression test",
+        "The Finding does not call the rounding itself wrong"
+      ]
+    }
+  ]
+}

@@ -26,6 +26,7 @@ Paths are relative to `plugins/sdlc/`.
 | `dw-sdlc`                                            | a link to `packages/dw-sdlc`, the package the hooks and skills run; `claude plugin install` copies it as a real directory      |
 | `skills/sdlc-<name>/`                                | the six skills                                                                                                                 |
 | `agents/sdlc-reviewer.md`                            | the subagent of a `light` Review, spawned as `sdlc:sdlc-reviewer`                                                              |
+| `evals/sdlc-reviewer/`                               | the reviewer's evals, run by hand: `evals.json`, a synthetic `fixture/` and `build-fixture.sh`, as [Evals](evals.md) says      |
 | `test/`                                              | the hook tests, mirroring `hooks/`, and the manifest's                                                                         |
 
 The dispatcher reads stdin once, drops heredoc bodies once but for the substitutions an unquoted one

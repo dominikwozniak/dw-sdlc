@@ -460,10 +460,11 @@
       "name": "sdlc-reviewer",
       "group": "agents",
       "summary": "The light Review: a subagent over a diff, its files, the Agent map and the Coding standards; Bash reads git.",
-      "code": ["plugins/sdlc/agents/sdlc-reviewer.md"],
+      "code": ["plugins/sdlc/agents/sdlc-reviewer.md", "plugins/sdlc/evals/sdlc-reviewer/"],
       "docs": [
         "plugins/sdlc/README.md#shipping-a-pull-request",
-        "docs/adr/0013-review-depth-follows-the-change-the-devs-word-overrides.md"
+        "docs/adr/0013-review-depth-follows-the-change-the-devs-word-overrides.md",
+        "docs/contributing/evals.md#the-sdlc-reviewer-agent"
       ]
     },
     {

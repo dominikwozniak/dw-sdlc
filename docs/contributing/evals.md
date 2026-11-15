@@ -36,6 +36,62 @@ Start the agent with the scratch clone as its working directory, never the real 
 `GH_REPO` unset in its environment and add no other remote to the clone: either one gives `gh` and `git`
 a way to reach GitHub. Delete the clone after the run.
 
+## The `sdlc-reviewer` agent
+
+The agent of the `light` Review has evals too, under `plugins/sdlc/evals/sdlc-reviewer/`, outside
+`plugins/sdlc/agents/`, where Claude Code may read any `.md` as an agent. They measure one thing: whether
+the first line of its report is right. [ADR 0025](../adr/0025-a-broken-coding-standard-is-a-finding.md)
+made a broken Coding standard a Finding; these cases show the reviewer still reports what it must and
+stays quiet on a clean change.
+
+Run them when `plugins/sdlc/agents/sdlc-reviewer.md`, `plugins/sdlc/skills/sdlc-pr-ship/references/review.md`
+or the Finding's definition in the ADR changes. They stay out of the Gate and CI: a case runs a real
+model, and its report varies from run to run.
+
+| directory                   | holds                                                                                                         |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `fixture/base/`             | `shop-kit`, a small cart library: `AGENTS.md`, a `CODING_STANDARDS.md` of three one-line rules, code and docs |
+| `fixture/cases/<n>-<name>/` | the files one case changes, copied over the base                                                              |
+| `build-fixture.sh`          | builds the fixture as a git repository in a scratch directory and prints its path                             |
+| `evals.json`                | the six cases: the prompt, and the expectations on the report                                                 |
+
+`build-fixture.sh` makes branch `base` from `fixture/base/`, and one commit on it per case, on branch
+`case-<n>-<name>`. The diffs are written for the evals: a diff from a past pull request depends on a tree
+that moves. The repository has no remote, no hooks, and `.claude/settings.local.json` turns the installed
+`sdlc` plugin off, so the run measures the tree and not the installed copy.
+
+| case            | the change                                                       | first line of the report                                              |
+| --------------- | ---------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `1-clean`       | a new function with its test and its doc line                    | `clean`                                                               |
+| `2-harm`        | `removeItem` drops the last item when the sku is not in the cart | `findings: 1`                                                         |
+| `3-false-doc`   | a new shipping threshold, with a doc example left false          | `findings: 1`                                                         |
+| `4-standard`    | a boolean named `valid`, which breaks rule 2, and harms nothing  | `findings: 1`, citing `CODING_STANDARDS.md`, the rule and `file:line` |
+| `5-smell`       | the same formatting copied three times, which no rule forbids    | `clean`, with a `smell:` line                                         |
+| `6-fix-no-test` | a bug fix with no test that fails without it                     | `findings: 1`                                                         |
+
+Each prompt plays the `light` step of `/sdlc-pr-ship`: it spawns `sdlc:sdlc-reviewer` with the diff
+command, the files, the spec and the Primitives (`none`), and prints the report. Run the cases one at a
+time from the repository root, with the plugin loaded through `--plugin-dir`:
+
+```bash
+repo=$PWD
+fixture=$(plugins/sdlc/evals/sdlc-reviewer/build-fixture.sh)
+cd "$fixture"
+for n in 1 2 3 4 5 6; do
+  name=$(jq -r ".evals[$((n - 1))].name" "$repo/plugins/sdlc/evals/sdlc-reviewer/evals.json")
+  git switch -q "case-$name"
+  echo "== $name"
+  jq -r ".evals[$((n - 1))].prompt" "$repo/plugins/sdlc/evals/sdlc-reviewer/evals.json" |
+    claude -p --plugin-dir "$repo/plugins/sdlc" --allowedTools "Agent Read Grep Bash(git *)"
+done
+```
+
+The branch of the case is checked out before its run: the reviewer reads the files of the working tree.
+Judge each report against the case's `expectations` in `evals.json`; a case passes when every one holds.
+The first line decides most of them. A failed case is a fact about the agent or the Review rules, not
+about the fixture, until a read of the report says the case itself is unclear. Report how many cases
+passed, and name each one that failed. Delete the fixture afterwards.
+
 ## The skills of `sdlc-sessions`
 
 | skill           | `evals.json` holds                                                                                                                                                                                                                                                                                  | `trigger.json` fires on, and not on                                                                     |
