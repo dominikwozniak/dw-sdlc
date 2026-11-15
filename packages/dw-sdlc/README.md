@@ -78,6 +78,7 @@ schema's description of each one names its options and defaults.
 | `decision-records`   | a decision record misnamed, misnumbered or without a valid status              | a records directory       |
 | `file-size-ratchet`  | a code file over its line limit that the baseline does not allow               | its baseline              |
 | `skill-sections`     | a README section a skill copies that differs from its source                   | the catalogue             |
+| `pinned-actions`     | a workflow `uses:` not pinned to a full commit SHA with a `# vX.Y.Z` comment   | nothing                   |
 
 Each Check's options and defaults:
 [its description in the schema](https://github.com/dominikwozniak/dw-sdlc/blob/main/packages/dw-sdlc/config/agentic.config.schema.json).

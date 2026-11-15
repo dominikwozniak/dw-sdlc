@@ -35,8 +35,7 @@ extends those skills and replaces none. `README.md` is the front page, `docs/ove
 - `references/` — repositories cloned per machine for reading, never tracked; the Router is
   `references/AGENTS.md`, its table written from `.ai/references.json`; the Sync hook fetches them
 - `ideas/` — local-only notes, gitignored
-- `.github/` — `workflows/quality-gate.yaml` runs `pnpm check` on a pull request once it is out of
-  draft and on a push to `main` that is not a squash merge; `workflows/release.yaml` turns
+- `.github/` — `workflows/quality-gate.yaml` runs `pnpm check` in CI; `workflows/release.yaml` turns
   `.changeset/` into a version pull request and, once it merges, publishes to npm
 
 ## Never
@@ -47,31 +46,29 @@ extends those skills and replaces none. `README.md` is the front page, `docs/ove
 ## Tooling
 
 - **pnpm only**, pinned in `package.json` — never `npm`, `npx`, `yarn` or `bun`; one-off tools via
-  `pnpm dlx`. Dependencies are pinned exactly; `pnpm-workspace.yaml` refuses versions younger than 7 days.
+  `pnpm dlx`. `pnpm-workspace.yaml` refuses versions younger than 7 days.
 - **TypeScript runs natively on Node 24** — `node packages/dw-sdlc/src/cli.ts <command>`, no build
   step; only `pnpm pack` runs tsc, for the JavaScript the package ships to npm.
   Erasable syntax only (no `enum`, `namespace` or parameter properties), and relative imports keep
   the `.ts` extension.
 - **Formatting, import order, lint and the type check belong to Vite+**, configured in `vite.config.ts`.
   The pre-commit hook runs `vp staged`: `vp lint --fix` and `vp fmt` on the staged files.
-- **External actions are pinned** to a full commit SHA with a `# vX.Y.Z` comment.
-- **A skill the plugin ships is named `sdlc-<word>`, or `sdlc-<area>-<word>`, a verb where one fits**,
-  as `sdlc-sweep` and `sdlc-references-add`, so the skills group in the slash menu and never collide
-  with dw-solo's `dw-*`.
-- **Tests pin the words of a skill.** `plugins/*/test/manifest.test.ts` holds each description and
-  frontmatter, and `plugins/sdlc/test/skill-lines.test.ts` each `dw-sdlc` line a SKILL.md runs to the
-  bin's `--help`. A changed description or command line changes its test in the same commit.
+- **Tests pin the words of a skill.** `plugins/*/test/manifest.test.ts` holds the description and
+  frontmatter of each skill a session starts itself, and `plugins/sdlc/test/skill-lines.test.ts` each
+  `dw-sdlc` line a SKILL.md runs to the bin's `--help`; `sdlc-doctor`, `sdlc-setup` and
+  `sdlc-references-add` are invoked by the dev, so their descriptions are not pinned. A changed
+  description or command line changes its test in the same commit.
 - **This session's guards run from the installed plugin**, not this tree. A guard you edit takes
   effect after a release and `claude plugin update`; until then `pnpm test` is its only proof.
 
 ## Git
 
 - Subjects follow Conventional Commits and every commit carries a `Co-Authored-By` trailer; the
-  guards enforce both from `.ai/agentic.config.json`. `.vite-hooks/commit-msg` checks the subject of
-  every commit, a terminal's included. `pnpm install` installs it and the pre-commit hook.
-- `main` is a protected branch: a change reaches it through a pull request, after `pnpm check` passes
-  in CI, as GitHub's `main` ruleset asks; the admin bypasses it. For a small fix the agent commits on
-  `main` and the push comes from Dominik's terminal, which the guards skip.
+  guards enforce both from `.ai/agentic.config.json`; the commit hook covers a terminal's commit
+  ([the plugin README](plugins/sdlc/README.md#commit-hook)).
+- `main` is a protected branch: a change reaches it through a pull request
+  ([how a change lands](docs/contributing/how-a-change-lands.md)). For a small fix the agent commits
+  on `main` and the push comes from Dominik's terminal, which the guards skip.
 - `pr.merge` is `auto` here: the Ship script merges a pull request it finds ready, unasked.
 - Commit before `/code-review`: it reads committed work only, the diff from its fixed point to `HEAD`.
 
@@ -102,6 +99,7 @@ Match this table **before** researching or coding — read every row that matche
 | reading, adding or updating a reference repository                       | `references/AGENTS.md`, then `plugins/sdlc/README.md`                        |
 | editing a guard, `lib.sh`, the schema or the config resolver             | `dw-sdlc primitives --paths` on the files, then the ADRs and docs it names   |
 | editing a skill, its description or the reviewer agent                   | `.agents/skills/writing-for-agents/SKILL.md`, then the skill's plugin README |
+| reviewing a change, or how code is written here                          | `CODING_STANDARDS.md`                                                        |
 | why a part is built this way, or changing a choice a record names        | `docs/adr/`                                                                  |
 | working on this repository: setup, a change landing, the guard parser    | `docs/contributing/`                                                         |
 | explaining the repo, editing `README.md` or anything under `docs/`       | `README.md`, `docs/overview.md`, `GLOSSARY.md`                               |

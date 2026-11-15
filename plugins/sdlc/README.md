@@ -405,6 +405,7 @@ The key names every Check the package ships; a Check is one named rule the Gate 
 | `skill-sections`                                       | off    | needs the catalogue each copied section is listed in          |
 | `file-size-ratchet`                                    | off    | needs its baseline                                            |
 | `disable-directives`                                   | off    | turn it on once every Disable directive carries a reason      |
+| `pinned-actions`                                       | off    | turn it on once every workflow `uses:` is pinned              |
 
 `file-size-ratchet` is a Ratchet: a Check whose recorded baseline of files over the size limit may only
 shrink. Turn it on once the Gate is green, then `dw-sdlc gate --update-baseline` records the baseline
@@ -569,9 +570,8 @@ read mark and the limit. What reads the change at `full` is the reviewer you nam
 | `off`   | no one; the script marks the head reviewed                            | the same                           |
 
 - The agent may raise an `auto` depth from `light` to `full`, saying why; it never lowers one.
-- A Finding holds the merge: a concrete harm the change causes, a doc or Primitive summary it makes
-  false, a miss against the spec, or a bug fix without its regression test. Everything else is declined
-  with one line.
+- A Finding holds the merge; [`review.md`](skills/sdlc-pr-ship/references/review.md) says what one is.
+  Everything else is declined with one line.
 - A Review that follows a fix reads the fix alone and checks each Finding it answers.
 - Three Reviews with no success between them park the pull request, with
   `dw-sdlc pr reviewed --accept` as your command.
@@ -581,8 +581,8 @@ read mark and the limit. What reads the change at `full` is the reviewer you nam
 `agents/sdlc-reviewer.md` reads a `light` Review: a subagent on the session's model at `effort: medium`,
 with `Read`, `Grep` and read-only `Bash`. It does not see the conversation; the prompt hands it the diff
 command, the files, the spec, the Primitives the change touches with their untouched docs, and after a
-fix the Findings it answers. It reads those files, those docs and `AGENTS.md`, skips what the Gate
-checks, and reports under 300 words. Its first line is `clean` or `findings: <n>`; `smell:`,
+fix the Findings it answers. It reads those files, those docs, `AGENTS.md`, and `CODING_STANDARDS.md`
+and `CONTRIBUTING.md` where they exist, skips what the Gate checks, and reports under 300 words. Its first line is `clean` or `findings: <n>`; `smell:`,
 `follow-up:`, `fixed:` and `added:` lines follow and change no count; an `added:` line names what the
 spec did not ask for.
 

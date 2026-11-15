@@ -259,6 +259,7 @@ defaults, an options object, or `false`. Its options and defaults are in its sch
 | `comment-budget`     | each comment block in code to 3 lines of prose                                          | on                       |
 | `disable-directives` | every lint or type-check disable directive to a reason                                  | off                      |
 | `skill-sections`     | each README section a skill copies to its source                                        | off: needs the catalogue |
+| `pinned-actions`     | every workflow `uses:` pinned to a full commit SHA with a `# vX.Y.Z` comment            | off                      |
 
 The Checks that read many files judge only what git tracks or would track. So a link to an ignored
 file fails on a Mac as it fails in CI. A glob's `*` and `**` skip a name that starts with a dot, as a

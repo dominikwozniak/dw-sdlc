@@ -97,10 +97,15 @@ How closely a Review reads the changes: full, light, or off, where no one reads 
 _Avoid_: tier, level, mode (a permission mode says what the agent may do unasked)
 
 **Finding**:
-What a Review reports that holds the merge: a concrete harm the pull request's own changes cause, a doc
-or Primitive summary they make false, a miss against the spec, or a bug fix without its regression
-test. A Review with none is clean.
+What a Review reports that holds the merge, citing `file:line`: a concrete harm the pull request's own
+changes cause, a doc or Primitive summary they make false, a miss against the spec, a bug fix without
+its regression test, or a broken rule of the Coding standards. A Review with none is clean.
 _Avoid_: nit, smell (a judgement call the agent may decline), issue (a GitHub Issue)
+
+**Coding standards**:
+The judgement-call rules a Review holds a change to, in `CODING_STANDARDS.md`. A mechanical rule is a
+Check instead.
+_Avoid_: review checklist, REVIEW.md, rules
 
 **Read mark**:
 The `dw-sdlc/review` failure "read, findings open" that pins a Review with a Finding open to the

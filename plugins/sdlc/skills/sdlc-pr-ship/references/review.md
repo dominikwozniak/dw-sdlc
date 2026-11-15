@@ -25,11 +25,15 @@ A Review is clean when it reports no Finding. A Finding is one of:
 - a concrete harm the pull request's own changes cause, a bug in old code they start calling included;
 - a doc or a Primitive summary the changes make false, so the next agent would act on a falsehood;
 - a miss against the spec;
-- a bug fix without its regression test.
+- a bug fix without its regression test;
+- a broken rule of the Coding standards, `CODING_STANDARDS.md` or `CONTRIBUTING.md`, when the
+  Review cites the rule (file and rule) and the change's `file:line`. It needs no harm.
 
-A doc that only leaves new behaviour unmentioned is no Finding. A known limit the dev accepted in
-this conversation is no Finding. Decline everything else, naming, duplication, comments, style
-rules and judgement-call smells among them, each with one line in the answer, or in the Recap when
+Every Finding cites `file:line` as its evidence. Both Review depths read `CODING_STANDARDS.md` and
+`CONTRIBUTING.md`, each whole, when it exists; `full` is the command `details.reviewCommand` names,
+which reads them too. A doc that only leaves new behaviour unmentioned is no Finding. A known limit
+the dev accepted in this conversation is no Finding. Decline everything else, a Fowler smell and
+taste no written rule backs among them, each with one line in the answer, or in the Recap when
 the session ends with one. A harm in code the pull request neither changes nor reaches is a
 follow-up: one line in the answer, or under the Recap's follow-ups. The Recap is the session report
 of `/sdlc-recap`, in the `sdlc-sessions` plugin; without that plugin the answer carries these lines.

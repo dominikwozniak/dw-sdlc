@@ -37,7 +37,8 @@ types from a file under `node_modules`, so `pnpm pack` runs the package's `prepa
 ### From a changeset to npm
 
 A change to the package carries a changeset: `pnpm changeset` writes one under `.changeset/`, with
-the bump and the line the changelog gets. On a push to `main` that touches `.changeset/` or the
+the bump and the line the changelog gets. CI fails a pull request that changes
+`packages/dw-sdlc/{src,config,templates}` and adds none. On a push to `main` that touches `.changeset/` or the
 package's `package.json`, `.github/workflows/release.yaml` picks one of two modes:
 
 - **version**, while a changeset is pending: it opens or updates the

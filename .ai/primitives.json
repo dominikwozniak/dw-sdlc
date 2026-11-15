@@ -695,6 +695,14 @@
       "docs": ["docs/overview.md#the-checks-the-package-ships", "packages/dw-sdlc/README.md#the-gate"]
     },
     {
+      "id": "gate.pinned-actions",
+      "name": "pinned-actions Check",
+      "group": "gate",
+      "summary": "Holds every workflow uses: to a full commit SHA with a # vX.Y.Z comment.",
+      "code": ["packages/dw-sdlc/src/checks/pinned-actions.ts"],
+      "docs": ["docs/overview.md#the-checks-the-package-ships", "packages/dw-sdlc/README.md#the-gate"]
+    },
+    {
       "id": "gate.pre-commit",
       "name": "Pre-commit hook",
       "group": "gate",
