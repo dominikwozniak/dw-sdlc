@@ -1,5 +1,11 @@
 # dw-sdlc
 
+## 0.22.0
+
+### Minor Changes
+
+- 25afa12: Add the `pinned-actions` Check: every `uses:` in a workflow names a full commit SHA with a `# vX.Y.Z` comment, a reusable workflow of the organisation's own included. It is off by default.
+
 ## 0.21.2
 
 ### Patch Changes
