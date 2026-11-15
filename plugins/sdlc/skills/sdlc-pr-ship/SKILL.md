@@ -41,7 +41,8 @@ push makes.
   whether an earlier Review stands in for this one, which earlier Findings to name to it, and how
   to judge its report, what is a Finding and what is declined or carried. `details.depth` is the
   Review depth, and `details.source` says who set it: `flag` the dev, `config` the repository,
-  `auto` the script's rules from the size of the changes and the Primitives `pr.reviewFull` lists. Only under `auto` may you raise it, `light` to `full`, when the change looks riskier than its size,
+  `auto` the script's rules from the size of the changes and the Primitives `pr.reviewFull` lists.
+  Only under `auto` may you raise it, `light` to `full`, when the change looks riskier than its size,
   saying why in one line; never lower one. A depth the dev or the config set stands: when you think
   it wrong, say so in one line and review at it. The Review reads the changes since `<since>`:
   `details.since`, the last head a Review read, clean or not, when the answer has it, else
