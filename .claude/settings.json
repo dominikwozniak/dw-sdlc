@@ -1,4 +1,7 @@
 {
+  "permissions": {
+    "deny": ["Edit(/references/**)", "Write(/references/**)"]
+  },
   "claudeMdExcludes": [
     "**/references/*/CLAUDE.md",
     "**/references/*/**/CLAUDE.md",

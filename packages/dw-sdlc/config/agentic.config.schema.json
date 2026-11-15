@@ -444,6 +444,22 @@
                 }
               },
               "additionalProperties": false
+            },
+            "pinned-actions": {
+              "description": "Every `uses:` in a workflow names a full 40-hex commit SHA and a `# vX.Y.Z` comment, as `owner/repo@<sha> # v1.2.3`; an organisation's own reusable workflow is held to it too. A local action (`./...`) and a `docker://` image are left out.",
+              "type": ["boolean", "object"],
+              "properties": {
+                "files": {
+                  "description": "Globs of the workflow files, against the files git tracks or would track. Default `.github/workflows/*.yaml` and `.github/workflows/*.yml`.",
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "uniqueItems": true
+                }
+              },
+              "additionalProperties": false
             }
           },
           "additionalProperties": false

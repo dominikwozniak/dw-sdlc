@@ -107,11 +107,25 @@ describe("the sdlc plugin", () => {
     assert.deepEqual(readdirSync(join(PLUGIN_ROOT, "skills")).toSorted(), SKILLS)
     for (const name of SKILLS) {
       const text = readFileSync(join(PLUGIN_ROOT, "skills", name, "SKILL.md"), "utf8")
+      assert.match(name, /^sdlc-[a-z]+(?:-[a-z]+)?$/)
       assert.match(text, new RegExp(`^---\\nname: ${name}\\n`))
       for (const [, path] of text.matchAll(/\$\{CLAUDE_PLUGIN_ROOT\}\/([\w./-]+)/g)) {
         assert.ok(path !== undefined && statSync(join(PLUGIN_ROOT, path)).isFile(), `${name} runs ${path}`)
       }
     }
+  })
+
+  it("has a test under test/hooks/ for each hook script that is no library", () => {
+    const tests = new Set(readdirSync(join(PLUGIN_ROOT, "test", "hooks")))
+    const scripts = readdirSync(HOOKS_DIR).filter((file) => file.endsWith(".sh") && !/^lib(?:-\w+)?\.sh$/.test(file))
+    for (const script of scripts) {
+      assert.ok(tests.has(script.replace(/\.sh$/, ".test.ts")), `${script} has no test/hooks/ test`)
+    }
+  })
+
+  it('has sdlc-pr-open keep the "Generated with" footer out of a body', () => {
+    const text = readFileSync(join(PLUGIN_ROOT, "skills", SELF_STARTED_SKILL, "SKILL.md"), "utf8")
+    assert.match(text, /^- It carries no "Generated with" footer\.$/m)
   })
 
   it("leaves each skill for the user to invoke, never the model, but the three the model, a Brief or the dev's go starts", () => {
@@ -237,6 +251,21 @@ describe("the sdlc plugin", () => {
     assert.match(text, /When\s+a\s+spec\s+is\s+stated/)
     assert.match(text, /does\s+not\s+count\s+toward\s+`findings: <n>`\s+and\s+never\s+holds\s+the\s+merge/)
     assert.match(text, /leaves\s+undone\s+stays\s+a\s+Finding,\s+never\s+an\s+`added:`\s+line/)
+  })
+
+  it("has sdlc-reviewer read the Coding standards and count a broken rule, cited with file:line, as a Finding", () => {
+    const text = readFileSync(join(PLUGIN_ROOT, "agents", "sdlc-reviewer.md"), "utf8")
+    assert.match(text, /`CODING_STANDARDS\.md`\s+and\s+`CONTRIBUTING\.md`,\s+each\s+whole,\s+when\s+it\s+exists/)
+    assert.match(text, /A\s+broken\s+rule\s+of\s+the\s+Coding\s+standards/)
+    assert.match(text, /It\s+needs\s+no\s+harm/)
+    assert.match(text, /Every\s+Finding\s+cites\s+`file:line`/)
+  })
+
+  it("has review.md hold a broken Coding standard as a Finding at both depths, each Finding citing file:line", () => {
+    const text = readFileSync(join(PLUGIN_ROOT, "skills", "sdlc-pr-ship", "references", "review.md"), "utf8")
+    assert.match(text, /a\s+broken\s+rule\s+of\s+the\s+Coding\s+standards/)
+    assert.match(text, /Every\s+Finding\s+cites\s+`file:line`\s+as\s+its\s+evidence/)
+    assert.match(text, /Both\s+Review\s+depths\s+read\s+`CODING_STANDARDS\.md`\s+and\s+`CONTRIBUTING\.md`/)
   })
 
   it("has sdlc-pr-ship read references/review.md before a Review, which holds what a Finding is and when a Review is skipped", () => {

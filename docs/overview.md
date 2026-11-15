@@ -259,6 +259,7 @@ defaults, an options object, or `false`. Its options and defaults are in its sch
 | `comment-budget`     | each comment block in code to 3 lines of prose                                          | on                       |
 | `disable-directives` | every lint or type-check disable directive to a reason                                  | off                      |
 | `skill-sections`     | each README section a skill copies to its source                                        | off: needs the catalogue |
+| `pinned-actions`     | every workflow `uses:` pinned to a full commit SHA with a `# vX.Y.Z` comment            | off                      |
 
 The Checks that read many files judge only what git tracks or would track. So a link to an ignored
 file fails on a Mac as it fails in CI. A glob's `*` and `**` skip a name that starts with a dot, as a
@@ -352,8 +353,8 @@ changes one the dev or the config set. No config key moves the rules, so the sam
 the same depth.
 
 - **A Finding** is a concrete harm the pull request's own changes cause, a doc or Primitive summary
-  they make false, a miss against the spec, or a bug fix without its regression test. A Review with
-  none is clean. The agent declines the rest with a line each in the Recap.
+  they make false, a miss against the spec, a bug fix without its regression test, or a broken rule
+  of the Coding standards. A Review with none is clean. The agent declines the rest with a line each in the Recap.
 - **The marks.** `dw-sdlc pr reviewed <n> --head <sha>` posts a `dw-sdlc/review` success on the head a
   clean Review read. `--findings` posts a failure there instead, the read mark. Contexts under
   `dw-sdlc/` never count as CI.

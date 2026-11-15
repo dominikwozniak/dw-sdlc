@@ -39,6 +39,13 @@ jobs:
       run: |
         if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
           changed=$(git diff --name-only --no-renames HEAD^1 HEAD)
+          # A change the package ships carries a changeset: releasing.md says why.
+          added=$(git diff --name-only --no-renames --diff-filter=A HEAD^1 HEAD)
+          if printf '%s\n' "$changed" | grep -Eq '^packages/dw-sdlc/(src|config|templates)/' &&
+            ! printf '%s\n' "$added" | grep -Eq '^\.changeset/.+\.md$'; then
+            echo "::error::A change under packages/dw-sdlc/{src,config,templates} needs a changeset: run pnpm changeset."
+            exit 1
+          fi
           code=$(printf '%s\n' "$changed" | awk '
             /^(docs|\.agents|\.changeset|\.claude\/skills)\// { next }
             /^plugins\/[^\/]+\/(skills|agents|templates)\// { next }

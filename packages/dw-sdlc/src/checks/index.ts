@@ -10,6 +10,7 @@ import { disableDirectives } from "./disable-directives.ts"
 import { fileSizeRatchet } from "./file-size-ratchet.ts"
 import { markdownBudget } from "./markdown-budget.ts"
 import { markdownRefs } from "./markdown-refs.ts"
+import { pinnedActions } from "./pinned-actions.ts"
 import { primitives } from "./primitives.ts"
 import { routedDocs } from "./routed-docs.ts"
 import { skillSections } from "./skill-sections.ts"
@@ -58,7 +59,8 @@ const SHIPPED: Shipped[] = [
   ship(fileSizeRatchet),
   ship(commentBudget),
   ship(disableDirectives),
-  ship(skillSections)
+  ship(skillSections),
+  ship(pinnedActions)
 ]
 
 /** The name of every Check the package ships, in the order the Gate runs them. */

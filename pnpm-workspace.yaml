@@ -11,6 +11,9 @@ packages:
 minimumReleaseAge: 10080
 minimumReleaseAgeStrict: true
 
+# A dependency saved by `pnpm add` is pinned exactly, with no `^` or `~`.
+savePrefix: ""
+
 # Refuse a version published with weaker provenance than an earlier one of the same package.
 trustPolicy: no-downgrade
 

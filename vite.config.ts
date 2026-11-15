@@ -37,7 +37,34 @@ export default defineConfig({
       "typescript/no-misused-spread": "off",
       // A catch that ends in `fail()`, which returns `never`, needs no `return`; the type check knows it.
       "typescript/consistent-return": "off"
-    }
+    },
+    overrides: [
+      {
+        files: ["packages/dw-sdlc/src/**"],
+        rules: {
+          // Processes start through src/exec.ts and src/run-command.ts; references/ is read-only reading.
+          "no-restricted-imports": [
+            "error",
+            {
+              paths: [
+                { name: "node:child_process", message: "run a process through src/exec.ts or src/run-command.ts" }
+              ],
+              patterns: [{ group: ["**/references/**"], message: "references/ holds read-only clones" }]
+            }
+          ],
+          // Only src/cli.ts sets the exit code.
+          "unicorn/no-process-exit": "error"
+        }
+      },
+      {
+        files: ["packages/dw-sdlc/src/exec.ts", "packages/dw-sdlc/src/run-command.ts"],
+        rules: { "no-restricted-imports": ["error", { patterns: [{ group: ["**/references/**"] }] }] }
+      },
+      {
+        files: ["packages/dw-sdlc/src/cli.ts"],
+        rules: { "unicorn/no-process-exit": "off" }
+      }
+    ]
   },
   staged: {
     "*.{ts,js,mjs,cjs}": ["vp lint --no-error-on-unmatched-pattern --fix", "vp fmt --no-error-on-unmatched-pattern"],

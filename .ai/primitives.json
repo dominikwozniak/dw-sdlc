@@ -459,7 +459,7 @@
       "id": "agents.reviewer",
       "name": "sdlc-reviewer",
       "group": "agents",
-      "summary": "The light Review: one subagent at medium effort over a diff, the files it touches and the Agent map; Bash for git reads.",
+      "summary": "The light Review: a subagent over a diff, its files, the Agent map and the Coding standards; Bash reads git.",
       "code": ["plugins/sdlc/agents/sdlc-reviewer.md"],
       "docs": [
         "plugins/sdlc/README.md#shipping-a-pull-request",
@@ -692,6 +692,14 @@
       "group": "gate",
       "summary": "Holds each README section a skill copies between markers to its source; check --write writes each.",
       "code": ["packages/dw-sdlc/src/checks/skill-sections.ts"],
+      "docs": ["docs/overview.md#the-checks-the-package-ships", "packages/dw-sdlc/README.md#the-gate"]
+    },
+    {
+      "id": "gate.pinned-actions",
+      "name": "pinned-actions Check",
+      "group": "gate",
+      "summary": "Holds every workflow uses: to a full commit SHA with a # vX.Y.Z comment.",
+      "code": ["packages/dw-sdlc/src/checks/pinned-actions.ts"],
       "docs": ["docs/overview.md#the-checks-the-package-ships", "packages/dw-sdlc/README.md#the-gate"]
     },
     {

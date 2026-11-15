@@ -7,9 +7,8 @@ status: accepted
 A Review that is not clean sent the agent back to the whole pull request from its base after each fix:
 the Review command reads the whole diff afresh each time and always finds something, and
 byarcadia-app/grateful-me-content#100, +1954/−229, ran 16 full Reviews in one day without one clean.
-So a Review holds the merge only on a Finding: a concrete harm the pull request's own changes cause, a
-miss against the spec, or a bug fix without its regression test. The agent declines the rest, smells,
-naming and style rules among them, each with a line in the Recap; a harm the change neither makes nor
+So a Review holds the merge only on a Finding, which ADR 0025 defines. The agent declines the rest,
+smells and taste no written rule backs among them, each with a line in the Recap; a harm the change neither makes nor
 reaches goes to the Recap's follow-ups. A Review that is not clean is still pinned to the head it read:
 `pr reviewed` posts `dw-sdlc/review` on it in state failure, "read, findings open". The Ship script
 reads the changes since the last head any Review read, so the Review after a fix reads the fix alone,
