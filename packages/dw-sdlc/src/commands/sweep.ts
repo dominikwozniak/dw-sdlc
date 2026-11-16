@@ -3,10 +3,10 @@
 
 import { existsSync } from "node:fs"
 
-import { resolveConfig } from "../agentic-config.ts"
+import { findRepository, mainCheckout, resolveConfig } from "../agentic-config.ts"
 import { CannotRun, readArgs, usageError } from "../cannot-run.ts"
 import { SLOW_LIMIT_MS } from "../exec.ts"
-import { asked, git, findRepository, mainCheckout } from "../git.ts"
+import { asked, git } from "../git.ts"
 import { isCommitLanded } from "../landed.ts"
 import { shellLine } from "../shell-line.ts"
 import { apply, type Item, type Judged, type Kept, type Planned } from "../sweep-removal.ts"

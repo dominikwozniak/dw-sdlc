@@ -4,9 +4,8 @@
 import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
 
-import { resolveConfig, WORKER_EFFORTS } from "../agentic-config.ts"
+import { mainCheckout, repositoryRoot, resolveConfig, WORKER_EFFORTS } from "../agentic-config.ts"
 import { CannotRun, messageOf, readArgs, usageError } from "../cannot-run.ts"
-import { mainCheckout, repositoryRoot } from "../git.ts"
 import { isLive, lead, wholeNumber, workersOf } from "../worker/herdr.ts"
 import { launch, NAME, spaceOf, TAB_WAIT, undelivered } from "../worker/launch.ts"
 import { freshenOrigin } from "../worker/origin.ts"

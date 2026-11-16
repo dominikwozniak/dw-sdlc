@@ -6,7 +6,7 @@ import { existsSync, readFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { join } from "node:path"
 
-import { invalidLayerEffect, resolveConfig } from "../agentic-config.ts"
+import { findRepository, invalidLayerEffect, resolveConfig } from "../agentic-config.ts"
 import { readArgs, rootDir } from "../cannot-run.ts"
 import {
   checkPackage,
@@ -18,7 +18,6 @@ import {
   versionBefore
 } from "../doctor-plugins.ts"
 import { exec, firstLine, TimedOut } from "../exec.ts"
-import { findRepository } from "../git.ts"
 import { isObject } from "../json-text.ts"
 
 export type Level = "PASS" | "WARN" | "FAIL" | "INFO"

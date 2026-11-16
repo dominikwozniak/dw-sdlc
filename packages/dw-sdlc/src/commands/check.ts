@@ -1,9 +1,8 @@
 // `dw-sdlc check <name>`: one Check of the Gate by its name, without the Steps and the other Checks.
 
-import { resolveConfig } from "../agentic-config.ts"
+import { repositoryRoot, resolveConfig } from "../agentic-config.ts"
 import { CannotRun, readArgs, rootDir, usageError } from "../cannot-run.ts"
 import { CHECK_NAMES, shippedCheck } from "../checks/index.ts"
-import { repositoryRoot } from "../git.ts"
 import { TAIL_LINES } from "../run-command.ts"
 import { printReport, runGate } from "./gate.ts"
 

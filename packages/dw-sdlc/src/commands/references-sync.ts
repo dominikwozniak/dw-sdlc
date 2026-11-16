@@ -6,9 +6,10 @@ import { existsSync, linkSync, mkdirSync, readdirSync, readFileSync, renameSync,
 import { extname, join } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
+import { repositoryRoot } from "../agentic-config.ts"
 import { CannotRun, messageOf, readArgs } from "../cannot-run.ts"
 import { SLOW_LIMIT_MS } from "../exec.ts"
-import { asked, git, repositoryRoot } from "../git.ts"
+import { asked, git } from "../git.ts"
 import { readPins, resolveRef, type Pins } from "../pins.ts"
 import { REFERENCES_FILE, readReferences, type Reference } from "../references-key.ts"
 import { renderBlock, withBlock } from "../router-block.ts"

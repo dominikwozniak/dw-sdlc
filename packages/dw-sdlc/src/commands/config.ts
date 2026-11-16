@@ -5,14 +5,15 @@ import { readFileSync } from "node:fs"
 
 import {
   COMMITTED_FILE,
+  findRepository,
   invalidLayerEffect,
   LOCAL_FILE,
   type Problem,
+  repositoryRoot,
   resolveConfig,
   validateDocument
 } from "../agentic-config.ts"
 import { messageOf, readArgs, rootDir, usageError } from "../cannot-run.ts"
-import { findRepository, repositoryRoot } from "../git.ts"
 
 export const summary = "resolve the repository's agentic config, or validate one file against the schema"
 

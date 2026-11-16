@@ -1,9 +1,9 @@
 // `dw-sdlc recap`: the facts a Recap rests on and whether the session can be closed, read from git and
 // gh. It writes nothing: the Action of the branch's pull request is the Ship script's decision, read.
 
-import { resolveConfig } from "../agentic-config.ts"
+import { findRepository, mainCheckout, resolveConfig } from "../agentic-config.ts"
 import { CannotRun, readArgs, usageError } from "../cannot-run.ts"
-import { asked, must, findRepository, mainCheckout } from "../git.ts"
+import { asked, must } from "../git.ts"
 import { pausedIn } from "../paused-operation.ts"
 import { type Answer, decide, declaredPolicy, labelOf, lineOf } from "../pr/decide.ts"
 import { localReviews } from "../pr/local-reviews.ts"

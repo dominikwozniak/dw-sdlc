@@ -7,6 +7,9 @@ import { join } from "node:path"
 
 import { messageOf } from "./cannot-run.ts"
 import { mainCheckout } from "./git.ts"
+
+// The checkout helpers live beside gitDirs; every command reads them from here, with the config.
+export { findRepository, mainCheckout, repositoryRoot } from "./git.ts"
 import { validate } from "./json-schema.ts"
 
 export const COMMITTED_FILE = ".ai/agentic.config.json"

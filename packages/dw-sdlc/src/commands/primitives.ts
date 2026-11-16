@@ -5,11 +5,10 @@
 import { existsSync, realpathSync } from "node:fs"
 import { basename, dirname, join, relative, resolve } from "node:path"
 
-import { resolveConfig } from "../agentic-config.ts"
+import { repositoryRoot, resolveConfig } from "../agentic-config.ts"
 import { CannotRun, readArgs, rootDir, usageError } from "../cannot-run.ts"
 import { type Primitive, primitivesNaming, readCatalogue } from "../catalogue.ts"
 import { catalogueFile } from "../checks/primitives.ts"
-import { repositoryRoot } from "../git.ts"
 import { blockOf, primitivesDiff } from "../primitives-diff.ts"
 
 export const summary = "name the Primitives that own each path, or that a change removes, adds or extends"

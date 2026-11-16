@@ -2,9 +2,8 @@
 // `dw-sdlc/review` or, under footprint local, a mark in the Review state file: clean, --findings the read
 // mark, --accept the dev's acceptance the review-limit park names, and under local --off a head no one read.
 
-import { type Footprint, resolveConfig } from "../agentic-config.ts"
+import { type Footprint, repositoryRoot, resolveConfig } from "../agentic-config.ts"
 import { CannotRun, readArgs, usageError } from "../cannot-run.ts"
-import { repositoryRoot } from "../git.ts"
 import { REVIEW, REVIEW_STATE, reviewStatusArgs } from "../pr/decide.ts"
 import { localReviews, type Mark } from "../pr/local-reviews.ts"
 import { gh, namedProblem, pullRequestNamed, said } from "../pr/read.ts"
@@ -25,8 +24,8 @@ Needs an authenticated gh.
 
 Under footprint local in .ai/agentic.config.json or its local layer it posts no status: it records the
 mark on the head in .git/dw-sdlc/reviews/<n>.json, under the common git dir, beside the marks already
-there: clean, findings with --findings, accepted with --accept, and off with --off, a head no one read
-under off, the command pr ship names for it under --dry-run. --off takes footprint local alone.
+there: clean, findings with --findings, accepted with --accept. --off records off: no one read the
+head, under pr.review off. pr ship --dry-run names that command. --off works under footprint local only.
 
 Exit 0 posted, 2 when it cannot run or the head moved.`
 
@@ -96,7 +95,7 @@ function parseCli(argv: string[]): Cli | { help: true } {
   return { help: false, json: values.json === true, number: Number(number), repo, head, mark }
 }
 
-/** The pull request's number once the read shows `head` is still its head. */
+/** The pull request the read finds, once it shows `head` is still its head. */
 function stillHead({ number, repo, head }: Cli): { repo: string; url: string; head: string } {
   const pr = pullRequestNamed({ number, repo }, "pr reviewed")
   if (pr.head !== head) {

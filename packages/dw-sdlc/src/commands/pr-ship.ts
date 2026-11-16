@@ -2,9 +2,8 @@
 // needs next, performs it when it is the script's and reads again, then answers the first Action that
 // is not, as a line or one JSON document, with an exit code that names whose turn it is.
 
-import { resolveConfig, REVIEW_DEPTHS, type ReviewDepth } from "../agentic-config.ts"
+import { repositoryRoot, resolveConfig, REVIEW_DEPTHS, type ReviewDepth } from "../agentic-config.ts"
 import { CannotRun, messageOf, readArgs, usageError } from "../cannot-run.ts"
-import { repositoryRoot } from "../git.ts"
 import {
   type Answer,
   decide,
@@ -67,9 +66,9 @@ compare decides whether the mark's Findings still stand, so the script stops and
 with ok null.
 Under footprint local in .ai/agentic.config.json or its local layer, the script posts no ${REVIEW}
 status and reads none: what a Review left on each commit comes from .git/dw-sdlc/reviews/<n>.json,
-under the common git dir, the file pr reviewed writes, and its mark-reviewed records clean for a
-carry and off under off there, its command pr reviewed with --off for the second. Every decision
-is the one the statuses would give.
+under the common git dir, the file pr reviewed writes. Its mark-reviewed writes there too: clean
+for a carry, off under off. The command it names for an off head is pr reviewed --off. Every
+decision is the one the statuses would give.
 One line, or one document with --json; --verbose adds the state as read to the document under
 facts. Needs an authenticated gh.
 
@@ -232,7 +231,7 @@ function readTarget(cli: Cli, root: string, reads: Reads): PrState {
  * The command a script Action runs, and the run: gh, or under footprint local a mark-reviewed recorded in
  * the Review state, which posts nothing.
  */
-function performance(
+function scriptRun(
   pr: PrState,
   action: ScriptAction,
   policy: Policy,
@@ -273,7 +272,7 @@ function ship(cli: Cli, root: string, policy: Policy): { pr: PrState; answer: An
     if (!isScriptAction(action)) {
       return { pr, answer, performed }
     }
-    const { command, perform } = performance(pr, action, policy, local)
+    const { command, perform } = scriptRun(pr, action, policy, local)
     const { would } = NAMED[action]
     if (cli.dryRun) {
       performed.push({ action, command, ok: null })
