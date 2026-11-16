@@ -374,26 +374,11 @@ fi
 
 # --- rails tasks that decrypt ----------------------------------------------------------------------
 # They show a secret decrypted from a key no path names. Read as words, behind `bundle exec` and
-# `spring` too. credentials:diff decrypts the file it is given; --enroll only writes .gitattributes.
-
-# decrypting <task> [<word>…] — 0 when the rails task, given the words after it, decrypts.
-decrypting() {
-  local task="$1" word
-  shift
-  case "$task" in
-    credentials:show | credentials:edit | credentials:fetch | encrypted:show | encrypted:edit) return 0 ;;
-    credentials:diff)
-      for word in "$@"; do
-        [[ "$word" == --enroll || "$word" == --disenroll ]] || return 0
-      done
-      ;;
-  esac
-  return 1
-}
+# `spring` too. credentials:diff prints a file decrypted, or with --enroll sets git diff to.
 
 # check_rails — WORDS, a command behind its launchers, is a rails task that decrypts.
 check_rails() {
-  local i
+  local word
   if [[ "${WORDS[0]:-}" == bundle ]]; then
     guard_shift_words
     if [[ "${WORDS[0]:-}" == exec ]]; then
@@ -403,10 +388,12 @@ check_rails() {
   fi
   while [[ "${WORDS[0]:-}" == spring || "${WORDS[0]:-}" == ruby ]]; do guard_shift_words; done
   [[ "${WORDS[0]:-}" == rails || "${WORDS[0]:-}" == */rails ]] || return 0
-  for ((i = 1; i < ${#WORDS[@]}; i++)); do
-    if decrypting "${WORDS[@]:i}"; then
-      guard_block "'$GUARD_COMMAND' runs rails ${WORDS[i]}, which decrypts a secret from the Rails credentials or an encrypted file and shows it. An agent never reads them: ask the owner to run it at a terminal."
-    fi
+  for word in "${WORDS[@]:1}"; do
+    case "$word" in
+      credentials:show | credentials:edit | credentials:fetch | credentials:diff | encrypted:show | encrypted:edit)
+        guard_block "'$GUARD_COMMAND' runs rails $word, which decrypts a secret from the Rails credentials or an encrypted file and shows it. An agent never reads them: ask the owner to run it at a terminal."
+        ;;
+    esac
   done
   return 0
 }

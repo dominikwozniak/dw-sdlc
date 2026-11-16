@@ -188,8 +188,8 @@ BLOCKED: 'rm -rf /' deletes from the root of the filesystem.
 - A `Grep` of a directory is judged by the files its `glob` reaches. In Bash a path is read from
   where a `cd` left the shell, and a glob by the files it expands to.
 - A rails task that decrypts is refused, behind `bundle exec` and `spring` too: `credentials:show`,
-  `:edit`, `:fetch`, `encrypted:show`, `:edit`, and `credentials:diff` given a file. No path names
-  the secret it shows. `credentials:diff --enroll` passes: it writes `.gitattributes`.
+  `:edit`, `:fetch`, `:diff`, `encrypted:show` and `:edit`. No path names the secret it shows;
+  `credentials:diff --enroll` turns `git diff` of the credentials decrypted.
 
 ```text
 BLOCKED: 'cat .env' touches '.env' and git does not track it. guardrails.envFiles in
