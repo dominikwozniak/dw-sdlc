@@ -69,6 +69,52 @@
         "The answer stops after the pull request's URL and does not run or start /sdlc-pr-ship, which the Ship line of the Brief assigns to the next step",
         "The body carries no Generated with footer"
       ]
+    },
+    {
+      "id": 5,
+      "name": "local-renames-a-worktree-branch-to-the-ticket-key",
+      "prompt": "You are the Worker worker-retry-limit. Your Brief starts with the implement line `/implement` and its Source line names the Jira ticket VER-412; its Ship line says to open the pull request with `/sdlc-pr-open`. The work is committed on branch worktree-worker-retry-limit, as Claude Code named your worktree. Open the pull request, and stop before anything that follows it. In place of running them, take these as what the commands printed, and run nothing else.\n\n`dw-sdlc config`, exit 0:\ncommitted  .ai/agentic.config.json  valid\nlocal      .ai/agentic.config.local.json  valid\n{\"footprint\":\"local\",\"commit\":{\"convention\":\"ticket-key\",\"trailer\":\"Co-Authored-By\"},\"pr\":{\"merge\":\"auto\"}}\n\nThe Brief's Source line: Jira ticket VER-412, the retry limit of the uploader.\n\n`git rev-parse --abbrev-ref HEAD`: worktree-worker-retry-limit\n`git rev-parse --abbrev-ref @{u}`: fatal: no upstream configured for branch 'worktree-worker-retry-limit'\n`gh pr list --head worktree-worker-retry-limit --state open --json number,url`: []\n`gh repo view --json defaultBranchRef --jq .defaultBranchRef.name`: main\n\nThe repository has no pull request template and no GLOSSARY.md. The change: the uploader retried forever on a 503; it now stops after 5 tries with a clear error. The diff touches src/uploader.ts and test/uploader.test.ts. The test `gives up after 5 tries on a 503` fails before the change and passes after. Write the body to body.md and show, in order, the exact commands you would run, ending at the pull request.",
+      "expected_output": "Before the first push the branch is renamed to VER-412-retry-limit, the push and the pull request use the new name, and the worktree- name never reaches the remote.",
+      "files": [],
+      "expectations": [
+        "A git branch -m VER-412-retry-limit runs before any git push",
+        "After the rename the branch name is taken again with git rev-parse --abbrev-ref HEAD",
+        "The push is git push -u origin VER-412-retry-limit",
+        "gh pr create names --head VER-412-retry-limit and uses --body-file",
+        "No command pushes or names the branch worktree-worker-retry-limit on the remote or in gh",
+        "The title has the ticket-key form [VER-412] type: subject",
+        "The skill does not merge or start /sdlc-pr-ship"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "local-renames-a-worktree-branch-to-the-slug-without-a-key",
+      "prompt": "You are the Worker worker-77-export-json. Your Brief starts with the implement line `/implement #77` and its Ship line says to open the pull request with `/sdlc-pr-open`. The work is committed on branch worktree-worker-77-export-json, as Claude Code named your worktree. Open the pull request, and stop before anything that follows it. In place of running them, take these as what the commands printed, and run nothing else.\n\n`dw-sdlc config`, exit 0:\ncommitted  .ai/agentic.config.json  valid\nlocal      .ai/agentic.config.local.json  valid\n{\"footprint\":\"local\",\"commit\":{\"convention\":\"conventional\",\"trailer\":\"Co-Authored-By\"},\"pr\":{\"merge\":\"auto\"}}\n\n`git rev-parse --abbrev-ref HEAD`: worktree-worker-77-export-json\n`git rev-parse --abbrev-ref @{u}`: fatal: no upstream configured for branch 'worktree-worker-77-export-json'\n`gh pr list --head worktree-worker-77-export-json --state open --json number,url`: []\n`gh repo view --json defaultBranchRef --jq .defaultBranchRef.name`: main\n`gh issue view 77`: title: Add --json to the export command. The export command prints a table; people pipe it into jq.\n\nThe repository has no pull request template and no GLOSSARY.md. The diff adds a --json flag to packages/cli/src/export.ts and a test in packages/cli/test/export.test.ts, which fails before the change and passes after. Write the body to body.md and show, in order, the exact commands you would run, ending at the pull request.",
+      "expected_output": "The work has no ticket key, so the branch is renamed to the slug export-json before the first push, and the body still closes #77.",
+      "files": [],
+      "expectations": [
+        "A git branch -m export-json runs before any git push, with no worker, 77 or worktree in the new name",
+        "After the rename the branch name is taken again with git rev-parse --abbrev-ref HEAD",
+        "The push is git push -u origin export-json",
+        "gh pr create names --head export-json and uses --body-file",
+        "No command pushes or names the branch worktree-worker-77-export-json on the remote or in gh",
+        "The body's first line is Closes #77",
+        "The skill does not merge or start /sdlc-pr-ship"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "github-keeps-a-worktree-branch-name",
+      "prompt": "You are the Worker worker-77-export-json. Your Brief starts with the implement line `/implement #77` and its Ship line says to open the pull request with `/sdlc-pr-open`. The work is committed on branch worktree-worker-77-export-json, as Claude Code named your worktree. Open the pull request, and stop before anything that follows it. In place of running them, take these as what the commands printed, and run nothing else.\n\n`dw-sdlc config`, exit 0:\ncommitted  .ai/agentic.config.json  valid\nlocal      .ai/agentic.config.local.json  valid\n{\"footprint\":\"github\",\"commit\":{\"convention\":\"conventional\",\"trailer\":\"Co-Authored-By\"},\"pr\":{\"merge\":\"auto\"}}\n\n`git rev-parse --abbrev-ref HEAD`: worktree-worker-77-export-json\n`git rev-parse --abbrev-ref @{u}`: fatal: no upstream configured for branch 'worktree-worker-77-export-json'\n`gh pr list --head worktree-worker-77-export-json --state open --json number,url`: []\n`gh repo view --json defaultBranchRef --jq .defaultBranchRef.name`: main\n`gh issue view 77`: title: Add --json to the export command. The export command prints a table; people pipe it into jq.\n\nThe repository has no pull request template and no GLOSSARY.md. The diff adds a --json flag to packages/cli/src/export.ts and a test in packages/cli/test/export.test.ts, which fails before the change and passes after. Write the body to body.md and show, in order, the exact commands you would run, ending at the pull request.",
+      "expected_output": "Under footprint github the branch keeps its name: no rename, the push names the worktree- branch and the pull request opens from it.",
+      "files": [],
+      "expectations": [
+        "No git branch -m runs",
+        "The push is git push -u origin worktree-worker-77-export-json",
+        "gh pr create names --head worktree-worker-77-export-json and uses --body-file",
+        "The body's first line is Closes #77",
+        "The skill does not merge or start /sdlc-pr-ship"
+      ]
     }
   ]
 }

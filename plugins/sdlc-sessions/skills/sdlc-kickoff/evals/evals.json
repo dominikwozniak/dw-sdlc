@@ -143,6 +143,68 @@
         "No way out is offered and no line starts with Next:",
         "Nothing was started, filed or commented on"
       ]
+    },
+    {
+      "id": 10,
+      "name": "local-not-now-offers-lead-and-line-no-issue",
+      "prompt": "/sdlc-kickoff\n\nThe dev writes English. Earlier in the conversation the dev wrote: \"the release notes page should link each version to its tag; brief it\". Nothing about it is filed anywhere. They added: \"not now though\". In place of running the commands, take this as what `dw-sdlc config` printed, exit 0:\ncommitted  .ai/agentic.config.json  valid\nlocal      .ai/agentic.config.local.json  valid\n{\"footprint\":\"local\",\"gate\":{\"command\":\"pnpm check\"},\"pr\":{\"merge\":\"auto\"},\"worker\":{\"command\":\"claude\",\"model\":\"sonnet\",\"effort\":\"high\"}}\n\n`git worktree list --porcelain` first line: worktree /repo/site\n\n`printenv HC_TERMINAL_ID`: t1, exit 0.\n`git rev-parse --path-format=absolute --git-dir --git-common-dir`: /repo/site/.git, then /repo/site/.git.\n\nGive your answer as the skill says, and save it as kickoff.md. Run nothing else.",
+      "expected_output": "Under footprint local the issue way is gone: the Lead and the start line are offered, the start line recommended because the dev said not now, and nothing is written or started before the dev's word.",
+      "files": [],
+      "expectations": [
+        "Exactly two ways out appear, a Lead and the start line, and no way files the work as an issue",
+        "The answer offers no way that files an issue: no gh issue create and no /implement #N line",
+        "The start line is the one recommended, because the dev said not now",
+        "One line says which word picks each way: start or line, and not issue",
+        "The answer ends with the last line Next: in a code span naming line",
+        "The Brief is English and has the lines Goal, May write, Must not, Proof, Report and Model and effort, with no Source line, since nothing is filed",
+        "No file was written under .git and no gh or dw-sdlc command was run"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "local-start-writes-the-brief-file-and-files-no-issue",
+      "prompt": "Here is the session so far, in place of a conversation you lived through. The dev writes English. They ran /sdlc-kickoff for an idea they had in the conversation: \"the release notes page should link each version to its tag\". Nothing about it is filed anywhere. You answered with the Brief for worker-release-tag-links on sonnet and high, a Lead and the start line as the two ways, and ended with `Next: start`.\n\nThe dev now writes: start\n\nIn place of running them, take these as what the commands printed. `dw-sdlc config`, exit 0:\ncommitted  .ai/agentic.config.json  valid\nlocal      .ai/agentic.config.local.json  valid\n{\"footprint\":\"local\",\"gate\":{\"command\":\"pnpm check\"},\"pr\":{\"merge\":\"auto\"},\"worker\":{\"command\":\"claude\",\"model\":\"sonnet\",\"effort\":\"high\"}}\n\n`git worktree list --porcelain` first line: worktree /repo/site\n\n`printenv HC_TERMINAL_ID`: t1, exit 0.\n`git rev-parse --path-format=absolute --git-dir --git-common-dir`: /repo/site/.git, then /repo/site/.git.\n\n`dw-sdlc lead start ... --json`, exit 0:\n{\"name\":\"lead-release-tag-links\",\"address\":\"t9\",\"delivered\":true}\n\nDo not run `gh` or `dw-sdlc`. Write the Brief file you would write to brief-file.md, with its full path on its first line, the one command you would run to start the Lead to lead.sh, and your answer to the dev to answer.md. Carry out nothing else.",
+      "expected_output": "The Brief goes to a file under the common git dir, no issue is filed, and one lead start takes that file's path as its ticket.",
+      "files": [],
+      "expectations": [
+        "The first line of brief-file.md is the path /repo/site/.git/dw-sdlc/briefs/worker-release-tag-links.md, the common git dir the second path of git rev-parse prints, and no other folder of the repository is named",
+        "The Brief below the path has a Goal, May write, Must not, Proof, Report and Model and effort line, and its first line is /implement with no issue number",
+        "The Brief's Questions and Report lines take the form without a Lead: the dev answers in this terminal and the Worker ends with /sdlc-recap and stops, with no worker report command and no terminal t1",
+        "No gh issue create or any other gh command is written anywhere, and no issue is filed",
+        "lead.sh holds one dw-sdlc lead start, run by a path ending in dw-sdlc/src/cli.ts, with --prompt /sdlc-delegate /repo/site/.git/dw-sdlc/briefs/worker-release-tag-links.md",
+        "The --name of the Lead starts with lead- and holds only a-z, 0-9, - and _, at most 32 characters",
+        "lead.sh holds no --dangerously-skip-permissions and no --worktree",
+        "answer.md gives the Lead's name and address and says it takes the work from here"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "github-start-files-the-issue-and-starts-the-lead-on-it",
+      "prompt": "Here is the session so far, in place of a conversation you lived through. The dev writes English. They ran /sdlc-kickoff for an idea they had in the conversation: \"the release notes page should link each version to its tag\". Nothing about it is filed anywhere. You answered with the Brief for worker-release-tag-links on sonnet and high, three ways out with the Lead recommended, and ended with `Next: start`.\n\nThe dev now writes: start\n\nIn place of running them, take these as what the commands printed. `dw-sdlc config`, exit 0:\ncommitted  .ai/agentic.config.json  valid\nlocal      .ai/agentic.config.local.json  valid\n{\"footprint\":\"github\",\"gate\":{\"command\":\"pnpm check\"},\"pr\":{\"merge\":\"auto\"},\"worker\":{\"command\":\"claude\",\"model\":\"sonnet\",\"effort\":\"high\"}}\n\n`git worktree list --porcelain` first line: worktree /repo/site\n\n`printenv HC_TERMINAL_ID`: t1, exit 0.\n`git rev-parse --path-format=absolute --git-dir --git-common-dir`: /repo/site/.git, then /repo/site/.git.\n\n`gh issue create --title ... --body-file ...`, exit 0:\nhttps://github.com/acme/site/issues/130\n\n`dw-sdlc lead start ... --json`, exit 0:\n{\"name\":\"lead-130-release-tag-links\",\"address\":\"t9\",\"delivered\":true}\n\nDo not run `gh` or `dw-sdlc`. Write the command you would run to file the issue and the body file it reads to issue.md, the one command you would run to start the Lead to lead.sh, and your answer to the dev to answer.md. Carry out nothing else.",
+      "expected_output": "Under footprint github the idea is filed first as an issue whose body is the Brief, and the Lead takes #130; no Brief file is written under .git.",
+      "files": [],
+      "expectations": [
+        "issue.md names a gh issue create with --title and --body-file, and its body is the Brief, without an implement line",
+        "No Brief file under /repo/site/.git is written or named",
+        "lead.sh holds one dw-sdlc lead start, run by a path ending in dw-sdlc/src/cli.ts, with --prompt /sdlc-delegate #130",
+        "The --name of the Lead starts with lead-130-",
+        "lead.sh holds no --dangerously-skip-permissions and no --worktree",
+        "answer.md gives the Lead's name and address and says it takes the work from here"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "github-not-now-recommends-the-issue-in-herdr",
+      "prompt": "/sdlc-kickoff\n\nThe dev writes English. Earlier in the conversation the dev wrote: \"the release notes page should link each version to its tag; brief it\". Nothing about it is filed anywhere. They added: \"not now though\". In place of running the commands, take this as what `dw-sdlc config` printed, exit 0:\ncommitted  .ai/agentic.config.json  valid\nlocal      .ai/agentic.config.local.json  valid\n{\"footprint\":\"github\",\"gate\":{\"command\":\"pnpm check\"},\"pr\":{\"merge\":\"auto\"},\"worker\":{\"command\":\"claude\",\"model\":\"sonnet\",\"effort\":\"high\"}}\n\n`git worktree list --porcelain` first line: worktree /repo/site\n\n`printenv HC_TERMINAL_ID`: t1, exit 0.\n`git rev-parse --path-format=absolute --git-dir --git-common-dir`: /repo/site/.git, then /repo/site/.git.\n\nGive your answer as the skill says, and save it as kickoff.md. Run nothing else.",
+      "expected_output": "Under footprint github the three ways out stay, and the issue is recommended because the dev said not now.",
+      "files": [],
+      "expectations": [
+        "Three ways out appear: a Lead, an issue and the start line",
+        "The issue way is the one recommended, because the dev said not now",
+        "One line says which word picks each way: start, issue or line",
+        "The answer ends with the last line Next: in a code span naming issue",
+        "No issue was filed and no gh or dw-sdlc command was run"
+      ]
     }
   ]
 }

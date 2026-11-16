@@ -121,6 +121,54 @@
         "answer.md gives no start line for follow-up 1",
         "Only one Lead is started: lead.sh holds no second lead start"
       ]
+    },
+    {
+      "id": 9,
+      "name": "local-go-files-no-issue-and-the-lead-takes-the-brief-path",
+      "prompt": "Here is the session so far, in place of a conversation you lived through. The dev writes English. You gave this Recap through /sdlc-recap:\n\ndone Pull request #91 merged.\n\nFollow-ups\nA new session\n1. The admin API has no rate limiting, a larger piece of work with a design to settle. worker.\n2. The rate limit docs need a section on the headers it sends. issue.\n\nSay \"go\" to carry out every recommendation, or \"go, but 2 issue\" to change one. Go carries out follow-up 1 and starts one new Lead for it.\n\nThe dev now writes: go\n\nIn place of running them, take these as what the commands printed. `dw-sdlc config`, exit 0:\ncommitted  .ai/agentic.config.json  valid\nlocal      .ai/agentic.config.local.json  valid\n{\"footprint\":\"local\",\"gate\":{\"command\":\"pnpm check\"},\"pr\":{\"merge\":\"auto\"},\"worker\":{\"command\":\"claude\",\"model\":\"sonnet\",\"effort\":\"high\"}}\n\n`git worktree list --porcelain` first line: worktree /repo/api\n`git rev-parse --path-format=absolute --git-dir --git-common-dir`: /repo/api/.git, then /repo/api/.git.\n\nThe `dw-sdlc recap` document this Recap read had `workers` [] and `worktree.linked` false: this session runs in herdr, in the main checkout.\n\nDo not run `gh` or `dw-sdlc`. Write every file you would write with its full path and its content into files/ named after the path with / replaced by __, the one command you would run to start the Lead to lead.sh, and your answer to the dev to answer.md. Carry out nothing else.",
+      "expected_output": "Both follow-ups become Brief files under the common git dir and no issue is filed; one Lead starts on the worker follow-up's Brief path; the issue follow-up's path goes back to the dev.",
+      "files": [],
+      "expectations": [
+        "No gh issue create or other gh command is written anywhere",
+        "Two Brief files are written under /repo/api/.git/dw-sdlc/briefs/, one for each follow-up, each named worker-<slug>.md",
+        "Each file has the Brief's lines for Goal, May write, Must not, Proof, Report and Model and effort, and a first line /implement with no issue number",
+        "The Questions and Report lines of each file take the form without a Lead: no worker report command and no terminal address",
+        "The Brief of follow-up 1, the design to settle, is routed to opus and high",
+        "answer.md gives the path of follow-up 2's Brief file and says the dev starts it later with /implement and that path",
+        "lead.sh holds one dw-sdlc lead start command, run by a path ending in dw-sdlc/src/cli.ts, with --prompt /sdlc-delegate and the path of follow-up 1's Brief file, and not follow-up 2's",
+        "lead.sh holds no --dangerously-skip-permissions and no --worktree, and no second lead start",
+        "answer.md gives no start line for follow-up 1",
+        "answer.md says the follow-ups are Brief files and no issue was filed"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "github-go-files-the-issues-and-the-lead-takes-the-number",
+      "prompt": "Here is the session so far, in place of a conversation you lived through. The dev writes English. You gave this Recap through /sdlc-recap:\n\ndone Pull request #91 merged.\n\nFollow-ups\nA new session\n1. The admin API has no rate limiting, a larger piece of work with a design to settle. worker.\n2. The rate limit docs need a section on the headers it sends. issue.\n\nSay \"go\" to carry out every recommendation, or \"go, but 2 issue\" to change one. Go files follow-up 1 and starts one new Lead for it.\n\nThe dev now writes: go\n\nIn place of running them, take these as what the commands printed. `dw-sdlc config`, exit 0:\ncommitted  .ai/agentic.config.json  valid\nlocal      .ai/agentic.config.local.json  valid\n{\"footprint\":\"github\",\"gate\":{\"command\":\"pnpm check\"},\"pr\":{\"merge\":\"auto\"},\"worker\":{\"command\":\"claude\",\"model\":\"sonnet\",\"effort\":\"high\"}}\n\n`git worktree list --porcelain` first line: worktree /repo/api\n`git rev-parse --path-format=absolute --git-dir --git-common-dir`: /repo/api/.git, then /repo/api/.git.\n\nThe `dw-sdlc recap` document this Recap read had `workers` [] and `worktree.linked` false: this session runs in herdr, in the main checkout.\n\nDo not run `gh` or `dw-sdlc`: take #401 as the number follow-up 1 is filed under and #402 as follow-up 2's. Write the title and body you would file for each to issue-1.md and issue-2.md, the one command you would run to start the Lead to lead.sh, and your answer to the dev to answer.md. Carry out nothing else.",
+      "expected_output": "Both follow-ups are filed as issues with a Brief as the body, and one Lead starts on #401; no Brief file is written.",
+      "files": [],
+      "expectations": [
+        "issue-1.md and issue-2.md each have the Brief's lines for Goal, May write, Must not, Proof, Report and Model and effort, and no implement line",
+        "No file under .git/dw-sdlc/briefs/ is written",
+        "lead.sh holds one dw-sdlc lead start command, run by a path ending in dw-sdlc/src/cli.ts, with --prompt /sdlc-delegate #401 and not #402",
+        "Its --name starts with lead-401-",
+        "lead.sh holds no --dangerously-skip-permissions and no --worktree",
+        "answer.md gives no start line for follow-up 1 and names #402 as filed for later"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "local-go-in-a-linked-worktree-writes-the-brief-to-the-common-dir",
+      "prompt": "Here is the session so far, in place of a conversation you lived through. The dev writes English. You gave this Recap through /sdlc-recap:\n\ndone Pull request #91 merged.\n\nFollow-ups\nA new session\n1. The admin API has no rate limiting, a larger piece of work with a design to settle. worker.\n\nSay \"go\" to carry out every recommendation. Go hands you the start line of follow-up 1, since this session runs in a linked worktree.\n\nThe dev now writes: go\n\nIn place of running them, take these as what the commands printed. `dw-sdlc config`, exit 0:\ncommitted  .ai/agentic.config.json  valid\nlocal      .ai/agentic.config.local.json  valid\n{\"footprint\":\"local\",\"gate\":{\"command\":\"pnpm check\"},\"worker\":{\"command\":\"claude\",\"model\":\"sonnet\",\"effort\":\"high\"}}\n\n`git worktree list --porcelain` first line: worktree /repo/api\n`git rev-parse --path-format=absolute --git-dir --git-common-dir`: /repo/api/.git/worktrees/worker-12-limits, then /repo/api/.git.\n\nThe `dw-sdlc recap` document this Recap read had `workers` null and `worktree.linked` true.\n\nDo not run `gh` or `dw-sdlc`. Write every file you would write with its full path on the first line, into files/ named after the path with / replaced by __, and your answer to the dev to answer.md. Carry out nothing else.",
+      "expected_output": "The Brief file goes to the common git dir, the second path, and not to the worktree's own git dir; no issue is filed, no Lead is started, and the start line goes back to the dev.",
+      "files": [],
+      "expectations": [
+        "One Brief file is written, at /repo/api/.git/dw-sdlc/briefs/worker-<slug>.md, and no file is written under /repo/api/.git/worktrees/",
+        "The file has the Brief's lines for Goal, May write, Must not, Proof, Report and Model and effort, and a first line /implement with no issue number",
+        "The Brief is routed to opus and high, because its design is unsettled",
+        "No gh command is written anywhere and no dw-sdlc lead start is written, since this session runs in a linked worktree",
+        "answer.md hands the dev the start line of follow-up 1, a cd /repo/api command with claude --worktree worker-, --model opus and --effort high"
+      ]
     }
   ]
 }
