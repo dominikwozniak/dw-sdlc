@@ -3,10 +3,10 @@
 // `hooks/config.jq` is the same merge for the guards; this file is the reference, and the tests run both.
 
 import { existsSync, readFileSync } from "node:fs"
-import { dirname, join } from "node:path"
+import { join } from "node:path"
 
 import { messageOf } from "./cannot-run.ts"
-import { asked, gitDirs } from "./git.ts"
+import { mainCheckout } from "./git.ts"
 import { validate } from "./json-schema.ts"
 
 export const COMMITTED_FILE = ".ai/agentic.config.json"
@@ -47,6 +47,12 @@ export const WORKER_EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const
 export type WorkerEffort = (typeof WORKER_EFFORTS)[number]
 /** How a Worker's Claude Code session starts: the words that start it, its model and its effort. */
 export type WorkerConfig = { command: string; model: string; effort: WorkerEffort }
+
+/**
+ * What dw-sdlc leaves on GitHub: under `github` the review status, Briefs filed as issues and the Worker's
+ * branch name; under `local` nothing that names it, its state kept under `.git/dw-sdlc/`.
+ */
+export type Footprint = "github" | "local"
 
 export type Guardrails = {
   forcePush: ForcePush
@@ -96,6 +102,7 @@ export type AgenticConfig = {
   pr?: Partial<PrConfig>
   worker?: Partial<WorkerConfig>
   worktree?: { setup?: string[] }
+  footprint?: Footprint
 }
 
 /** What the guards see: every layer applied, every key present. */
@@ -109,6 +116,7 @@ export type ResolvedConfig = {
   pr: PrConfig
   worker: WorkerConfig
   worktree: { setup: string[] }
+  footprint: Footprint
 }
 
 export type Problem = { file: string; path: string; message: string }
@@ -270,25 +278,6 @@ function readLayer(checkouts: string[], file: string): Layer {
   return { state: "valid", value: result.value, problems: [], source }
 }
 
-/** The top level of the repository holding `dir`, or undefined outside one. */
-export function findRepository(dir: string): string | undefined {
-  return asked(dir, ["rev-parse", "--show-toplevel"])
-}
-
-/** The top level of the repository holding `dir`, or `dir` itself outside one. */
-export function repositoryRoot(dir: string): string {
-  return findRepository(dir) ?? dir
-}
-
-/**
- * The main checkout of the linked worktree at `root`, or undefined for a main checkout or outside a
- * repository: a linked worktree's git dir differs from the common one, which sits in the main checkout.
- */
-export function mainCheckout(root: string): string | undefined {
-  const dirs = gitDirs(root)
-  return dirs === undefined || dirs.gitDir === dirs.commonDir ? undefined : dirname(dirs.commonDir)
-}
-
 function inferPackageManagers(root: string): ResolvedConfig["packageManagers"] {
   const managers: ResolvedConfig["packageManagers"] = {}
   const lockfile = NODE_LOCKFILES.find(([file]) => existsSync(join(root, file)))
@@ -340,7 +329,8 @@ export function inferConfig(root: string): ResolvedConfig {
     gate: inferGate(root),
     pr: { ...DEFAULT_PR, reviewFull: [...DEFAULT_PR.reviewFull] },
     worker: { ...DEFAULT_WORKER },
-    worktree: { setup: [] }
+    worktree: { setup: [] },
+    footprint: "github"
   }
 }
 
@@ -358,7 +348,8 @@ function applyLayer(base: ResolvedConfig, layer: AgenticConfig): ResolvedConfig 
     gate: { ...base.gate, ...layer.gate, checks: { ...base.gate.checks, ...layer.gate?.checks } },
     pr: { ...base.pr, ...layer.pr, reviewFull: [...new Set([...base.pr.reviewFull, ...(layer.pr?.reviewFull ?? [])])] },
     worker: { ...base.worker, ...layer.worker },
-    worktree: { setup: layer.worktree?.setup ?? base.worktree.setup }
+    worktree: { setup: layer.worktree?.setup ?? base.worktree.setup },
+    footprint: layer.footprint ?? base.footprint
   }
 }
 
@@ -486,7 +477,7 @@ export function resolveConfig(root: string): Resolution {
     }
   }
   if (problems.length > 0) {
-    // `reviewCommand`, `reviewFull` and `worker` have no strictest value: they keep what the valid layers name.
+    // `reviewCommand`, `reviewFull`, `worker` and `footprint` have no strictest value: they keep what the valid layers name.
     config = { ...config, guardrails: cloneGuardrails(STRICTEST_GUARDRAILS), pr: { ...config.pr, ...STRICTEST_PR } }
   }
   return {

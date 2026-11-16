@@ -7,7 +7,7 @@ import { readFileSync, utimesSync } from "node:fs"
 import { delimiter, join } from "node:path"
 import { describe, it } from "node:test"
 
-import { COMMITTED_FILE } from "../../src/agentic-config.ts"
+import { COMMITTED_FILE, LOCAL_FILE } from "../../src/agentic-config.ts"
 import { commit, git, initRepo, runBin, scratch, write, writeJson } from "../harness.ts"
 import { fakeHerdr, listing, type Listed, type Reply, terminal } from "../hc-harness.ts"
 import { backlogOf, fakeGh, GREEN, type Pr, type Response, type Scenario, served } from "../pr-harness.ts"
@@ -328,6 +328,21 @@ describe("dw-sdlc recap", () => {
       }
     ])
     assert.deepEqual(calls, [AUTH, VIEW, READ, BACKLOG_40], "it reads the pull request and writes nothing")
+  })
+
+  it("under footprint local reads the Review state from the local file, not the head's status", () => {
+    const root = clone()
+    writeJson(join(root, LOCAL_FILE), { footprint: "local", pr: { review: "full" } })
+    branch(root, 1)
+    git(root, "push", "-q", "-u", "origin", "feat")
+    const pr = { ...GREEN, head: head(root), branch: "feat" }
+    assert.equal(
+      document(root, withPr(pr)).doc.pullRequest?.action,
+      "review",
+      "the status GitHub holds counts for nothing"
+    )
+    writeJson(join(root, ".git", "dw-sdlc", "reviews", "40.json"), { [head(root)]: "clean" })
+    assert.equal(document(root, withPr(pr)).doc.pullRequest?.action, "ready-to-merge")
   })
 
   it("reads a script's Action without performing it: a merge under pr.merge auto, a branch behind, a draft", () => {

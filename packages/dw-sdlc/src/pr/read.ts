@@ -5,6 +5,7 @@
 import { CannotRun } from "../cannot-run.ts"
 import { type Called, firstLine, need } from "../exec.ts"
 import { behindOf, changedOf, changesOf, compareArgs } from "./delta.ts"
+import { type LocalReviews, withMarks } from "./local-reviews.ts"
 import { ReplyError } from "./reply.ts"
 import { type Compares, standingOf } from "./standing.ts"
 import { awaitsReview, parseDefaultBranch, parsePr, parseView, type PrState, type PullRequest, QUERY } from "./state.ts"
@@ -185,8 +186,11 @@ export type Reads = {
   carriesBase: (before: PrState, after: PrState) => boolean
 }
 
-/** The reads of one command; with `sized`, as `pr.review: auto` needs, each sizes the changes a Review would read. */
-export function ghReads(sized: boolean): Reads {
+/**
+ * The reads of one command; with `sized`, as `pr.review: auto` needs, each sizes the changes a Review would
+ * read. Under footprint local, `local` holds the Review state each read takes in the place of the statuses.
+ */
+export function ghReads(sized: boolean, local: LocalReviews | null = null): Reads {
   const adapters = new Map<string, GhCompares>()
   const comparesOn = (target: Target): GhCompares => {
     const key = `${target.repo}#${target.number}`
@@ -195,7 +199,8 @@ export function ghReads(sized: boolean): Reads {
     return adapter
   }
   const query = (target: Target): PrState => {
-    const { pr, history } = parseOrCannotRun(() => parsePr(graphql(target), target.repo))
+    const parsed = parseOrCannotRun(() => parsePr(graphql(target), target.repo))
+    const { pr, history } = local === null ? parsed : withMarks(parsed, local.marksOf(target.number))
     const awaits = pr.state === "OPEN" && awaitsReview(pr)
     return { ...pr, ...standingOf(history, comparesOn(target), { awaits, sized }) }
   }

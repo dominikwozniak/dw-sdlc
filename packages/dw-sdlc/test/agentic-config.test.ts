@@ -764,6 +764,37 @@ describe("worker", () => {
   })
 })
 
+describe("footprint", () => {
+  it("is github with nothing declared", () => {
+    const { config, problems } = resolveConfig(repo())
+    assert.deepEqual(problems, [])
+    assert.equal(config.footprint, "github")
+  })
+
+  it("takes local from the local layer, which stays valid", () => {
+    const files = { [COMMITTED_FILE]: { footprint: "github" }, [LOCAL_FILE]: { footprint: "local" } }
+    const { config, problems, layers } = resolveConfig(repo({ files }))
+    assert.deepEqual(problems, [])
+    assert.equal(layers.local, "valid", "footprint tightens and loosens no guard")
+    assert.equal(config.footprint, "local")
+  })
+
+  it("keeps what the valid layers name while a layer is invalid", () => {
+    const files = { [COMMITTED_FILE]: { footprint: "local" }, [LOCAL_FILE]: { guardrails: { forcePush: "allow" } } }
+    const invalid = resolveConfig(repo({ files }))
+    assert.notDeepEqual(invalid.problems, [])
+    assert.equal(invalid.config.footprint, "local")
+  })
+
+  it("refuses a value other than github or local", () => {
+    const result = validateDocument("agentic.config.json", JSON.stringify({ footprint: "none" }))
+    assert.ok("problems" in result)
+    assert.deepEqual(result.problems, [
+      { file: "agentic.config.json", path: "footprint", message: '"none" is not one of "github", "local"' }
+    ])
+  })
+})
+
 describe("matchesEnvGlob", () => {
   it("anchors a plain entry at the root and lets `**/` reach any depth", () => {
     assert.ok(matchesEnvGlob(".env", ".env"))

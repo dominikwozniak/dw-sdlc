@@ -5,8 +5,8 @@
 import { existsSync, readFileSync, symlinkSync } from "node:fs"
 import { join } from "node:path"
 
-import { repositoryRoot } from "../agentic-config.ts"
 import { readArgs, rootDir } from "../cannot-run.ts"
+import { repositoryRoot } from "../git.ts"
 import { parseObject, removeKey, render } from "../json-text.ts"
 import {
   CONFIG,

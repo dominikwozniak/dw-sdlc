@@ -6,7 +6,7 @@ import { existsSync, readFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { join } from "node:path"
 
-import { findRepository, invalidLayerEffect, resolveConfig } from "../agentic-config.ts"
+import { invalidLayerEffect, resolveConfig } from "../agentic-config.ts"
 import { readArgs, rootDir } from "../cannot-run.ts"
 import {
   checkPackage,
@@ -18,6 +18,7 @@ import {
   versionBefore
 } from "../doctor-plugins.ts"
 import { exec, firstLine, TimedOut } from "../exec.ts"
+import { findRepository } from "../git.ts"
 import { isObject } from "../json-text.ts"
 
 export type Level = "PASS" | "WARN" | "FAIL" | "INFO"
@@ -34,7 +35,7 @@ export type Probe = {
 }
 
 export type RepositoryConfig = {
-  config: { commit: { convention?: string; pattern?: string; trailer?: string } }
+  config: { commit: { convention?: string; pattern?: string; trailer?: string }; footprint: string }
   problems: string[]
   /** The checkout each layer was read from, as `resolveConfig` reports it. */
   sources?: { committed: string | undefined; local: string | undefined }
@@ -291,7 +292,7 @@ function checkConfig(config: RepositoryConfig | undefined, root: string): Check 
   return {
     name: "config",
     level: "PASS",
-    detail: `commit ${commitRules(config.config)}${borrowed.join("")}`
+    detail: `commit ${commitRules(config.config)}, footprint ${config.config.footprint}${borrowed.join("")}`
   }
 }
 

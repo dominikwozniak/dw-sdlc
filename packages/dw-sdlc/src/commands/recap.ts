@@ -1,11 +1,12 @@
 // `dw-sdlc recap`: the facts a Recap rests on and whether the session can be closed, read from git and
 // gh. It writes nothing: the Action of the branch's pull request is the Ship script's decision, read.
 
-import { findRepository, mainCheckout, resolveConfig } from "../agentic-config.ts"
+import { resolveConfig } from "../agentic-config.ts"
 import { CannotRun, readArgs, usageError } from "../cannot-run.ts"
-import { asked, must } from "../git.ts"
+import { asked, must, findRepository, mainCheckout } from "../git.ts"
 import { pausedIn } from "../paused-operation.ts"
 import { type Answer, decide, declaredPolicy, labelOf, lineOf } from "../pr/decide.ts"
+import { localReviews } from "../pr/local-reviews.ts"
 import { defaultBranch, ghReads, now } from "../pr/read.ts"
 import { reviewFullOf } from "../pr/review-full.ts"
 import type { PrState } from "../pr/state.ts"
@@ -153,8 +154,9 @@ function workersText(workers: Worker[]): string {
 function readShipped(root: string): Shipped | null {
   // An invalid config layer resolves to ask and full, as in the Ship script.
   const { config } = resolveConfig(root)
-  const policy = declaredPolicy(config.pr, reviewFullOf(root, config))
-  const found = ghReads(policy.review.depth === "auto").checkout(root)
+  const policy = declaredPolicy(config, reviewFullOf(root, config))
+  const local = config.footprint === "local" ? localReviews(root) : null
+  const found = ghReads(policy.review.depth === "auto", local).checkout(root)
   return "problem" in found ? null : { pr: found, answer: decide(found, now(), policy) }
 }
 

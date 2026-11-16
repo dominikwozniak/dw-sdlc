@@ -5,7 +5,6 @@ import {
   type Gate,
   type Problem,
   type RunCheck,
-  repositoryRoot,
   resolveConfig,
   type Step,
   stepCommand,
@@ -16,6 +15,7 @@ import { findingOf } from "../checks/check.ts"
 import { CHECK_NAMES, type EnabledCheck, enabledChecks, shippedCheck } from "../checks/index.ts"
 import { watchDrift } from "../drift.ts"
 import { type Fingerprint, fingerprint, isGreen, stampGreen } from "../gate-cache.ts"
+import { repositoryRoot } from "../git.ts"
 import { annotation, type Failure, failureJson, failureLine, hintLines } from "../report.ts"
 import {
   holdingSignals,

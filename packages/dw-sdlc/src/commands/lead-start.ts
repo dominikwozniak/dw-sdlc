@@ -1,8 +1,9 @@
 // `dw-sdlc lead start`: starts the next session as a Lead in a herdr terminal of its own, beside the caller and
 // outliving it, on the command the config names for a Worker, without what makes it unsafe or isolated.
 
-import { mainCheckout, repositoryRoot, resolveConfig } from "../agentic-config.ts"
+import { resolveConfig } from "../agentic-config.ts"
 import { CannotRun, readArgs, usageError } from "../cannot-run.ts"
+import { mainCheckout, repositoryRoot } from "../git.ts"
 import { lead, wholeNumber } from "../worker/herdr.ts"
 import { launch, NAME, spaceOf, TAB_WAIT, undelivered } from "../worker/launch.ts"
 

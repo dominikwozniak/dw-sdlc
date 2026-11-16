@@ -124,7 +124,7 @@ function line(checks: Check[], name: string): Check {
   return check as Check
 }
 
-const CONFIG = { config: { commit: { convention: "ticket-key" } }, problems: [] as string[] }
+const CONFIG = { config: { commit: { convention: "ticket-key" }, footprint: "github" }, problems: [] as string[] }
 
 function sessions(machine: Fake): Check {
   return line(diagnose({ root: ROOT, home: HOME, probe: fake(machine), config: CONFIG }), "sessions")
@@ -546,25 +546,28 @@ describe("diagnose", () => {
     assert.match(check.detail, /\/cfg\/settings\.json wires rtk by hand/)
   })
 
-  it("config: names the convention", () => {
+  it("config: names the convention and the footprint", () => {
     const check = line(diagnose({ root: ROOT, home: HOME, probe: fake(HEALTHY), config: CONFIG }), "config")
     assert.equal(check.level, "PASS")
-    assert.equal(check.detail, "commit ticket-key")
+    assert.equal(check.detail, "commit ticket-key, footprint github")
+    const local = { ...CONFIG, config: { ...CONFIG.config, footprint: "local" } }
+    const onLocal = line(diagnose({ root: ROOT, home: HOME, probe: fake(HEALTHY), config: local }), "config")
+    assert.equal(onLocal.detail, "commit ticket-key, footprint local")
   })
 
   it("config: says the commit rules are off when no layer sets one", () => {
-    const config = { config: { commit: {} }, problems: [] as string[] }
+    const config = { config: { commit: {}, footprint: "github" }, problems: [] as string[] }
     const check = line(diagnose({ root: ROOT, home: HOME, probe: fake(HEALTHY), config }), "config")
     assert.equal(check.level, "PASS")
-    assert.equal(check.detail, "commit rules off")
+    assert.equal(check.detail, "commit rules off, footprint github")
   })
 
   it("config: names a bare pattern or a bare trailer", () => {
     for (const [commit, detail] of [
-      [{ pattern: ".+" }, "commit pattern"],
-      [{ trailer: "Co-Authored-By" }, "commit trailer only"]
+      [{ pattern: ".+" }, "commit pattern, footprint github"],
+      [{ trailer: "Co-Authored-By" }, "commit trailer only, footprint github"]
     ] as const) {
-      const config = { config: { commit }, problems: [] as string[] }
+      const config = { config: { commit, footprint: "github" }, problems: [] as string[] }
       const check = line(diagnose({ root: ROOT, home: HOME, probe: fake(HEALTHY), config }), "config")
       assert.equal(check.detail, detail)
     }
@@ -574,7 +577,7 @@ describe("diagnose", () => {
     const config = { ...CONFIG, sources: { committed: undefined, local: "/main" } }
     const check = line(diagnose({ root: ROOT, home: HOME, probe: fake(HEALTHY), config }), "config")
     assert.equal(check.level, "PASS")
-    assert.equal(check.detail, "commit ticket-key; local layer from /main")
+    assert.equal(check.detail, "commit ticket-key, footprint github; local layer from /main")
   })
 
   it("config: outside a repository is INFO and says no repository was found", () => {
@@ -589,7 +592,7 @@ describe("diagnose", () => {
       home: HOME,
       probe: fake(HEALTHY),
       config: {
-        config: { commit: { convention: "ticket-key" } },
+        config: { commit: { convention: "ticket-key" }, footprint: "github" },
         problems: ['.ai/agentic.config.json: guardrails.forcePush: "allow" is not one of "deny", "ask", "lease"']
       }
     })
@@ -600,12 +603,15 @@ describe("diagnose", () => {
 
   it("config: says the commit rules are off while an invalid layer leaves none", () => {
     const problem = '.ai/agentic.config.json: guardrails.forcePush: "allow" is not one of "deny", "ask", "lease"'
-    const config = { config: { commit: {} }, problems: [problem] }
+    const config = { config: { commit: {}, footprint: "github" }, problems: [problem] }
     const check = line(diagnose({ root: ROOT, home: HOME, probe: fake(HEALTHY), config }), "config")
     assert.equal(check.level, "FAIL")
     assert.equal(check.detail, `the guards run on the strictest defaults and the commit rules are off: ${problem}`)
 
-    const kept = { config: { commit: { pattern: "^x: .+", trailer: "Co-Authored-By" } }, problems: [problem] }
+    const kept = {
+      config: { commit: { pattern: "^x: .+", trailer: "Co-Authored-By" }, footprint: "github" },
+      problems: [problem]
+    }
     const held = line(diagnose({ root: ROOT, home: HOME, probe: fake(HEALTHY), config: kept }), "config")
     assert.equal(held.detail, `the guards run on the strictest defaults: ${problem}`)
   })
@@ -639,7 +645,7 @@ describe("the doctor command", () => {
     const steps = [{ command: "pnpm lint", hint: "run pnpm fix" }, "pnpm test"]
     writeJson(join(root, ".ai", "agentic.config.json"), { commit: { convention: "conventional" }, gate: { steps } })
     const verdict = runBin(["doctor", "--root", root, "--home", scratch("home")], REPO_ROOT, BARE_MACHINE)
-    assert.match(verdict.stdout, /^PASS {2}config {12}commit conventional/m)
+    assert.match(verdict.stdout, /^PASS {2}config {12}commit conventional, footprint github$/m)
     assert.doesNotMatch(verdict.stdout, /^FAIL {2}config/m)
   })
 

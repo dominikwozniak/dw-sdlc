@@ -2,6 +2,8 @@
 // git to one repository, so a hook's GIT_DIR never aims one at the hook's repository; failures in git's words.
 // Two run outside it: the doctor's `git config --global`, which reads no repository, and landed.ts's pipeline.
 
+import { dirname } from "node:path"
+
 import { CannotRun } from "./cannot-run.ts"
 import { exec, firstLine } from "./exec.ts"
 
@@ -82,4 +84,23 @@ export function gitDirs(dir: string): { gitDir: string; commonDir: string } | un
   const answer = asked(dir, ["rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir"])
   const [gitDir, commonDir] = answer === undefined ? [] : answer.split("\n")
   return gitDir === undefined || commonDir === undefined ? undefined : { gitDir, commonDir }
+}
+
+/** The top level of the repository holding `dir`, or undefined outside one. */
+export function findRepository(dir: string): string | undefined {
+  return asked(dir, ["rev-parse", "--show-toplevel"])
+}
+
+/** The top level of the repository holding `dir`, or `dir` itself outside one. */
+export function repositoryRoot(dir: string): string {
+  return findRepository(dir) ?? dir
+}
+
+/**
+ * The main checkout of the linked worktree at `root`, or undefined for a main checkout or outside a
+ * repository: a linked worktree's git dir differs from the common one, which sits in the main checkout.
+ */
+export function mainCheckout(root: string): string | undefined {
+  const dirs = gitDirs(root)
+  return dirs === undefined || dirs.gitDir === dirs.commonDir ? undefined : dirname(dirs.commonDir)
 }

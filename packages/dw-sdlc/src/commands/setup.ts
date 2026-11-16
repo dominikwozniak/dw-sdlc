@@ -19,14 +19,12 @@ import {
   SCHEMA_FILE,
   STRICTNESS,
   inferConfig,
-  mainCheckout,
-  repositoryRoot,
   resolveConfig,
   schemaId,
   validateDocument
 } from "../agentic-config.ts"
 import { readArgs, rootDir, usageError } from "../cannot-run.ts"
-import { gitDirs } from "../git.ts"
+import { gitDirs, mainCheckout, repositoryRoot } from "../git.ts"
 import { isObject, type JsonObject, parseObject, render } from "../json-text.ts"
 import { withGate, withPackage } from "../setup-gate.ts"
 import { GLOBAL_DENY, LEASE_RULE, RETIRED_DENY, repositoryDeny } from "../setup-rules.ts"

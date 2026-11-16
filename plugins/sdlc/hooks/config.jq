@@ -28,8 +28,8 @@ def strictest: {
 # agent reviews every head in full.
 def strictest_pr: {merge: "ask", review: "full"};
 
-# A resolved config as it runs while any layer is invalid; pr.reviewCommand, pr.reviewFull and worker have no
-# strictest value and keep what the valid layers name.
+# A resolved config as it runs while any layer is invalid; pr.reviewCommand, pr.reviewFull, worker and footprint
+# have no strictest value and keep what the valid layers name.
 def on_strictest: .guardrails = strictest | .pr += strictest_pr;
 
 # The preset each commit.convention names. `conventional` is Conventional Commits; `ticket-key` is a ticket
@@ -54,7 +54,8 @@ def defaults($inferred): {
   gate: ({steps: [], drift: "fail", checks: {run: []}} + ($inferred.gate // {})),
   pr: {merge: "ask", review: "auto", reviewCommand: "/code-review", reviewFull: []},
   worker: {command: "claude", model: "sonnet", effort: "high"},
-  worktree: {setup: []}
+  worktree: {setup: []},
+  footprint: "github"
 };
 
 # guardrails.envFiles merges key by key, each list wholesale; the other guardrails as one value.
@@ -74,7 +75,8 @@ def apply($layer):
         | .reviewFull = (reduce (($base.pr.reviewFull + ($layer.pr.reviewFull // []))[]) as $id
             ([]; if any(.[]; . == $id) then . else . + [$id] end))),
       worker: ($base.worker + ($layer.worker // {})),
-      worktree: {setup: ($layer.worktree.setup // $base.worktree.setup)}
+      worktree: {setup: ($layer.worktree.setup // $base.worktree.setup)},
+      footprint: ($layer.footprint // $base.footprint)
     };
 
 def _rank($key; $value): strictness[$key] | index($value);

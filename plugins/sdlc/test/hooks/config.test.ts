@@ -128,6 +128,10 @@ describe("hooks/lib.sh agrees with resolveConfig", () => {
       () => repo({ remote: ORG_REMOTE, files: { [COMMITTED_FILE]: { commit: { convention: "ticket-key" } } } })
     ],
     [
+      "on a local footprint over the committed one",
+      () => repo({ files: { [COMMITTED_FILE]: { footprint: "github" }, [LOCAL_FILE]: { footprint: "local" } } })
+    ],
+    [
       "on a local convention under a committed pattern",
       () =>
         repo({

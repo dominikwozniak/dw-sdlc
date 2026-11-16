@@ -2,7 +2,7 @@
 // the pull request answers its Action at the time given; every later row that holds rides in its
 // blockers. The last rows say who merges what no row before them holds back.
 
-import type { PrMerge, ResolvedConfig } from "../agentic-config.ts"
+import type { Footprint, PrMerge, ResolvedConfig } from "../agentic-config.ts"
 import { shellLine } from "../shell-line.ts"
 import type { ReviewFull } from "./review-full.ts"
 import { type ReadMarks, reviewCall, type ReviewPolicy } from "./standing.ts"
@@ -37,12 +37,24 @@ export type Action =
 export type ScriptAction = "update-branch" | "mark-ready" | "mark-reviewed" | "merge"
 /**
  * What the decision reads beside the pull request: who merges it, how closely a Review reads it, the
- * dev's word or `pr.review`, and the slash command a `full` Review runs.
+ * dev's word or `pr.review`, the slash command a `full` Review runs, and where the Review state lives.
  */
-export type Policy = { merge: PrMerge; review: ReviewPolicy; reviewCommand: string; reviewFull: ReviewFull }
-/** The policy a repository's `pr` key declares, `reviewFull` as `reviewFullOf` reads it; a flag for one call goes over it. */
-export function declaredPolicy({ merge, review, reviewCommand }: ResolvedConfig["pr"], reviewFull: ReviewFull): Policy {
-  return { merge, review: { depth: review, source: "config" }, reviewCommand, reviewFull }
+export type Policy = {
+  merge: PrMerge
+  review: ReviewPolicy
+  reviewCommand: string
+  reviewFull: ReviewFull
+  footprint: Footprint
+}
+/**
+ * The policy a repository declares in its `pr` key and `footprint`, `reviewFull` as `reviewFullOf` reads
+ * it; a flag for one call goes over it.
+ */
+export function declaredPolicy(
+  { pr: { merge, review, reviewCommand }, footprint }: Pick<ResolvedConfig, "pr" | "footprint">,
+  reviewFull: ReviewFull
+): Policy {
+  return { merge, review: { depth: review, source: "config" }, reviewCommand, reviewFull, footprint }
 }
 
 /** An Action the pull request needs beside the one its answer names, so one push can fix several. */
@@ -141,16 +153,32 @@ export function reviewStatusArgs(
   return ["api", `repos/${pr.repo}/statuses/${pr.head}`, "--method", "POST", "--silent", ...flags]
 }
 
-/** Why the head carries the success the script posts: the Review it carries, else why its depth is off. */
-function markedDescription(pr: PrState, policy: Policy): string {
+/** The success the script marks the head with: the Review it carries, else why its depth is off. */
+function scriptMark(pr: PrState, policy: Policy): { carry: string } | { off: string } {
   const call = reviewCall(pr, policy.review, policy.reviewFull)
   if (call.kind === "carry") {
-    return `carried from ${call.from.slice(0, 7)}`
+    return { carry: call.from }
   }
   if (call.kind !== "review" || call.depth !== "off") {
     throw new Error(`the script marks ${pr.url} reviewed, neither off nor a carry`)
   }
-  return `${OFF_PREFIX} ${call.why}`
+  return { off: call.why }
+}
+
+/** Why the head carries the success the script posts: the Review it carries, else why its depth is off. */
+function markedDescription(pr: PrState, policy: Policy): string {
+  const mark = scriptMark(pr, policy)
+  return "carry" in mark ? `carried from ${mark.carry.slice(0, 7)}` : `${OFF_PREFIX} ${mark.off}`
+}
+
+/**
+ * What the script records on the head under footprint local, and the command that records it: a carry is a
+ * clean Review, as its success reads under github, and an off head `--off`.
+ */
+export function localMark(pr: PrState, policy: Policy): { mark: "clean" | "off"; command: string } {
+  const mark = "carry" in scriptMark(pr, policy) ? "clean" : "off"
+  const words = ["dw-sdlc", "pr", "reviewed", String(pr.number), "-R", pr.repo, "--head", pr.head]
+  return { mark, command: shellLine(mark === "off" ? [...words, "--off"] : words) }
 }
 
 /** The park at the limit: the dev accepts the head as it stands, or names a depth for one more Review. */
@@ -216,8 +244,14 @@ export function hostArgs(pr: PrState, action: ScriptAction, policy: Policy, name
   return HOST[action](pr, named ? ["-R", pr.repo] : [], policy)
 }
 
-/** The command a script Action leaves the dev to run, from a checkout of the repository. */
+/**
+ * The command a script Action leaves the dev to run, from a checkout of the repository; under footprint
+ * local a mark-reviewed records its mark in that checkout.
+ */
 export function devCommand(pr: PrState, action: ScriptAction, policy: Policy): string {
+  if (action === "mark-reviewed" && policy.footprint === "local") {
+    return localMark(pr, policy).command
+  }
   return shellLine(["gh", ...hostArgs(pr, action, policy, false)])
 }
 
