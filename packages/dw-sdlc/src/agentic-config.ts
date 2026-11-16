@@ -483,9 +483,11 @@ export function resolveConfig(root: string): Resolution {
     }
   }
   if (problems.length > 0) {
-    // `reviewCommand`, `reviewFull` and `worker` keep what the valid layers name. A layer that names footprint
-    // local keeps it even when dropped, so a broken layer never sends the Review state back to GitHub.
-    const footprint = committed.namesLocal === true || local.namesLocal === true ? "local" : config.footprint
+    // `reviewCommand`, `reviewFull` and `worker` keep what the valid layers name. A dropped layer that names
+    // footprint local keeps it, so a broken layer never sends the Review state back to GitHub; a valid local
+    // layer's own footprint still wins.
+    const named = localState === "valid" ? local.value?.footprint : undefined
+    const footprint = named ?? (committed.namesLocal === true || local.namesLocal === true ? "local" : config.footprint)
     const pr = { ...config.pr, ...STRICTEST_PR }
     config = { ...config, guardrails: cloneGuardrails(STRICTEST_GUARDRAILS), pr, footprint }
   }

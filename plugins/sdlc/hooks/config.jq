@@ -28,8 +28,8 @@ def strictest: {
 # agent reviews every head in full.
 def strictest_pr: {merge: "ask", review: "full"};
 
-# A resolved config as it runs while any layer is invalid; pr.reviewCommand, pr.reviewFull, worker and footprint
-# have no strictest value and keep what the valid layers name.
+# A resolved config as it runs while any layer is invalid; pr.reviewCommand, pr.reviewFull and worker have no
+# strictest value and keep what the valid layers name, footprint too, but for the local `resolve` keeps.
 def on_strictest: .guardrails = strictest | .pr += strictest_pr;
 
 # The preset each commit.convention names. `conventional` is Conventional Commits; `ticket-key` is a ticket

@@ -799,6 +799,19 @@ describe("footprint", () => {
     }
   })
 
+  it("keeps local from a committed layer the schema refuses, unless a valid local layer names a footprint", () => {
+    const committed = { footprint: "local", pr: { merge: "never" } }
+    const cases: [object, string][] = [
+      [{}, "local"],
+      [{ footprint: "github" }, "github"]
+    ]
+    for (const [local, footprint] of cases) {
+      const { config, layers } = resolveConfig(repo({ files: { [COMMITTED_FILE]: committed, [LOCAL_FILE]: local } }))
+      assert.equal(layers.committed, "invalid")
+      assert.equal(config.footprint, footprint, JSON.stringify(local))
+    }
+  })
+
   it("refuses a value other than github or local", () => {
     const result = validateDocument("agentic.config.json", JSON.stringify({ footprint: "none" }))
     assert.ok("problems" in result)

@@ -128,9 +128,9 @@ The rules live in the repository, not in the plugin. Three layers set them, the 
 - `pr.reviewCommand`, `worker` and [`footprint`](../README.md#footprint-local) have no strictness
   order, so any layer sets them.
 - A linked worktree with no layer of its own reads the main checkout's.
-- An invalid layer is dropped whole. Until it is fixed, the guards run the strictest set, with
+- An invalid layer is dropped, but for `footprint: local`. Until fixed, the guards run the strictest set, with
   `pr.merge: ask` and `pr.review: full`, and the session start names each problem. A commit rule only
-  that layer sets is off meanwhile, and the reports say so.
+  that layer sets is off, and the reports say so.
 
 | key               | what it decides                                                          |
 | ----------------- | ------------------------------------------------------------------------ |
