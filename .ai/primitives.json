@@ -56,7 +56,7 @@
       "id": "guards.env-access",
       "name": "Env access guard",
       "group": "guards",
-      "summary": "Judges an env file read by guardrails.envFiles: the deny list, the allow list, then the policy, git by default.",
+      "summary": "Judges any path envFiles.deny names, and env files by allow and policy; refuses rails credentials:show and :edit.",
       "code": ["plugins/sdlc/hooks/block-env-access.sh"],
       "docs": ["plugins/sdlc/README.md#guards", "docs/adr/0005-env-access-is-a-list-in-the-config.md"]
     },
