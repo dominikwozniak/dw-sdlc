@@ -97,7 +97,8 @@ the Sweep could not be read, with its reason.
 End this section with one line telling the dev that "go" carries out every recommendation, and that
 "go, but 2 issue" changes one. When a follow-up is `worker`, add that "go" files it and starts one new
 Lead for all `worker` follow-ups and the next session together, which carries them to the end; with no
-next session, the Lead is named after the first follow-up's issue. Outside herdr,
+next session, the Lead is named after the first follow-up's ticket, its issue or its Brief file, as the
+template's Name rule says. Outside herdr,
 where `workers` is null, or in a linked worktree, say instead that "go" hands them its start line.
 
 **Next session.** Write it only when `close.verdict` is `yes`, or your verdict is `done` or `park`, and
@@ -135,7 +136,7 @@ node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" lead start --name lead-<n>-<slug
 ```
 
 The Lead routes each Worker by the template. A model or an effort the dev names for one follow-up, as "go,
-but 1 on fable", goes to a Lead of its own, `/sdlc-delegate #<m> fable`, named after `#<m>`.
+but 1 on fable", goes to a Lead of its own, `/sdlc-delegate #<m> fable`, named after that ticket.
 
 An `issue` or a `worker` follow-up goes out as a Brief, written by the rules of the template, so that a
 session started from either has one shape. Each is filed with the Brief as its body, the way the template
@@ -146,6 +147,7 @@ comes from `node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" config`.
 
 Under `footprint` `local` in that config, "go" files no issue: each `issue` and `worker` follow-up is a Brief
 file, written as the template's section Footprint local says. The answer to "go" gives the path of each
-`issue`, and the new Lead takes each `worker` by its path, in the place of its issue.
+`issue`, and the new Lead takes each `worker` by its path, in the place of its issue. With no next session,
+the Lead's `--name` comes from the first `worker`'s Brief file, by the template's Name rule.
 
 When a Brief tells you to deliver the Recap to a Lead, follow the Brief after writing it.

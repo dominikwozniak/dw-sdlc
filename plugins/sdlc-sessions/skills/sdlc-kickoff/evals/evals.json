@@ -172,7 +172,7 @@
         "The Brief's Questions and Report lines take the form without a Lead: the dev answers in this terminal and the Worker ends with /sdlc-recap and stops, with no worker report command and no terminal t1",
         "No gh issue create or any other gh command is written anywhere, and no issue is filed",
         "lead.sh holds one dw-sdlc lead start, run by a path ending in dw-sdlc/src/cli.ts, with --prompt /sdlc-delegate /repo/site/.git/dw-sdlc/briefs/worker-release-tag-links.md",
-        "The --name of the Lead starts with lead- and holds only a-z, 0-9, - and _, at most 32 characters",
+        "The --name of the Lead is lead-release-tag-links, the Brief file's name with lead- in the place of worker- and no .md",
         "lead.sh holds no --dangerously-skip-permissions and no --worktree",
         "answer.md gives the Lead's name and address and says it takes the work from here"
       ]
