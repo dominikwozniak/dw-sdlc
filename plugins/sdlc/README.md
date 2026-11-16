@@ -316,7 +316,11 @@ spellings get past a rule; each is listed, not caught.
 - A command before `reset --hard` that writes a tracked file through its own output: a redirect or
   `--output` on an allowed git verb, `-c diff.external=…` or `-c core.fsmonitor=…`.
 - A `Grep` glob that reaches an env file only through a name outside the probes, `*.qa` reaching
-  `.env.qa`.
+  `.env.qa`, or a denied file only through one, `secrets/a*.pem` reaching `secrets/a1.pem` under
+  `secrets/*.pem`.
+- A search of a directory with no glob, or `grep -r`, that reads a denied file inside it; and
+  `rails encrypted:show`, `rails encrypted:edit`, `credentials:diff` and `bundle exec -- rails
+  credentials:show`, which the credentials check does not read.
 - A quoted command name or option: `"rm"`, `r''m`, `r\m`, `g""it`, `find . "-delete"`.
 - A shell two levels deep, `sh -c 'sh -c "…"'`, and a quote `rtk` runs through a verb other than
   `run` or behind a flag: `rtk err`, `rtk proxy`, `rtk -v run`.

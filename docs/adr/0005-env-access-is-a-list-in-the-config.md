@@ -16,7 +16,10 @@ only rank a list has: the local layer may drop from `allow` and add to `deny`, n
 ## Consequences
 
 `envFiles` is an object in the schema: a string there fails validation and the repository
-runs strictest until it is rewritten. The strictest set is `policy: deny` with both
-`allow` empty and `deny` at its default, which refuses even the example names while a layer is broken. A file listed in `allow`
+runs strictest until it is rewritten. The strictest set is `policy: deny`, an empty `allow` and the
+default `deny`, which refuses even the example names while a layer is broken. The `deny` list
+reaches any path, env file or not, and by default names a Rails app's `config/master.key` and
+`config/credentials/*.key`; a layer's `deny` list replaces the default one, so the local layer keeps
+those entries or loosens. A file listed in `allow`
 is readable even when git ignores it, so an entry there is a statement that the file holds no
 secret. Pure name-based rules, a list with no git fallback, and a per-stack exception were rejected.
