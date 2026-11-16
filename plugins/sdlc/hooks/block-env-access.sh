@@ -1,6 +1,6 @@
 #!/bin/bash
-# Refuses an env file the config does not vouch for, any file an envFiles.deny glob names, and `rails
-# credentials:show|edit`, by README.md#guards. A Grep is judged on what its glob reaches, a Bash command
+# Refuses an env file the config does not vouch for, any file an envFiles.deny glob names, and a rails
+# task that decrypts, by README.md#guards. A Grep is judged on what its glob reaches, a Bash command
 # on its words: docs/contributing/bash-guard.md#paths-in-a-command. Not a security boundary.
 set -uo pipefail
 source "${BASH_SOURCE[0]%/*}/lib.sh"
@@ -257,18 +257,26 @@ env_files() {
   return 0
 }
 
-# could_name_denied <glob> — 0 when the Grep glob selects a member of a deny entry: that entry with each
-# wildcard written as an `x` and no leading `**/`. A probe, as ENV_PROBES are: it cannot tell what a
-# wildcard in the Grep glob would have to match.
+# could_name_denied <glob> — 0 when the Grep glob may select a file a deny entry names. A path both
+# match ends in the literal end of each, so one end closes the other: `*.ts` and `.key` cannot meet,
+# `a*.pem` and `.pem` can. One `{a,b}` group is expanded, by recursion.
 could_name_denied() {
-  local entry probe
+  local glob="$1" pre post alts alt end tail
+  if [[ "$glob" == *"{"*"}"* ]]; then
+    pre="${glob%%\{*}"
+    post="${glob#*\}}"
+    alts="${glob#*\{}"
+    alts="${alts%%\}*}"
+    while IFS= read -r alt; do
+      could_name_denied "$pre$alt$post" && return 0
+    done <<<"${alts//,/$'\n'}"
+    return 1
+  fi
+  end="${glob##*[]*?]}"
   prepare
-  while IFS= read -r entry; do
-    [[ -n "$entry" ]] || continue
-    probe="${entry#\*\*/}"
-    probe="${probe//[*?]/x}"
-    glob_matches "$1" "$probe" && return 0
-  done <<<"$DENY_LIST"
+  for tail in ${DENY_TAILS[@]+"${DENY_TAILS[@]}"}; do
+    [[ "$end" == *"$tail" || "$tail" == *"$end" ]] && return 0
+  done
   return 1
 }
 
@@ -364,33 +372,36 @@ if [[ -n "$STRIPPED" ]] && { [[ "$STRIPPED" == *.env* || "$STRIPPED" =~ $DOT_GLO
   done <<<"$STRIPPED"
 fi
 
-# --- rails credentials:show and credentials:edit ---------------------------------------------------
-# They print or open every secret decrypted, from a key the command never names, so no path judges
-# them. Read as words, behind the launchers, `bundle exec` and `spring` too.
+# --- rails tasks that decrypt ----------------------------------------------------------------------
+# They show a secret decrypted from a key no path names. Read as words, behind `bundle exec` and
+# `spring` too. credentials:diff prints a file decrypted; --enroll makes git diff do so after an edit.
 
-# check_rails — WORDS, a command behind its launchers, is `rails credentials:show` or `credentials:edit`.
+# check_rails — WORDS, a command behind its launchers, is a rails task that decrypts.
 check_rails() {
   local word
   if [[ "${WORDS[0]:-}" == bundle ]]; then
     guard_shift_words
-    [[ "${WORDS[0]:-}" == exec ]] && guard_shift_words
+    if [[ "${WORDS[0]:-}" == exec ]]; then
+      guard_shift_words
+      guard_skip_options "" "--gemfile"
+    fi
   fi
   while [[ "${WORDS[0]:-}" == spring || "${WORDS[0]:-}" == ruby ]]; do guard_shift_words; done
   [[ "${WORDS[0]:-}" == rails || "${WORDS[0]:-}" == */rails ]] || return 0
   for word in "${WORDS[@]:1}"; do
     case "$word" in
-      credentials:show | credentials:edit)
-        guard_block "'$GUARD_COMMAND' runs rails $word, which decrypts every secret in the Rails credentials and shows it. An agent never reads them: ask the owner to run it at a terminal."
+      credentials:show | credentials:edit | credentials:fetch | credentials:diff | encrypted:show | encrypted:edit)
+        guard_block "'$GUARD_COMMAND' runs rails $word, which decrypts a secret from the Rails credentials or an encrypted file and shows it. An agent never reads them: ask the owner to run it at a terminal."
         ;;
     esac
   done
   return 0
 }
 
-if [[ "$GUARD_COMMAND" == *credentials:* ]]; then
+if [[ "$GUARD_COMMAND" == *credentials:* || "$GUARD_COMMAND" == *encrypted:* ]]; then
   SCAN=$(printf '%s\n' "$GUARD_COMMAND" | guard_strip_heredocs | guard_join_continuations)
   while IFS= read -r segment; do
-    [[ "$segment" == *credentials:* ]] || continue
+    [[ "$segment" == *credentials:* || "$segment" == *encrypted:* ]] || continue
     WORDS=()
     while IFS= read -r word; do WORDS+=("$word"); done < <(guard_words "$segment")
     guard_unwrap_words

@@ -185,10 +185,12 @@ BLOCKED: 'rm -rf /' deletes from the root of the filesystem.
   that writes its own list writes those two entries in it.
 - Entries are globs against the path from the repository root, `**/` meaning any depth. A path outside
   the repository is judged by its basename against the `**/` entries.
-- A `Grep` of a directory is judged by the files its `glob` reaches. In Bash a path is read from
-  where a `cd` left the shell, and a glob by the files it expands to.
-- `rails credentials:show` and `rails credentials:edit` are refused, through `bin/rails`,
-  `bundle exec` and `spring` too: they show every secret decrypted, and no path names it.
+- A `Grep` of a directory is judged by the files its `glob` reaches, a denied one when the literal
+  ends can meet: `a*.pem` meets `*.pem`. In Bash a path is read from where a `cd` left the shell,
+  a glob by the files it expands to.
+- A rails task that decrypts is refused, behind `bundle exec` and `spring`: `credentials:show`,
+  `:edit`, `:fetch`, `:diff`, `encrypted:show`, `:edit`. No path names the secret. `diff --enroll`
+  makes `git diff` decrypt after an `edit`.
 
 ```text
 BLOCKED: 'cat .env' touches '.env' and git does not track it. guardrails.envFiles in
@@ -316,11 +318,9 @@ spellings get past a rule; each is listed, not caught.
 - A command before `reset --hard` that writes a tracked file through its own output: a redirect or
   `--output` on an allowed git verb, `-c diff.external=…` or `-c core.fsmonitor=…`.
 - A `Grep` glob that reaches an env file only through a name outside the probes, `*.qa` reaching
-  `.env.qa`, or a denied file only through one, `secrets/a*.pem` reaching `secrets/a1.pem` under
-  `secrets/*.pem`.
-- A search of a directory with no glob, or `grep -r`, that reads a denied file inside it; and
-  `rails encrypted:show`, `rails encrypted:edit`, `credentials:diff` and `bundle exec -- rails
-  credentials:show`, which the credentials check does not read.
+  `.env.qa`: only a walk of the ignored files tells, a walk the probes spare a `*.ts` Grep.
+- A search of a directory with no glob, `Grep` or `grep -r`, that reads an env or denied file in
+  it: catching it refuses every search of a Rails app's root; it prints only lines that match.
 - A quoted command name or option: `"rm"`, `r''m`, `r\m`, `g""it`, `find . "-delete"`.
 - A shell two levels deep, `sh -c 'sh -c "…"'`, and a quote `rtk` runs through a verb other than
   `run` or behind a flag: `rtk err`, `rtk proxy`, `rtk -v run`.
