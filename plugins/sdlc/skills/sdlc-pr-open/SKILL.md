@@ -38,7 +38,7 @@ merges nothing and does not start `/sdlc-pr-ship`, which comes after.
 
 The title is the subject the commit convention asks for, since a squash merge turns it into the
 commit: `conventional` is `type(scope): subject`, lowercase and imperative; `ticket-key` is
-`[KEY-123] type: subject`, the key coming from the branch name or the source. A `commit.pattern`
+`[KEY-123] type(scope): subject`, the key coming from the branch name or the source. A `commit.pattern`
 wins over the preset: the title must match it. When the key is nowhere, ask for it.
 
 ## 3. Write the body to a file

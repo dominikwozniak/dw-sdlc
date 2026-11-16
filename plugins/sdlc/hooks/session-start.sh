@@ -19,13 +19,20 @@ guard_read_payload "$@" || exit 0
 cwd="$GUARD_CWD"
 
 guard_config_load "$cwd"
+commit_rule=$(guard_config_get '.commit.convention // .commit.pattern // .commit.trailer')
 if [[ -n "$GUARD_CONFIG_PROBLEMS" ]]; then
   # The inferred layer names no commit rule, so one only the dropped layer set is off.
   effect="the guards run on the strictest defaults"
-  [[ -z "$(guard_config_get '.commit.convention // .commit.pattern // .commit.trailer')" ]] &&
+  [[ -z "$commit_rule" ]] &&
     effect+=" and the commit rules are off"
   say "agentic config: INVALID, $effect until it is fixed:"
   while IFS= read -r line; do say "  $line"; done <<<"$GUARD_CONFIG_PROBLEMS"
+fi
+
+# A repository set up with dw-sdlc, whose layers set no commit rule: say so, the subject goes unchecked.
+if [[ -z "$GUARD_CONFIG_PROBLEMS" && "$GUARD_CONFIG_HAS_LAYER" == 1 &&
+  -z "$commit_rule" ]]; then
+  say "agentic config: no layer sets commit.convention, commit.pattern or commit.trailer, so the commit rules are off."
 fi
 
 if main=$(guard_worktree_main "$cwd"); then

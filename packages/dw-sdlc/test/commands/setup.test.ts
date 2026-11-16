@@ -295,6 +295,13 @@ describe("setup", () => {
     assert.equal(readFileSync(join(root, LOCAL_FILE), "utf8"), before)
   })
 
+  it("writes no commit rule without --convention, so a repository keeps its own subjects", () => {
+    const root = nodeRepo()
+    run(root, scratch("home"))
+    assert.equal(json(join(root, LOCAL_FILE)).commit, undefined)
+    assert.equal(resolveConfig(root).config.commit.pattern, undefined)
+  })
+
   it("leaves out every key the committed config sets, so inference never outranks it", () => {
     const root = nodeRepo()
     write(root, COMMITTED_FILE, JSON.stringify({ commit: { convention: "ticket-key" } }) + "\n")

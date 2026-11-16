@@ -92,7 +92,7 @@
       "type": "object",
       "properties": {
         "convention": {
-          "description": "The subject preset `pattern` falls back to. `ticket-key`: `[KEY-123] type: subject`, the tracker's key in brackets before a type from a fixed list. `conventional`: Conventional Commits. Never inferred: with no layer setting this or `pattern`, the subject goes unchecked.",
+          "description": "The subject preset `pattern` falls back to. `ticket-key`: `[KEY-123] type: subject`, the tracker's key in brackets (letters and digits) before a Conventional Commits type, an optional scope and an optional `!`. `conventional`: Conventional Commits. Never inferred: with no layer setting this or `pattern`, the subject goes unchecked.",
           "enum": ["ticket-key", "conventional"]
         },
         "pattern": {

@@ -7,6 +7,7 @@ import { join } from "node:path"
 import { describe, it } from "node:test"
 
 import {
+  COMMIT_PATTERNS,
   COMMITTED_FILE,
   LOCAL_FILE,
   type Problem,
@@ -507,4 +508,40 @@ describe("a linked worktree", () => {
       assert.deepEqual(actual.problems, reportLines(expected.problems))
     }
   })
+})
+
+/** Whether `grep -E` accepts the subject under the ticket-key preset, the way the guards run it. */
+function fits(subject: string): boolean {
+  const script = 'printf "%s" "$1" | grep -qE "$2"'
+  return runBash(["-c", script, "grep", subject, COMMIT_PATTERNS["ticket-key"]], "").status === 0
+}
+
+describe("the commit presets", () => {
+  for (const [convention, pattern] of Object.entries(COMMIT_PATTERNS)) {
+    it(`${convention}: jq and TypeScript hold the same string`, () => {
+      const root = repo({ files: { [COMMITTED_FILE]: { commit: { convention } } } })
+      const lib = libResolve(root).config as { commit: { pattern?: string } }
+      assert.equal(lib.commit.pattern, pattern)
+      assert.equal(resolveConfig(root).config.commit.pattern, pattern)
+    })
+  }
+
+  for (const subject of [
+    "[ABC-123] feat(api): x",
+    "[AB2-12] fix: y",
+    "[ABC-1] build: z",
+    "[ABC-1] style: z",
+    "[ABC-1] feat!: w",
+    "[ABC-1] refactor(core)!: w"
+  ]) {
+    it(`ticket-key accepts ${subject}`, () => {
+      assert.ok(fits(subject))
+    })
+  }
+
+  for (const subject of ["fix: tests", "[ABC] fix: x", "[2AB-1] fix: x", "[ABC-1] wip: x", "[ABC-1] fix:x"]) {
+    it(`ticket-key refuses ${subject}`, () => {
+      assert.ok(!fits(subject))
+    })
+  }
 })

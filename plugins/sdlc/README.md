@@ -437,12 +437,13 @@ without them. A `drift:` line means the hooks and skills run other code than the
 ## Session start
 
 `hooks/session-start.sh` runs on `startup`, `resume`, `clear`, `compact` and `fork`. It reports and never
-installs, and a main checkout in order gets nothing. It tells the first turn about:
+installs, and a main checkout in order, with a commit rule set, gets nothing. It tells the first turn about:
 
 - a missing `jq`, with every guard silent without it;
 - an invalid config layer, each problem named, and that the guards run the strictest set until it is
   fixed, with the commit rules off where no valid layer sets one
   ([Where the rules come from](../../docs/overview.md#where-the-rules-come-from));
+- in a repository with a config layer and no commit rule, that the commit rules are off and a subject goes unchecked;
 - in a linked worktree, the `.worktreeinclude` files not yet copied in and the `worktree.setup` commands.
 
 A layer is invalid, too, when the hooks cannot validate it against the schema beside them. A

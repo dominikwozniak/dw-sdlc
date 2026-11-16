@@ -262,6 +262,17 @@ function checkCommitSigning(probe: Probe): Check {
   }
 }
 
+/** The commit rules in force: a convention, a bare pattern, a bare trailer, or off where no layer sets one. */
+function commitRules({ commit }: RepositoryConfig["config"]): string {
+  if (commit.convention !== undefined) {
+    return commit.convention
+  }
+  if (commit.pattern !== undefined) {
+    return "pattern"
+  }
+  return commit.trailer === undefined ? "rules off" : "trailer only"
+}
+
 function checkConfig(config: RepositoryConfig | undefined, root: string): Check {
   if (config === undefined) {
     return { name: "config", level: "INFO", detail: `no repository found at ${root}; run from one or pass --root` }
@@ -280,7 +291,7 @@ function checkConfig(config: RepositoryConfig | undefined, root: string): Check 
   return {
     name: "config",
     level: "PASS",
-    detail: `commit ${config.config.commit.convention ?? "unchecked"}${borrowed.join("")}`
+    detail: `commit ${commitRules(config.config)}${borrowed.join("")}`
   }
 }
 
