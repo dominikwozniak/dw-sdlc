@@ -407,8 +407,9 @@ address.
 - **herdr's `done` means a turn ended, not the task.** The Worker's Recap says whether the task is done.
 - **A new Lead comes from a Recap or a kickoff.** `dw-sdlc recap --json` lists the open `ready-for-agent`
   issues with no assignee and no open blocker. On the dev's "go", `lead start` runs `/sdlc-delegate`
-  with the next one and the Recap's `worker` follow-ups, filed as issues. On "start", `/sdlc-kickoff`
-  runs it with the work it kicked off. The session that started it can close.
+  with the next one and the Recap's `worker` follow-ups. A Brief goes to GitHub as an issue under
+  `footprint: github`, and stays a file under `.git/dw-sdlc/briefs/` in the common git dir under `local`.
+  On "start", `/sdlc-kickoff` runs it with the work it kicked off. The session that started it can close.
 
 Every flag and exit code is in each command's `--help`. How a Lead plans and gathers its Workers is in
 the [`sdlc-sessions` README](../plugins/sdlc-sessions/README.md#the-lead).
