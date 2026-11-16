@@ -63,7 +63,7 @@ dev said not now. The Lead's ticket for an idea or a follow-up is its Brief file
 the place of the issue.
 
 Then stop. Nothing runs before the dev's word. On "start", file the issue the Lead needs, if any, then
-start the Lead and report it by the template's exit codes. On "issue", file it with `gh issue create
+start the Lead and report it by the template's exit codes. On "issue", under footprint `github`, file it with `gh issue create
 --title <title> --body-file <file>`, using the Brief as the template says for an issue's body, then give
 the `/implement #N` line and a start line whose first message is that line. On "line", the start line is
 theirs to run.

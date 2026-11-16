@@ -95,7 +95,7 @@ Under `footprint` `local`, a branch named `worktree-<...>`, as Claude Code names
 the remote under that name. Before its first push, while `git rev-parse --abbrev-ref @{u}` names no
 `origin/<branch>`, rename it with `git branch -m <new>` and take the name again. `<new>` is
 `<KEY>-<n>-<slug>` when the work has a ticket key, from the Brief, its source or the branch, as
-`ABC-123-add-export`; else `<slug>`, the slug of the Worker's name `worker-<issue>-<slug>`.
+`ABC-123-add-export`; else `<slug>`, the slug of the Worker's name `worker-<issue>-<slug>` or `worker-<slug>`.
 
 1. Compare `git rev-parse --abbrev-ref @{u}` with `origin/<branch>`. It fails, or names another
    branch, as it does for a branch cut from `origin/main`, which tracks `origin/main`: run
