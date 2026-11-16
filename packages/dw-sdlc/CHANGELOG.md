@@ -1,5 +1,13 @@
 # dw-sdlc
 
+## 0.24.0
+
+### Minor Changes
+
+- a5c05b9: `guardrails.envFiles.deny` reaches any path, not only env-named files. The default `deny` gains `**/config/master.key` and `**/config/credentials/*.key`, a Rails app's keys. A `deny` list in a layer replaces the default one, and a local layer that leaves a default entry out loosens, so it is dropped. The setup writes a deny rule for each such file git knows.
+- f5d7d12: Add the `footprint` key, `github` by default or `local`, which any layer may set; a layer that names `local` keeps it even when invalid. Under `local` the Ship script, `pr reviewed` and `recap` post and read no `dw-sdlc/review` status: the Review state of pull request `<n>` is `.git/dw-sdlc/reviews/<n>.json` under the common git dir, a map of head to `clean`, `findings`, `off` or `accepted`, and every decision is the one the statuses would give. `pr reviewed --off` records a head no one read, the command `pr ship --dry-run` names for it under `local`. The doctor's `config` line names the footprint.
+- f49239c: Widen the `ticket-key` commit preset to a ticket key (letters and digits, `AB2-12`) ahead of the Conventional Commits form: `build` and `style` join the types, and a scope and `!` are allowed. The doctor reports `commit rules off` where no layer sets a convention, pattern or trailer.
+
 ## 0.23.0
 
 ### Minor Changes
