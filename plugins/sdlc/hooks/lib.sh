@@ -26,6 +26,7 @@ GUARD_FILE_PATH=""
 GUARD_CONFIG=""
 GUARD_CONFIG_ROOT=""
 GUARD_CONFIG_PROBLEMS=""
+GUARD_CONFIG_HAS_LAYER=0
 GUARD_LAYER_JSON="null"
 
 # --- the payload --------------------------------------------------------------------------------
