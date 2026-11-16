@@ -30,6 +30,7 @@ const MAIN = initRepo(join(TMP, "main"), { branch: "main" })
 write(join(MAIN, ".gitignore"), ".env.development\nconfig/local.json\n.claude/worktrees/\n")
 write(join(MAIN, ".worktreeinclude"), ".env.development\nconfig/local.json\n")
 writeJson(join(MAIN, ".ai", "agentic.config.json"), {
+  commit: { convention: "conventional" },
   worktree: { setup: ["pnpm install --frozen-lockfile", "pnpm build"] }
 })
 write(join(MAIN, "README.md"), "")
@@ -179,6 +180,25 @@ describe("an invalid config is one loud line, in the main checkout too", () => {
   })
 })
 
+describe("a repository whose layers set no commit rule says they are off", () => {
+  const OFF =
+    "agentic config: no layer sets commit.convention, commit.pattern or commit.trailer, so the commit rules are off."
+  const configured = initRepo(join(TMP, "no-commit-rule"), { branch: "main" })
+  writeJson(join(configured, ".ai", "agentic.config.json"), { gate: { steps: ["pnpm test"] } })
+  const bare = initRepo(join(TMP, "no-config"), { branch: "main" })
+  const trailerOnly = initRepo(join(TMP, "trailer-only"), { branch: "main" })
+  writeJson(join(trailerOnly, ".ai", "agentic.config.json"), { commit: { trailer: "Co-Authored-By" } })
+  it("a config without a commit key", () => {
+    assert.equal(report(configured), OFF)
+  })
+  it("a trailer alone is a commit rule", () => {
+    assert.equal(report(trailerOnly), "")
+  })
+  it("no config at all stays silent", () => {
+    assert.equal(report(bare), "")
+  })
+})
+
 describe("an invalid local layer under committed commit rules keeps them", () => {
   const repo = initRepo(join(TMP, "local-invalid"), { branch: "main" })
   writeJson(join(repo, ".ai", "agentic.config.json"), { commit: { convention: "conventional" } })
@@ -261,7 +281,10 @@ describe("a references key is its plugin's, never a config problem", () => {
     assert.equal(report(MAIN), "")
   })
   it("silent on a references key the Sync refuses", () => {
-    writeJson(join(MAIN, ".ai", "agentic.config.json"), { references: [{ dir: "../x", branch: "main" }, "kody"] })
+    writeJson(join(MAIN, ".ai", "agentic.config.json"), {
+      commit: { convention: "conventional" },
+      references: [{ dir: "../x", branch: "main" }, "kody"]
+    })
     assert.equal(report(MAIN), "")
   })
 })

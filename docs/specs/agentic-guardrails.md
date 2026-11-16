@@ -334,5 +334,5 @@ Open work on the plugin is tracked in GitHub Issues.
   exits 1 on a FAIL.
 - `marketplace.json` and `plugin.json` carry one version; `claude plugin update` refreshes a cache copy
   by version only, so a change ships with a bump.
-- The `ticket-key` preset takes a short type list: `feat`, `fix`, `refactor`, `docs`, `chore`, `test`,
-  `perf`, `ci`. The `conventional` preset adds `build`, `revert` and `style`, and an optional scope.
+- The `ticket-key` preset is a ticket key (`[ABC-12]`, digits allowed after the first letter) ahead of the
+  `conventional` form: the same types, an optional scope and an optional `!`.

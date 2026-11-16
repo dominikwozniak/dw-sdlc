@@ -552,11 +552,22 @@ describe("diagnose", () => {
     assert.equal(check.detail, "commit ticket-key")
   })
 
-  it("config: says the subject goes unchecked when no layer names a convention", () => {
+  it("config: says the commit rules are off when no layer sets one", () => {
     const config = { config: { commit: {} }, problems: [] as string[] }
     const check = line(diagnose({ root: ROOT, home: HOME, probe: fake(HEALTHY), config }), "config")
     assert.equal(check.level, "PASS")
-    assert.equal(check.detail, "commit unchecked")
+    assert.equal(check.detail, "commit rules off")
+  })
+
+  it("config: names a bare pattern or a bare trailer", () => {
+    for (const [commit, detail] of [
+      [{ pattern: ".+" }, "commit pattern"],
+      [{ trailer: "Co-Authored-By" }, "commit trailer only"]
+    ] as const) {
+      const config = { config: { commit }, problems: [] as string[] }
+      const check = line(diagnose({ root: ROOT, home: HOME, probe: fake(HEALTHY), config }), "config")
+      assert.equal(check.detail, detail)
+    }
   })
 
   it("config: names a layer read from the main checkout of a worktree", () => {

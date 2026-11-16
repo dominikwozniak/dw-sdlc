@@ -29,10 +29,10 @@ def strictest_pr: {merge: "ask", review: "full"};
 # strictest value and keep what the valid layers name.
 def on_strictest: .guardrails = strictest | .pr += strictest_pr;
 
-# The preset each commit.convention names. `ticket-key` is a ticket key ahead of a short type list;
-# `conventional` is Conventional Commits. Both POSIX ERE, because `grep -E` runs them.
+# The preset each commit.convention names. `conventional` is Conventional Commits; `ticket-key` is a ticket
+# key ahead of the same form, scope and `!` included. Both POSIX ERE, because `grep -E` runs them.
 def commit_patterns: {
-  "ticket-key": "^\\[[A-Z]+-[0-9]+\\] (feat|fix|refactor|docs|chore|test|perf|ci|revert): .+",
+  "ticket-key": "^\\[[A-Z][A-Z0-9]*-[0-9]+\\] (build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\\([^)]+\\))?!?: .+",
   conventional: "^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\\([^)]+\\))?!?: .+"
 };
 

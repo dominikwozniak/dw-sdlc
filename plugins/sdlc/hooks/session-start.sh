@@ -28,6 +28,12 @@ if [[ -n "$GUARD_CONFIG_PROBLEMS" ]]; then
   while IFS= read -r line; do say "  $line"; done <<<"$GUARD_CONFIG_PROBLEMS"
 fi
 
+# A repository set up with dw-sdlc, whose layers set no commit rule: say so, the subject goes unchecked.
+if [[ -z "$GUARD_CONFIG_PROBLEMS" && "$GUARD_CONFIG_HAS_LAYER" == 1 &&
+  -z "$(guard_config_get '.commit.convention // .commit.pattern // .commit.trailer')" ]]; then
+  say "agentic config: no layer sets commit.convention, commit.pattern or commit.trailer, so the commit rules are off."
+fi
+
 if main=$(guard_worktree_main "$cwd"); then
   worktree="$GUARD_CONFIG_ROOT"
 

@@ -378,9 +378,9 @@ guard_ask() {
 
 # --- the config ---------------------------------------------------------------------------------
 
-# guard_config_load <cwd> — the config of the repository holding <cwd>, resolved as
-# dw-sdlc/src/agentic-config.ts does: GUARD_CONFIG one line of JSON, GUARD_CONFIG_ROOT the worktree's
-# top level, GUARD_CONFIG_PROBLEMS one `file: path: message` a line. Returns 1 without jq.
+# guard_config_load <cwd> — the config of <cwd>'s repository, resolved as dw-sdlc/src/agentic-config.ts does:
+# GUARD_CONFIG one line of JSON, GUARD_CONFIG_ROOT the worktree's top level, GUARD_CONFIG_PROBLEMS one
+# `file: path: message` a line, GUARD_CONFIG_HAS_LAYER 1 when a valid layer exists. Returns 1 without jq.
 guard_config_load() {
   local cwd="$1" root git_dir common_dir main="" paths inferred committed local_layer resolved loosened
   command -v jq >/dev/null 2>&1 || return 1
@@ -398,6 +398,8 @@ guard_config_load() {
   committed="$GUARD_LAYER_JSON"
   guard_config_layer "$root" "$main" "$GUARD_LOCAL_FILE"
   local_layer="$GUARD_LAYER_JSON"
+  GUARD_CONFIG_HAS_LAYER=0
+  [[ "$committed" != null || "$local_layer" != null ]] && GUARD_CONFIG_HAS_LAYER=1
   # One jq: the config on the first line, each problem of a loosening local layer on the lines after.
   resolved=$(jq -rn -L "$GUARD_LIB_DIR" --argjson inferred "$inferred" --argjson committed "$committed" \
     --argjson local "$local_layer" --arg earlier "$GUARD_CONFIG_PROBLEMS" '
