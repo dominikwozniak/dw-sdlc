@@ -786,6 +786,19 @@ describe("footprint", () => {
     assert.equal(invalid.config.footprint, "local")
   })
 
+  it("keeps local from a layer it drops, a loosening one or one the schema refuses, so nothing reaches GitHub", () => {
+    const layers: [string, object][] = [
+      ["a loosening local layer", { footprint: "local", guardrails: { forcePush: "lease" } }],
+      ["a local layer the schema refuses", { footprint: "local", pr: { merge: "never" } }]
+    ]
+    for (const [name, local] of layers) {
+      const files = { [COMMITTED_FILE]: { guardrails: { forcePush: "deny" } }, [LOCAL_FILE]: local }
+      const { config, layers: states } = resolveConfig(repo({ files }))
+      assert.equal(states.local, "invalid", name)
+      assert.equal(config.footprint, "local", name)
+    }
+  })
+
   it("refuses a value other than github or local", () => {
     const result = validateDocument("agentic.config.json", JSON.stringify({ footprint: "none" }))
     assert.ok("problems" in result)

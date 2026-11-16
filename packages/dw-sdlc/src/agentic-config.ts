@@ -11,6 +11,7 @@ import { mainCheckout } from "./git.ts"
 // The checkout helpers live beside gitDirs; every command reads them from here, with the config.
 export { findRepository, mainCheckout, repositoryRoot } from "./git.ts"
 import { validate } from "./json-schema.ts"
+import { parseObject } from "./json-text.ts"
 
 export const COMMITTED_FILE = ".ai/agentic.config.json"
 export const LOCAL_FILE = ".ai/agentic.config.local.json"
@@ -266,7 +267,8 @@ export function validateDocument(file: string, text: string): { value: AgenticCo
   return { value: parsed as AgenticConfig }
 }
 
-type Layer = { state: LayerState; value?: AgenticConfig; problems: Problem[]; source?: string }
+/** `namesLocal`: the document, valid or not, sets footprint local. */
+type Layer = { state: LayerState; value?: AgenticConfig; problems: Problem[]; source?: string; namesLocal?: boolean }
 
 /** `file` from the first of `checkouts` that has it. */
 function readLayer(checkouts: string[], file: string): Layer {
@@ -274,11 +276,12 @@ function readLayer(checkouts: string[], file: string): Layer {
   if (source === undefined) {
     return { state: "absent", problems: [] }
   }
-  const result = validateDocument(file, readFileSync(join(source, file), "utf8"))
+  const text = readFileSync(join(source, file), "utf8")
+  const result = validateDocument(file, text)
   if ("problems" in result) {
-    return { state: "invalid", problems: result.problems, source }
+    return { state: "invalid", problems: result.problems, source, namesLocal: parseObject(text)?.footprint === "local" }
   }
-  return { state: "valid", value: result.value, problems: [], source }
+  return { state: "valid", value: result.value, problems: [], source, namesLocal: result.value.footprint === "local" }
 }
 
 function inferPackageManagers(root: string): ResolvedConfig["packageManagers"] {
@@ -480,8 +483,11 @@ export function resolveConfig(root: string): Resolution {
     }
   }
   if (problems.length > 0) {
-    // `reviewCommand`, `reviewFull`, `worker` and `footprint` have no strictest value: they keep what the valid layers name.
-    config = { ...config, guardrails: cloneGuardrails(STRICTEST_GUARDRAILS), pr: { ...config.pr, ...STRICTEST_PR } }
+    // `reviewCommand`, `reviewFull` and `worker` keep what the valid layers name. A layer that names footprint
+    // local keeps it even when dropped, so a broken layer never sends the Review state back to GitHub.
+    const footprint = committed.namesLocal === true || local.namesLocal === true ? "local" : config.footprint
+    const pr = { ...config.pr, ...STRICTEST_PR }
+    config = { ...config, guardrails: cloneGuardrails(STRICTEST_GUARDRAILS), pr, footprint }
   }
   return {
     config: finalize(config),
