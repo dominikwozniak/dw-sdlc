@@ -79,17 +79,17 @@ function gitFiles(root: string, ...flags: string[]): string[] {
 }
 
 /**
- * The env files the guard refuses in this repository, relative to its root: the verdict
+ * The files the guard refuses in this repository, relative to its root: the verdict
  * `hooks/block-env-access.sh` gives under `envFiles`, one predicate per file git knows — tracked,
- * untracked or ignored. The tracked, allowed ones stay readable.
+ * untracked or ignored. A `deny` entry refuses any file; only an env file reaches the allow list and the policy.
  */
 export function refusedEnvFiles(root: string, envFiles: EnvFiles): string[] {
   const tracked = new Set(gitFiles(root, "-c"))
   const known = new Set([...tracked, ...gitFiles(root, "-o"), ...gitFiles(root, "-o", "-i")])
   const refused = (file: string): boolean =>
     listedIn(envFiles.deny, file) ||
-    (!listedIn(envFiles.allow, file) && (envFiles.policy === "deny" || !tracked.has(file)))
-  return [...known].filter(isEnvName).filter(refused).toSorted()
+    (isEnvName(file) && !listedIn(envFiles.allow, file) && (envFiles.policy === "deny" || !tracked.has(file)))
+  return [...known].filter(refused).toSorted()
 }
 
 /**

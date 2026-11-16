@@ -124,6 +124,25 @@ describe("setup", () => {
     assert.deepEqual(envRules, ["Read(./.env.local)", "Edit(./.env.local)", "Read(./.env.test)", "Edit(./.env.test)"])
   })
 
+  it("writes a deny rule for a file no env name covers, such as a Rails key", () => {
+    const root = nodeRepo()
+    write(root, "config/master.key", "abc\n")
+    write(root, "config/credentials/production.key", "def\n")
+    write(root, "config/application.rb", "")
+    git(root, "add", "config/application.rb")
+    run(root, scratch("home"))
+    const deny = (json(join(root, ".claude/settings.local.json")).permissions as { deny: string[] }).deny
+    assert.deepEqual(
+      deny.filter((rule) => rule.includes("config/")),
+      [
+        "Read(./config/credentials/production.key)",
+        "Edit(./config/credentials/production.key)",
+        "Read(./config/master.key)",
+        "Edit(./config/master.key)"
+      ]
+    )
+  })
+
   it("writes the default env rules, not the strictest set, while a config layer is invalid", () => {
     const root = nodeRepo()
     writeFile(join(root, COMMITTED_FILE), '{ "guardrails": { "envFiles": "git" } }')

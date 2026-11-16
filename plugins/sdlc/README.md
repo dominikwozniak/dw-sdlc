@@ -174,14 +174,21 @@ BLOCKED: 'rm -rf /' deletes from the root of the filesystem.
 
 `block-env-access.sh`, on file tools and Bash. An env file is `.env`, `.env.*` or `.envrc`.
 
-- A path in `guardrails.envFiles.deny` is refused; one in `allow` passes.
-- The rest go to `policy`: `git` lets a tracked file through and refuses one git ignores or does not
-  know; `deny` refuses them all.
-- Defaults: policy `git`; `.env.example`, `.env.sample` and `.env.template` allowed anywhere; nothing denied.
+- A path in `guardrails.envFiles.deny` is refused, whatever its name: `secrets/*.pem` reaches a file
+  that is no env file. An env file in `allow` passes.
+- The rest of the env files go to `policy`: `git` lets a tracked file through and refuses one git
+  ignores or does not know; `deny` refuses them all. A file that is no env file and no `deny` entry
+  names is not judged.
+- Defaults: policy `git`; `.env.example`, `.env.sample` and `.env.template` allowed anywhere; `deny`
+  holds `**/config/master.key` and `**/config/credentials/*.key`, a Rails app's keys. Nothing in a Node
+  repository matches them. A `deny` list in the config replaces the default one, so a Rails repository
+  that writes its own list writes those two entries in it.
 - Entries are globs against the path from the repository root, `**/` meaning any depth. A path outside
   the repository is judged by its basename against the `**/` entries.
-- A `Grep` of a directory is judged by the env files its `glob` reaches. In Bash a path is read from
+- A `Grep` of a directory is judged by the files its `glob` reaches. In Bash a path is read from
   where a `cd` left the shell, and a glob by the files it expands to.
+- `rails credentials:show` and `rails credentials:edit` are refused, through `bin/rails`,
+  `bundle exec` and `spring` too: they show every secret decrypted, and no path names it.
 
 ```text
 BLOCKED: 'cat .env' touches '.env' and git does not track it. guardrails.envFiles in
@@ -603,21 +610,21 @@ leaves](../../docs/overview.md#how-a-sweep-removes-what-finished-work-leaves).
 Every key is in the schema, `dw-sdlc/config/agentic.config.schema.json`, with its order from strictest
 to loosest.
 
-| key                                   | default                                 | read by                                                    |
-| ------------------------------------- | --------------------------------------- | ---------------------------------------------------------- |
-| `guardrails.protectedBranches`        | `master`, `main`, `production`          | the push and commit guards, `dw-sdlc recap`                |
-| `guardrails.forcePush`                | `lease`                                 | the push guard, `fix-conflicts`                            |
-| `guardrails.commitOnProtected`        | `allow`                                 | the commit guard                                           |
-| `guardrails.envFiles`                 | policy `git`, the example files allowed | the env guard, the setup's deny rules                      |
-| `guardrails.filteredOutput`           | `deny`                                  | the filtered-output guard                                  |
-| `packageManagers.node`                | from the lockfile                       | the package-manager guard, the setup                       |
-| `commit.convention`, `commit.pattern` | none, the subject unchecked             | the commit guard, the Commit hook, `/sdlc-pr-open`'s title |
-| `commit.trailer`                      | none                                    | the commit guard                                           |
-| `baseBranch`                          | `auto`, the branch `origin/HEAD` names  | the branch-delete guard, the Sweep                         |
-| `gate.*`                              | `gate.command` from the `check` script  | the Gate, the filtered-output guard, the setup             |
-| `pr.merge`                            | `ask`                                   | the Ship script                                            |
-| `pr.review`                           | `auto`                                  | the Ship script, `/sdlc-pr-ship`                           |
-| `pr.reviewCommand`                    | `/code-review`                          | `/sdlc-pr-ship`                                            |
-| `pr.reviewFull`                       | none                                    | the Ship script                                            |
-| `worktree.setup`                      | none                                    | the session-start report                                   |
-| `worker.command`                      | `claude`                                | the setup, and `sdlc-sessions`                             |
+| key                                   | default                                                     | read by                                                    |
+| ------------------------------------- | ----------------------------------------------------------- | ---------------------------------------------------------- |
+| `guardrails.protectedBranches`        | `master`, `main`, `production`                              | the push and commit guards, `dw-sdlc recap`                |
+| `guardrails.forcePush`                | `lease`                                                     | the push guard, `fix-conflicts`                            |
+| `guardrails.commitOnProtected`        | `allow`                                                     | the commit guard                                           |
+| `guardrails.envFiles`                 | policy `git`, the example files allowed, Rails' keys denied | the env guard, the setup's deny rules                      |
+| `guardrails.filteredOutput`           | `deny`                                                      | the filtered-output guard                                  |
+| `packageManagers.node`                | from the lockfile                                           | the package-manager guard, the setup                       |
+| `commit.convention`, `commit.pattern` | none, the subject unchecked                                 | the commit guard, the Commit hook, `/sdlc-pr-open`'s title |
+| `commit.trailer`                      | none                                                        | the commit guard                                           |
+| `baseBranch`                          | `auto`, the branch `origin/HEAD` names                      | the branch-delete guard, the Sweep                         |
+| `gate.*`                              | `gate.command` from the `check` script                      | the Gate, the filtered-output guard, the setup             |
+| `pr.merge`                            | `ask`                                                       | the Ship script                                            |
+| `pr.review`                           | `auto`                                                      | the Ship script, `/sdlc-pr-ship`                           |
+| `pr.reviewCommand`                    | `/code-review`                                              | `/sdlc-pr-ship`                                            |
+| `pr.reviewFull`                       | none                                                        | the Ship script                                            |
+| `worktree.setup`                      | none                                                        | the session-start report                                   |
+| `worker.command`                      | `claude`                                                    | the setup, and `sdlc-sessions`                             |

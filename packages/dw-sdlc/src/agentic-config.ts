@@ -138,12 +138,15 @@ export const STRICTNESS = {
   review: readonly PrReview[]
 }
 
+/** Secret files of a Rails app, denied by default; nothing in a Node repository matches them. */
+export const DEFAULT_ENV_DENY: readonly string[] = ["**/config/master.key", "**/config/credentials/*.key"]
+
 /** What the guards run on while any layer is invalid. */
 export const STRICTEST_GUARDRAILS: Guardrails = {
   forcePush: "deny",
   commitOnProtected: "deny",
   filteredOutput: "deny",
-  envFiles: { policy: "deny", allow: [], deny: [] },
+  envFiles: { policy: "deny", allow: [], deny: [...DEFAULT_ENV_DENY] },
   protectedBranches: ["master", "main", "production"]
 }
 
@@ -165,7 +168,11 @@ export const DEFAULT_GUARDRAILS: Guardrails = {
   forcePush: "lease",
   commitOnProtected: "allow",
   filteredOutput: "deny",
-  envFiles: { policy: "git", allow: ["**/.env.example", "**/.env.sample", "**/.env.template"], deny: [] },
+  envFiles: {
+    policy: "git",
+    allow: ["**/.env.example", "**/.env.sample", "**/.env.template"],
+    deny: [...DEFAULT_ENV_DENY]
+  },
   protectedBranches: ["master", "main", "production"]
 }
 
@@ -184,21 +191,12 @@ function cloneGuardrails(source: Guardrails): Guardrails {
  * basename outside one). `*` and `?` as in a shell pattern, `*` crossing `/`; a leading `**` and a
  * slash mean at any depth. The same rule `hooks/block-env-access.sh` applies with `[[ == ]]`.
  */
+const GLOB_CHAR: Record<string, string> = { "*": ".*", "?": "." }
+
 export function matchesEnvGlob(glob: string, relativePath: string): boolean {
   const anyDepth = glob.startsWith("**/")
   const pattern = anyDepth ? glob.slice(3) : glob
-  const source = pattern
-    .split("")
-    .map((char) => {
-      if (char === "*") {
-        return ".*"
-      }
-      if (char === "?") {
-        return "."
-      }
-      return char.replace(/[.+^${}()|[\]\\]/g, "\\$&")
-    })
-    .join("")
+  const source = [...pattern].map((char) => GLOB_CHAR[char] ?? char.replace(/[.+^${}()|[\]\\]/g, "\\$&")).join("")
   return new RegExp(`^${anyDepth ? "(.*/)?" : ""}${source}$`).test(relativePath)
 }
 

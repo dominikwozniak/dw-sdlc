@@ -17,6 +17,6 @@ only rank a list has: the local layer may drop from `allow` and add to `deny`, n
 
 `envFiles` is an object in the schema: a string there fails validation and the repository
 runs strictest until it is rewritten. The strictest set is `policy: deny` with both
-lists empty, which refuses even the example names while a layer is broken. A file listed in `allow`
+`allow` empty and `deny` at its default, which refuses even the example names while a layer is broken. A file listed in `allow`
 is readable even when git ignores it, so an entry there is a statement that the file holds no
 secret. Pure name-based rules, a list with no git fallback, and a per-stack exception were rejected.

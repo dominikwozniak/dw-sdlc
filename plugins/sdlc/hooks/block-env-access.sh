@@ -1,7 +1,7 @@
 #!/bin/bash
-# Refuses reading, editing or writing an env file the config does not vouch for, by the order, globs
-# and defaults in README.md#guards. A file tool is judged on its path, a Grep of a directory on what
-# its glob reaches, a Bash command on its words: docs/contributing/bash-guard.md#paths-in-a-command. Not a security boundary.
+# Refuses an env file the config does not vouch for, any file an envFiles.deny glob names, and `rails
+# credentials:show|edit`, by README.md#guards. A Grep is judged on what its glob reaches, a Bash command
+# on its words: docs/contributing/bash-guard.md#paths-in-a-command. Not a security boundary.
 set -uo pipefail
 source "${BASH_SOURCE[0]%/*}/lib.sh"
 
@@ -19,6 +19,7 @@ CWD=""
 POLICY=""
 ALLOW_LIST=""
 DENY_LIST=""
+DENY_TAILS=()
 REASON=""
 
 # prepare — the repository, the real cwd and the policy, resolved once and only when a candidate
@@ -31,12 +32,33 @@ prepare() {
   CWD=$(cd "$GUARD_CWD" 2>/dev/null && pwd -P) || CWD="$GUARD_CWD"
   POLICY=git
   ALLOW_LIST=$'**/.env.example\n**/.env.sample\n**/.env.template'
+  DENY_LIST=$'**/config/master.key\n**/config/credentials/*.key'
   if guard_config_load "$GUARD_CWD"; then
     POLICY=$(guard_config_get '.guardrails.envFiles.policy')
     [[ -n "$POLICY" ]] || POLICY=git
     ALLOW_LIST=$(guard_config_get '.guardrails.envFiles.allow | .[]')
     DENY_LIST=$(guard_config_get '.guardrails.envFiles.deny | .[]')
   fi
+  # The literal end of each deny glob, from its last `/` on: a path it matches has a name ending in it.
+  # An entry ending in a wildcard has none and keeps every path a candidate.
+  local glob tail
+  while IFS= read -r glob; do
+    [[ -n "$glob" ]] || continue
+    tail="${glob##*[*?]}"
+    DENY_TAILS+=("${tail##*/}")
+  done <<<"$DENY_LIST"
+}
+
+# candidate <path> — 0 when the path may be refused: an env name, or a name a deny glob can end in.
+# One string compare per entry, so only a path that passes costs the forks of a verdict.
+candidate() {
+  local tail base="${1##*/}"
+  is_env_name "$1" && return 0
+  prepare
+  for tail in ${DENY_TAILS[@]+"${DENY_TAILS[@]}"}; do
+    [[ "$base" == *"$tail" ]] && return 0
+  done
+  return 1
 }
 
 # normalize <abs-path> — `.` and `..` segments folded, repeated slashes collapsed.
@@ -129,7 +151,7 @@ listed() {
 # the shell stands.
 refused() {
   local path="$1" abs base
-  is_env_name "$path" || return 1
+  candidate "$path" || return 1
   prepare
   base=$(shell_dir_physical)
   relative_to_root "$path" "$base"
@@ -137,6 +159,7 @@ refused() {
     REASON="'$MATCHED' in guardrails.envFiles.deny names it"
     return 0
   fi
+  is_env_name "$path" || return 1
   listed "$ALLOW_LIST" "$REL" && return 1
   if [[ "$POLICY" == "deny" ]]; then
     REASON="this repository refuses every env file outside guardrails.envFiles.allow (policy: deny)"
@@ -159,7 +182,7 @@ refused() {
 
 # refuse <who> <path> [<note>]
 refuse() {
-  guard_block "$1 touches '$2' and $REASON. ${3:+$3 }guardrails.envFiles in .ai/agentic.config.json decides: a listed deny is refused, a listed allow passes, and for the rest a tracked env file is secret-free by the repository's own rule while anything else may hold secrets."
+  guard_block "$1 touches '$2' and $REASON. ${3:+$3 }guardrails.envFiles in .ai/agentic.config.json decides: a path a deny entry names is refused, whatever its name; for an env file a listed allow passes, and for the rest a tracked one is secret-free by the repository's own rule while anything else may hold secrets."
 }
 
 if [[ -n "$GUARD_FILE_PATH" ]]; then
@@ -215,8 +238,8 @@ glob_matches() {
   return 1
 }
 
-# env_files <dir> — every env-named file under <dir>, relative to it: in a repository what git sees,
-# tracked, untracked, then ignored; outside one, what find sees. The directory decides, not the cwd:
+# env_files <dir> — every env-named or deny-named file under <dir>, relative to it: in a repository what
+# git sees, tracked, untracked, then ignored; outside one, what find sees, env names alone. The directory decides, not the cwd:
 # a Grep may aim outside the repository it runs from.
 env_files() {
   local f
@@ -229,12 +252,27 @@ env_files() {
     git -C "$1" ls-files -co --exclude-standard 2>/dev/null
     git -C "$1" ls-files -oi --exclude-standard 2>/dev/null
   } | while IFS= read -r f; do
-    is_env_name "$f" && printf '%s\n' "$f"
+    candidate "$f" && printf '%s\n' "$f"
   done
   return 0
 }
 
-if [[ "$GUARD_TOOL" == "Grep" && -n "$GUARD_GLOB" ]] && could_name_env "$GUARD_GLOB"; then
+# could_name_denied <glob> — 0 when the Grep glob selects a member of a deny entry: that entry with each
+# wildcard written as an `x` and no leading `**/`. A probe, as ENV_PROBES are: it cannot tell what a
+# wildcard in the Grep glob would have to match.
+could_name_denied() {
+  local entry probe
+  prepare
+  while IFS= read -r entry; do
+    [[ -n "$entry" ]] || continue
+    probe="${entry#\*\*/}"
+    probe="${probe//[*?]/x}"
+    glob_matches "$1" "$probe" && return 0
+  done <<<"$DENY_LIST"
+  return 1
+}
+
+if [[ "$GUARD_TOOL" == "Grep" && -n "$GUARD_GLOB" ]] && { could_name_env "$GUARD_GLOB" || could_name_denied "$GUARD_GLOB"; }; then
   DIR=$(guard_absolute "${GUARD_FILE_PATH:-$GUARD_CWD}")
   if [[ -d "$DIR" ]]; then
     prepare
@@ -247,19 +285,17 @@ fi
 # --- a Bash command ------------------------------------------------------------------------------
 
 # env_paths <token> — the paths a word names, one a line, from where the shell stands: a glob the
-# files it expands to; a word with a `:` both sides, `./.env:/app/.env` a volume's source and target,
-# `HEAD:apps/.env` a path from the root unless `./`, `../` or `/` opens it.
+# files it expands to, which `candidate` then sorts; a word with a `:` both sides, `./.env:/app/.env` a
+# volume's source and target, `HEAD:apps/.env` a path from the root unless `./`, `../` or `/` opens it.
 env_paths() {
   local tok="$1" head path top
   case "$tok" in
     *[*?[]*)
-      # The words lost their quotes: a quoted glob stays a word. `*`, `?` and `[…]` never match a
-      # leading dot, so only a last segment opening with `.` can reach an env file.
+      # The words lost their quotes: a quoted glob stays a word.
       if [[ "$GUARD_COMMAND" == *"'$tok'"* || "$GUARD_COMMAND" == *"\"$tok\""* ]]; then
         printf '%s\n' "$tok"
         return 0
       fi
-      [[ "${tok##*/}" == .* ]] || return 0
       [[ "$tok" == "~/"* ]] && tok="$HOME/${tok#"~/"}"
       (cd "$GUARD_SHELL_DIR" 2>/dev/null && compgen -G "$tok")
       return 0
@@ -269,8 +305,8 @@ env_paths() {
     head=${tok%%:*}
     path=${tok#*:}
     [[ "$tok" == :[0-3]:* ]] && path=${tok#:?:}
-    is_env_name "$head" && printf '%s\n' "$head"
-    if is_env_name "$path"; then
+    candidate "$head" && printf '%s\n' "$head"
+    if candidate "$path"; then
       case "$path" in
         ./* | ../* | /*) ;;
         *) top=$(git -C "$GUARD_SHELL_DIR" rev-parse --show-toplevel 2>/dev/null) && path="$top/$path" ;;
@@ -283,12 +319,26 @@ env_paths() {
 }
 
 # The first line holds the command's own words, each line after it a substitution's or those of a
-# quote handed to a shell, and the refusal says which. Each line starts at the payload's cwd. Every
-# env name holds `.env` and a glob reaching one a `.` before its glob character.
+# quote handed to a shell, and the refusal says which. Each line starts at the payload's cwd. A
+# command may name a file by `.env`, by the end of a deny entry or by a glob.
 DOT_GLOB='(^|[[:space:]/=:])\.[^[:space:]/]*[][*?]'
 STRIPPED=""
 [[ -n "$GUARD_COMMAND" ]] && STRIPPED=$(guard_strip_quoted "$GUARD_COMMAND")
-if [[ "$STRIPPED" == *.env* || "$STRIPPED" =~ $DOT_GLOB ]]; then
+
+# could_name_denied_path — 0 when the command holds a glob character or the literal end of a deny entry.
+could_name_denied_path() {
+  local tail
+  [[ "$STRIPPED" == *[*?[]* ]] && return 0
+  for tail in ${DENY_TAILS[@]+"${DENY_TAILS[@]}"}; do
+    [[ "$STRIPPED" == *"$tail"* ]] && return 0
+  done
+  return 1
+}
+
+if [[ -n "$STRIPPED" ]]; then
+  prepare
+fi
+if [[ -n "$STRIPPED" ]] && { [[ "$STRIPPED" == *.env* || "$STRIPPED" =~ $DOT_GLOB ]] || could_name_denied_path; }; then
   WHO="'$GUARD_COMMAND'"
   NOTE=""
   while IFS= read -r words; do
@@ -312,6 +362,41 @@ if [[ "$STRIPPED" == *.env* || "$STRIPPED" =~ $DOT_GLOB ]]; then
     WHO="A command substitution or a quoted command in '$GUARD_COMMAND'"
     NOTE="The shell runs the quote handed to bash -c, eval or rtk run, and a \$(…) or a backtick span inside double quotes and an unquoted heredoc body too; to keep a substitution as text, escape it, single-quote it, or quote the heredoc's delimiter (<<'EOF')."
   done <<<"$STRIPPED"
+fi
+
+# --- rails credentials:show and credentials:edit ---------------------------------------------------
+# They print or open every secret decrypted, from a key the command never names, so no path judges
+# them. Read as words, behind the launchers, `bundle exec` and `spring` too.
+
+# check_rails — WORDS, a command behind its launchers, is `rails credentials:show` or `credentials:edit`.
+check_rails() {
+  local word
+  if [[ "${WORDS[0]:-}" == bundle ]]; then
+    guard_shift_words
+    [[ "${WORDS[0]:-}" == exec ]] && guard_shift_words
+  fi
+  while [[ "${WORDS[0]:-}" == spring || "${WORDS[0]:-}" == ruby ]]; do guard_shift_words; done
+  [[ "${WORDS[0]:-}" == rails || "${WORDS[0]:-}" == */rails ]] || return 0
+  for word in "${WORDS[@]:1}"; do
+    case "$word" in
+      credentials:show | credentials:edit)
+        guard_block "'$GUARD_COMMAND' runs rails $word, which decrypts every secret in the Rails credentials and shows it. An agent never reads them: ask the owner to run it at a terminal."
+        ;;
+    esac
+  done
+  return 0
+}
+
+if [[ "$GUARD_COMMAND" == *credentials:* ]]; then
+  SCAN=$(printf '%s\n' "$GUARD_COMMAND" | guard_strip_heredocs | guard_join_continuations)
+  while IFS= read -r segment; do
+    [[ "$segment" == *credentials:* ]] || continue
+    WORDS=()
+    while IFS= read -r word; do WORDS+=("$word"); done < <(guard_words "$segment")
+    guard_unwrap_words
+    [[ ${#WORDS[@]} -gt 0 ]] || continue
+    check_rails
+  done < <(guard_segments "$(guard_mask_quoted_separators "$SCAN")")
 fi
 
 exit 0

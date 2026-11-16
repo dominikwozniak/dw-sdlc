@@ -217,8 +217,9 @@ The env and credential guards look for a path among a command's words. `guard_st
 
 The words are then read command by command, through `guard_scopes`: a relative path counts from
 where a `cd`, `pushd` or `popd` earlier in the command left the shell. A glob the
-env guard reads, one whose last segment opens with a `.`, is the files it expands to there; quoted,
-as in `find . -name '.env*'`, it stays the word it is.
+env guard reads is the files it expands to there; quoted, as in `find . -name '.env*'`, it stays the
+word it is. The env guard starts a command's scan when the command holds `.env`, a glob character or
+the literal end of a `guardrails.envFiles.deny` entry, such as `master.key`.
 
 Two costs follow. A quoted path holding a space reads as prose, so `cat "my dir/.env"` passes.
 Outside the search tools, a quoted word that is exactly a guarded name reads as that file. An

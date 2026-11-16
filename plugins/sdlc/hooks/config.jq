@@ -13,11 +13,14 @@ def strictness: {
   review: ["full", "auto", "light", "off"]
 };
 
+# Secret files of a Rails app, denied by default; nothing in a Node repository matches them.
+def default_deny: ["**/config/master.key", "**/config/credentials/*.key"];
+
 def strictest: {
   forcePush: "deny",
   commitOnProtected: "deny",
   filteredOutput: "deny",
-  envFiles: {policy: "deny", allow: [], deny: []},
+  envFiles: {policy: "deny", allow: [], deny: default_deny},
   protectedBranches: ["master", "main", "production"]
 };
 
@@ -44,7 +47,7 @@ def defaults($inferred): {
     forcePush: "lease",
     commitOnProtected: "allow",
     filteredOutput: "deny",
-    envFiles: {policy: "git", allow: ["**/.env.example", "**/.env.sample", "**/.env.template"], deny: []},
+    envFiles: {policy: "git", allow: ["**/.env.example", "**/.env.sample", "**/.env.template"], deny: default_deny},
     protectedBranches: ["master", "main", "production"]
   },
   commit: {},
