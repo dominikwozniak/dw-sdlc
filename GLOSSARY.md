@@ -115,7 +115,7 @@ _Avoid_: review checklist, REVIEW.md, rules
 
 **Read mark**:
 The "read, findings open" mark that pins a Review with a Finding open to the head it read. Under
-`github` it is the `dw-sdlc/review` failure status; under `local`, the `findings` entry for that head
+footprint `github` it is the `dw-sdlc/review` failure status; under `local`, the `findings` entry for that head
 in `.git/dw-sdlc/reviews/<n>.json`. The next Review reads the fix from it. Commits after it that show
 no fix leave it open: the Review reads the whole pull request. It never carries. Three with no success
 between them park.
