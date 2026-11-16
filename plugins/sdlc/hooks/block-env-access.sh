@@ -22,8 +22,8 @@ DENY_LIST=""
 DENY_TAILS=()
 REASON=""
 
-# prepare — the repository, the real cwd and the policy, resolved once and only when a candidate
-# showed up. The cwd is resolved through symlinks so a path under it lands under the repository root
+# prepare — the repository, the real cwd, the policy and the lists, resolved once, on the first path
+# or Bash command to judge. The cwd is resolved through symlinks so a path under it lands under the repository root
 # git reports.
 prepare() {
   [[ -n "$POLICY" ]] && return 0
