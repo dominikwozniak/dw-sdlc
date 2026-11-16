@@ -176,7 +176,7 @@ describe("the sdlc plugin", () => {
     assert.doesNotMatch(description, /: /, "a colon and a space end a plain YAML value")
   })
 
-  it("holds sdlc-pr-open to its evals: queries that trigger it and near misses that do not, and four behaviours", () => {
+  it("holds sdlc-pr-open to its evals: queries that trigger it and near misses that do not, and seven behaviours", () => {
     const evals = join(PLUGIN_ROOT, "skills", SELF_STARTED_SKILL, "evals")
     const queries = readJson(join(evals, "trigger.json"))
     assert.ok(Array.isArray(queries))
@@ -197,7 +197,10 @@ describe("the sdlc plugin", () => {
         "repo-with-template-issue-source",
         "repo-without-template-ticket-key",
         "branch-with-open-pr-rewrite-after-review",
-        "issue-source-from-a-brief-mermaid-for-a-flow"
+        "issue-source-from-a-brief-mermaid-for-a-flow",
+        "local-renames-a-worktree-branch-to-the-ticket-key",
+        "local-renames-a-worktree-branch-to-the-slug-without-a-key",
+        "github-keeps-a-worktree-branch-name"
       ]
     )
   })

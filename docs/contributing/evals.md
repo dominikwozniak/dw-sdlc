@@ -9,9 +9,9 @@ Gate. Run them when the skill changes. Four skills keep them, each under its own
 ## The skills of `sdlc`
 
 `sdlc-pr-open`'s `evals/trigger.json` holds the queries that open a pull request or write its body, and
-near misses such as "merge it" and "is CI green?"; its `evals/evals.json` holds four behaviours: a
-repository with a pull request template, one without, a branch that has a pull request, and an issue as
-the source.
+near misses such as "merge it" and "is CI green?"; its `evals/evals.json` holds seven behaviours: a
+repository with a pull request template, one without, a branch that has a pull request, an issue as
+the source, and three for [the footprint](#the-footprint-evals).
 
 ### Running the evals of a pull-request skill
 
@@ -36,6 +36,24 @@ reach GitHub:
 Start the agent with the scratch clone as its working directory, never the real checkout. Leave
 `GH_REPO` unset in its environment and add no other remote to the clone: either one gives `gh` and `git`
 a way to reach GitHub. Delete the clone after the run.
+
+### The footprint evals
+
+Four skills read `footprint` from the config, so each keeps evals that set it in the config its prompt
+prints, `local` and `github` side by side. The `local` evals show what the skill does when nothing on
+GitHub may name dw-sdlc; the `github` evals show the behaviour that stays as it was.
+
+| skill           | `local`                                                                                | `github`                                             |
+| --------------- | -------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| `sdlc-pr-open`  | renames a `worktree-` branch to `<KEY>-<n>-<slug>`, or `<slug>`, before the first push | keeps the `worktree-` name                           |
+| `sdlc-kickoff`  | no issue way; "start" writes the Brief under the common git dir and files no issue     | the issue way is offered and "start" files the issue |
+| `sdlc-recap`    | "go" on a `worker` follow-up files no issue; the Lead takes the Brief file's path      | "go" files the issues; the Lead takes `#<n>`         |
+| `sdlc-delegate` | a Brief file path is one ticket, read with no `gh` call                                | an issue is read with `gh issue view`                |
+
+Their names start with `local-` or `github-`. Every prompt stands in for each command with what it
+printed, so the agent runs none and no footprint eval pushes or opens a pull request. Run them in the
+scratch clone above anyway, with the agent's tools cut to `Read` and `Write`. A recap eval from a linked
+worktree, where the two git paths differ, checks that the Brief file lands in the common git dir.
 
 ## The `sdlc-reviewer` agent
 

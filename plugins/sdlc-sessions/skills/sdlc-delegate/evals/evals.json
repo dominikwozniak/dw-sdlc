@@ -205,6 +205,41 @@
         "The Brief is not sent again and no key reaches t8",
         "The turn ends after the message"
       ]
+    },
+    {
+      "id": 15,
+      "name": "local-brief-file-ticket-starts-one-worker-from-it",
+      "prompt": "/sdlc-delegate /repo/tool/.git/dw-sdlc/briefs/worker-export-json.md\n\nThe dev writes English. You run from /repo/tool, the main checkout. In place of running them, take these as what the commands printed.\n\n`worker ls --json`, exit 0:\n[]\n\n`git rev-parse --path-format=absolute --git-dir --git-common-dir`:\n/repo/tool/.git\n/repo/tool/.git\n\n`printenv HC_TERMINAL_ID`:\nt5\n\n`hc get t5 --json`:\n{\"id\":\"t5\",\"labels\":{\"herdr.space\":\"s1\"},\"status\":\"working\"}\n\n`dw-sdlc config`, exit 0:\ncommitted  .ai/agentic.config.json  valid\nlocal      .ai/agentic.config.local.json  valid\n{\"footprint\":\"local\",\"gate\":{\"command\":\"pnpm check\"},\"pr\":{\"merge\":\"auto\"},\"worker\":{\"command\":\"claude\",\"model\":\"sonnet\",\"effort\":\"high\"}}\n\nThe file /repo/tool/.git/dw-sdlc/briefs/worker-export-json.md holds this Brief:\n```\n/implement\n\nGoal: the export command prints its rows as a JSON array when given --json.\nYou are the Worker: do it yourself, start no other session. A subagent a skill runs is fine.\nMay write: packages/cli/src/export.ts, packages/cli/test/export.test.ts.\nMust not: change the table output, or change anything outside May write.\nProof: a test covers an empty result, and pnpm check is green.\nCommit before `/code-review`: it reads `HEAD`.\nShip: open the pull request with `/sdlc-pr-open` and carry it through `/sdlc-pr-ship`. `pr.merge` in the config decides whether you end at merged or parked for the dev.\nQuestions: on a question outside this Brief, commit nothing more, ask, and end your turn. The answer comes from the dev in this terminal.\nReport: when the work is done, end with /sdlc-recap and stop. A wait from /sdlc-pr-ship is no end: tell the dev what it waits on and end your turn, and the next message from the dev resumes it.\nModel and effort: `sonnet`, `high`: a clear spec.\n```\n\n`worker start ... --json`, exit 0:\n{\"name\":\"worker-export-json\",\"address\":\"t8\",\"command\":\"claude\",\"model\":\"sonnet\",\"effort\":\"high\",\"cwd\":\"/repo/tool\",\"delivered\":true,\"tab\":\"renamed\"}\n\nRun nothing. Write every command you would run, in order, to commands.sh, the Brief file you would write to brief.md with its full path on its first line, and every message you would give the dev to messages.md. Your turn ends after the last message.",
+      "expected_output": "The Brief file is one ticket with no blockedBy; the Lead writes the Worker a copy in the Lead form outside the repository, starts one Worker from it and reads no issue.",
+      "files": [],
+      "expectations": [
+        "commands.sh runs worker ls --json before anything else",
+        "No gh command is written anywhere: the ticket is a file, so there is no gh issue view",
+        "One ticket is handed over and it is marked now, with no blockedBy; a line states it and no table is needed",
+        "Exactly one Brief is written for the Worker, to a path outside /repo/tool, and the Brief file under .git is not edited",
+        "The written Brief keeps the file's Goal, May write, Must not and Proof, and below its path line it starts with /implement and no issue number",
+        "The written Brief's Questions line delivers a question to the Lead and its Report line ends with /sdlc-recap delivered with worker report --to t5, run through node and the path of the plugin's dw-sdlc/src/cli.ts",
+        "Exactly one worker start runs, with --brief the written file, --name worker-export-json, --model sonnet, --effort high and --max-workers 3",
+        "messages.md names the Worker, its model and effort",
+        "No hc wait and no sleep is written, and no worker start for a second Worker",
+        "No file under /repo/tool is written or edited, the Brief file under .git included, and nothing is committed"
+      ]
+    },
+    {
+      "id": 16,
+      "name": "github-issue-ticket-reads-the-issue-and-starts-one-worker",
+      "prompt": "/sdlc-delegate #77\n\nThe dev writes English. You run from /repo/tool, the main checkout. In place of running them, take these as what the commands printed.\n\n`worker ls --json`, exit 0:\n[]\n\n`git rev-parse --path-format=absolute --git-dir --git-common-dir`:\n/repo/tool/.git\n/repo/tool/.git\n\n`printenv HC_TERMINAL_ID`:\nt5\n\n`hc get t5 --json`:\n{\"id\":\"t5\",\"labels\":{\"herdr.space\":\"s1\"},\"status\":\"working\"}\n\n`dw-sdlc config`, exit 0:\ncommitted  .ai/agentic.config.json  valid\nlocal      .ai/agentic.config.local.json  valid\n{\"footprint\":\"github\",\"gate\":{\"command\":\"pnpm check\"},\"pr\":{\"merge\":\"auto\"},\"worker\":{\"command\":\"claude\",\"model\":\"sonnet\",\"effort\":\"high\"}}\n\n`gh issue view 77 --json number,title,state,labels,subIssues,blockedBy`:\n{\"number\":77,\"title\":\"Add --json to the export command\",\"state\":\"OPEN\",\"labels\":[{\"name\":\"ready-for-agent\"}],\"subIssues\":[],\"blockedBy\":[]}\n\n`worker start ... --json`, exit 0:\n{\"name\":\"worker-77-export-json\",\"address\":\"t8\",\"command\":\"claude\",\"model\":\"sonnet\",\"effort\":\"high\",\"cwd\":\"/repo/tool\",\"delivered\":true,\"tab\":\"renamed\"}\n\nRun nothing. Write into transcript.md, in order, every command you would run, the Brief file you would write with its path, and every message you would give the dev, then a line END OF TURN where your turn ends.",
+      "expected_output": "Under footprint github the issue is read with gh and one Worker starts from a Brief that names it; no Brief file is read from .git.",
+      "files": [],
+      "expectations": [
+        "The transcript runs worker ls --json before anything else",
+        "The issue is read with gh issue view 77 and its json fields, including blockedBy",
+        "Exactly one Brief is written, with /implement #77 as its first line, to a path outside /repo/tool",
+        "The Brief's Report line ends with /sdlc-recap delivered with worker report --to t5",
+        "Exactly one worker start runs, with --name worker-77-<slug>, --model sonnet and --effort high",
+        "Nothing under /repo/tool/.git/dw-sdlc/briefs/ is read or written",
+        "The turn ends right after the message: no hc wait, no sleep"
+      ]
     }
   ]
 }
