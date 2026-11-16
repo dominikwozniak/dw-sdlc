@@ -136,8 +136,11 @@ dw-sdlc lead start --name <name> --prompt "/sdlc-delegate <tickets>" --json
   with its Brief as the body, so the Lead reads it as an issue; under footprint local it is a Brief file,
   named by its path. A model and an effort follow the tickets, as `/sdlc-delegate #<n> fable xhigh`, and
   the Lead runs every Worker it starts on them.
-- **Name.** `lead-<n>-<slug>`, `<n>` the first ticket's issue and the slug a word or two of its title, or
-  `lead-<slug>` for a spec: 1-32 of `a-z`, `0-9`, `-` and `_`.
+- **Name.** The first ticket names the Lead, the whole name 1-32 of `a-z`, `0-9`, `-` and `_`:
+  - an issue: `lead-<n>-<slug>`, `<n>` its number and the slug a word or two of its title;
+  - a Brief file: its file name with `lead-` in the place of `worker-` and no `.md`, as
+    `lead-release-tag-links` for `worker-release-tag-links.md`, cut to its first words to fit;
+  - a spec: `lead-<slug>`, the slug a word or two of its title.
 - **Exit 0**: started, and the Lead took its first message. Tell the dev its name and address in one line.
 - **Exit 1**: started, but the first message is not confirmed. Run `hc read <address> --lines 60` and tell
   the dev. Never run the command again or send the message twice.

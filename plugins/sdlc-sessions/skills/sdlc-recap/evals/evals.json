@@ -137,6 +137,7 @@
         "answer.md gives the path of follow-up 2's Brief file and says the dev starts it later with /implement and that path",
         "lead.sh holds one dw-sdlc lead start command, run by a path ending in dw-sdlc/src/cli.ts, with --prompt /sdlc-delegate and the path of follow-up 1's Brief file, and not follow-up 2's",
         "lead.sh holds no --dangerously-skip-permissions and no --worktree, and no second lead start",
+        "The --name in lead.sh is the whole name of follow-up 1's Brief file with lead- in the place of worker- and no .md, as lead-admin-limits for worker-admin-limits.md, and no lead-<n>- with an issue number",
         "answer.md gives no start line for follow-up 1",
         "answer.md says the follow-ups are Brief files and no issue was filed"
       ]

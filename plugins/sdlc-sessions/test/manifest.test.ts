@@ -222,6 +222,16 @@ describe("the sdlc-sessions plugin", () => {
     }
   })
 
+  it("names the new Lead after its first ticket by one rule, a Brief file included, which sdlc-recap follows", () => {
+    const template = readFileSync(join(PLUGIN_ROOT, BRIEF_TEMPLATE), "utf8")
+    assert.match(template, /- an issue: `lead-<n>-<slug>`, `<n>` its number/)
+    assert.match(template, /- a Brief file: its file name with `lead-` in the place of `worker-` and no `\.md`/)
+    assert.match(template, /`lead-release-tag-links` for `worker-release-tag-links\.md`/)
+    const recap = skillText("sdlc-recap")
+    assert.match(recap, /the Lead is named after the first follow-up's ticket, its issue or its Brief file/)
+    assert.match(recap, /the Lead's `--name` comes from the first `worker`'s Brief file, by the template's Name rule/)
+  })
+
   it("routes work with open questions for the dev to a Brief that grills the dev before any code", () => {
     const template = readFileSync(join(PLUGIN_ROOT, BRIEF_TEMPLATE), "utf8")
     assert.match(template, /\| it needs a grilling: [^|]+\| `opus` +\| `high` +\|/, "the routing has a grilling row")
