@@ -220,7 +220,7 @@ describe("a schema the plugin cannot read is a config problem, never a pass", ()
     forcePush: "deny",
     commitOnProtected: "deny",
     filteredOutput: "deny",
-    envFiles: { policy: "deny", allow: [], deny: [] },
+    envFiles: { policy: "deny", allow: [], deny: ["**/config/master.key", "**/config/credentials/*.key"] },
     protectedBranches: ["master", "main", "production"]
   }
 

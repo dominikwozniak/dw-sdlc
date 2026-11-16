@@ -57,9 +57,14 @@ const LOOSENED = makeRepo(join(TMP, "loosened"))
 writeJson(join(LOOSENED, ".ai", "agentic.config.local.json"), {
   guardrails: { envFiles: { allow: ["**/.env.example", "**/.env.sample", "**/.env.template", ".env.local"] } }
 })
-// A local layer that adds a deny entry tightens, and applies.
+// A local layer that adds a deny entry to the default ones tightens, and applies.
 const TIGHTENED = makeRepo(join(TMP, "tightened"))
-writeJson(join(TIGHTENED, ".ai", "agentic.config.local.json"), { guardrails: { envFiles: { deny: [".env"] } } })
+writeJson(join(TIGHTENED, ".ai", "agentic.config.local.json"), {
+  guardrails: { envFiles: { deny: ["**/config/master.key", "**/config/credentials/*.key", ".env"] } }
+})
+// One that writes only its own entry drops the defaults, which loosens: the layer is dropped.
+const DROPPING = makeRepo(join(TMP, "dropping"))
+writeJson(join(DROPPING, ".ai", "agentic.config.local.json"), { guardrails: { envFiles: { deny: [".env"] } } })
 // policy deny with the allow list emptied refuses even the example names.
 const DENY_ALL = makeRepo(join(TMP, "deny-all"))
 writeJson(join(DENY_ALL, ".ai", "agentic.config.json"), { guardrails: { envFiles: { policy: "deny", allow: [] } } })
@@ -298,6 +303,7 @@ describe("the allow and deny lists decide before git", () => {
   blockedFile("local-adding-allow-refuses-the-example-too", "Read", ".env.example", LOOSENED)
   blockedFile("local-adding-deny-applies", "Read", ".env", TIGHTENED)
   allowedFile("local-adding-deny-keeps-the-rest", "Read", ".env.test", TIGHTENED)
+  blockedFile("local-dropping-a-default-deny-goes-strictest", "Read", ".env.test", DROPPING)
   blockedFile("deny-through-a-symlinked-path", "Read", join(LINK, "config", ".env.test"), LINKED)
   allowedFile("allow-through-a-symlinked-path", "Read", join(LINK, "config", ".env.development"), LINKED)
   blockedFile("deny-from-a-symlinked-cwd", "Read", "config/.env.test", LINK)
@@ -487,5 +493,120 @@ describe("without jq every call passes", () => {
   })
   it("a payload with the byte", () => {
     expectExit(runHook("block-env-access", filePayload("Read", ".env.local\u0001", REPO), NOJQ), 0)
+  })
+})
+
+// A Rails app with no config: its keys are ignored, as Rails' own .gitignore has it, and the tracked
+// credentials files are encrypted. SECRETS adds `secrets/*.pem` to the deny list, which names no env file.
+const RAILS = join(TMP, "rails")
+initRepo(RAILS, { branch: "main" })
+write(join(RAILS, ".gitignore"), "/config/master.key\n/config/credentials/*.key\n")
+write(join(RAILS, "config", "master.key"), "abc\n")
+write(join(RAILS, "config", "credentials", "production.key"), "def\n")
+write(join(RAILS, "config", "credentials", "production.yml.enc"), "xyz\n")
+write(join(RAILS, "config", "application.rb"), "")
+write(join(RAILS, "spec", "fixtures", "master.key"), "not the app's\n")
+git(
+  RAILS,
+  "add",
+  ".gitignore",
+  "config/credentials/production.yml.enc",
+  "config/application.rb",
+  "spec/fixtures/master.key"
+)
+const SECRETS = join(TMP, "secrets")
+initRepo(SECRETS, { branch: "main" })
+write(join(SECRETS, "secrets", "tls.pem"), "KEY\n")
+write(join(SECRETS, "secrets", "README.md"), "")
+write(join(SECRETS, "certs", "tls.pem"), "PUBLIC\n")
+write(join(SECRETS, ".env"), "SAFE=1\n")
+writeJson(join(SECRETS, ".ai", "agentic.config.json"), { guardrails: { envFiles: { deny: ["secrets/*.pem"] } } })
+git(SECRETS, "add", "secrets/README.md", "certs/tls.pem", ".env", ".ai/agentic.config.json")
+
+describe("the default deny list names Rails' master and credentials keys", () => {
+  blockedFile("read-master-key", "Read", "config/master.key", RAILS)
+  blockedFile("edit-master-key", "Edit", join(RAILS, "config", "master.key"), RAILS)
+  blockedFile("write-master-key", "Write", "config/master.key", RAILS)
+  blockedFile("read-a-credentials-key", "Read", "config/credentials/production.key", RAILS)
+  blockedBash("cat-master-key", "cat config/master.key", RAILS)
+  blockedBash("cat-a-credentials-key", "cat config/credentials/production.key", RAILS)
+  blockedBash("a cd moves the path", "cd config && cat master.key", RAILS)
+  blockedBash("a glob that expands to the key", "cat config/master.k*", RAILS)
+  blockedBash("a glob over the credentials keys", "cat config/credentials/*.key", RAILS)
+  blockedBash("a path from a revision", "git show HEAD:config/master.key", RAILS)
+  blockedGrep("grep-the-master-key-by-glob", "master.key", "config", RAILS)
+  blockedGrep("grep-the-credentials-keys-by-glob", "*.key", "config/credentials", RAILS)
+  blockedFile("grep-the-master-key-by-path", "Grep", "config/master.key", RAILS)
+  allowedFile("the encrypted credentials stay readable", "Read", "config/credentials/production.yml.enc", RAILS)
+  allowedFile("another file in config", "Read", "config/application.rb", RAILS)
+  allowedFile("a master.key outside config is not the app's", "Read", "spec/fixtures/master.key", RAILS)
+  allowedBash("cat the encrypted credentials", "cat config/credentials/production.yml.enc", RAILS)
+  allowedBash("a glob over sources", "cat config/*.rb", RAILS)
+  allowedBash("ls the credentials directory", "ls config/credentials", RAILS)
+  it("names the deny entry that refuses", () => {
+    const verdict = runHook("block-env-access", filePayload("Read", "config/master.key", RAILS))
+    expectExit(verdict, 2)
+    assert.match(verdict.stderr, /'\*\*\/config\/master\.key' in guardrails\.envFiles\.deny names it/)
+  })
+})
+
+describe("a glob a repository adds to envFiles.deny refuses a path that is no env file", () => {
+  blockedFile("read-a-denied-pem", "Read", "secrets/tls.pem", SECRETS)
+  blockedFile("edit-a-denied-pem", "Edit", join(SECRETS, "secrets", "tls.pem"), SECRETS)
+  blockedBash("cat-a-denied-pem", "cat secrets/tls.pem", SECRETS)
+  blockedBash("cp-a-denied-pem", "cp secrets/tls.pem /tmp/x", SECRETS)
+  blockedBash("a cd moves the path", "cd secrets && cat tls.pem", SECRETS)
+  blockedBash("a glob over the denied directory", "cat secrets/*.pem", SECRETS)
+  blockedGrep("grep-the-denied-pem-by-glob", "*.pem", "secrets", SECRETS)
+  allowedFile("the same name elsewhere", "Read", "certs/tls.pem", SECRETS)
+  allowedFile("another file in the denied directory", "Read", "secrets/README.md", SECRETS)
+  allowedFile("a tracked env file still passes", "Read", ".env", SECRETS)
+  allowedBash("cat the same name elsewhere", "cat certs/tls.pem", SECRETS)
+  allowedBash("prose naming the file", 'git commit -m "chore: stop reading secrets/tls.pem"', SECRETS)
+  // The list replaces the default one, as every list does; a repository keeps the Rails entries by writing them.
+  allowedFile("a list replaces the default deny list", "Read", "config/master.key", SECRETS)
+})
+
+describe("an env-named file keeps its verdict whatever the deny list holds", () => {
+  blockedFile("an ignored env file is still refused", "Read", ".env.local", RAILS)
+  allowedFile("a tracked env file still passes", "Read", ".env.test", REPO)
+  blockedFile("policy deny still refuses a tracked env file", "Read", ".env", DENY)
+})
+
+describe("rails credentials:show and credentials:edit print every secret", () => {
+  for (const command of [
+    "bin/rails credentials:show",
+    "rails credentials:show",
+    "rails credentials:edit",
+    "./bin/rails credentials:edit",
+    "bundle exec rails credentials:show",
+    "bundle exec bin/rails credentials:edit",
+    "rails credentials:show --environment production",
+    "RAILS_ENV=production bin/rails credentials:show",
+    "bin/rails credentials:show | head",
+    "cd app && bin/rails credentials:edit",
+    "bash -c 'bin/rails credentials:show'",
+    "rtk bin/rails credentials:show",
+    "spring rails credentials:show",
+    'echo "$(bin/rails credentials:show)"'
+  ]) {
+    blockedBash(`refuses ${command}`, command, RAILS)
+  }
+  for (const command of [
+    "bin/rails credentials:diff --enroll",
+    "bin/rails server",
+    "bin/rails db:migrate",
+    "bundle exec rspec",
+    "echo credentials:show",
+    "grep -rn credentials:show docs",
+    'git commit -m "docs: explain rails credentials:show"'
+  ]) {
+    allowedBash(`runs ${command}`, command, RAILS)
+  }
+  it("says what it refuses and why", () => {
+    const verdict = runHook("block-env-access", bashPayload("bin/rails credentials:show", RAILS))
+    expectExit(verdict, 2)
+    assert.match(verdict.stderr, /credentials:show/)
+    assert.match(verdict.stderr, /decrypt/)
   })
 })

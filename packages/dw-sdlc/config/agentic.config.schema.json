@@ -48,7 +48,7 @@
           "default": "deny"
         },
         "envFiles": {
-          "description": "Which env files (`.env`, `.env.*`, `.envrc`) an agent may read, edit or write. A candidate is judged in this order: listed in `deny` → refused; listed in `allow` → readable; `policy` `deny` → refused; `policy` `git` → readable when git tracks it, refused when git ignores it or does not know it. Entries are globs against the path relative to the repository root: `*` and `?` as in a shell pattern (`*` crosses `/`), a leading `**/` means at any depth, so `.env` is the one in the root and `**/.env.example` every file of that name. No brace groups. A path outside the repository root, or outside any repository, is judged by its basename against the `**/` entries alone. Defaults: policy `git`, allow the `.env.example`, `.env.sample` and `.env.template` names anywhere, deny nothing. The local override may drop `allow` entries and add `deny` entries, never the reverse.",
+          "description": "Which files an agent may read, edit or write. A path listed in `deny` is refused, whatever its name: `deny` reaches any file, not only env files (`.env`, `.env.*`, `.envrc`). An env file is judged in this order: listed in `deny` → refused; listed in `allow` → readable; `policy` `deny` → refused; `policy` `git` → readable when git tracks it, refused when git ignores it or does not know it. A file that is no env file and no `deny` entry names is not judged. Entries are globs against the path relative to the repository root: `*` and `?` as in a shell pattern (`*` crosses `/`), a leading `**/` means at any depth, so `.env` is the one in the root and `**/.env.example` every file of that name. No brace groups. A path outside the repository root, or outside any repository, is judged by its basename against the `**/` entries alone. Defaults: policy `git`, allow the `.env.example`, `.env.sample` and `.env.template` names anywhere, deny `**/config/master.key` and `**/config/credentials/*.key`, a Rails app's keys. A `deny` list replaces the default one, so a list that keeps the Rails keys names them. The local override may drop `allow` entries and add `deny` entries, never the reverse.",
           "type": "object",
           "properties": {
             "policy": {
@@ -65,7 +65,7 @@
               "uniqueItems": true
             },
             "deny": {
-              "description": "Globs of the env files that are refused regardless of `policy`; wins over `allow`.",
+              "description": "Globs of the files, env files or not, that are refused regardless of `policy`; wins over `allow`. Default `**/config/master.key` and `**/config/credentials/*.key`.",
               "type": "array",
               "items": {
                 "type": "string",

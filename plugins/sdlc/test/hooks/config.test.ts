@@ -246,6 +246,14 @@ describe("hooks/lib.sh agrees with resolveConfig", () => {
         })
     ],
     [
+      "on a local deny list that leaves out the default entries",
+      () => repo({ files: { [LOCAL_FILE]: { guardrails: { envFiles: { deny: [".env"] } } } } })
+    ],
+    [
+      "on a committed deny list over the default one",
+      () => repo({ files: { [COMMITTED_FILE]: { guardrails: { envFiles: { deny: ["secrets/*.pem"] } } } } })
+    ],
+    [
       "on a committed pr.merge auto, and a local ask over it",
       () => repo({ files: { [COMMITTED_FILE]: { pr: { merge: "auto" } }, [LOCAL_FILE]: { pr: { merge: "ask" } } } })
     ],

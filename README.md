@@ -64,7 +64,7 @@ repository that declares nothing gets these rules, inferred:
 - a push to `main`, `master` or `production` is refused, plain, lease or forced: those take pull requests
 - a bare `push --force` is refused anywhere; `push --force-with-lease` passes off a protected branch
 - `npm`, `npx`, `yarn` and `bun` are refused in a pnpm repository, known from its lockfile
-- a `.env` file git does not track is refused, so are credential files and a `curl` carrying a secret
+- a `.env` file git does not track is refused, so are a Rails app's keys, credential files and a `curl` carrying a secret
 - destructive git (`reset --hard` over changes, `clean -fd`, a reflog expiry) and every App Store
   Connect write are refused
 
@@ -92,22 +92,22 @@ repository's `.claude/settings.json`.
 
 ## What it stops
 
-| guard                 | refuses                                                                                                                          |
-| --------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| dangerous commands    | `reset --hard` with uncommitted changes, `clean -fd`, `stash clear`, remote branch deletion, `rm` at `/` `~` `.`, `find -delete` |
-| forced delete         | `branch -D` of a branch not yet on the base, `-M`, `worktree remove --force`, `stash drop`                                       |
-| lost-commit record    | `reflog expire`, `gc --prune=now`, `prune`, `update-ref -d`, `rm -rf .git`                                                       |
-| force push            | bare `push --force`; a lease push passes, or asks first under `forcePush: ask`, never to a protected branch                      |
-| plain push            | any push straight to a protected branch: those take pull requests                                                                |
-| commit                | a commit, merge, cherry-pick or revert on a protected branch, under `commitOnProtected: deny`                                    |
-| GitHub CLI            | `gh repo delete`, `gh pr merge --delete-branch`, a `gh api` call that deletes or force-moves a ref                               |
-| env access            | `.env`, `.env.*`, `.envrc` outside the config's allow list or unknown to git                                                     |
-| credential leak       | reading `~/.ssh`, `~/.aws`, `~/.kube` and friends; `curl` or `wget` carrying a secret                                            |
-| package manager       | `npm`, `npx`, `yarn`, `bun` in a pnpm repository                                                                                 |
-| filtered output       | a check command (`vitest`, `tsc`, `dw-sdlc gate`) piped into `head`, `tail`, `grep`, `sed`, `awk`; `tee` or a redirect passes    |
-| commit hygiene        | a subject off the convention, a missing `commit.trailer` when one is declared, `git add -A` with no path, `git add .`            |
-| App Store Connect     | every `asc` write and `--confirm` on a store script, in every repository; reads and `--dry-run` pass                             |
-| large file (advisory) | flags a written file over 256 KiB                                                                                                |
+| guard                 | refuses                                                                                                                           |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| dangerous commands    | `reset --hard` with uncommitted changes, `clean -fd`, `stash clear`, remote branch deletion, `rm` at `/` `~` `.`, `find -delete`  |
+| forced delete         | `branch -D` of a branch not yet on the base, `-M`, `worktree remove --force`, `stash drop`                                        |
+| lost-commit record    | `reflog expire`, `gc --prune=now`, `prune`, `update-ref -d`, `rm -rf .git`                                                        |
+| force push            | bare `push --force`; a lease push passes, or asks first under `forcePush: ask`, never to a protected branch                       |
+| plain push            | any push straight to a protected branch: those take pull requests                                                                 |
+| commit                | a commit, merge, cherry-pick or revert on a protected branch, under `commitOnProtected: deny`                                     |
+| GitHub CLI            | `gh repo delete`, `gh pr merge --delete-branch`, a `gh api` call that deletes or force-moves a ref                                |
+| env access            | `.env`, `.env.*`, `.envrc` outside the config's allow list or unknown to git; a path `envFiles.deny` names, Rails keys by default |
+| credential leak       | reading `~/.ssh`, `~/.aws`, `~/.kube` and friends; `curl` or `wget` carrying a secret                                             |
+| package manager       | `npm`, `npx`, `yarn`, `bun` in a pnpm repository                                                                                  |
+| filtered output       | a check command (`vitest`, `tsc`, `dw-sdlc gate`) piped into `head`, `tail`, `grep`, `sed`, `awk`; `tee` or a redirect passes     |
+| commit hygiene        | a subject off the convention, a missing `commit.trailer` when one is declared, `git add -A` with no path, `git add .`             |
+| App Store Connect     | every `asc` write and `--confirm` on a store script, in every repository; reads and `--dry-run` pass                              |
+| large file (advisory) | flags a written file over 256 KiB                                                                                                 |
 
 Each rule holds at every command position, within its [known limits](plugins/sdlc/README.md#known-limits): an indented line, a loop, a subshell, behind `sudo`,
 `xargs`, `timeout`, `find -exec` or `bash -c`, and in a heredoc a shell reads. Every rule in full:

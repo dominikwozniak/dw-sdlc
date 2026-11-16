@@ -4,10 +4,10 @@ import { join } from "node:path"
 import { describe, it } from "node:test"
 
 import {
+  matchesEnvGlob,
   COMMITTED_FILE,
   LOCAL_FILE,
   STRICTEST_GUARDRAILS,
-  matchesEnvGlob,
   type NodePackageManager,
   resolveConfig,
   validateDocument
@@ -20,7 +20,7 @@ const FORCE_PUSH_ALLOWED = { version: 1, guardrails: { forcePush: "allow" } }
 const DEFAULT_ENV_FILES = {
   policy: "git",
   allow: ["**/.env.example", "**/.env.sample", "**/.env.template"],
-  deny: []
+  deny: ["**/config/master.key", "**/config/credentials/*.key"]
 }
 /** A `references` key the Sync refuses, which the guardrails schema never names (ADR 0002). */
 const MALFORMED_REFERENCES = {
@@ -196,7 +196,7 @@ describe("the local file", () => {
           baseBranch: "develop",
           guardrails: {
             forcePush: "deny",
-            envFiles: { policy: "deny", deny: [".env.staging"] },
+            envFiles: { policy: "deny", deny: [...DEFAULT_ENV_FILES.deny, ".env.staging"] },
             protectedBranches: ["master", "staging"]
           },
           worktree: { setup: ["pnpm install"] }
@@ -211,7 +211,7 @@ describe("the local file", () => {
       forcePush: "deny",
       commitOnProtected: "allow",
       filteredOutput: "deny",
-      envFiles: { ...DEFAULT_ENV_FILES, policy: "deny", deny: [".env.staging"] },
+      envFiles: { ...DEFAULT_ENV_FILES, policy: "deny", deny: [...DEFAULT_ENV_FILES.deny, ".env.staging"] },
       protectedBranches: ["master", "staging"]
     })
     assert.deepEqual(config.worktree.setup, ["pnpm install"])
@@ -365,6 +365,22 @@ describe("the local file", () => {
     )
     assert.equal(layers.local, "invalid")
     assert.deepEqual(config.guardrails, STRICTEST_GUARDRAILS)
+  })
+
+  it("a local deny list that leaves out a default entry drops it", () => {
+    const root = repo({ files: { [LOCAL_FILE]: { guardrails: { envFiles: { deny: [".env"] } } } } })
+    const { problems, layers } = resolveConfig(root)
+    assert.deepEqual(
+      problems.map(({ file, path }) => ({ file, path })),
+      [{ file: LOCAL_FILE, path: "guardrails.envFiles.deny" }]
+    )
+    assert.match(problems[0]?.message ?? "", /drops "\*\*\/config\/master\.key", "\*\*\/config\/credentials\/\*\.key"/)
+    assert.equal(layers.local, "invalid")
+
+    const kept = repo({
+      files: { [LOCAL_FILE]: { guardrails: { envFiles: { deny: [...DEFAULT_ENV_FILES.deny, ".env"] } } } }
+    })
+    assert.deepEqual(resolveConfig(kept).problems, [])
   })
 
   it("may not loosen envFiles.policy", () => {
