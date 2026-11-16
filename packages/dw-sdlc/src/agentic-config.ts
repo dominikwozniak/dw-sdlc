@@ -3,11 +3,15 @@
 // `hooks/config.jq` is the same merge for the guards; this file is the reference, and the tests run both.
 
 import { existsSync, readFileSync } from "node:fs"
-import { dirname, join } from "node:path"
+import { join } from "node:path"
 
 import { messageOf } from "./cannot-run.ts"
-import { asked, gitDirs } from "./git.ts"
+import { mainCheckout } from "./git.ts"
+
+// The checkout helpers live beside gitDirs; every command reads them from here, with the config.
+export { findRepository, mainCheckout, repositoryRoot } from "./git.ts"
 import { validate } from "./json-schema.ts"
+import { parseObject } from "./json-text.ts"
 
 export const COMMITTED_FILE = ".ai/agentic.config.json"
 export const LOCAL_FILE = ".ai/agentic.config.local.json"
@@ -47,6 +51,12 @@ export const WORKER_EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const
 export type WorkerEffort = (typeof WORKER_EFFORTS)[number]
 /** How a Worker's Claude Code session starts: the words that start it, its model and its effort. */
 export type WorkerConfig = { command: string; model: string; effort: WorkerEffort }
+
+/**
+ * What dw-sdlc leaves on GitHub: under `github` the review status, Briefs filed as issues and the Worker's
+ * branch name; under `local` nothing that names it, its state kept under `.git/dw-sdlc/`.
+ */
+export type Footprint = "github" | "local"
 
 export type Guardrails = {
   forcePush: ForcePush
@@ -96,6 +106,7 @@ export type AgenticConfig = {
   pr?: Partial<PrConfig>
   worker?: Partial<WorkerConfig>
   worktree?: { setup?: string[] }
+  footprint?: Footprint
 }
 
 /** What the guards see: every layer applied, every key present. */
@@ -109,6 +120,7 @@ export type ResolvedConfig = {
   pr: PrConfig
   worker: WorkerConfig
   worktree: { setup: string[] }
+  footprint: Footprint
 }
 
 export type Problem = { file: string; path: string; message: string }
@@ -255,7 +267,8 @@ export function validateDocument(file: string, text: string): { value: AgenticCo
   return { value: parsed as AgenticConfig }
 }
 
-type Layer = { state: LayerState; value?: AgenticConfig; problems: Problem[]; source?: string }
+/** `namesLocal`: the document, valid or not, sets footprint local. */
+type Layer = { state: LayerState; value?: AgenticConfig; problems: Problem[]; source?: string; namesLocal?: boolean }
 
 /** `file` from the first of `checkouts` that has it. */
 function readLayer(checkouts: string[], file: string): Layer {
@@ -263,30 +276,12 @@ function readLayer(checkouts: string[], file: string): Layer {
   if (source === undefined) {
     return { state: "absent", problems: [] }
   }
-  const result = validateDocument(file, readFileSync(join(source, file), "utf8"))
+  const text = readFileSync(join(source, file), "utf8")
+  const result = validateDocument(file, text)
   if ("problems" in result) {
-    return { state: "invalid", problems: result.problems, source }
+    return { state: "invalid", problems: result.problems, source, namesLocal: parseObject(text)?.footprint === "local" }
   }
-  return { state: "valid", value: result.value, problems: [], source }
-}
-
-/** The top level of the repository holding `dir`, or undefined outside one. */
-export function findRepository(dir: string): string | undefined {
-  return asked(dir, ["rev-parse", "--show-toplevel"])
-}
-
-/** The top level of the repository holding `dir`, or `dir` itself outside one. */
-export function repositoryRoot(dir: string): string {
-  return findRepository(dir) ?? dir
-}
-
-/**
- * The main checkout of the linked worktree at `root`, or undefined for a main checkout or outside a
- * repository: a linked worktree's git dir differs from the common one, which sits in the main checkout.
- */
-export function mainCheckout(root: string): string | undefined {
-  const dirs = gitDirs(root)
-  return dirs === undefined || dirs.gitDir === dirs.commonDir ? undefined : dirname(dirs.commonDir)
+  return { state: "valid", value: result.value, problems: [], source, namesLocal: result.value.footprint === "local" }
 }
 
 function inferPackageManagers(root: string): ResolvedConfig["packageManagers"] {
@@ -340,7 +335,8 @@ export function inferConfig(root: string): ResolvedConfig {
     gate: inferGate(root),
     pr: { ...DEFAULT_PR, reviewFull: [...DEFAULT_PR.reviewFull] },
     worker: { ...DEFAULT_WORKER },
-    worktree: { setup: [] }
+    worktree: { setup: [] },
+    footprint: "github"
   }
 }
 
@@ -358,7 +354,8 @@ function applyLayer(base: ResolvedConfig, layer: AgenticConfig): ResolvedConfig 
     gate: { ...base.gate, ...layer.gate, checks: { ...base.gate.checks, ...layer.gate?.checks } },
     pr: { ...base.pr, ...layer.pr, reviewFull: [...new Set([...base.pr.reviewFull, ...(layer.pr?.reviewFull ?? [])])] },
     worker: { ...base.worker, ...layer.worker },
-    worktree: { setup: layer.worktree?.setup ?? base.worktree.setup }
+    worktree: { setup: layer.worktree?.setup ?? base.worktree.setup },
+    footprint: layer.footprint ?? base.footprint
   }
 }
 
@@ -486,8 +483,13 @@ export function resolveConfig(root: string): Resolution {
     }
   }
   if (problems.length > 0) {
-    // `reviewCommand`, `reviewFull` and `worker` have no strictest value: they keep what the valid layers name.
-    config = { ...config, guardrails: cloneGuardrails(STRICTEST_GUARDRAILS), pr: { ...config.pr, ...STRICTEST_PR } }
+    // `reviewCommand`, `reviewFull` and `worker` keep what the valid layers name. A dropped layer that names
+    // footprint local keeps it, so a broken layer never sends the Review state back to GitHub; a valid local
+    // layer's own footprint still wins.
+    const named = localState === "valid" ? local.value?.footprint : undefined
+    const footprint = named ?? (committed.namesLocal === true || local.namesLocal === true ? "local" : config.footprint)
+    const pr = { ...config.pr, ...STRICTEST_PR }
+    config = { ...config, guardrails: cloneGuardrails(STRICTEST_GUARDRAILS), pr, footprint }
   }
   return {
     config: finalize(config),

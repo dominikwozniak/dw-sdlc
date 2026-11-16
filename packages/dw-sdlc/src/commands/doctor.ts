@@ -34,7 +34,7 @@ export type Probe = {
 }
 
 export type RepositoryConfig = {
-  config: { commit: { convention?: string; pattern?: string; trailer?: string } }
+  config: { commit: { convention?: string; pattern?: string; trailer?: string }; footprint: string }
   problems: string[]
   /** The checkout each layer was read from, as `resolveConfig` reports it. */
   sources?: { committed: string | undefined; local: string | undefined }
@@ -291,7 +291,7 @@ function checkConfig(config: RepositoryConfig | undefined, root: string): Check 
   return {
     name: "config",
     level: "PASS",
-    detail: `commit ${commitRules(config.config)}${borrowed.join("")}`
+    detail: `commit ${commitRules(config.config)}, footprint ${config.config.footprint}${borrowed.join("")}`
   }
 }
 

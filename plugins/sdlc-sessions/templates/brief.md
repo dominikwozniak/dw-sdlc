@@ -104,10 +104,11 @@ joined by hyphens. With no issue it is `worker-<slug>`.
 
 ## The config
 
-`worker.command`, `worker.model`, `worker.effort` and `gate.command` come from the resolved config: the
-JSON the `dw-sdlc config` command prints after its two lines of layers, on exit 1 too. Each skill gives the
-path it runs that command by. Where it prints no JSON, take `claude`, `sonnet` and `high`, and say so in
-one line.
+`worker.command`, `worker.model`, `worker.effort`, `gate.command` and `footprint` come from the resolved
+config: the JSON the `dw-sdlc config` command prints after its two lines of layers, on exit 1 too. Each
+skill gives the path it runs that command by. Where it prints no JSON, take `claude`, `sonnet`, `high` and
+`github`, and say so in one line. Under `footprint` `local`, [Footprint local](#footprint-local) decides
+where every Brief goes.
 
 ## The start line
 
@@ -132,8 +133,9 @@ dw-sdlc lead start --name <name> --prompt "/sdlc-delegate <tickets>" --json
 ```
 
 - **Tickets.** `#<n>` for each issue, or a spec's path. Work with no source is filed first as an issue,
-  with its Brief as the body, so the Lead reads it as an issue. A model and an effort follow the tickets,
-  as `/sdlc-delegate #<n> fable xhigh`, and the Lead runs every Worker it starts on them.
+  with its Brief as the body, so the Lead reads it as an issue; under footprint local it is a Brief file,
+  named by its path. A model and an effort follow the tickets, as `/sdlc-delegate #<n> fable xhigh`, and
+  the Lead runs every Worker it starts on them.
 - **Name.** `lead-<n>-<slug>`, `<n>` the first ticket's issue and the slug a word or two of its title, or
   `lead-<slug>` for a spec: 1-32 of `a-z`, `0-9`, `-` and `_`.
 - **Exit 0**: started, and the Lead took its first message. Tell the dev its name and address in one line.
@@ -146,3 +148,20 @@ The command takes `worker.command` of the config without `--dangerously-skip-per
 `--worktree`: never add either, or start the Lead any other way. It refuses outside herdr, where
 `HC_TERMINAL_ID` is unset, and in a linked worktree, where `git rev-parse --path-format=absolute
 --git-dir --git-common-dir` prints two different paths: there the start line is the way.
+
+## Footprint local
+
+When the config's `footprint` is `local`, nothing on GitHub names dw-sdlc, so no Brief is filed as an issue.
+Reading an issue that already exists, such as a source, stays as it is.
+
+- **A Brief file.** Every rule or skill that files a Brief as an issue, or the open questions of work that
+  needs a grilling, writes the same text to a file instead: `<git common dir>/dw-sdlc/briefs/<name>.md`,
+  the common dir being the second path `git rev-parse --path-format=absolute --git-dir --git-common-dir`
+  prints, so a Worker's worktree and the main checkout read one folder that git never commits. `<name>` is
+  the Worker's name. The file keeps its implement line, since no issue number starts it, and its Questions
+  and Report lines take the form without a Lead.
+- **The new Lead.** Its tickets name the Brief file by its path in the place of the issue it would be
+  filed as: `/sdlc-delegate <path>`.
+- **The issue way.** It is gone: a session that would offer to file the work for later offers the start
+  line, and a Recap's `issue` follow-up becomes a Brief file whose path the dev starts later with
+  `/implement <path>`.

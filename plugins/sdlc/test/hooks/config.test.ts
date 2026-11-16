@@ -128,6 +128,20 @@ describe("hooks/lib.sh agrees with resolveConfig", () => {
       () => repo({ remote: ORG_REMOTE, files: { [COMMITTED_FILE]: { commit: { convention: "ticket-key" } } } })
     ],
     [
+      "on a local footprint over the committed one",
+      () => repo({ files: { [COMMITTED_FILE]: { footprint: "github" }, [LOCAL_FILE]: { footprint: "local" } } })
+    ],
+    [
+      "on a loosening local layer that names footprint local, which it keeps",
+      () =>
+        repo({
+          files: {
+            [COMMITTED_FILE]: { guardrails: { forcePush: "deny" } },
+            [LOCAL_FILE]: { footprint: "local", guardrails: { forcePush: "lease" } }
+          }
+        })
+    ],
+    [
       "on a local convention under a committed pattern",
       () =>
         repo({

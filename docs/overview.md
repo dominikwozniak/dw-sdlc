@@ -1,7 +1,6 @@
 # How dw-sdlc works
 
-This page explains how the parts of dw-sdlc fit together, for someone who uses the plugins. Each
-section says what a part is for, shows it once, and links to where its flags and edge cases live.
+This page explains how the parts of dw-sdlc fit together, for someone who uses the plugins.
 Every guard in full is in the [plugin README](../plugins/sdlc/README.md); a word with a capital
 letter, such as Landed or Finding, is defined in [`GLOSSARY.md`](../GLOSSARY.md). How this repository
 is built and released is under [`contributing/`](contributing/development.md).
@@ -126,11 +125,12 @@ The rules live in the repository, not in the plugin. Three layers set them, the 
 - A key no file sets is inferred: pnpm from the lockfile. No commit convention is inferred: with none
   set, a commit subject goes unchecked.
 - The local layer may tighten `guardrails`, `pr.merge` and `pr.review`. It never loosens them.
-- `pr.reviewCommand` and `worker` have no strictness order, so any layer sets them.
+- `pr.reviewCommand`, `worker` and [`footprint`](../README.md#footprint-local) have no strictness
+  order, so any layer sets them.
 - A linked worktree with no layer of its own reads the main checkout's.
-- An invalid layer is dropped whole. Until it is fixed, the guards run the strictest set, with
+- An invalid layer is dropped, but for `footprint: local`. Until fixed, the guards run the strictest set, with
   `pr.merge: ask` and `pr.review: full`, and the session start names each problem. A commit rule only
-  that layer sets is off meanwhile, and the reports say so.
+  that layer sets is off, and the reports say so.
 
 | key               | what it decides                                                          |
 | ----------------- | ------------------------------------------------------------------------ |
@@ -142,6 +142,7 @@ The rules live in the repository, not in the plugin. Three layers set them, the 
 | `pr.*`            | who merges, how deep a Review reads, which command reviews               |
 | `worker.*`        | how a Worker's Claude Code session starts                                |
 | `worktree.setup`  | the commands a new worktree's session is told to run                     |
+| `footprint`       | `github`, or `local`: nothing outside `.git/` and the local layer        |
 
 Each key, its default and its strictness order are in the
 [schema](../packages/dw-sdlc/config/agentic.config.schema.json). `/sdlc-setup` writes
@@ -407,8 +408,7 @@ address.
 - **A new Lead comes from a Recap or a kickoff.** `dw-sdlc recap --json` lists the open `ready-for-agent`
   issues with no assignee and no open blocker. On the dev's "go", `lead start` runs `/sdlc-delegate`
   with the next one and the Recap's `worker` follow-ups, filed as issues. On "start", `/sdlc-kickoff`
-  runs it with the work it kicked off. The session that started the Lead does not care for the work.
-  It can close.
+  runs it with the work it kicked off. The session that started it can close.
 
 Every flag and exit code is in each command's `--help`. How a Lead plans and gathers its Workers is in
 the [`sdlc-sessions` README](../plugins/sdlc-sessions/README.md#the-lead).

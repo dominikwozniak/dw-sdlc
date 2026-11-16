@@ -3,7 +3,7 @@
 // is not, as a line or one JSON document, with an exit code that names whose turn it is.
 
 import { repositoryRoot, resolveConfig, REVIEW_DEPTHS, type ReviewDepth } from "../agentic-config.ts"
-import { CannotRun, readArgs, usageError } from "../cannot-run.ts"
+import { CannotRun, messageOf, readArgs, usageError } from "../cannot-run.ts"
 import {
   type Answer,
   decide,
@@ -12,12 +12,14 @@ import {
   hostArgs,
   isScriptAction,
   lineOf,
+  localMark,
   type Policy,
   readyToMerge,
   REVIEW,
   type ScriptAction,
   type Status
 } from "../pr/decide.ts"
+import { type LocalReviews, localReviews } from "../pr/local-reviews.ts"
 import { gh, ghReads, namedProblem, nameItRemedy, now, type Reads, said } from "../pr/read.ts"
 import { reviewFullOf } from "../pr/review-full.ts"
 import type { PrState } from "../pr/state.ts"
@@ -62,6 +64,11 @@ run it blind again. It exits 2 too when GitHub refuses the compare it reads afte
 compare decides whether the mark's Findings still stand, so the script stops and posts nothing.
 --dry-run performs nothing: it parks at the first Action the script would perform, under performed
 with ok null.
+Under footprint local in .ai/agentic.config.json or its local layer, the script posts no ${REVIEW}
+status and reads none: what a Review left on each commit comes from .git/dw-sdlc/reviews/<n>.json,
+under the common git dir, the file pr reviewed writes. Its mark-reviewed writes there too: clean
+for a carry, off under off. The command it names for an off head is pr reviewed --off. Every
+decision is the one the statuses would give.
 One line, or one document with --json; --verbose adds the state as read to the document under
 facts. Needs an authenticated gh.
 
@@ -221,12 +228,40 @@ function readTarget(cli: Cli, root: string, reads: Reads): PrState {
 }
 
 /**
+ * The command a script Action runs, and the run: gh, or under footprint local a mark-reviewed recorded in
+ * the Review state, which posts nothing.
+ */
+function scriptRun(
+  pr: PrState,
+  action: ScriptAction,
+  policy: Policy,
+  local: LocalReviews | null
+): { command: string; perform: () => { status: number; stderr: string } } {
+  if (action === "mark-reviewed" && local !== null) {
+    const { mark, command } = localMark(pr, policy)
+    const perform = (): { status: number; stderr: string } => {
+      try {
+        local.record(pr.number, pr.head, mark)
+        return { status: 0, stderr: "" }
+      } catch (error) {
+        return { status: 1, stderr: messageOf(error) }
+      }
+    }
+    return { command, perform }
+  }
+  // -R names the repository, so the checkout the script runs in plays no part.
+  const args = hostArgs(pr, action, policy, true)
+  return { command: shellLine(["gh", ...args]), perform: () => gh(args) }
+}
+
+/**
  * Reads and decides until the Action is not the script's. Each script Action runs at most once, then the
  * pull request is read again; under --dry-run, or when an Action comes round again, it is the dev's.
  */
 function ship(cli: Cli, root: string, policy: Policy): { pr: PrState; answer: Answer; performed: Performed[] } {
+  const local = policy.footprint === "local" ? localReviews(root) : null
   // Only pr.review auto routes the depth from the changes, so only it reads them.
-  const reads = ghReads(policy.review.depth === "auto")
+  const reads = ghReads(policy.review.depth === "auto", local)
   let pr = readTarget(cli, root, reads)
   const performed: Performed[] = []
   // The head each Action ran on.
@@ -237,9 +272,7 @@ function ship(cli: Cli, root: string, policy: Policy): { pr: PrState; answer: An
     if (!isScriptAction(action)) {
       return { pr, answer, performed }
     }
-    // -R names the repository, so the checkout the script runs in plays no part.
-    const args = hostArgs(pr, action, policy, true)
-    const command = shellLine(["gh", ...args])
+    const { command, perform } = scriptRun(pr, action, policy, local)
     const { would } = NAMED[action]
     if (cli.dryRun) {
       performed.push({ action, command, ok: null })
@@ -255,7 +288,7 @@ function ship(cli: Cli, root: string, policy: Policy): { pr: PrState; answer: An
       const reason = reasonOf(done, pr, postedOn.get(action), NAMED[action])
       return { pr, answer: handedOver(pr, policy, answer, action, reason), performed }
     }
-    const { status, stderr } = gh(args)
+    const { status, stderr } = perform()
     const before = pr
     const message = stderr.trim()
     const record = { action, command, exit: status, ...(message === "" ? {} : { stderr: message }) }
@@ -288,7 +321,7 @@ export function run(argv: string[]): number {
   const root = repositoryRoot(process.cwd())
   const { config } = resolveConfig(root)
   const policy: Policy = {
-    ...declaredPolicy(config.pr, reviewFullOf(root, config)),
+    ...declaredPolicy(config, reviewFullOf(root, config)),
     ...(cli.merge ? { merge: "auto" } : {}),
     ...(cli.review === undefined ? {} : { review: { depth: cli.review, source: "flag" } })
   }

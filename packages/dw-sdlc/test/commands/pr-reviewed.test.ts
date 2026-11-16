@@ -151,7 +151,7 @@ describe("dw-sdlc pr reviewed", () => {
     assert.equal(run.status, 0, run.stderr)
     assert.ok(
       run.stdout.startsWith(
-        "Usage: dw-sdlc pr reviewed <n> [-R owner/name] --head <sha> [--findings | --accept] [--json]\n"
+        "Usage: dw-sdlc pr reviewed <n> [-R owner/name] --head <sha> [--findings | --accept | --off] [--json]\n"
       ),
       run.stdout
     )

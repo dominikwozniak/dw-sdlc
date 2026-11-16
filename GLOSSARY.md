@@ -59,6 +59,11 @@ and commit on a protected branch refused, and master, main and production protec
 The preset a commit subject follows: `ticket-key` (`[KEY-123] type: subject`) or `conventional`; a pattern wins.
 _Avoid_: commit format, commit style
 
+**Footprint**:
+What dw-sdlc leaves on GitHub: under `github` its review status, issues and branch names; under `local`
+nothing, its state kept under `.git/dw-sdlc/`.
+_Avoid_: stealth mode
+
 ### Git and pull requests
 
 **Lease push**:

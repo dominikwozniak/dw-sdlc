@@ -73,6 +73,23 @@ A repository changes the rules in `.ai/agentic.config.json`, such as its own `pr
 To turn the plugin off in one repository, set `"sdlc@dw-sdlc": false` under `enabledPlugins` in that
 repository's `.claude/settings.json`.
 
+## Footprint local
+
+Under `"footprint": "local"`, set in the local layer for a repository you do not own, nothing on
+GitHub names dw-sdlc. Under `github`, the default, three things do: the `dw-sdlc/review` commit status,
+a Brief filed as an issue, and a Worker's branch pushed as `worktree-worker-<issue>-<slug>`. Under
+`local` each moves into the checkout:
+
+| trace on GitHub under `github`   | under `local`                                                                              |
+| -------------------------------- | ------------------------------------------------------------------------------------------ |
+| the `dw-sdlc/review` status      | `.git/dw-sdlc/reviews/<n>.json`, a map of head to `clean`, `findings`, `off` or `accepted` |
+| a Brief filed as an issue        | a Brief file under `.git/dw-sdlc/briefs/`, its path the Lead's or Worker's ticket          |
+| `worktree-worker-<issue>-<slug>` | `<KEY>-<n>-<slug>` with a ticket key, else `<slug>`, renamed before the first push         |
+
+The files sit under the common git dir, which a Worker's worktree shares and git never commits. So
+`local` leaves nothing outside `.git/` and the local layer. The Ship script decides on the file as it
+would on the statuses.
+
 ## First ten minutes
 
 1. **Open a session** in a repository you work on.

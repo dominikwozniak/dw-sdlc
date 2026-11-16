@@ -144,4 +144,8 @@ land as several pull requests is the one exception: its body holds its open ques
 `worker` goes back to the dev as the template's start line, unfiled. The config the template asks for
 comes from `node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" config`.
 
+Under `footprint` `local` in that config, "go" files no issue: each `issue` and `worker` follow-up is a Brief
+file, written as the template's section Footprint local says. The answer to "go" gives the path of each
+`issue`, and the new Lead takes each `worker` by its path, in the place of its issue.
+
 When a Brief tells you to deliver the Recap to a Lead, follow the Brief after writing it.

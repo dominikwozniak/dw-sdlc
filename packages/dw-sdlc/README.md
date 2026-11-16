@@ -116,7 +116,9 @@ always the dev's to merge. `light` spawns the `sdlc-reviewer` subagent of the
 [`sdlc` plugin](https://github.com/dominikwozniak/dw-sdlc/blob/main/plugins/sdlc/README.md#the-light-review).
 
 `dw-sdlc pr reviewed <n> --head <sha>` pins a Review to the head it read, as the commit status
-`dw-sdlc/review`: clean, Findings open with `--findings`, or accepted by the dev with `--accept`. The
+`dw-sdlc/review`: clean, Findings open with `--findings`, or accepted by the dev with `--accept`. Under
+`"footprint": "local"` it posts no status and records the mark in `.git/dw-sdlc/reviews/<n>.json`, which
+the Ship script reads in the place of the statuses; `--off` records a head no one read there. The
 routing rules, the read mark and the limit of three unclean Reviews are in
 [How the Ship script merges a pull request](https://github.com/dominikwozniak/dw-sdlc/blob/main/docs/overview.md#how-the-ship-script-merges-a-pull-request).
 
@@ -133,7 +135,7 @@ routing rules, the read mark and the limit of three unclean Reviews are in
 | `references sync`  | every declared Reference, a repository cloned for reading, brought to its ref under `references/` |
 | `references setup` | the Router, its table and the ignore rules a repository needs to declare References               |
 | `pr ship [<n>]`    | the Action one pull request needs next, performing the script's own                               |
-| `pr reviewed <n>`  | a Review pinned to the head it read, as a commit status                                           |
+| `pr reviewed <n>`  | a Review pinned to the head it read, as a commit status or in the local Review state              |
 | `recap`            | the facts a Recap rests on, whether the session can be closed and what could come next            |
 | `sweep`            | Landed branches and clean worktrees removed, and what it keeps named                              |
 | `worker start`     | a Worker started on a Brief in a herdr terminal                                                   |

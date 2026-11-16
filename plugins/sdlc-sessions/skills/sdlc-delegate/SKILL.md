@@ -42,6 +42,9 @@ Turn the source into tickets, one Worker each:
   same way. Otherwise the issue is one ticket.
 - **A list of issues.** Each one is read as an issue.
 - **A spec in a file.** One ticket: one Worker takes it whole.
+- **A Brief file.** A path under `.git/dw-sdlc/briefs/`, which kickoff and a Recap write under footprint
+  `local`, as the template's section Footprint local says. One ticket: its Worker starts from that Brief, its
+  Questions and Report lines turned to the Lead form, and it has no `blockedBy`.
 - **Split.** `split`, or the dev asks to cut the current work: one ticket a piece, only when each piece is
   its own pull request that merges without the others, or read-only work that writes nothing. When the
   pieces must land in one diff, or edit the same files, refuse the split in one line, say why, and offer

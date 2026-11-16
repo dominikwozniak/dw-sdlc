@@ -14,6 +14,7 @@ merges nothing and does not start `/sdlc-pr-ship`, which comes after.
 - The convention: `node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" config` prints two lines of layers,
   then JSON, on exit 1 too. Read `commit.convention` and `commit.pattern` from that JSON. With neither,
   or no JSON, the repository names no convention: follow the subjects `git log --oneline -10` shows.
+  Read `footprint` there too, for the branch name in step 4.
 - The template: look for `pull_request_template.md` in `.github/`, the root and `docs/`, in any case,
   and for a `.github/PULL_REQUEST_TEMPLATE/` folder. A folder with several: take the one that fits
   the change, else ask. GitHub applies a template only in the web form, so `--body-file` skips it and
@@ -89,6 +90,12 @@ Whatever the shape:
 
 Take the branch name from `git rev-parse --abbrev-ref HEAD`, never `git branch --show-current`: it is
 empty on a detached HEAD, which has no pull request to open.
+
+Under `footprint` `local`, a branch named `worktree-<...>`, as Claude Code names a Worker's, never reaches
+the remote under that name. Before its first push, while `git rev-parse --abbrev-ref @{u}` names no
+`origin/<branch>`, rename it with `git branch -m <new>` and take the name again. `<new>` is
+`<KEY>-<n>-<slug>` when the work has a ticket key, from the Brief, its source or the branch, as
+`ABC-123-add-export`; else `<slug>`, the slug of the Worker's name `worker-<issue>-<slug>` or `worker-<slug>`.
 
 1. Compare `git rev-parse --abbrev-ref @{u}` with `origin/<branch>`. It fails, or names another
    branch, as it does for a branch cut from `origin/main`, which tracks `origin/main`: run

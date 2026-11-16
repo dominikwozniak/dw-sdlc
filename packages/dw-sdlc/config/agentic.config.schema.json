@@ -527,6 +527,10 @@
         }
       },
       "additionalProperties": false
+    },
+    "footprint": {
+      "description": "What dw-sdlc leaves on GitHub. `github`, the default: the Ship script posts the `dw-sdlc/review` commit status on the heads it carries, kickoff, a Recap and the Lead file a Brief as an issue, and a Worker's branch is pushed as Claude Code names it, `worktree-worker-<issue>-<slug>`. `local`: nothing on GitHub names dw-sdlc. The Review state is a file per pull request under `.git/dw-sdlc/reviews/`, a Brief a file under `.git/dw-sdlc/briefs/`, and `/sdlc-pr-open` renames a Worker's branch before its first push. It tightens and loosens no guard, so the local layer may set it, as it does for a repository the dev does not own. An invalid layer that names `local` still keeps it, so a broken layer never sends the Review state back to GitHub.",
+      "enum": ["github", "local"]
     }
   }
 }
