@@ -374,7 +374,7 @@ fi
 
 # --- rails tasks that decrypt ----------------------------------------------------------------------
 # They show a secret decrypted from a key no path names. Read as words, behind `bundle exec` and
-# `spring` too. credentials:diff prints a file decrypted, or with --enroll sets git diff to.
+# `spring` too. credentials:diff prints a file decrypted; --enroll makes git diff do so after an edit.
 
 # check_rails — WORDS, a command behind its launchers, is a rails task that decrypts.
 check_rails() {
