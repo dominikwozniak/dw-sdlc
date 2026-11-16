@@ -631,4 +631,5 @@ to loosest.
 | `pr.reviewCommand`                    | `/code-review`                                              | `/sdlc-pr-ship`                                            |
 | `pr.reviewFull`                       | none                                                        | the Ship script                                            |
 | `worktree.setup`                      | none                                                        | the session-start report                                   |
+| `footprint`                           | `github`                                                    | the Ship script, `/sdlc-pr-open`, `sdlc-sessions`          |
 | `worker.command`                      | `claude`                                                    | the setup, and `sdlc-sessions`                             |

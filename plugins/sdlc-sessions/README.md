@@ -206,11 +206,12 @@ How it wakes, waits and counts its Workers is in `skills/sdlc-delegate/SKILL.md`
 
 ## Config keys it reads
 
-| key                             | read by                                                               |
-| ------------------------------- | --------------------------------------------------------------------- |
-| `worker.command`                | a Brief's start line, `dw-sdlc worker start` and `dw-sdlc lead start` |
-| `worker.model`, `worker.effort` | the model and effort a Brief routes a clear spec to                   |
-| `guardrails.protectedBranches`  | `dw-sdlc recap`, for a branch that needs no pull request of its own   |
-| `pr.merge`                      | whether a Worker's pull request ends merged or parked for the dev     |
+| key                             | read by                                                           |
+| ------------------------------- | ----------------------------------------------------------------- |
+| `worker.command`                | a Brief's start line, `worker start` and `lead start`             |
+| `worker.model`, `worker.effort` | the model and effort a Brief routes a clear spec to               |
+| `footprint`                     | under `local`, a Brief file in the place of an issue              |
+| `guardrails.protectedBranches`  | `dw-sdlc recap`, for a branch needing no pull request of its own  |
+| `pr.merge`                      | whether a Worker's pull request ends merged or parked for the dev |
 
 Each skill's evals, outside `pnpm test` and the Gate, are in [Evals](../../docs/contributing/evals.md).
