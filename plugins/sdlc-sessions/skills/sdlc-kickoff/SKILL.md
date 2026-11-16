@@ -57,6 +57,11 @@ grills the dev in its own terminal. Then the three ways out. Recommend the light
 
 Then one line: which word picks each way, `start`, `issue` or `line`.
 
+Under `footprint` `local` in the config, as the template's section Footprint local says, the issue way is
+gone: offer the Lead and the start line, picked by `start` or `line`, and recommend the start line when the
+dev said not now. The Lead's ticket for an idea or a follow-up is its Brief file, written on "start" in
+the place of the issue.
+
 Then stop. Nothing runs before the dev's word. On "start", file the issue the Lead needs, if any, then
 start the Lead and report it by the template's exit codes. On "issue", file it with `gh issue create
 --title <title> --body-file <file>`, using the Brief as the template says for an issue's body, then give
