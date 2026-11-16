@@ -27,7 +27,7 @@ mark on the head in .git/dw-sdlc/reviews/<n>.json, under the common git dir, bes
 there: clean, findings with --findings, accepted with --accept. --off records off: no one read the
 head, under pr.review off. pr ship --dry-run names that command. --off works under footprint local only.
 
-Exit 0 posted, 2 when it cannot run or the head moved.`
+Exit 0 posted, or recorded under footprint local; 2 when it cannot run or the head moved.`
 
 /** What the status says: a clean Review, the read mark of one that left a Finding open, or the dev's acceptance. */
 const STATUS = {
