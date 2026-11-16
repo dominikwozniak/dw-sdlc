@@ -517,6 +517,7 @@ git(
 const SECRETS = join(TMP, "secrets")
 initRepo(SECRETS, { branch: "main" })
 write(join(SECRETS, "secrets", "tls.pem"), "KEY\n")
+write(join(SECRETS, "secrets", "a1.pem"), "KEY\n")
 write(join(SECRETS, "secrets", "README.md"), "")
 write(join(SECRETS, "certs", "tls.pem"), "PUBLIC\n")
 write(join(SECRETS, ".env"), "SAFE=1\n")
@@ -558,6 +559,10 @@ describe("a glob a repository adds to envFiles.deny refuses a path that is no en
   blockedBash("a cd moves the path", "cd secrets && cat tls.pem", SECRETS)
   blockedBash("a glob over the denied directory", "cat secrets/*.pem", SECRETS)
   blockedGrep("grep-the-denied-pem-by-glob", "*.pem", "secrets", SECRETS)
+  // The deny entry written out with its wildcard as `x`, secrets/x.pem, meets no `a*` glob.
+  blockedGrep("a glob reaching a denied file through a name outside the probe", "secrets/a*.pem", ".", SECRETS)
+  blockedGrep("a bare glob reaching a denied file through such a name", "a*.pem", "secrets", SECRETS)
+  allowedGrep("a glob whose end no deny entry shares", "*.md", "secrets", SECRETS)
   allowedFile("the same name elsewhere", "Read", "certs/tls.pem", SECRETS)
   allowedFile("another file in the denied directory", "Read", "secrets/README.md", SECRETS)
   allowedFile("a tracked env file still passes", "Read", ".env", SECRETS)
@@ -573,7 +578,7 @@ describe("an env-named file keeps its verdict whatever the deny list holds", () 
   blockedFile("policy deny still refuses a tracked env file", "Read", ".env", DENY)
 })
 
-describe("rails credentials:show and credentials:edit print every secret", () => {
+describe("rails commands that decrypt the credentials or an encrypted file", () => {
   for (const command of [
     "bin/rails credentials:show",
     "rails credentials:show",
@@ -588,12 +593,23 @@ describe("rails credentials:show and credentials:edit print every secret", () =>
     "bash -c 'bin/rails credentials:show'",
     "rtk bin/rails credentials:show",
     "spring rails credentials:show",
-    'echo "$(bin/rails credentials:show)"'
+    'echo "$(bin/rails credentials:show)"',
+    "bin/rails credentials:fetch secret_key_base",
+    "bin/rails credentials:diff config/credentials/production.yml.enc",
+    "bin/rails credentials:diff --enroll config/credentials/production.yml.enc",
+    "bin/rails encrypted:show config/secrets.yml.enc",
+    "bin/rails encrypted:edit config/secrets.yml.enc --key config/secrets.key",
+    "bundle exec -- rails credentials:show",
+    "bundle exec --gemfile Gemfile rails credentials:show",
+    "bundle exec --keep-file-descriptors -- bin/rails encrypted:show config/secrets.yml.enc"
   ]) {
     blockedBash(`refuses ${command}`, command, RAILS)
   }
   for (const command of [
     "bin/rails credentials:diff --enroll",
+    "bin/rails credentials:diff --disenroll",
+    "bin/rails encrypted:help",
+    "echo encrypted:show",
     "bin/rails server",
     "bin/rails db:migrate",
     "bundle exec rspec",
@@ -608,5 +624,10 @@ describe("rails credentials:show and credentials:edit print every secret", () =>
     expectExit(verdict, 2)
     assert.match(verdict.stderr, /credentials:show/)
     assert.match(verdict.stderr, /decrypt/)
+  })
+  it("names the encrypted file command it refuses", () => {
+    const verdict = runHook("block-env-access", bashPayload("bin/rails encrypted:show config/secrets.yml.enc", RAILS))
+    expectExit(verdict, 2)
+    assert.match(verdict.stderr, /encrypted:show/)
   })
 })
