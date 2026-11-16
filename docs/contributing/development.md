@@ -42,5 +42,5 @@ working tree ([`AGENTS.md`](../../AGENTS.md#tooling)).
 
 - How the Bash guards read a command, the quote walker and their known limits:
   [the bash guard's parser](bash-guard.md).
-- How a pull-request skill is measured: [evals](evals.md).
+- How a pull-request skill and the `sdlc-reviewer` agent are measured: [evals](evals.md).
 - Which docs and decision records own a file: `pnpm exec dw-sdlc primitives --paths <file>`.
