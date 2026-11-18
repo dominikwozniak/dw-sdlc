@@ -222,6 +222,42 @@ describe("the sdlc-sessions plugin", () => {
     }
   })
 
+  it("routes a Brief by its kind from the eight-row table, risk alone setting xhigh and haiku out of it", () => {
+    const template = readFileSync(join(PLUGIN_ROOT, BRIEF_TEMPLATE), "utf8")
+    const section = /^## Model and effort\n[\s\S]*?(?=\n## )/m.exec(template)?.[0] ?? ""
+    const rows = [
+      [/\| mechanical, its proof a command[^|]+\| `sonnet` +\| `medium` +\|/, "mechanical"],
+      [/\| a clear spec with an existing pattern to copy +\| `sonnet` +\| `medium` +\|/, "a pattern to copy"],
+      [/\| a clear spec: [^|]+\| `worker\.model` +\| `worker\.effort` +\|/, "a clear spec"],
+      [/\| read-only, across many files or repositories, no decisions +\| `opus` +\| `medium` +\|/, "read-only"],
+      [/\| it needs decisions, design or reading unclear code +\| `opus` +\| `high` +\|/, "decisions"],
+      [/\| it needs a grilling: [^|]+\| `opus` +\| `high` +\|/, "a grilling"],
+      [/\| risk: security, payments, a data migration +\| `opus` +\| `xhigh` +\|/, "risk"],
+      [/\| the dev named a model or an effort +\| as they said +\| as they said +\|/, "the dev's word"]
+    ] as const
+    for (const [pattern, label] of rows) {
+      assert.match(section, pattern, `the table has the ${label} row`)
+    }
+    assert.equal(section.match(/^\| /gm)?.length, 10, "a header, its rule and eight rows")
+    assert.doesNotMatch(section, /\| `haiku`/, "haiku is not in the table")
+    assert.match(section, /The one exception is the risk row, which sets `xhigh` itself/)
+    assert.match(section, /The Lead itself is never routed/)
+  })
+
+  it("lets the dev name a model and an effort for one ticket, which the Lead shows in its plan", () => {
+    const template = readFileSync(join(PLUGIN_ROOT, BRIEF_TEMPLATE), "utf8")
+    assert.match(template, /`#<n>:<model>\/<effort>` applies to that ticket alone/)
+    assert.ok(template.includes("`/sdlc-delegate #12 #13:opus/medium`"))
+    assert.match(template, /A model or an effort written with no ticket applies to every Worker/)
+    assert.ok(template.includes("`#<n>:fable/xhigh` sets"), "the new Lead's tickets carry the form")
+    const delegate = skillText("sdlc-delegate")
+    assert.match(delegate, /argument-hint: "\[#issue\[:model\/effort\] \.\.\./)
+    assert.match(delegate, /its model and\s+effort with the row that chose them/, "the plan table shows both")
+    assert.match(delegate, /Route each Worker by its own ticket's kind/)
+    const recap = skillText("sdlc-recap")
+    assert.match(recap, /stays in the one Lead, after that ticket: `\/sdlc-delegate #<n> #<m>:fable \.\.\.`/)
+  })
+
   it("names the new Lead after its first ticket by one rule, a Brief file included, which sdlc-recap follows", () => {
     const template = readFileSync(join(PLUGIN_ROOT, BRIEF_TEMPLATE), "utf8")
     assert.match(template, /- an issue: `lead-<n>-<slug>`, `<n>` its number/)

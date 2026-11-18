@@ -1,7 +1,7 @@
 ---
 name: sdlc-delegate
 description: Make this session a Lead that starts Workers in herdr terminals, in parallel where the tickets allow, and gathers their Recaps. Invoke it when the dev types /sdlc-delegate, or asks in their own words to hand work to Workers or parallel sessions, such as "oddeleguj", "puść te tickety równolegle" or "odpal workerów na te tickety". When the conversation has just published tickets, or a spec with sub-issues, in a repository that has `.ai/agentic.config.json`, offer it in one line and wait for the dev's go. It is how a session starts a Worker, never a bare hc run. A Worker never invokes it, and "implement this issue" is work for this session, never this skill.
-argument-hint: "[#issue ... | spec path | split] [model or effort]"
+argument-hint: "[#issue[:model/effort] ... | spec path | split] [model or effort]"
 ---
 
 # sdlc-delegate
@@ -58,17 +58,23 @@ ticket of this set waits in the queue until every blocker is closed. One blocked
 the set is skipped, since nothing here closes it. Tickets with no edge between them run in parallel even
 when they touch the same files: the later Worker rebases through `/sdlc-pr-ship`.
 
+A ticket may carry its own model and effort, as `#13:opus/medium`; the template's section The dev's word
+says how, and that a word with no ticket applies to every Worker. Read the ticket by its number alone, and
+the word after the colon as that Worker's routing.
+
 When it is unclear what to hand over, ask in plain text and end your turn.
 
 ## The plan
 
-Before any Worker starts, show the dev a table, a row a ticket: the ticket, its Worker's name, and `now`,
-`queued behind #<n>` or `skipped`, with the reason. One ticket takes a line, not a table. Then go on to
+Before any Worker starts, show the dev a table, a row a ticket: the ticket, its Worker's name, its model and
+effort with the row that chose them, and `now`, `queued behind #<n>` or `skipped`, with the reason. One
+ticket takes a line, not a table. Then go on to
 start them: invoking this skill is the dev's go, so the plan asks nothing.
 
 ## The Briefs
 
-Read `${CLAUDE_PLUGIN_ROOT}/templates/brief.md` and follow it. The config comes from
+Read `${CLAUDE_PLUGIN_ROOT}/templates/brief.md` and follow it. Route each Worker by its own ticket's kind,
+so two tickets of one delegation may run on different models and efforts. The config comes from
 `node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" config`. Write a Brief for every ticket marked `now` or
 queued, and none for a skipped one. Every Brief this skill writes:
 
@@ -91,9 +97,9 @@ node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" worker start --brief <file> --na
   send the Brief again or start the Worker twice.
 - Exit 2: nothing started. Say why.
 
-Start one ticket marked `now` first, alone. Exit 0 proves the command, the account, the model and the
-effort, so start every other `now` ticket right after it. On exit 1 or 2 start nothing more: the same
-fault would reach every Worker.
+Start one ticket marked `now` first, alone. Exit 0 proves the command and the account, so start every
+other `now` ticket right after it; one whose model or effort differs is proven by its own start. On exit
+1 or 2 start nothing more: the same fault would reach every Worker.
 
 At most three Workers are in flight. A Worker is in flight from its start until its Recap reports its
 end: merged, parked for the dev, or done for read-only work. Its terminal often stays live after that, until

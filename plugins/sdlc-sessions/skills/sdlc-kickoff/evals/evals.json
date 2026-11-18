@@ -205,6 +205,33 @@
         "The answer ends with the last line Next: in a code span naming issue",
         "No issue was filed and no gh or dw-sdlc command was run"
       ]
+    },
+    {
+      "id": 14,
+      "name": "mechanical-work-routes-to-sonnet-medium",
+      "prompt": "/sdlc-kickoff #120\n\nThe dev writes English. In place of running them, take these as what the commands printed.\n\n`gh issue view 120 --comments`:\ntitle: Add the German translation keys for the export screen\nbody: ## Acceptance criteria\n- [ ] Every key of locales/en/export.json exists in locales/de/export.json with a German value.\n- [ ] `pnpm check` passes, its locale check comparing the key sets.\ncomments: none\n\n`dw-sdlc config`, exit 0:\ncommitted  .ai/agentic.config.json  valid\nlocal      .ai/agentic.config.local.json  absent\n{\"gate\":{\"command\":\"pnpm check\"},\"pr\":{\"merge\":\"ask\"},\"worker\":{\"command\":\"claude\",\"model\":\"sonnet\",\"effort\":\"high\"}}\n\n`git worktree list --porcelain` first line: worktree /repo/app\n\n`printenv HC_TERMINAL_ID`: nothing, exit 1.\n`git rev-parse --path-format=absolute --git-dir --git-common-dir`: /repo/app/.git, then /repo/app/.git.\n\nThe repository has the /implement skill. Give your answer as the skill says, and save it as kickoff.md. Run nothing else.",
+      "expected_output": "A Brief on sonnet and medium, not the config sonnet and high, with a reason naming mechanical work.",
+      "files": [],
+      "expectations": [
+        "The Model and effort line says sonnet and medium",
+        "The reason names mechanical work whose proof is a command",
+        "The start line holds claude --worktree worker-120-, --model sonnet and --effort medium",
+        "Neither xhigh, max nor fable is chosen"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "risk-routes-to-opus-xhigh-without-the-devs-word",
+      "prompt": "/sdlc-kickoff #130\n\nThe dev writes English. In place of running them, take these as what the commands printed.\n\n`gh issue view 130 --comments`:\ntitle: Migrate the payments table to the new ledger schema\nbody: Move every row of payments into ledger_entries with a data migration, and switch the refund code in src/payments/ to read the new table. The migration runs once in production.\ncomments: none\n\n`dw-sdlc config`, exit 0:\ncommitted  .ai/agentic.config.json  valid\nlocal      .ai/agentic.config.local.json  absent\n{\"gate\":{\"command\":\"pnpm check\"},\"pr\":{\"merge\":\"ask\"},\"worker\":{\"command\":\"claude\",\"model\":\"sonnet\",\"effort\":\"high\"}}\n\n`git worktree list --porcelain` first line: worktree /repo/app\n\n`printenv HC_TERMINAL_ID`: nothing, exit 1.\n`git rev-parse --path-format=absolute --git-dir --git-common-dir`: /repo/app/.git, then /repo/app/.git.\n\nThe repository has the /implement skill. Give your answer as the skill says, and save it as kickoff.md. Run nothing else.",
+      "expected_output": "A Brief on opus and xhigh, the risk row, with a reason naming the risk, though the dev gave no word.",
+      "files": [],
+      "expectations": [
+        "The Model and effort line says opus and xhigh",
+        "The reason names the risk: payments or a data migration",
+        "The reason does not claim the word of the dev",
+        "The start line holds claude --worktree worker-130-, --model opus and --effort xhigh",
+        "Neither max nor fable is chosen"
+      ]
     }
   ]
 }

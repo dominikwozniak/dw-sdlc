@@ -26,8 +26,9 @@ Brief into a running Lead: a new Lead takes that role, and the dev pastes into a
 nothing filed is filed before its Lead starts, so a Lead always reads its tickets as issues. One Worker
 costs two sessions, the Lead and the Worker. The Lead routes each Worker by the template. A kickoff of one
 ticket passes the model and effort it showed, and a model or an effort the dev names follows the tickets.
-A Recap follow-up the dev routes alone, as "go, but 1 on fable", gets a Lead of its own, since a Lead
-runs every Worker on the one model it was given.
+[ADR 0027](0027-a-brief-routes-by-its-kind-and-the-dev-can-name-one-ticket.md) supersedes the claim that a Lead
+runs every Worker on one model: a Lead routes each Worker by its own ticket, so a Recap follow-up the
+dev routes alone, as "go, but 1 on fable", stays in the one Lead.
 
 The skill keeps `disable-model-invocation`, since it starts sessions, and only the dev's word does that.
 A Recap starts the Lead itself and calls no skill. The template's first line, the `/implement #<n>` a

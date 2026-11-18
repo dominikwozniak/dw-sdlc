@@ -167,11 +167,10 @@ in the session that holds it, then kick off the tickets.
 
 ## The Brief
 
-`templates/brief.md` holds what every Brief shares: its fields, its rules, the Worker's name
-(`worker-<issue>-<slug>`), the routing of model and effort, the start line, and how a session starts the
-new Lead that carries the work. A Brief is in English and
-points at its source without retelling it. Its kind sets the model and effort, never the size of the
-change, and the dev's word wins over both.
+`templates/brief.md` holds what every Brief shares: its fields, the Worker's name
+(`worker-<issue>-<slug>`), the model and effort table, the start line and the new Lead. A Brief is in
+English and points at its source. Its kind picks the table's row, never the size of the change; only risk
+sets `xhigh` itself, and the dev's word wins. `/sdlc-delegate #12 #13:opus/medium` sets #13 alone.
 
 A Worker carries its pull request through [`/sdlc-pr-ship`](../sdlc/README.md#shipping-a-pull-request),
 which it may start because its Brief tells it to; `pr.merge` decides whether it ends merged or parked for
