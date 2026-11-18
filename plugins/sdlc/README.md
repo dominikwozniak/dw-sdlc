@@ -4,8 +4,8 @@ The plugin of [dw-sdlc](../../README.md) that holds an agent session to a reposi
 
 - the guards: shell hooks that judge each tool call and refuse it, ask, or stay silent;
 - the session hooks, which report what a checkout lacks and bring its [References](#references) to their ref;
-- six skills, which set a repository up, check a machine, add a Reference, open a pull request, ship it
-  and sweep what landed;
+- seven skills, which set a repository up, check a machine, add a Reference, open a pull request, ship it,
+  sweep what landed and fan out subagents to research;
 - `sdlc-reviewer`, the subagent that reads a change at the `light` Review depth.
 
 The rules come from the repository's `.ai/agentic.config.json`, a machine's own
@@ -616,7 +616,7 @@ leaves](../../docs/overview.md#how-a-sweep-removes-what-finished-work-leaves).
 checks what they claim and answers in the conversation, writing no file. It starts when you type it or
 ask for subagents in so many words; findings kept in the repository stay the engineering skill
 `/research` ([ADR 0027](../../docs/adr/0027-sdlc-research-extends-research-and-the-model-may-start-it.md)).
-A brief hands an agent the material, never the session's hypothesis. The answer opens with a verdict,
+An agent's prompt holds the material, never the session's hypothesis. The answer opens with a verdict,
 cites `file:line` or a link per finding, and marks a claim the session did not check `unverified`.
 
 ## Config keys it reads

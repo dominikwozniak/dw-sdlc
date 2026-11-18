@@ -24,7 +24,7 @@ Paths are relative to `plugins/sdlc/`.
 | `hooks/rtk-rewrite.sh`                               | no guard: it rewrites a command through `rtk` to trim its output                                                               |
 | `hooks/commit-msg.sh`                                | a git hook, not a Claude Code one                                                                                              |
 | `dw-sdlc`                                            | a link to `packages/dw-sdlc`, the package the hooks and skills run; `claude plugin install` copies it as a real directory      |
-| `skills/sdlc-<name>/`                                | the six skills                                                                                                                 |
+| `skills/sdlc-<name>/`                                | the seven skills                                                                                                               |
 | `agents/sdlc-reviewer.md`                            | the subagent of a `light` Review, spawned as `sdlc:sdlc-reviewer`                                                              |
 | `evals/sdlc-reviewer/`                               | the reviewer's evals, run by hand: `evals.json`, a synthetic `fixture/` and `build-fixture.sh`, as [Evals](evals.md) says      |
 | `test/`                                              | the hook tests, mirroring `hooks/`, and the manifest's                                                                         |

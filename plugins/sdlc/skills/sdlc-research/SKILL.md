@@ -13,8 +13,8 @@ stays.
 
 ## 1. Pick the mode and the material
 
-The first word of the arguments names the mode; the rest is the question. With no mode, pick the one
-the question fits.
+A first argument that is exactly `research`, `review` or `overview` names the mode; the rest is the
+question. With no mode, pick the one the question fits.
 
 | mode       | the question                                                       | the subagent                                             |
 | ---------- | ------------------------------------------------------------------ | -------------------------------------------------------- |
@@ -36,7 +36,7 @@ the cost of doing it), each over the whole material.
 Set `model` on each agent call, never in this skill's frontmatter: `sonnet` for `research` and
 `overview`, `opus` for `review`. Use the `general-purpose` agent type, or `Explore` for `overview`.
 
-Each brief holds:
+Each agent's prompt holds:
 
 - the question, in the dev's words;
 - the material and the paths: the plan, the diff command, the files, the links;
@@ -44,7 +44,7 @@ Each brief holds:
   from what it inferred;
 - that it changes nothing and writes no file.
 
-A brief holds the material, never this session's hypothesis, its guess at the answer or its opinion of
+A prompt holds the material, never this session's hypothesis, its guess at the answer or its opinion of
 the plan, and never another agent's result: an agent handed a thesis tends to confirm it.
 
 ## 3. Check what they claim
