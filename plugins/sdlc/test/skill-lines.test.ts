@@ -79,6 +79,18 @@ describe("the bin lines of a skill", () => {
     assert.match(message ?? "", /^plugins\/sdlc-sessions\/skills\/sdlc-recap\/SKILL\.md:\d+ `recap --jsn` exits 2/)
   })
 
+  it("reach the session subcommands from the sdlc-session skill and the naming of sdlc-delegate", () => {
+    const sessions = join(PLUGINS, "sdlc-sessions", "skills")
+    const lines = (name: string): string[] =>
+      binLines(readFileSync(join(sessions, name, "SKILL.md"), "utf8")).map(({ text }) => text)
+    assert.deepEqual(lines("sdlc-session"), [
+      "session name <name> --role lead",
+      "session name <name> --role worker",
+      "session ls"
+    ])
+    assert.ok(lines("sdlc-delegate").includes("session name lead-<topic> --role lead"))
+  })
+
   it("pass the probe in every SKILL.md of every plugin", () => {
     const failures: string[] = []
     let probed = 0

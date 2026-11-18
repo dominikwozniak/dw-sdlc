@@ -321,7 +321,12 @@
         "packages/dw-sdlc/src/recap-next.ts",
         "packages/dw-sdlc/src/recap-primitives.ts"
       ],
-      "docs": ["plugins/sdlc-sessions/README.md#dw-sdlc-recap", "GLOSSARY.md", "AGENTS.md#commands"]
+      "docs": [
+        "plugins/sdlc-sessions/README.md#dw-sdlc-recap",
+        "docs/contributing/close-verdict.md",
+        "GLOSSARY.md",
+        "AGENTS.md#commands"
+      ]
     },
     {
       "id": "tools.sweep",
@@ -370,6 +375,14 @@
       ]
     },
     {
+      "id": "tools.session",
+      "name": "dw-sdlc session",
+      "group": "tools",
+      "summary": "Names the calling herdr session a Lead or a Worker, and lists every live session with its role.",
+      "code": ["packages/dw-sdlc/src/commands/session-name.ts", "packages/dw-sdlc/src/commands/session-ls.ts"],
+      "docs": ["plugins/sdlc-sessions/README.md#the-session-helper", "docs/specs/session-helper.md", "GLOSSARY.md"]
+    },
+    {
       "id": "skills.recap",
       "name": "sdlc-recap",
       "group": "skills",
@@ -392,6 +405,14 @@
       "summary": "The skill that makes a session a Lead on the dev's word: it starts Workers in parallel in herdr and relays their Recaps.",
       "code": ["plugins/sdlc-sessions/skills/sdlc-delegate/"],
       "docs": ["plugins/sdlc-sessions/README.md#the-lead", "GLOSSARY.md"]
+    },
+    {
+      "id": "skills.session",
+      "name": "sdlc-session",
+      "group": "skills",
+      "summary": "The on-demand helper that names this herdr session a Lead or a Worker, or lists the live ones.",
+      "code": ["plugins/sdlc-sessions/skills/sdlc-session/"],
+      "docs": ["plugins/sdlc-sessions/README.md#the-session-helper", "docs/specs/session-helper.md", "GLOSSARY.md"]
     },
     {
       "id": "skills.brief-template",

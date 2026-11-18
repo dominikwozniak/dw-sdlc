@@ -401,6 +401,8 @@ address.
 | `dw-sdlc worker ls`                              | lists the Lead's Workers: name, state, status, folder                                           |
 | `dw-sdlc worker report --to <lead> --recap <f>`  | sends a Worker's Recap to its Lead, retried while the Lead sits on a dialog                     |
 | `dw-sdlc lead start --name <n> --prompt <msg>`   | starts a new Lead, from a Recap or `/sdlc-kickoff`                                              |
+| `dw-sdlc session name <n> --role lead\|worker`   | names the calling session: its labels and its herdr tab                                         |
+| `dw-sdlc session ls`                             | lists every live session with its role                                                          |
 
 - **A Worker starts from origin's tip.** `worker start` fetches origin's default branch first, since
   Claude Code branches the worktree from a cached `origin/<default>` it refetches only once a day.
@@ -411,7 +413,7 @@ address.
   `footprint: github`, and stays a file under `.git/dw-sdlc/briefs/` in the common git dir under `local`.
   On "start", `/sdlc-kickoff` runs it with the work it kicked off. The session that started it can close.
 
-Every flag and exit code is in each command's `--help`. How a Lead plans and gathers its Workers is in
+Every flag and exit code is in each command's `--help`. `/sdlc-session`: [design record](specs/session-helper.md). How a Lead plans and gathers its Workers is in
 the [`sdlc-sessions` README](../plugins/sdlc-sessions/README.md#the-lead).
 
 ## How a Sweep removes what finished work leaves

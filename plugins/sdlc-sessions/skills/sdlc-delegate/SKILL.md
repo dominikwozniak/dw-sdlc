@@ -184,6 +184,7 @@ Sweep, report what it kept, and name each Worker that stays under Waiting on.
 
 ## Naming the Lead
 
-Only when the dev asks, name this session `lead-<topic>`: find the tab holding this terminal in
-`herdr-app ls`, then run `herdr-app do tab.rename --id <tab> --name lead-<topic>` and
-`hc label <this terminal> role=lead name=lead-<topic>`. Workers are named `worker-<issue>-<slug>`.
+Only when the dev asks, name this session `lead-<topic>`, with
+`node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" session name lead-<topic> --role lead`, which labels this
+terminal and renames its tab. A session that already holds a name keeps it unless the dev asks for another.
+Workers are named `worker-<issue>-<slug>`.

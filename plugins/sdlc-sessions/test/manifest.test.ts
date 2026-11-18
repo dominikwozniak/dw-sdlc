@@ -10,7 +10,7 @@ import { describe, it } from "node:test"
 const PLUGIN_ROOT = join(import.meta.dirname, "..")
 const PLUGINS = join(PLUGIN_ROOT, "..")
 const REPO_ROOT = join(PLUGINS, "..")
-const SKILLS = ["sdlc-delegate", "sdlc-kickoff", "sdlc-recap"]
+const SKILLS = ["sdlc-delegate", "sdlc-kickoff", "sdlc-recap", "sdlc-session"]
 const BRIEF_TEMPLATE = "templates/brief.md"
 /** The skills that write a Brief, each reading the one template rather than a copy of its rules. */
 const BRIEF_WRITERS = ["sdlc-delegate", "sdlc-kickoff", "sdlc-recap"]
@@ -82,6 +82,47 @@ describe("the sdlc-sessions plugin", () => {
     assert.match(description, /A Worker never invokes it/)
     assert.doesNotMatch(description, /: /, "a colon and a space end a plain YAML value")
     assert.doesNotMatch(description, / #/, "a space and a hash start a YAML comment")
+  })
+
+  it("lets the model reach sdlc-session on a naming request, on haiku at low effort, in the session itself", () => {
+    const frontmatter = frontmatterOf(skillText("sdlc-session"))
+    assert.doesNotMatch(frontmatter, /^disable-model-invocation:/m)
+    assert.match(frontmatter, /^model: haiku$/m)
+    assert.match(frontmatter, /^effort: low$/m)
+    assert.doesNotMatch(frontmatter, /^context:/m, "lead must change this session, so no fork")
+    const description = /^description: (.+)$/m.exec(frontmatter)?.[1] ?? ""
+    assert.match(description, /^Name this herdr session as a Lead or a Worker, or list the live sessions\./)
+    assert.match(
+      description,
+      /Invoke it when the dev types \/sdlc-session, or asks in their own words to name or rename/
+    )
+    assert.match(description, /"rename this session to lead-x", "this session is the lead"/)
+    assert.match(description, /Not for starting Workers, which is \/sdlc-delegate\.$/)
+    assert.doesNotMatch(description, /: /, "a colon and a space end a plain YAML value")
+    assert.doesNotMatch(description, / #/, "a space and a hash start a YAML comment")
+  })
+
+  it("has sdlc-session name only this session through the bin, hold the Lead mode soft and answer orchestrator with Lead", () => {
+    const text = skillText("sdlc-session")
+    assert.ok(text.includes('dw-sdlc/src/cli.ts" session name <name> --role lead'), "lead names by the bin")
+    assert.ok(text.includes('dw-sdlc/src/cli.ts" session name <name> --role worker'), "worker names by the bin")
+    assert.ok(text.includes('dw-sdlc/src/cli.ts" session ls'), "ls lists by the bin")
+    assert.match(text, /`\/sdlc-session` alone prints this table and nothing else/)
+    assert.match(text, /It writes no code and commits nothing/)
+    assert.match(text, /offers `\/sdlc-delegate` in one line/)
+    assert.match(text, /This is a habit, not a rule: no guard enforces it/)
+    assert.match(text, /A label alone makes no Workers this Lead's children/)
+    assert.match(text, /"orchestrator" for a Lead: understand it, and answer with Lead/)
+    assert.match(text, /Outside herdr[\s\S]*?refuse in one line/)
+  })
+
+  it("has sdlc-delegate name the Lead by the bin, not by raw herdr-app and hc lines", () => {
+    const text = skillText("sdlc-delegate")
+    const naming = text.slice(text.indexOf("## Naming the Lead"))
+    assert.ok(naming.includes('dw-sdlc/src/cli.ts" session name lead-<topic> --role lead'))
+    assert.doesNotMatch(naming, /herdr-app|hc label/)
+    assert.match(naming, /Only when the dev asks/)
+    assert.match(naming, /already holds a name keeps it/)
   })
 
   it("leaves sdlc-kickoff for the dev to invoke, never the model", () => {
