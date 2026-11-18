@@ -1,7 +1,7 @@
 {
   "name": "sdlc",
-  "version": "0.34.1",
-  "description": "Guards on every tool call and the road from a pull request to merged, beside the engineering skills and replacing none: refuses destructive git, unvouched env files, the wrong package manager and sloppy commits; routes Bash through rtk when present; syncs References; skills to set a repository up, check a machine, open, ship and sweep pull requests. Needs jq and Node 24.",
+  "version": "0.35.0",
+  "description": "Guards on every tool call and the road from a pull request to merged, beside the engineering skills and replacing none: refuses destructive git, unvouched env files, the wrong package manager and sloppy commits; routes Bash through rtk when present; syncs References; skills to set a repository up, check a machine, open, ship and sweep pull requests, and research a question with independent subagents. Needs jq and Node 24.",
   "author": {
     "name": "Dominik Woźniak"
   },
