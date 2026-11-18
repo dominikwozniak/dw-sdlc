@@ -413,7 +413,7 @@ address.
   `footprint: github`, and stays a file under `.git/dw-sdlc/briefs/` in the common git dir under `local`.
   On "start", `/sdlc-kickoff` runs it with the work it kicked off. The session that started it can close.
 
-Every flag and exit code is in each command's `--help`. The design record of `/sdlc-session` is [here](specs/session-helper.md). How a Lead plans and gathers its Workers is in
+Every flag and exit code is in each command's `--help`. The [design record](specs/session-helper.md) of `/sdlc-session` is separate. How a Lead plans and gathers its Workers is in
 the [`sdlc-sessions` README](../plugins/sdlc-sessions/README.md#the-lead).
 
 ## How a Sweep removes what finished work leaves

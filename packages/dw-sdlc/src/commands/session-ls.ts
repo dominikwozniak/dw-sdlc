@@ -2,7 +2,7 @@
 
 import { readArgs } from "../cannot-run.ts"
 import { type Listed, listTerminals, table } from "../worker/herdr.ts"
-import { ROLES } from "../worker/launch.ts"
+import { type Role, ROLES } from "../worker/launch.ts"
 
 export const summary = "list every live herdr session with its role and name"
 
@@ -33,14 +33,14 @@ export function run(argv: string[]): number {
     process.stdout.write(`${USAGE}\n`)
     return 0
   }
-  const roleOf = new Map<string, string>()
+  const roles = new Map<string, Role>()
   for (const role of ROLES) {
     for (const { address } of listTerminals({ label: `role=${role}` })) {
-      roleOf.set(address, role)
+      roles.set(address, role)
     }
   }
   const sessions = listTerminals().map((terminal: Listed) => ({
-    role: roleOf.get(terminal.address) ?? "-",
+    role: roles.get(terminal.address) ?? "-",
     // `Listed.name` is the address for a terminal hc holds no name for.
     name: terminal.name === terminal.address ? (tabOf(terminal.place) ?? terminal.address) : terminal.name,
     address: terminal.address,
