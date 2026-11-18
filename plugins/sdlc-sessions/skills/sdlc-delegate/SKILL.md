@@ -97,9 +97,9 @@ node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" worker start --brief <file> --na
   send the Brief again or start the Worker twice.
 - Exit 2: nothing started. Say why.
 
-Start one ticket marked `now` first, alone. Exit 0 proves the command, the account, the model and the
-effort, so start every other `now` ticket right after it. On exit 1 or 2 start nothing more: the same
-fault would reach every Worker.
+Start one ticket marked `now` first, alone. Exit 0 proves the command and the account, so start every
+other `now` ticket right after it; one whose model or effort differs is proven by its own start. On exit
+1 or 2 start nothing more: the same fault would reach every Worker.
 
 At most three Workers are in flight. A Worker is in flight from its start until its Recap reports its
 end: merged, parked for the dev, or done for read-only work. Its terminal often stays live after that, until

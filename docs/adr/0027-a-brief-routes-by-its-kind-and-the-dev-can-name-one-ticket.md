@@ -2,7 +2,7 @@
 status: accepted
 ---
 
-# A Brief routes by its kind from a fuller table, and the dev can name a model for one ticket
+# A Brief routes by its kind from one table, and the dev can name a model for one ticket
 
 A Worker's model and effort follow the kind of its Brief, never the size of the change. The table in
 `templates/brief.md`, section Model and effort, is the one place its eight rows live: mechanical work, a
