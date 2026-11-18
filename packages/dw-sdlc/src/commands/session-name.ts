@@ -3,7 +3,7 @@
 
 import { CannotRun, readArgs, usageError } from "../cannot-run.ts"
 import { labelTerminal, lead } from "../worker/herdr.ts"
-import { NAME, TAB_WAIT } from "../worker/launch.ts"
+import { NAME, type Role, ROLES, TAB_WAIT } from "../worker/launch.ts"
 import { nameTab } from "../worker/tabs.ts"
 
 export const summary = "name this session as a Lead or a Worker in herdr"
@@ -22,7 +22,10 @@ Needs a terminal herdr started ($HC_TERMINAL_ID) with hc and herdr-app on PATH. 
 
 Exit 0 named, 2 when it cannot run.`
 
-const ROLES = ["lead", "worker"]
+/** `role` as a `Role`, or undefined when it names none. */
+function roleOf(role: string | undefined): Role | undefined {
+  return ROLES.find((candidate) => candidate === role)
+}
 
 export async function run(argv: string[]): Promise<number> {
   const { values, positionals } = readArgs(
@@ -41,9 +44,9 @@ export async function run(argv: string[]): Promise<number> {
   if (name === undefined || extra.length > 0 || !NAME.test(name)) {
     throw usageError(`give one name of 1-32 of a-z, 0-9, - and _, not ${JSON.stringify(positionals.join(" "))}`, USAGE)
   }
-  const { role } = values
-  if (role === undefined || !ROLES.includes(role)) {
-    throw usageError(`--role takes lead or worker, not ${JSON.stringify(role ?? "")}`, USAGE)
+  const role = roleOf(values.role)
+  if (role === undefined) {
+    throw usageError(`--role takes lead or worker, not ${JSON.stringify(values.role ?? "")}`, USAGE)
   }
   const caller = lead()
   const refused = labelTerminal(caller, { role, name })

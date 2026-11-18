@@ -132,18 +132,17 @@ Each rule holds at every command position, within its [known limits](plugins/sdl
 
 ## Skills
 
-| skill                  | plugin          | who starts it                                   | use it to                                                         |
-| ---------------------- | --------------- | ----------------------------------------------- | ----------------------------------------------------------------- |
-| `/sdlc-setup`          | `sdlc`          | you type it                                     | set a repository and this machine up                              |
-| `/sdlc-doctor`         | `sdlc`          | you type it                                     | check this machine and repository, read-only                      |
-| `/sdlc-references-add` | `sdlc`          | you type it                                     | add a repository the agent reads for prior art                    |
-| `/sdlc-pr-open`        | `sdlc`          | the agent, whenever it opens a pull request     | write a pull request's title and body                             |
-| `/sdlc-pr-ship`        | `sdlc`          | you type it, or a Brief tells a Worker to       | drive one pull request to merged                                  |
-| `/sdlc-sweep`          | `sdlc`          | you type it                                     | remove the branches and worktrees finished work leaves            |
-| `/sdlc-recap`          | `sdlc-sessions` | you type it, or a Brief tells a Worker to       | say where a session stands and whether it can close               |
-| `/sdlc-kickoff`        | `sdlc-sessions` | you type it                                     | kick off new work in a session of its own, cared for by a Lead    |
-| `/sdlc-delegate`       | `sdlc-sessions` | you ask for it; the agent offers it and waits   | run Workers in herdr terminals, in parallel where tickets allow   |
-| `/sdlc-session`        | `sdlc-sessions` | you type it, or ask to name or rename a session | name this herdr session a Lead or a Worker, or list the live ones |
+| skill                  | plugin          | who starts it                                 | use it to                                                       |
+| ---------------------- | --------------- | --------------------------------------------- | --------------------------------------------------------------- |
+| `/sdlc-setup`          | `sdlc`          | you type it                                   | set a repository and this machine up                            |
+| `/sdlc-doctor`         | `sdlc`          | you type it                                   | check this machine and repository, read-only                    |
+| `/sdlc-references-add` | `sdlc`          | you type it                                   | add a repository the agent reads for prior art                  |
+| `/sdlc-pr-open`        | `sdlc`          | the agent, whenever it opens a pull request   | write a pull request's title and body                           |
+| `/sdlc-pr-ship`        | `sdlc`          | you type it, or a Brief tells a Worker to     | drive one pull request to merged                                |
+| `/sdlc-sweep`          | `sdlc`          | you type it                                   | remove the branches and worktrees finished work leaves          |
+| `/sdlc-recap`          | `sdlc-sessions` | you type it, or a Brief tells a Worker to     | say where a session stands and whether it can close             |
+| `/sdlc-kickoff`        | `sdlc-sessions` | you type it                                   | kick off new work in a session of its own, cared for by a Lead  |
+| `/sdlc-delegate`       | `sdlc-sessions` | you ask for it; the agent offers it and waits | run Workers in herdr terminals, in parallel where tickets allow |
 
 ## Docs
 

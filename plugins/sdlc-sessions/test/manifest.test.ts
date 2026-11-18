@@ -122,7 +122,7 @@ describe("the sdlc-sessions plugin", () => {
     assert.ok(naming.includes('dw-sdlc/src/cli.ts" session name lead-<topic> --role lead'))
     assert.doesNotMatch(naming, /herdr-app|hc label/)
     assert.match(naming, /Only when the dev asks/)
-    assert.match(naming, /already holds a name keeps it/)
+    assert.match(naming, /already holds a name, the `name` of the `hc get` above, keeps it/)
   })
 
   it("leaves sdlc-kickoff for the dev to invoke, never the model", () => {

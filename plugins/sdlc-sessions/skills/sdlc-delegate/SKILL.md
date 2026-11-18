@@ -186,5 +186,5 @@ Sweep, report what it kept, and name each Worker that stays under Waiting on.
 
 Only when the dev asks, name this session `lead-<topic>`, with
 `node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" session name lead-<topic> --role lead`, which labels this
-terminal and renames its tab. A session that already holds a name keeps it unless the dev asks for another.
+terminal and renames its tab. A session that already holds a name, the `name` of the `hc get` above, keeps it unless the dev asks for another.
 Workers are named `worker-<issue>-<slug>`.

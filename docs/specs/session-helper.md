@@ -6,9 +6,8 @@ sessions. It is a helper on demand and no step of the workflow.
 ## Problem
 
 A session the dev starts by hand has herdr's number for a name and no role, so the dev cannot tell a
-Lead from a Worker in the window or in `hc ls`. Naming one meant raw `herdr-app` and `hc label` lines that
-`sdlc-delegate` carried in prose. A session that is a Lead also forgets that it coordinates and starts to
-code.
+Lead from a Worker in the window or in `hc ls`. A session that is a Lead can forget that it coordinates
+and start to code.
 
 ## Goal
 
