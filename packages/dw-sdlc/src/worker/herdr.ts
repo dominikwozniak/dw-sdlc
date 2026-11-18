@@ -180,6 +180,12 @@ export function removeTerminal(address: string): string | undefined {
     : `hc rm ${address} failed: ${whyFailed(called)}`
 }
 
+/** Sets `labels` on the terminal at `address`: hc's words when it refuses, undefined once they are set. */
+export function labelTerminal(address: string, labels: Record<string, string>): string | undefined {
+  const called = hc(["label", address, ...Object.entries(labels).map(([key, value]) => `${key}=${value}`)])
+  return called.status === 0 ? undefined : `hc label ${address} failed: ${whyFailed(called)}`
+}
+
 /** Types `message` into the terminal at `address`: `sent`, `blocked` while it sits on a dialog, else hc's words. */
 export function sendTo(address: string, message: string): "sent" | "blocked" | { refused: string } {
   const called = hc(["send", address, message])

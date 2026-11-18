@@ -125,7 +125,8 @@ _Avoid_: review marker (it does not say whether the Review was clean), failure s
 
 **Lead**:
 The session that cuts the dev's work into Briefs, hands each to a Worker and answers the dev for all of them.
-_Avoid_: orchestrator, coordinator
+The `/sdlc-session` helper names a session a Lead, and one named so coordinates and writes no code, until the dev says otherwise.
+_Avoid_: orchestrator (the skill understands it and answers with Lead), coordinator
 
 **Worker**:
 A session that carries one Brief to its end itself, reporting to its Lead when it has one; it starts no other session.

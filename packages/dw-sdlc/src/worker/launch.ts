@@ -72,10 +72,14 @@ export function spaceOf(id: string): string | undefined {
   return reading.space
 }
 
+/** The values of the `role` label herdr terminals carry. */
+export const ROLES = ["lead", "worker"] as const
+export type Role = (typeof ROLES)[number]
+
 export type Launch = {
   name: string
   /** The `role` label of the new terminal. */
-  role: "worker" | "lead"
+  role: Role
   /** The herdr space of the caller, which the new terminal joins; none leaves the tab alone. */
   space: string | undefined
   /** The folder it starts in. */

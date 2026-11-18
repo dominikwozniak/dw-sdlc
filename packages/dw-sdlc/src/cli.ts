@@ -14,6 +14,8 @@ import * as primitives from "./commands/primitives.ts"
 import * as recap from "./commands/recap.ts"
 import * as referencesSetup from "./commands/references-setup.ts"
 import * as referencesSync from "./commands/references-sync.ts"
+import * as sessionLs from "./commands/session-ls.ts"
+import * as sessionName from "./commands/session-name.ts"
 import * as setup from "./commands/setup.ts"
 import * as sweep from "./commands/sweep.ts"
 import * as workerLs from "./commands/worker-ls.ts"
@@ -39,7 +41,9 @@ const COMMANDS = new Map<string, Command>([
   ["worker start", workerStart],
   ["worker ls", workerLs],
   ["worker report", workerReport],
-  ["lead start", leadStart]
+  ["lead start", leadStart],
+  ["session name", sessionName],
+  ["session ls", sessionLs]
 ])
 
 function usage(): string {

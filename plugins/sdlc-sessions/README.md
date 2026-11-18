@@ -9,6 +9,7 @@ let one session hand tickets to others running in parallel:
   works on one ticket in a worktree of its own, and starts a new Lead to carry it to the end.
 - `/sdlc-delegate` makes the session a Lead, a session that starts Workers in herdr terminals and gathers
   their Recaps. herdr is a terminal manager whose `hc` command starts and reads terminals.
+- `/sdlc-session` names this herdr session as a Lead or a Worker, or lists the live sessions.
 
 A Brief starts its Worker with `/implement`, and a Lead reads the tickets `/to-tickets` cuts: both are
 [Engineering skills](https://github.com/mattpocock/skills), which this plugin runs beside and does not
@@ -34,23 +35,25 @@ flowchart LR
 The [root README](../../README.md#install) installs it. It lists `sdlc` under `dependencies`, so it brings
 the guards too.
 
-| skill            | needs                                                                    |
-| ---------------- | ------------------------------------------------------------------------ |
-| `/sdlc-recap`    | nothing; an authenticated `gh` for the pull request and the next session |
-| `/sdlc-kickoff`  | nothing; herdr's `hc` to start the Lead                                  |
-| `/sdlc-delegate` | herdr's `hc` on the agent's PATH, and a terminal herdr started           |
+| skill            | needs                                                                          |
+| ---------------- | ------------------------------------------------------------------------------ |
+| `/sdlc-recap`    | nothing; an authenticated `gh` for the pull request and the next session       |
+| `/sdlc-kickoff`  | nothing; herdr's `hc` to start the Lead                                        |
+| `/sdlc-delegate` | herdr's `hc` on the agent's PATH, and a terminal herdr started                 |
+| `/sdlc-session`  | herdr's `hc` and `herdr-app` on the agent's PATH, and a terminal herdr started |
 
 `/sdlc-doctor` reports the plugin on its `sessions` line, a drift between its copy of the `dw-sdlc`
 package and the one `sdlc` runs included, and herdr on its `hc` line.
 
 ## What it carries
 
-| part             | kind     | runs                                                                     | section                     |
-| ---------------- | -------- | ------------------------------------------------------------------------ | --------------------------- |
-| `/sdlc-recap`    | skill    | you type it, or a Brief tells a Worker to end with it                    | [The Recap](#the-recap)     |
-| `/sdlc-kickoff`  | skill    | you type it                                                              | [The kickoff](#the-kickoff) |
-| `/sdlc-delegate` | skill    | you type it or ask in your words; offered after tickets in a set-up repo | [The Lead](#the-lead)       |
-| `brief.md`       | template | read by every skill that writes a Brief                                  | [The Brief](#the-brief)     |
+| part             | kind     | runs                                                                     | section                                   |
+| ---------------- | -------- | ------------------------------------------------------------------------ | ----------------------------------------- |
+| `/sdlc-recap`    | skill    | you type it, or a Brief tells a Worker to end with it                    | [The Recap](#the-recap)                   |
+| `/sdlc-kickoff`  | skill    | you type it                                                              | [The kickoff](#the-kickoff)               |
+| `/sdlc-delegate` | skill    | you type it or ask in your words; offered after tickets in a set-up repo | [The Lead](#the-lead)                     |
+| `/sdlc-session`  | skill    | you type it or ask to name the session                                   | [The session helper](#the-session-helper) |
+| `brief.md`       | template | read by every skill that writes a Brief                                  | [The Brief](#the-brief)                   |
 
 ## The Recap
 
@@ -94,36 +97,7 @@ Exit 0 means the session can be closed, 1 that it cannot, and 2 that the command
 `close`, the `--json` document gives the `verdict`, the `line` a Recap quotes and every reason, each with
 `blocks`.
 
-| reason              | blocks | when                                                                                                            |
-| ------------------- | ------ | --------------------------------------------------------------------------------------------------------------- |
-| `paused`            | yes    | a rebase, `git am`, merge, cherry-pick, revert or bisect is paused, however clean the tree reads                |
-| `uncommitted`       | yes    | a change git would commit or could track                                                                        |
-| `unpushed`          | yes    | commits past the upstream                                                                                       |
-| `no-upstream`       | yes    | commits on no remote, on a branch with no upstream or a detached HEAD                                           |
-| `open-pull-request` | yes    | the pull request is open, whatever its Action                                                                   |
-| `orphaned`          | yes    | commits of a closed pull request left the branch, as by a reset, and no remote branch holds them                |
-| `no-pull-request`   | yes    | commits on top of the base, no pull request holds the head, and the branch is neither the default nor protected |
-| `workers`           | yes    | a Worker this session started as a Lead is live, whatever its status                                            |
-| `merged`            | no     | the pull request merged                                                                                         |
-| `closed`            | no     | the pull request closed without merging; commits only it holds read as `no-upstream`                            |
-| `worktree`          | no     | a linked worktree, left to remove                                                                               |
-| `clean`             | no     | no reason blocks                                                                                                |
-
-Why it answers as it does:
-
-- **It leans to "no".** An open pull request blocks even when parked on the dev, and a live Worker blocks
-  even when its turn ended: a wrong "no" costs less than a wrong "yes".
-- **It never fetches.** A branch force-pushed or deleted since the last fetch can read as holding the
-  head. Run `git fetch --prune` first to be exact. Treating every moved branch as stale would answer no
-  each time the base moves on. A remote out of reach holds nothing, so it answers no.
-- **A commit a pull request holds counts as pushed**, so a branch whose pull request merged and whose
-  remote ref is gone still closes.
-- **The pull request comes from `gh pr view`**, then from the head branch the upstream names. It counts
-  only when its commits hold the local `HEAD`, so a parent branch's pull request is never this one's.
-  The limit follows: a branch pushed under another name, with commits its pull request lacks, gets no
-  pull request, and those commits read as `unpushed` and `no-pull-request`.
-- **A detached HEAD or no remote asks `gh` nothing**: the `pull request` line reads `gh not asked`. A
-  remote on another host exits 2, and so does a failed `hc` in herdr.
+Every reason, what blocks and why it leans to "no" are in [the close verdict](../../docs/contributing/close-verdict.md).
 
 ## The next session
 
@@ -202,6 +176,29 @@ While it has live Workers, the Lead:
 - removes no Worker's terminal or worktree itself: the Sweep does, on the dev's "go".
 
 How it wakes, waits and counts its Workers is in `skills/sdlc-delegate/SKILL.md`.
+
+## The session helper
+
+`/sdlc-session` is a helper on demand, never a step of the workflow, and acts on the calling session only.
+Ask in your words, such as "rename this session to lead-x" or "this session is the lead", or type it. It
+refuses outside herdr.
+
+| subcommand      | what it does                                            | when to use it                                |
+| --------------- | ------------------------------------------------------- | --------------------------------------------- |
+| `lead [topic]`  | names the session `lead-<topic>`, a Lead                | this session will hand work to Workers        |
+| `worker [name]` | names the session `worker-<name>`, a Worker             | you started this session by hand for a ticket |
+| `ls`            | lists every live session: role, name, status and folder | you lost track of which terminal is which     |
+
+```text
+/sdlc-session lead release-notes
+/sdlc-session worker 12-fix-links
+/sdlc-session ls
+```
+
+With no topic or name it comes from the current work and the answer shows it. Once `lead` ran, the session
+keeps to coordinating, as a habit and no guard: it writes no code and offers `/sdlc-delegate` once tickets
+exist. "Do it here" lifts it. The bin, the label and why a label adopts no Workers are in
+[the design record](../../docs/specs/session-helper.md).
 
 ## Config keys it reads
 
