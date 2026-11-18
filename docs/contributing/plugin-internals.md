@@ -65,8 +65,10 @@ The manifest test holds:
 
 - each hook script wired to its event and matcher, run by the dispatcher or left to git;
 - each skill under its name, with every plugin path it runs on disk, and left for the user to invoke,
-  but three: `sdlc-pr-open`, whose description triggers on opening a pull request and writing its
-  body, and `sdlc-pr-ship` and `sdlc-sweep`, which hold the model to a Brief or the dev's "go";
+  but four: `sdlc-pr-open`, whose description triggers on opening a pull request and writing its
+  body, `sdlc-pr-ship` and `sdlc-sweep`, which hold the model to a Brief or the dev's "go", and
+  `sdlc-research`, whose description holds the model to the dev's ask for subagents in so many words;
+- `sdlc-research` setting no `model` and no `context: fork` in its frontmatter;
 - `sdlc-sweep` running the bin through the link and never a kept item's command;
 - each subagent under its name, at medium effort on the session's model, with no tool that edits a file;
 - the link to the package, and the marketplace listing this plugin at the manifest's version.
