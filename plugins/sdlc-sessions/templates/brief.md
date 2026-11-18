@@ -61,18 +61,35 @@ and Report lines take the form without a Lead, since a filed Brief outlives a Le
 
 ## Model and effort
 
-The Brief's kind decides, never the size of the change.
+The Brief's kind decides, never the size of the change. Take the first row that fits, top to bottom,
+except the risk row, which wins over every row above it.
 
-| the Brief's kind                                    | model          | effort          |
-| --------------------------------------------------- | -------------- | --------------- |
-| a clear spec: the work is decided, its proof stated | `worker.model` | `worker.effort` |
-| it needs decisions, design or reading unclear code  | `opus`         | `high`          |
-| it needs a grilling: the dev decides open questions | `opus`         | `high`          |
-| the dev named a model or an effort                  | as they said   | as they said    |
+| the Brief's kind                                                    | model          | effort          |
+| ------------------------------------------------------------------- | -------------- | --------------- |
+| mechanical, its proof a command: translation keys, a bump, a rename | `sonnet`       | `medium`        |
+| a clear spec with an existing pattern to copy                       | `sonnet`       | `medium`        |
+| a clear spec: the work is decided, its proof stated                 | `worker.model` | `worker.effort` |
+| read-only, across many files or repositories, no decisions          | `opus`         | `medium`        |
+| it needs decisions, design or reading unclear code                  | `opus`         | `high`          |
+| it needs a grilling: the dev decides open questions                 | `opus`         | `high`          |
+| risk: security, payments, a data migration                          | `opus`         | `xhigh`         |
+| the dev named a model or an effort                                  | as they said   | as they said    |
 
 `xhigh`, `max` or `fable` only on the dev's word, which overrides any row, up or down, one value or
-both. The reason names the row in a few words and retells nothing: "a clear spec", "needs a design
-decision", "unclear code", "needs a grilling" or "the word of the dev".
+both. The one exception is the risk row, which sets `xhigh` itself. The reason names the row in a few
+words and retells nothing: "mechanical", "a pattern to copy", "a clear spec", "read-only, no decisions",
+"needs a design decision", "unclear code", "needs a grilling", "risk" or "the word of the dev".
+
+The Lead itself is never routed: it starts on the dev's default model, and the dev changes it in the
+session.
+
+### The dev's word
+
+A model or an effort written with no ticket applies to every Worker of the delegation. After a ticket,
+`#<n>:<model>/<effort>` applies to that ticket alone: `/sdlc-delegate #12 #13:opus/medium` runs #12 by the
+table and #13 on `opus`, `medium`. Either half may be left out, as `#13:opus` or `#13:/medium`, and the
+half left out comes from the word with no ticket, else from the row. The word after a ticket wins over
+the word with no ticket. The plan table of the Lead shows each ticket's model and effort.
 
 ## A grilling
 
@@ -135,7 +152,8 @@ dw-sdlc lead start --name <name> --prompt "/sdlc-delegate <tickets>" --json
 - **Tickets.** `#<n>` for each issue, or a spec's path. Work with no source is filed first as an issue,
   with its Brief as the body, so the Lead reads it as an issue; under footprint local it is a Brief file,
   named by its path. A model and an effort follow the tickets, as `/sdlc-delegate #<n> fable xhigh`, and
-  the Lead runs every Worker it starts on them.
+  the Lead runs every Worker it starts on them. `#<n>:fable/xhigh` after a ticket sets them for that
+  ticket alone, as [The dev's word](#the-devs-word) says.
 - **Name.** The first ticket names the Lead, the whole name 1-32 of `a-z`, `0-9`, `-` and `_`:
   - an issue: `lead-<n>-<slug>`, `<n>` its number and the slug a word or two of its title;
   - a Brief file: its file name with `lead-` in the place of `worker-` and no `.md`, as

@@ -136,7 +136,7 @@ node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" lead start --name lead-<n>-<slug
 ```
 
 The Lead routes each Worker by the template. A model or an effort the dev names for one follow-up, as "go,
-but 1 on fable", goes to a Lead of its own, `/sdlc-delegate #<m> fable`, named after that ticket.
+but 1 on fable", stays in the one Lead, after that ticket: `/sdlc-delegate #<n> #<m>:fable ...`.
 
 An `issue` or a `worker` follow-up goes out as a Brief, written by the rules of the template, so that a
 session started from either has one shape. Each is filed with the Brief as its body, the way the template

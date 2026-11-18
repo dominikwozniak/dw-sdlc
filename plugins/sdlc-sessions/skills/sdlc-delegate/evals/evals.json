@@ -240,6 +240,37 @@
         "Nothing under /repo/tool/.git/dw-sdlc/briefs/ is read or written",
         "The turn ends right after the message: no hc wait, no sleep"
       ]
+    },
+    {
+      "id": 17,
+      "name": "a-word-after-one-ticket-routes-that-worker-alone",
+      "prompt": "/sdlc-delegate #296 #297 #298:opus/medium\n\nThe dev writes English. You run from /repo/tool, the main checkout. In place of running them, take these as what the commands printed.\n\n`worker ls --json`, exit 0:\n[]\n\n`git rev-parse --path-format=absolute --git-dir --git-common-dir`:\n/repo/tool/.git\n/repo/tool/.git\n\n`printenv HC_TERMINAL_ID`:\nt5\n\n`hc get t5 --json`:\n{\"id\":\"t5\",\"labels\":{\"herdr.space\":\"s1\"},\"status\":\"working\"}\n\n`dw-sdlc config`, exit 0:\ncommitted  .ai/agentic.config.json  valid\nlocal      .ai/agentic.config.local.json  absent\n{\"gate\":{\"command\":\"pnpm check\"},\"pr\":{\"merge\":\"auto\"},\"worker\":{\"command\":\"claude\",\"model\":\"sonnet\",\"effort\":\"high\"}}\n\nEach `gh issue view` prints an open issue labelled ready-for-agent with no sub-issues and no blockers:\n- #296 \"Add the CSV writer\": a decided spec with acceptance criteria and a test to write, no existing writer to copy.\n- #297 \"Rename the export flag --fmt to --format\": every use in src, docs and tests, proof is `pnpm check`.\n- #298 \"Document the export formats\": a decided spec.\n\nEach `worker start ... --json` exits 0 with delivered true; the first prints {\"name\":\"worker-296-csv-writer\",\"address\":\"t8\",\"delivered\":true}.\n\nRun nothing. Write into transcript.md, in order, every command you would run, every file you would write and every message you would give the dev, then a line END OF TURN where your turn ends.",
+      "expected_output": "A plan table with each ticket model and effort: #296 sonnet high by the config, #297 sonnet medium as mechanical, #298 opus medium by the dev word. Three worker starts with those values.",
+      "files": [],
+      "expectations": [
+        "The plan table shows a model and an effort for each of #296, #297 and #298",
+        "#296 runs on sonnet and high, the config values, as a clear spec",
+        "#297 runs on sonnet and medium, as mechanical work whose proof is a command",
+        "#298 runs on opus and medium, the dev word after its number",
+        "The worker starts pass --model and --effort per ticket: sonnet high for #296, sonnet medium for #297 and opus medium for #298",
+        "The word after #298 is not applied to #296 or #297",
+        "The Lead itself is not routed: no command changes the model of this session",
+        "The turn ends after the message"
+      ]
+    },
+    {
+      "id": 18,
+      "name": "a-word-with-no-number-applies-to-every-worker-and-yields-to-a-numbered-one",
+      "prompt": "/sdlc-delegate #296 #297:/xhigh fable\n\nThe dev writes English. You run from /repo/tool, the main checkout. In place of running them, take these as what the commands printed.\n\n`worker ls --json`, exit 0:\n[]\n\n`git rev-parse --path-format=absolute --git-dir --git-common-dir`:\n/repo/tool/.git\n/repo/tool/.git\n\n`printenv HC_TERMINAL_ID`:\nt5\n\n`hc get t5 --json`:\n{\"id\":\"t5\",\"labels\":{\"herdr.space\":\"s1\"},\"status\":\"working\"}\n\n`dw-sdlc config`, exit 0:\ncommitted  .ai/agentic.config.json  valid\nlocal      .ai/agentic.config.local.json  absent\n{\"gate\":{\"command\":\"pnpm check\"},\"pr\":{\"merge\":\"auto\"},\"worker\":{\"command\":\"claude\",\"model\":\"sonnet\",\"effort\":\"high\"}}\n\nEach `gh issue view` prints an open issue labelled ready-for-agent with no sub-issues and no blockers:\n- #296 \"Add the CSV writer\": a decided spec.\n- #297 \"Add --json to export\": a decided spec.\n\nEach `worker start ... --json` exits 0 with delivered true; the first prints {\"name\":\"worker-296-csv-writer\",\"address\":\"t8\",\"delivered\":true}.\n\nRun nothing. Write into transcript.md, in order, every command you would run, every file you would write and every message you would give the dev, then a line END OF TURN where your turn ends.",
+      "expected_output": "fable for both Workers; #296 on its row effort, #297 on xhigh by its own word.",
+      "files": [],
+      "expectations": [
+        "Both Workers run on fable, the word with no number",
+        "#296 takes its effort from the row, high, since fable names no effort",
+        "#297 runs on xhigh, the half of its own word, with fable as the model",
+        "The plan table shows each ticket model and effort",
+        "Exactly two worker starts run, the first for #296 alone"
+      ]
     }
   ]
 }
