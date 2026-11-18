@@ -7,18 +7,18 @@ is built and released is under [`contributing/`](contributing/development.md).
 
 ## The parts at a glance
 
-| part                                             | runs when                                     | started by                                                  | detail                                                                   |
-| ------------------------------------------------ | --------------------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------ |
-| the guards                                       | on every Bash command, file tool and Grep     | Claude Code, as hooks                                       | [How a guard judges a call](#how-a-guard-judges-a-call)                  |
-| the session hooks                                | when a session starts                         | Claude Code, as hooks                                       | [plugin README](../plugins/sdlc/README.md#session-start)                 |
-| the `commit-msg` hook                            | on a commit typed in a terminal               | git, once a repository wires it                             | [plugin README](../plugins/sdlc/README.md#commit-hook)                   |
-| the Gate, `pnpm check`                           | before a change lands, locally and in CI      | you, a Brief's Proof, CI                                    | [How the Gate runs](#how-the-gate-runs)                                  |
-| `/sdlc-setup`, `/sdlc-doctor`                    | once per repository and machine, then at will | you                                                         | [Adopting it](#adopting-it-in-your-repository)                           |
-| `/sdlc-pr-open`                                  | when a pull request is wanted                 | the agent, once you or a Brief want one                     | [plugin README](../plugins/sdlc/README.md#opening-a-pull-request)        |
-| `/sdlc-pr-ship` and the Ship script              | from an open pull request to merged           | you, or a Brief                                             | [How the Ship script merges](#how-the-ship-script-merges-a-pull-request) |
-| `/sdlc-recap`, `/sdlc-kickoff`, `/sdlc-delegate` | at a session's end, or to hand work on        | you, or a Brief; offered where `.ai/` is set up, then waits | [How a Lead runs Workers](#how-a-lead-runs-workers)                      |
-| `/sdlc-sweep`                                    | once work has landed                          | you, or your "go" on a Recap follow-up                      | [How a Sweep removes](#how-a-sweep-removes-what-finished-work-leaves)    |
-| `/sdlc-research`                                 | when you ask for subagents on a question      | you, or your ask for subagents in so many words             | [plugin README](../plugins/sdlc/README.md#researching-with-subagents)    |
+| part                                             | runs when                                     | started by                              | detail                                                                   |
+| ------------------------------------------------ | --------------------------------------------- | --------------------------------------- | ------------------------------------------------------------------------ |
+| the guards                                       | on every Bash command, file tool and Grep     | Claude Code, as hooks                   | [How a guard judges a call](#how-a-guard-judges-a-call)                  |
+| the session hooks                                | when a session starts                         | Claude Code, as hooks                   | [plugin README](../plugins/sdlc/README.md#session-start)                 |
+| the `commit-msg` hook                            | on a commit typed in a terminal               | git, once a repository wires it         | [plugin README](../plugins/sdlc/README.md#commit-hook)                   |
+| the Gate, `pnpm check`                           | before a change lands, locally and in CI      | you, a Brief's Proof, CI                | [How the Gate runs](#how-the-gate-runs)                                  |
+| `/sdlc-setup`, `/sdlc-doctor`                    | once per repository and machine, then at will | you                                     | [Adopting it](#adopting-it-in-your-repository)                           |
+| `/sdlc-pr-open`                                  | when a pull request is wanted                 | the agent, once you or a Brief want one | [plugin README](../plugins/sdlc/README.md#opening-a-pull-request)        |
+| `/sdlc-pr-ship` and the Ship script              | from an open pull request to merged           | you, or a Brief                         | [How the Ship script merges](#how-the-ship-script-merges-a-pull-request) |
+| `/sdlc-recap`, `/sdlc-kickoff`, `/sdlc-delegate` | at a session's end, or to hand work on        | you, or a Brief; offered, then waits    | [How a Lead runs Workers](#how-a-lead-runs-workers)                      |
+| `/sdlc-sweep`                                    | once work has landed                          | you, or your "go" on a Recap follow-up  | [How a Sweep removes](#how-a-sweep-removes-what-finished-work-leaves)    |
+| `/sdlc-research`                                 | when you ask for subagents on a question      | you, or your ask for subagents          | [plugin README](../plugins/sdlc/README.md#researching-with-subagents)    |
 
 ## Where dw-sdlc sits beside the engineering skills
 

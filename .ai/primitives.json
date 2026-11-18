@@ -484,7 +484,7 @@
       "code": ["plugins/sdlc/skills/sdlc-research/SKILL.md"],
       "docs": [
         "plugins/sdlc/README.md#researching-with-subagents",
-        "docs/adr/0027-sdlc-research-extends-research-and-the-model-may-start-it.md"
+        "docs/adr/0028-sdlc-research-extends-research-and-the-model-may-start-it.md"
       ]
     },
     {

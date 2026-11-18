@@ -253,9 +253,9 @@ describe("the sdlc plugin", () => {
     assert.ok(answer.indexOf("**The effort**") < answer.indexOf("**Open questions**"))
   })
 
-  it("records sdlc-research as an extension of research in ADR 0027", () => {
+  it("records sdlc-research as an extension of research in ADR 0028", () => {
     const adr = readFileSync(
-      join(REPO_ROOT, "docs", "adr", "0027-sdlc-research-extends-research-and-the-model-may-start-it.md"),
+      join(REPO_ROOT, "docs", "adr", "0028-sdlc-research-extends-research-and-the-model-may-start-it.md"),
       "utf8"
     )
     assert.match(adr, /It extends `research` and replaces none of it/)

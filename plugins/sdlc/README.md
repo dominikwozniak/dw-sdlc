@@ -615,7 +615,7 @@ leaves](../../docs/overview.md#how-a-sweep-removes-what-finished-work-leaves).
 `/sdlc-research [research|review|overview] <question>` fans out two to four independent subagents,
 checks what they claim and answers in the conversation, writing no file. It starts when you type it or
 ask for subagents in so many words; findings kept in the repository stay the engineering skill
-`/research` ([ADR 0027](../../docs/adr/0027-sdlc-research-extends-research-and-the-model-may-start-it.md)).
+`/research` ([ADR 0028](../../docs/adr/0028-sdlc-research-extends-research-and-the-model-may-start-it.md)).
 An agent's prompt holds the material, never the session's hypothesis. The answer opens with a verdict,
 cites `file:line` or a link per finding, and marks a claim the session did not check `unverified`.
 
