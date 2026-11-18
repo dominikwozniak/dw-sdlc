@@ -61,8 +61,8 @@ and Report lines take the form without a Lead, since a filed Brief outlives a Le
 
 ## Model and effort
 
-The Brief's kind decides, never the size of the change. Take the first row that fits, top to bottom,
-except the risk row, which wins over every row above it.
+The Brief's kind decides, never the size of the change. The dev's word comes before any row. Otherwise take
+the first row that fits, top to bottom, except the risk row, which wins over every row above it.
 
 | the Brief's kind                                                    | model          | effort          |
 | ------------------------------------------------------------------- | -------------- | --------------- |
@@ -152,8 +152,8 @@ dw-sdlc lead start --name <name> --prompt "/sdlc-delegate <tickets>" --json
 - **Tickets.** `#<n>` for each issue, or a spec's path. Work with no source is filed first as an issue,
   with its Brief as the body, so the Lead reads it as an issue; under footprint local it is a Brief file,
   named by its path. A model and an effort follow the tickets, as `/sdlc-delegate #<n> fable xhigh`, and
-  the Lead runs every Worker it starts on them. `#<n>:fable/xhigh` after a ticket sets them for that
-  ticket alone, as [The dev's word](#the-devs-word) says.
+  the Lead runs every Worker on them, except one whose ticket carries its own: `#<n>:fable/xhigh` sets
+  them for that ticket alone, as [The dev's word](#the-devs-word) says.
 - **Name.** The first ticket names the Lead, the whole name 1-32 of `a-z`, `0-9`, `-` and `_`:
   - an issue: `lead-<n>-<slug>`, `<n>` its number and the slug a word or two of its title;
   - a Brief file: its file name with `lead-` in the place of `worker-` and no `.md`, as

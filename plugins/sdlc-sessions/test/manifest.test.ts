@@ -249,7 +249,7 @@ describe("the sdlc-sessions plugin", () => {
     assert.match(template, /`#<n>:<model>\/<effort>` applies to that ticket alone/)
     assert.ok(template.includes("`/sdlc-delegate #12 #13:opus/medium`"))
     assert.match(template, /A model or an effort written with no ticket applies to every Worker/)
-    assert.ok(template.includes("`#<n>:fable/xhigh` after a ticket"), "the new Lead's tickets carry the form")
+    assert.ok(template.includes("`#<n>:fable/xhigh` sets"), "the new Lead's tickets carry the form")
     const delegate = skillText("sdlc-delegate")
     assert.match(delegate, /argument-hint: "\[#issue\[:model\/effort\] \.\.\./)
     assert.match(delegate, /its model and\s+effort with the row that chose them/, "the plan table shows both")

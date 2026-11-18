@@ -59,7 +59,8 @@ the set is skipped, since nothing here closes it. Tickets with no edge between t
 when they touch the same files: the later Worker rebases through `/sdlc-pr-ship`.
 
 A ticket may carry its own model and effort, as `#13:opus/medium`; the template's section The dev's word
-says how, and that a word with no ticket applies to every Worker. Read it off each ticket here.
+says how, and that a word with no ticket applies to every Worker. Read the ticket by its number alone, and
+the word after the colon as that Worker's routing.
 
 When it is unclear what to hand over, ask in plain text and end your turn.
 
