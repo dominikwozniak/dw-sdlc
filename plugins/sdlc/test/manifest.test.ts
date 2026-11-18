@@ -33,14 +33,24 @@ const DISPATCHED = [
 ]
 /** A git hook a repository wires itself, never Claude Code. */
 const GIT_HOOKS = ["commit-msg.sh"]
-const SKILLS = ["sdlc-doctor", "sdlc-pr-open", "sdlc-pr-ship", "sdlc-references-add", "sdlc-setup", "sdlc-sweep"]
+const SKILLS = [
+  "sdlc-doctor",
+  "sdlc-pr-open",
+  "sdlc-pr-ship",
+  "sdlc-references-add",
+  "sdlc-research",
+  "sdlc-setup",
+  "sdlc-sweep"
+]
 /** The skill a Worker starts itself, its description holding the model to a Brief's instruction. */
 const WORKER_STARTED_SKILL = "sdlc-pr-ship"
 /** The skill the model starts on the dev's word alone, "go" on a Recap follow-up, its description holding it there. */
 const WORD_STARTED_SKILL = "sdlc-sweep"
 /** The skill the model starts itself, whenever it opens a pull request or writes the body of one. */
 const SELF_STARTED_SKILL = "sdlc-pr-open"
-const MODEL_REACHABLE = [WORKER_STARTED_SKILL, WORD_STARTED_SKILL, SELF_STARTED_SKILL]
+/** The skill the model starts when the dev asks for subagents in so many words, its description holding it there. */
+const ASK_STARTED_SKILL = "sdlc-research"
+const MODEL_REACHABLE = [WORKER_STARTED_SKILL, WORD_STARTED_SKILL, SELF_STARTED_SKILL, ASK_STARTED_SKILL]
 /** The subagents under `agents/`, each a file named as its `name`, spawned as `sdlc:<name>`. */
 const AGENTS = ["sdlc-reviewer"]
 /** The tools a subagent of the plugin may list: none that edits a file. Its instructions keep Bash to git's reads. */
@@ -128,7 +138,7 @@ describe("the sdlc plugin", () => {
     assert.match(text, /^- It carries no "Generated with" footer\.$/m)
   })
 
-  it("leaves each skill for the user to invoke, never the model, but the three the model, a Brief or the dev's go starts", () => {
+  it("leaves each skill for the user to invoke, never the model, but the four the model, a Brief, the dev's go or the dev's ask for subagents starts", () => {
     for (const name of SKILLS.filter((skill) => !MODEL_REACHABLE.includes(skill))) {
       assert.match(skillFrontmatter(name), /^disable-model-invocation: true$/m, `${name} is user-invoked`)
     }
@@ -212,6 +222,44 @@ describe("the sdlc plugin", () => {
     assert.match(description, /It runs only on the dev's word, when the dev types \/sdlc-sweep or says go on a Recap/)
     assert.match(description, /is never this skill/)
     assert.doesNotMatch(description, /: /, "a colon and a space end a plain YAML value")
+  })
+
+  it("lets the dev's ask for subagents reach sdlc-research, its description limiting the model to that ask", () => {
+    const frontmatter = skillFrontmatter(ASK_STARTED_SKILL)
+    assert.doesNotMatch(frontmatter, /^disable-model-invocation:/m)
+    assert.doesNotMatch(frontmatter, /^model:/m, "the model is set per agent, never in the frontmatter")
+    assert.doesNotMatch(frontmatter, /^context:/m, "the skill runs in the conversation, never a fork")
+    assert.match(frontmatter, /^argument-hint: "\[research\|review\|overview\] <question>"$/m)
+    const description = /^description: (.+)$/m.exec(frontmatter)?.[1] ?? ""
+    assert.match(description, /^Fan out independent subagents to research, review or map something/)
+    assert.match(description, /check what they claim and answer in the conversation/)
+    assert.match(description, /Use it only when the dev asks for subagents in so many words/)
+    assert.match(description, /It writes no file\. A question without a request for subagents is never this skill/)
+    assert.match(description, /a file of findings in the repository is \/research\./)
+    assert.doesNotMatch(description, /: /, "a colon and a space end a plain YAML value")
+  })
+
+  it("has sdlc-research brief its agents with the material only, set the model per agent and mark what it did not check", () => {
+    const text = readFileSync(join(PLUGIN_ROOT, "skills", ASK_STARTED_SKILL, "SKILL.md"), "utf8")
+    assert.match(text, /Spawn\s+two\s+to\s+four\s+subagents\s+in\s+one\s+message/)
+    assert.match(text, /Spawn\s+more\s+only\s+when\s+the\s+dev\s+says/)
+    assert.match(text, /`sonnet`\s+for\s+`research`\s+and\s+`overview`,\s+`opus`\s+for\s+`review`/)
+    assert.match(text, /never\s+this\s+session's\s+hypothesis/)
+    assert.match(text, /It\s+writes\s+no\s+file/)
+    assert.match(text, /marked\s+`unverified`/)
+    const answer = text.slice(text.lastIndexOf("## The answer"))
+    assert.ok(answer.indexOf("**The verdict**") < answer.indexOf("**The findings.**"))
+    assert.ok(answer.indexOf("**The findings.**") < answer.indexOf("**The effort**"))
+    assert.ok(answer.indexOf("**The effort**") < answer.indexOf("**Open questions**"))
+  })
+
+  it("records sdlc-research as an extension of research in ADR 0028", () => {
+    const adr = readFileSync(
+      join(REPO_ROOT, "docs", "adr", "0028-sdlc-research-extends-research-and-the-model-may-start-it.md"),
+      "utf8"
+    )
+    assert.match(adr, /It extends `research` and replaces none of it/)
+    assert.match(adr, /\*\*Model-invocable\.\*\*/)
   })
 
   it("runs the sweep through the plugin's link, never a dw-sdlc from PATH, and never a kept item's command", () => {

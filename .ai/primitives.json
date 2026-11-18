@@ -477,6 +477,17 @@
       ]
     },
     {
+      "id": "skills.research",
+      "name": "sdlc-research",
+      "group": "skills",
+      "summary": "Fans out two to four independent subagents to research, review or map, checks their claims and answers in chat; no file.",
+      "code": ["plugins/sdlc/skills/sdlc-research/SKILL.md"],
+      "docs": [
+        "plugins/sdlc/README.md#researching-with-subagents",
+        "docs/adr/0028-sdlc-research-extends-research-and-the-model-may-start-it.md"
+      ]
+    },
+    {
       "id": "agents.reviewer",
       "name": "sdlc-reviewer",
       "group": "agents",

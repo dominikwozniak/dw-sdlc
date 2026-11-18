@@ -4,8 +4,8 @@ The plugin of [dw-sdlc](../../README.md) that holds an agent session to a reposi
 
 - the guards: shell hooks that judge each tool call and refuse it, ask, or stay silent;
 - the session hooks, which report what a checkout lacks and bring its [References](#references) to their ref;
-- six skills, which set a repository up, check a machine, add a Reference, open a pull request, ship it
-  and sweep what landed;
+- seven skills, which set a repository up, check a machine, add a Reference, open a pull request, ship it,
+  sweep what landed and fan out subagents to research;
 - `sdlc-reviewer`, the subagent that reads a change at the `light` Review depth.
 
 The rules come from the repository's `.ai/agentic.config.json`, a machine's own
@@ -36,6 +36,7 @@ session skills.
 | `/sdlc-pr-open`                                                 | skill                     | the agent, whenever it opens a pull request or writes its body | [Opening a pull request](#opening-a-pull-request)          |
 | `/sdlc-pr-ship`                                                 | skill                     | you type it, or a Worker on its Brief                          | [Shipping a pull request](#shipping-a-pull-request)        |
 | `/sdlc-sweep`                                                   | skill                     | you type it, or say "go" on a Recap follow-up that names it    | [Sweeping](#sweeping)                                      |
+| `/sdlc-research`                                                | skill                     | you type it, or ask the agent for subagents in so many words   | [Researching with subagents](#researching-with-subagents)  |
 | `sdlc-reviewer`                                                 | subagent                  | `/sdlc-pr-ship` spawns it at the `light` Review depth          | [The light Review](#the-light-review)                      |
 
 A Worker is a Claude Code session that works on one Brief, the fixed-shape first message the
@@ -372,13 +373,13 @@ The guards judge the agent's tool calls, so a commit typed in a terminal never m
 [Doctor](#doctor). It is safe to repeat: each file is written only when it would change, and the only
 command it runs in the repository is read-only `git`. The flags are in `dw-sdlc setup --help`.
 
-| file                                      | what it writes                                                                                                                                | kept out of git |
-| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
-| `.ai/agentic.config.local.json`           | this machine's layer: `$schema`, the Node package manager the committed file leaves unset, a pinned convention, `worker.command` with `cswap` | yes             |
-| `.git/info/exclude`                       | the local config and `.claude/settings.local.json`                                                                                            | —               |
-| `.claude/settings.local.json`             | `permissions.deny`, the backstop for a machine without `jq`: destructive git, `gh repo delete`, every env file the config refuses             | yes             |
-| `~/.claude/settings.json`                 | for every repository: the lease-push exception and the irreversible deny set (`rm` at `/`, `~` or `.`, `shred`, `find -delete`)               | —               |
-| `package.json`, `.ai/agentic.config.json` | the Gate, in a repository with a `package.json`: [Adopting the Gate](#adopting-the-gate)                                                      | no, committed   |
+| file                                      | what it writes                                                                                                         | kept out of git |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | --------------- |
+| `.ai/agentic.config.local.json`           | this machine's layer: `$schema`, the Node package manager, a pinned convention, `worker.command` with `cswap`          | yes             |
+| `.git/info/exclude`                       | the local config and `.claude/settings.local.json`                                                                     | —               |
+| `.claude/settings.local.json`             | `permissions.deny`, the backstop without `jq`: destructive git, `gh repo delete`, every refused env file               | yes             |
+| `~/.claude/settings.json`                 | every repository: the lease-push exception, the irreversible deny set (`rm` at `/`, `~`, `.`, `shred`, `find -delete`) | —               |
+| `package.json`, `.ai/agentic.config.json` | the Gate, in a repository with a `package.json`: [Adopting the Gate](#adopting-the-gate)                               | no, committed   |
 
 - The local layer is written only when it holds something besides `$schema`; the dry run prints
   `skipped`. Its `$schema` is a `file://` URL to the schema in the marketplace's clone, which an editor
@@ -429,18 +430,18 @@ per machine check, and exits 1 on a FAIL. INFO marks a check that does not apply
 `node <plugin root>/dw-sdlc/src/cli.ts doctor`, where `claude plugin list --json` names the plugin root
 as the `installPath` of `sdlc@dw-sdlc`.
 
-| line               | checks                                                                                                                                     | when it is not there                                                                   |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
-| `jq`               | `jq` on PATH                                                                                                                               | FAIL: every guard passes every call                                                    |
-| `plugin`           | `sdlc@dw-sdlc` installed and enabled                                                                                                       | FAIL, with the install command                                                         |
-| `package`          | the `dw-sdlc` the plugin links against the one the repository's `package.json` pins                                                        | WARN `drift:`, naming `claude plugin update sdlc@dw-sdlc` or the pin; INFO with no pin |
-| `sessions`         | [`sdlc-sessions`](../sdlc-sessions/README.md) and its copy of `dw-sdlc` against the copy `sdlc` runs                                       | INFO when not installed, WARN when disabled or drifted; never a FAIL                   |
-| `hc`               | herdr's `hc`, which a Lead starts its Workers through, in the agent's login shell                                                          | WARN with `sdlc-sessions` enabled, INFO without it                                     |
-| `rtk`              | rtk not wired by hand beside the plugin's hook, and the filters that misbehave on the installed release excluded (`find` below rtk 0.46.0) | FAIL when wired by hand, WARN for a missing exclusion; PASS with no rtk                |
-| `safe chain`       | [Safe Chain](https://github.com/AikidoSec/safe-chain), Aikido's blocklist of malicious npm packages, with `npm` going through it           | WARN: the agent's shell reaches the registry without the blocklist                     |
-| `pnpm release age` | pnpm's global `minimumReleaseAge` at 10080 minutes, 7 days, or more                                                                        | WARN, with the `pnpm config set --global` line                                         |
-| `commit signing`   | `commit.gpgsign` true in the global git config                                                                                             | WARN: commits go out unsigned                                                          |
-| `config`           | the resolved config of the repository holding `--root` or the current directory                                                            | FAIL on an invalid layer, each problem named, and the commit rules off where none hold |
+| line               | checks                                                                                              | when it is not there                                                                   |
+| ------------------ | --------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `jq`               | `jq` on PATH                                                                                        | FAIL: every guard passes every call                                                    |
+| `plugin`           | `sdlc@dw-sdlc` installed and enabled                                                                | FAIL, with the install command                                                         |
+| `package`          | the `dw-sdlc` the plugin links against the one the repository's `package.json` pins                 | WARN `drift:`, naming `claude plugin update sdlc@dw-sdlc` or the pin; INFO with no pin |
+| `sessions`         | [`sdlc-sessions`](../sdlc-sessions/README.md) and its `dw-sdlc` against the one `sdlc` runs         | INFO when not installed, WARN when disabled or drifted; never a FAIL                   |
+| `hc`               | herdr's `hc`, which a Lead starts its Workers through, in the agent's login shell                   | WARN with `sdlc-sessions` enabled, INFO without it                                     |
+| `rtk`              | rtk not wired by hand beside the plugin's hook; misbehaving filters excluded (`find` below 0.46.0)  | FAIL when wired by hand, WARN for a missing exclusion; PASS with no rtk                |
+| `safe chain`       | [Safe Chain](https://github.com/AikidoSec/safe-chain), Aikido's npm blocklist, with `npm` behind it | WARN: the agent's shell reaches the registry without the blocklist                     |
+| `pnpm release age` | pnpm's global `minimumReleaseAge` at 10080 minutes, 7 days, or more                                 | WARN, with the `pnpm config set --global` line                                         |
+| `commit signing`   | `commit.gpgsign` true in the global git config                                                      | WARN: commits go out unsigned                                                          |
+| `config`           | the resolved config of the repository holding `--root` or the current directory                     | FAIL on an invalid layer, each problem named, and the commit rules off where none hold |
 
 Safe Chain, the release age and commit signing guard the supply chain and the history; the guards work
 without them. A `drift:` line means the hooks and skills run other code than the repository's Gate.
@@ -478,15 +479,15 @@ and a plain terminal load no plugin, so a Reference there is what the last local
 `.ai/references.json` holds `$schema` (optional), `version: 1` and `references`, a list of entries. A
 mistake in the file never touches the guards, which read only the agentic config:
 
-| field        | required | meaning                                                                                                  |
-| ------------ | -------- | -------------------------------------------------------------------------------------------------------- |
-| `dir`        | yes      | the directory under `references/`, unique in the list                                                    |
-| `repository` | yes      | a URL `git` can fetch; a `https://github.com/` one fetches with the GitHub CLI's credentials             |
-| `ref`        | yes      | a branch or a tag; `{name}` stands for the exact version the root `package.json` pins for package `name` |
-| `only`       | no       | paths the clone holds beside the top-level files, a directory ending in `/`; absent, the whole tree      |
-| `skip`       | no       | paths the sparse checkout leaves out; with `only`, each inside one of its paths                          |
-| `what`       | yes      | what the Reference is                                                                                    |
-| `when`       | yes      | when an agent reaches for it                                                                             |
+| field        | required | meaning                                                                                             |
+| ------------ | -------- | --------------------------------------------------------------------------------------------------- |
+| `dir`        | yes      | the directory under `references/`, unique in the list                                               |
+| `repository` | yes      | a URL `git` can fetch; a `https://github.com/` one fetches with the GitHub CLI's credentials        |
+| `ref`        | yes      | a branch or a tag; `{name}` stands for the version the root `package.json` pins for package `name`  |
+| `only`       | no       | paths the clone holds beside the top-level files, a directory ending in `/`; absent, the whole tree |
+| `skip`       | no       | paths the sparse checkout leaves out; with `only`, each inside one of its paths                     |
+| `what`       | yes      | what the Reference is                                                                               |
+| `when`       | yes      | when an agent reaches for it                                                                        |
 
 ```json
 {
@@ -531,12 +532,12 @@ commits nothing. The steps are in its `SKILL.md`.
 
 Under it runs the References setup, `node <plugin root>/dw-sdlc/src/cli.ts references setup [--check]`:
 
-| file                    | what it writes                                                                                                                           |
-| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `references/AGENTS.md`  | the Router, the file an agent reads first under `references/`, and its `CLAUDE.md` link; on every run the table of each `dir` and `when` |
-| `.claude/settings.json` | `claudeMdExcludes` for the clones' own `CLAUDE.md` and `AGENTS.md`                                                                       |
-| `.gitignore`            | `references/*`, with the exceptions that keep the Router tracked                                                                         |
-| `.ai/references.json`   | an empty list when the file is missing                                                                                                   |
+| file                    | what it writes                                                                            |
+| ----------------------- | ----------------------------------------------------------------------------------------- |
+| `references/AGENTS.md`  | the Router and its `CLAUDE.md` link; each run rewrites its table of each `dir` and `when` |
+| `.claude/settings.json` | `claudeMdExcludes` for the clones' own `CLAUDE.md` and `AGENTS.md`                        |
+| `.gitignore`            | `references/*`, with the exceptions that keep the Router tracked                          |
+| `.ai/references.json`   | an empty list when the file is missing                                                    |
 
 It only adds, so a repeat writes nothing. `--check` writes nothing and exits 1 when a file would change.
 
@@ -609,27 +610,36 @@ and kept in one table, quotes each kept item's command as yours to run, and stop
 keeps, in herdr too: [How a Sweep removes what finished work
 leaves](../../docs/overview.md#how-a-sweep-removes-what-finished-work-leaves).
 
+## Researching with subagents
+
+`/sdlc-research [research|review|overview] <question>` fans out two to four independent subagents,
+checks what they claim and answers in the conversation, writing no file. It starts when you type it or
+ask for subagents in so many words; findings kept in the repository stay the engineering skill
+`/research` ([ADR 0028](../../docs/adr/0028-sdlc-research-extends-research-and-the-model-may-start-it.md)).
+An agent's prompt holds the material, never the session's hypothesis. The answer opens with a verdict,
+cites `file:line` or a link per finding, and marks a claim the session did not check `unverified`.
+
 ## Config keys it reads
 
 Every key is in the schema, `dw-sdlc/config/agentic.config.schema.json`, with its order from strictest
 to loosest.
 
-| key                                   | default                                                     | read by                                                    |
-| ------------------------------------- | ----------------------------------------------------------- | ---------------------------------------------------------- |
-| `guardrails.protectedBranches`        | `master`, `main`, `production`                              | the push and commit guards, `dw-sdlc recap`                |
-| `guardrails.forcePush`                | `lease`                                                     | the push guard, `fix-conflicts`                            |
-| `guardrails.commitOnProtected`        | `allow`                                                     | the commit guard                                           |
-| `guardrails.envFiles`                 | policy `git`, the example files allowed, Rails' keys denied | the env guard, the setup's deny rules                      |
-| `guardrails.filteredOutput`           | `deny`                                                      | the filtered-output guard                                  |
-| `packageManagers.node`                | from the lockfile                                           | the package-manager guard, the setup                       |
-| `commit.convention`, `commit.pattern` | none, the subject unchecked                                 | the commit guard, the Commit hook, `/sdlc-pr-open`'s title |
-| `commit.trailer`                      | none                                                        | the commit guard                                           |
-| `baseBranch`                          | `auto`, the branch `origin/HEAD` names                      | the branch-delete guard, the Sweep                         |
-| `gate.*`                              | `gate.command` from the `check` script                      | the Gate, the filtered-output guard, the setup             |
-| `pr.merge`                            | `ask`                                                       | the Ship script                                            |
-| `pr.review`                           | `auto`                                                      | the Ship script, `/sdlc-pr-ship`                           |
-| `pr.reviewCommand`                    | `/code-review`                                              | `/sdlc-pr-ship`                                            |
-| `pr.reviewFull`                       | none                                                        | the Ship script                                            |
-| `worktree.setup`                      | none                                                        | the session-start report                                   |
-| `footprint`                           | `github`                                                    | the Ship script, `/sdlc-pr-open`, `sdlc-sessions`          |
-| `worker.command`                      | `claude`                                                    | the setup, and `sdlc-sessions`                             |
+| key                                   | default                                     | read by                                                    |
+| ------------------------------------- | ------------------------------------------- | ---------------------------------------------------------- |
+| `guardrails.protectedBranches`        | `master`, `main`, `production`              | the push and commit guards, `dw-sdlc recap`                |
+| `guardrails.forcePush`                | `lease`                                     | the push guard, `fix-conflicts`                            |
+| `guardrails.commitOnProtected`        | `allow`                                     | the commit guard                                           |
+| `guardrails.envFiles`                 | `git`; examples allowed, Rails' keys denied | the env guard, the setup's deny rules                      |
+| `guardrails.filteredOutput`           | `deny`                                      | the filtered-output guard                                  |
+| `packageManagers.node`                | from the lockfile                           | the package-manager guard, the setup                       |
+| `commit.convention`, `commit.pattern` | none, the subject unchecked                 | the commit guard, the Commit hook, `/sdlc-pr-open`'s title |
+| `commit.trailer`                      | none                                        | the commit guard                                           |
+| `baseBranch`                          | `auto`, the branch `origin/HEAD` names      | the branch-delete guard, the Sweep                         |
+| `gate.*`                              | `gate.command` from the `check` script      | the Gate, the filtered-output guard, the setup             |
+| `pr.merge`                            | `ask`                                       | the Ship script                                            |
+| `pr.review`                           | `auto`                                      | the Ship script, `/sdlc-pr-ship`                           |
+| `pr.reviewCommand`                    | `/code-review`                              | `/sdlc-pr-ship`                                            |
+| `pr.reviewFull`                       | none                                        | the Ship script                                            |
+| `worktree.setup`                      | none                                        | the session-start report                                   |
+| `footprint`                           | `github`                                    | the Ship script, `/sdlc-pr-open`, `sdlc-sessions`          |
+| `worker.command`                      | `claude`                                    | the setup, and `sdlc-sessions`                             |
