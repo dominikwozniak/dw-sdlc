@@ -10,7 +10,8 @@ def strictness: {
   filteredOutput: ["deny", "allow"],
   envFiles: ["deny", "git"],
   merge: ["ask", "auto"],
-  review: ["full", "auto", "light", "off"]
+  review: ["full", "auto", "light", "off"],
+  ciUnavailable: ["ci", "gate"]
 };
 
 # Secret files of a Rails app, denied by default; nothing in a Node repository matches them.
@@ -26,7 +27,7 @@ def strictest: {
 
 # pr.merge and pr.review while any layer is invalid: the Ship script merges nothing itself and the
 # agent reviews every head in full.
-def strictest_pr: {merge: "ask", review: "full"};
+def strictest_pr: {merge: "ask", review: "full", ciUnavailable: "ci"};
 
 # A resolved config as it runs while any layer is invalid; pr.reviewCommand, pr.reviewFull and worker have no
 # strictest value and keep what the valid layers name, footprint too, but for the local `resolve` keeps.
@@ -52,7 +53,7 @@ def defaults($inferred): {
   },
   commit: {},
   gate: ({steps: [], drift: "fail", checks: {run: []}} + ($inferred.gate // {})),
-  pr: {merge: "ask", review: "auto", reviewCommand: "/code-review", reviewFull: []},
+  pr: {merge: "ask", review: "auto", reviewCommand: "/code-review", reviewFull: [], ciUnavailable: "ci"},
   worker: {command: "claude", model: "sonnet", effort: "high"},
   worktree: {setup: []},
   footprint: "github"
@@ -114,9 +115,10 @@ def loosenings($base; $local):
           "drops \($dropped | map(tojson) | join(", ")); the local file may add protected branches, never remove them"))
   ] end;
 
-# Each local pr key less strict than the one it would override: merge auto over ask, review off over light over auto over full.
+# Each local pr key less strict than the one it would override: merge auto over ask, review off over light
+# over auto over full, ciUnavailable gate over ci.
 def pr_loosenings($base; $local):
-  [("merge", "review") as $key
+  [("merge", "review", "ciUnavailable") as $key
     | select($local[$key] != null and _rank($key; $local[$key]) > _rank($key; $base[$key]))
     | _problem("pr.\($key)";
         "\($local[$key] | tojson) loosens \($base[$key] | tojson); the local file may tighten pr.\($key), never loosen it")];

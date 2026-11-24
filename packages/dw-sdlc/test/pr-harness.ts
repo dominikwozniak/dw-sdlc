@@ -88,6 +88,8 @@ export type Context = {
   link?: string | null
   startedAt?: string | null
   required?: boolean
+  /** How many steps a CheckRun's job ran: none while it runs, one once it completed, when left out. */
+  steps?: number
 }
 export type Thread = {
   id: string
@@ -197,7 +199,7 @@ export const GREEN: Pr = {
 /** The words a CheckRun reports as its status while it has no conclusion. */
 const RUNNING = new Set(["QUEUED", "IN_PROGRESS", "WAITING", "PENDING", "REQUESTED"])
 
-function contextOf({ kind, name, state, link = null, startedAt = null, required = false }: Context): object {
+function contextOf({ kind, name, state, link = null, startedAt = null, required = false, steps }: Context): object {
   if (kind === "status") {
     return { context: name, state, targetUrl: link, createdAt: startedAt ?? GREEN.committedAt, isRequired: required }
   }
@@ -208,7 +210,8 @@ function contextOf({ kind, name, state, link = null, startedAt = null, required 
     conclusion: running ? null : state,
     detailsUrl: link,
     startedAt,
-    isRequired: required
+    isRequired: required,
+    steps: { totalCount: steps ?? (running ? 0 : 1) }
   }
 }
 

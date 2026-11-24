@@ -39,12 +39,20 @@ export type ReviewDepth = "full" | "light" | "off"
 export const REVIEW_DEPTHS = ["full", "light", "off"] as const satisfies readonly ReviewDepth[]
 /** `pr.review`: a Review depth, or `auto`, which routes one from the changes by built-in rules. */
 export type PrReview = ReviewDepth | "auto"
+/** What stands in for a CI job GitHub never ran: nothing under `ci`, a Gate mark on the head under `gate`. */
+export type PrCiUnavailable = "ci" | "gate"
 
 /**
- * How the Ship script ends a pull request: who merges it, how closely it is reviewed, the slash
- * command a `full` Review runs, and the Primitives `auto` always reads in full (ADR 0026).
+ * How the Ship script ends a pull request: who merges it, how closely it is reviewed, the slash command
+ * a `full` Review runs, the Primitives `auto` reads in full (ADR 0026), what stands in for CI unavailable.
  */
-export type PrConfig = { merge: PrMerge; review: PrReview; reviewCommand: string; reviewFull: string[] }
+export type PrConfig = {
+  merge: PrMerge
+  review: PrReview
+  reviewCommand: string
+  reviewFull: string[]
+  ciUnavailable: PrCiUnavailable
+}
 
 /** Claude Code's effort levels, lowest first: what `worker.effort` takes. */
 export const WORKER_EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const
@@ -140,7 +148,8 @@ export const STRICTNESS = {
   filteredOutput: ["deny", "allow"],
   envFiles: ["deny", "git"],
   merge: ["ask", "auto"],
-  review: ["full", "auto", "light", "off"]
+  review: ["full", "auto", "light", "off"],
+  ciUnavailable: ["ci", "gate"]
 } as const satisfies {
   forcePush: readonly ForcePush[]
   commitOnProtected: readonly CommitOnProtected[]
@@ -148,6 +157,7 @@ export const STRICTNESS = {
   envFiles: readonly EnvPolicy[]
   merge: readonly PrMerge[]
   review: readonly PrReview[]
+  ciUnavailable: readonly PrCiUnavailable[]
 }
 
 /** Secret files of a Rails app, denied by default; nothing in a Node repository matches them. */
@@ -166,7 +176,11 @@ export const STRICTEST_GUARDRAILS: Guardrails = {
 export const STRICTEST_PR_MERGE: PrMerge = "ask"
 /** The Review depth while any layer is invalid: the agent reads every head in full. */
 export const STRICTEST_PR_REVIEW: PrReview = "full"
-const STRICTEST_PR = { merge: STRICTEST_PR_MERGE, review: STRICTEST_PR_REVIEW } as const satisfies Partial<PrConfig>
+const STRICTEST_PR = {
+  merge: STRICTEST_PR_MERGE,
+  review: STRICTEST_PR_REVIEW,
+  ciUnavailable: "ci"
+} as const satisfies Partial<PrConfig>
 /** The command a `full` Review runs with nothing declared; it has no strictness order. */
 export const DEFAULT_REVIEW_COMMAND = "/code-review"
 /** What a repository gets with nothing declared: the merge the dev's, the depth routed from the changes. */
@@ -196,20 +210,6 @@ function cloneGuardrails(source: Guardrails): Guardrails {
     envFiles: { policy: source.envFiles.policy, allow: [...source.envFiles.allow], deny: [...source.envFiles.deny] },
     protectedBranches: [...source.protectedBranches]
   }
-}
-
-const GLOB_CHAR: Record<string, string> = { "*": ".*", "?": "." }
-
-/**
- * Whether an `envFiles` glob selects the file at `relativePath` (to the repository root, or the
- * basename outside one). `*` and `?` as in a shell pattern, `*` crossing `/`; a leading `**` and a
- * slash mean at any depth. The same rule `hooks/block-env-access.sh` applies with `[[ == ]]`.
- */
-export function matchesEnvGlob(glob: string, relativePath: string): boolean {
-  const anyDepth = glob.startsWith("**/")
-  const pattern = anyDepth ? glob.slice(3) : glob
-  const source = [...pattern].map((char) => GLOB_CHAR[char] ?? char.replace(/[.+^${}()|[\]\\]/g, "\\$&")).join("")
-  return new RegExp(`^${anyDepth ? "(.*/)?" : ""}${source}$`).test(relativePath)
 }
 
 // The preset each convention names. `conventional` is Conventional Commits; `ticket-key` is a ticket key
@@ -417,9 +417,9 @@ function loosenings(base: Guardrails, local: GuardrailsLayer | undefined): Probl
   return problems
 }
 
-/** Each local `pr` key less strict than the one it would override: `merge` auto over ask, `review` off over light over auto over full. */
+/** Each local `pr` key less strict than the one it would override, by its order in STRICTNESS. */
 function prLoosenings(base: PrConfig, local: Partial<PrConfig> | undefined): Problem[] {
-  const keys = ["merge", "review"] as const
+  const keys = ["merge", "review", "ciUnavailable"] as const
   return keys.flatMap((key) => {
     const value = local?.[key]
     if (value === undefined || rank(key, value) <= rank(key, base[key])) {

@@ -182,6 +182,12 @@ The one CI job that runs a repository's Gate, kept in a public repository so a p
 can call it.
 _Avoid_: reusable workflow (GitHub's mechanism for it), template, Action (the Ship script's next step)
 
+**CI unavailable**:
+A GitHub Actions job that failed with no step run, as on a billing lock.
+
+**Gate mark**:
+A green Gate pinned to a head by `dw-sdlc gate --mark`; it may stand in for CI unavailable.
+
 **Ratchet**:
 A Check whose recorded baseline may only tighten: a number that never grows or a list of exceptions that only shrinks.
 _Avoid_: threshold, budget (a fixed limit with no baseline)

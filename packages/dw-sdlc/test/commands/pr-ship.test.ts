@@ -283,7 +283,8 @@ describe("dw-sdlc pr ship", () => {
           required: true,
           link: RUN,
           log: ["gh", "run", "view", "--job", "124272841543", "-R", "byarcadia-app/foundation", "--log-failed"],
-          startedAt: "2026-10-31T11:01:00Z"
+          startedAt: "2026-10-31T11:01:00Z",
+          unstarted: false
         },
         {
           name: "Lint",
@@ -291,17 +292,19 @@ describe("dw-sdlc pr ship", () => {
           required: false,
           link: "https://ci.example.com/7",
           log: null,
-          startedAt: "2026-10-31T11:02:00Z"
+          startedAt: "2026-10-31T11:02:00Z",
+          unstarted: false
         },
-        { name: "Docs", bucket: "skipping", required: false, link: null, log: null, startedAt: null },
-        { name: "Deploy", bucket: "fail", required: false, link: null, log: null, startedAt: null },
+        { name: "Docs", bucket: "skipping", required: false, link: null, log: null, startedAt: null, unstarted: false },
+        { name: "Deploy", bucket: "fail", required: false, link: null, log: null, startedAt: null, unstarted: false },
         {
           name: "ci/legacy",
           bucket: "pending",
           required: false,
           link: null,
           log: null,
-          startedAt: "2026-10-31T11:03:00Z"
+          startedAt: "2026-10-31T11:03:00Z",
+          unstarted: false
         },
         {
           name: "dw-sdlc/review",
@@ -309,7 +312,8 @@ describe("dw-sdlc pr ship", () => {
           required: false,
           link: null,
           log: null,
-          startedAt: "2026-10-31T11:05:00Z"
+          startedAt: "2026-10-31T11:05:00Z",
+          unstarted: false
         }
       ],
       unresolvedThreads: [

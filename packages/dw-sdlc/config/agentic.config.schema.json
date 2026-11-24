@@ -468,7 +468,7 @@
       "additionalProperties": false
     },
     "pr": {
-      "description": "How the Ship script, `dw-sdlc pr ship`, ends a pull request. The local override may tighten `merge` and `review` and never loosen them, and adds to `reviewFull`.",
+      "description": "How the Ship script, `dw-sdlc pr ship`, ends a pull request. The local override may tighten `merge`, `review` and `ciUnavailable` and never loosen them, and adds to `reviewFull`.",
       "type": "object",
       "properties": {
         "merge": {
@@ -484,6 +484,10 @@
           "type": "array",
           "items": { "type": "string", "minLength": 1 },
           "uniqueItems": true
+        },
+        "ciUnavailable": {
+          "description": "What stands in for CI unavailable: a GitHub Actions job on the head that failed with no step run, as GitHub leaves it under a billing lock. `ci`: nothing, so it fails as any check does and the agent gets `fix-ci`. `gate`: a Gate mark on the head, the `dw-sdlc/gate` success `dw-sdlc gate --mark` leaves, stands in for it, and the merge follows `merge` as on green CI. Under `gate`, a head without one answers `prove-locally` for the agent, or with no `gate.steps` parks `ci-unavailable` with the merge command for the dev. A job that ran a step and failed is `fix-ci` under both. Default `ci`, which an invalid layer runs too. Strictest first: ci, gate.",
+          "enum": ["ci", "gate"]
         },
         "reviewCommand": {
           "description": "The slash command a `full` Review runs over the pull request's changes, as `/pr-review-toolkit:review-pr code errors`. Default `/code-review`. No strictness order: the local override sets it freely.",

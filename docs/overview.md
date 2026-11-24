@@ -309,7 +309,7 @@ code says whose turn it is:
 | owner      | Actions                                                                                                             |
 | ---------- | ------------------------------------------------------------------------------------------------------------------- |
 | the script | update a branch GitHub reports `BEHIND`; mark the head reviewed at depth `off`; mark your draft ready; squash merge |
-| the agent  | `fix-conflicts`, `fix-ci`, `address-review`, `review`                                                               |
+| the agent  | `fix-conflicts`, `fix-ci`, `prove-locally`, `address-review`, `review`                                              |
 | the dev    | the rest, as a `park`                                                                                               |
 
 The script runs its own Actions in the same call, each at most once, then reads again.
@@ -322,6 +322,7 @@ The script runs its own Actions in the same call, each at most once, then reads 
   lets the script merge for one call.
 - **It never merges on skipped CI.** A ready head whose every check was skipped counts as having no
   CI: the script waits for the run that marking it ready starts.
+- **Under `pr.ciUnavailable: gate`, a Gate mark stands in for a job GitHub never ran.**
 - **It never deletes a branch.** A `done` names the deletion command for the dev while the branch
   still stands on `origin`.
 

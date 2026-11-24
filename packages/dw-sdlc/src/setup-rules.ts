@@ -1,7 +1,8 @@
 // The permission rules the setup writes: the lease exception and the irreversible set for the user
 // file, and a repository's deny backstop for a machine without jq.
 
-import { DEFAULT_GUARDRAILS, type EnvFiles, matchesEnvGlob, resolveConfig } from "./agentic-config.ts"
+import { DEFAULT_GUARDRAILS, type EnvFiles, resolveConfig } from "./agentic-config.ts"
+import { matchesEnvGlob } from "./env-glob.ts"
 import { asked } from "./git.ts"
 
 /** The auto-mode exception that lets a lease push through the classifier's default force-push block. */

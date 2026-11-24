@@ -64,9 +64,16 @@ run it blind again. It exits 2 too when GitHub refuses the compare it reads afte
 compare decides whether the mark's Findings still stand, so the script stops and posts nothing.
 --dry-run performs nothing: it parks at the first Action the script would perform, under performed
 with ok null.
+CI unavailable is a GitHub Actions job on the head that failed with no step run, as GitHub leaves it
+under a billing lock. Under the default pr.ciUnavailable ci it fails as any check does. Under gate,
+with gate.steps the agent proves the head with dw-sdlc gate --mark, act prove-locally, and a Gate
+mark, the dw-sdlc/gate success on the head, stands in for that job: the merge follows pr.merge as
+on green CI. Without gate.steps it parks ci-unavailable, the merge the dev's. A job that ran a step
+and failed is fix-ci under both.
 Under footprint local in .ai/agentic.config.json or its local layer, the script posts no ${REVIEW}
 status and reads none: what a Review left on each commit comes from .git/dw-sdlc/reviews/<n>.json,
-under the common git dir, the file pr reviewed writes. Its mark-reviewed writes there too: clean
+under the common git dir, the file pr reviewed writes, and the Gate marks from
+.git/dw-sdlc/gates/<n>.json, the file gate --mark writes. Its mark-reviewed writes there too: clean
 for a carry, off under off. The command it names for an off head is pr reviewed --off. Every
 decision is the one the statuses would give.
 One line, or one document with --json; --verbose adds the state as read to the document under
