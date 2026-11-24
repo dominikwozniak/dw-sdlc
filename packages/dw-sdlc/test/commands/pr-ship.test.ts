@@ -562,10 +562,9 @@ describe("dw-sdlc pr ship while no check has answered", () => {
   it("counts a check not yet started from the head's ready when it left draft after its commit", () => {
     const queued: Context = { kind: "run", name: "Check", state: "QUEUED", startedAt: null }
     const readied: Pr = { ...PENDING, readyAt: READY_AT, checks: [queued, REVIEWED] }
-    const unavailable = "CI unavailable on e36732e: Check never started within 40 min"
     const cases: [number, number, string][] = [
       [30, 20, "ci-pending"],
-      [41 * 60, 30, `${unavailable}: no gate.steps to prove it, so the merge is the dev's`]
+      [41 * 60, 30, "1 check(s) pending for 41 min, past the 40 min budget"]
     ]
     for (const [seconds, status, reason] of cases) {
       const run = json(readied, [], clockAt(READY_AT, seconds))

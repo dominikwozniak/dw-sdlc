@@ -1,6 +1,6 @@
-// `dw-sdlc pr ship` when CI is unavailable: GitHub ran no job on the head, as under a billing lock. With
-// gate.steps the agent proves the head with `dw-sdlc gate --mark`, and a Gate mark on the head lets the
-// pull request merge as green CI does; without gate.steps the merge is the dev's.
+// `dw-sdlc pr ship` when CI is unavailable: a job GitHub never ran on the head, as under a billing lock.
+// Under pr.ciUnavailable gate the agent proves the head with `dw-sdlc gate --mark` and its Gate mark lets
+// the pull request merge as green CI does; under the default ci every decision is the one it was.
 
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
@@ -12,8 +12,10 @@ import { type Context, fakeGh, GREEN, HEAD, type Pr, RUN, served } from "../pr-h
 const TARGET = ["40", "-R", "byarcadia-app/foundation", "--json"]
 const MERGE = ["pr", "merge", "40", "-R", "byarcadia-app/foundation", "--squash", "--match-head-commit", HEAD]
 const DEV_MERGE = `gh pr merge 40 --squash --match-head-commit ${HEAD}`
-const GATED = { [COMMITTED_FILE]: { pr: { merge: "auto", review: "full" }, gate: { steps: ["pnpm test"] } } }
-const UNGATED = { [COMMITTED_FILE]: { pr: { merge: "auto", review: "full" } } }
+const PR = { merge: "auto", review: "full", ciUnavailable: "gate" }
+const GATED = { [COMMITTED_FILE]: { pr: PR, gate: { steps: ["pnpm test"] } } }
+const UNGATED = { [COMMITTED_FILE]: { pr: PR } }
+const DEFAULT = { [COMMITTED_FILE]: { pr: { merge: "auto", review: "full" }, gate: { steps: ["pnpm test"] } } }
 
 /** A job GitHub refused to start: failed at once, no step run, as a billing lock leaves it. */
 const REFUSED: Context = {
@@ -91,28 +93,35 @@ describe("dw-sdlc pr ship when CI is unavailable", () => {
     assert.equal(run.answer.action, "fix-ci")
   })
 
-  it("hands a head no check reported on past the grace to the agent to prove, under gate.steps", () => {
-    const run = ship({ ...GREEN, checks: [REVIEWED] }, GATED, "2026-10-31T11:02:01Z")
-    assert.deepEqual(
-      [run.answer.action, run.answer.reason, run.answer.command],
-      ["prove-locally", "no check reported on e36732e within 120 s of its commit or its ready", "dw-sdlc gate --mark"]
-    )
+  it("hands a refused job to the agent to fix under the default ci, gate.steps or not", () => {
+    const run = ship({ ...GREEN, checks: [REFUSED, REVIEWED, MARKED] }, DEFAULT)
+    assert.deepEqual([run.status, run.answer.action], [10, "fix-ci"])
   })
 
-  it("hands a job that never started past the budget to the agent to prove, and waits on it within it", () => {
+  it("parks a head no check reported on as unverified under gate, a Gate mark on it or not", () => {
+    for (const checks of [[REVIEWED], [REVIEWED, MARKED]]) {
+      const run = ship({ ...GREEN, checks }, GATED, "2026-10-31T11:02:01Z")
+      assert.deepEqual([run.answer.status, run.answer.action], ["park", "unverified"])
+    }
+  })
+
+  it("parks a job that never started past the budget as ci-stuck under gate", () => {
     const queued: Context = { kind: "run", name: "Check", state: "QUEUED", link: RUN, startedAt: null }
-    const pr = { ...GREEN, checks: [queued, REVIEWED] }
-    assert.equal(ship(pr, GATED, "2026-10-31T11:30:00Z").answer.reason, "ci-pending")
-    const late = ship(pr, GATED, "2026-10-31T11:41:00Z")
-    assert.deepEqual(
-      [late.answer.action, late.answer.reason],
-      ["prove-locally", "CI unavailable on e36732e: Check never started within 40 min"]
-    )
+    const run = ship({ ...GREEN, checks: [queued, REVIEWED, MARKED] }, GATED, "2026-10-31T11:41:00Z")
+    assert.deepEqual([run.answer.status, run.answer.action], ["park", "ci-stuck"])
   })
 
-  it("merges a head no check reported on once its Gate mark stands in", () => {
-    const pr = { ...GREEN, checks: [REVIEWED, MARKED] }
-    const run = ship(pr, GATED, "2026-10-31T11:10:00Z", [{ ...pr, state: "MERGED", mergeable: "UNKNOWN" }])
-    assert.equal(run.answer.status, "done")
+  it("waits on a job still running beside a refused one, once the Gate mark stands in for the refused one", () => {
+    const running: Context = {
+      kind: "run",
+      name: "Lint",
+      state: "IN_PROGRESS",
+      link: RUN,
+      startedAt: "2026-10-31T11:02:00Z"
+    }
+    const before = ship({ ...GREEN, checks: [REFUSED, running, REVIEWED] }, GATED)
+    assert.equal(before.answer.action, "prove-locally")
+    const after = ship({ ...GREEN, checks: [REFUSED, running, REVIEWED, MARKED] }, GATED)
+    assert.deepEqual([after.answer.status, after.answer.reason], ["wait", "ci-pending"])
   })
 })

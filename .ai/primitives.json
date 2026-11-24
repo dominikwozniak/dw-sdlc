@@ -159,6 +159,7 @@
       "summary": "Reads, validates and merges the layers, in TypeScript for the scripts and in jq for the guards, one behaviour.",
       "code": [
         "packages/dw-sdlc/src/agentic-config.ts",
+        "packages/dw-sdlc/src/env-glob.ts",
         "packages/dw-sdlc/src/json-schema.ts",
         "packages/dw-sdlc/src/commands/config.ts",
         "plugins/sdlc/hooks/config.jq",

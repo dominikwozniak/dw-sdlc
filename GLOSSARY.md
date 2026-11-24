@@ -183,10 +183,10 @@ can call it.
 _Avoid_: reusable workflow (GitHub's mechanism for it), template, Action (the Ship script's next step)
 
 **CI unavailable**:
-A head GitHub ran no CI job on, as under a billing lock.
+A CI job that failed with no step run, as under a billing lock.
 
 **Gate mark**:
-A green Gate pinned to a head by `dw-sdlc gate --mark`, standing in for CI unavailable.
+A green Gate pinned to a head by `dw-sdlc gate --mark`; it may stand in for CI unavailable.
 
 **Ratchet**:
 A Check whose recorded baseline may only tighten: a number that never grows or a list of exceptions that only shrinks.

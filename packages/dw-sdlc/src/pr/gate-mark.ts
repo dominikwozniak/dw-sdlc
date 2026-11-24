@@ -14,17 +14,19 @@ export type MarkTarget = { repo: string; number: number; url: string; head: stri
 
 const DESCRIPTION = "the Gate passed on this head"
 
+/** Stops the mark on a tree with uncommitted changes: a mark proves a commit, not the tree. */
+function requireClean(root: string, remedy: string): void {
+  if (must(root, ["status", "--porcelain"]) !== "") {
+    throw new CannotRun(`${root} has uncommitted changes: a Gate mark proves a commit, not the tree`, remedy)
+  }
+}
+
 /**
  * The pull request of the checkout at `root`, once its tree is clean and its HEAD is the pull request's
  * pushed head: a mark names a commit, so a tree that differs from it proves nothing.
  */
 export function markTarget(root: string): MarkTarget {
-  if (must(root, ["status", "--porcelain"]) !== "") {
-    throw new CannotRun(
-      `${root} has uncommitted changes: a Gate mark proves a commit, not the tree`,
-      "commit or stash them, push, then call again"
-    )
-  }
+  requireClean(root, "commit or stash them, push, then call again")
   const head = must(root, ["rev-parse", "HEAD"])
   const pr = pullRequestNamed({ number: undefined, repo: undefined }, "gate --mark")
   if (pr.head !== head) {
@@ -37,14 +39,15 @@ export function markTarget(root: string): MarkTarget {
 }
 
 /**
- * Leaves the Gate mark on the target's head, once HEAD is still it, and says where: the status posted, or
- * the file recorded under footprint local.
+ * Leaves the Gate mark on the target's head, once HEAD is still it and the Gate left the tree clean, and
+ * says where: the status posted, or the file recorded under footprint local.
  */
 export function leaveMark(root: string, target: MarkTarget, footprint: Footprint): string {
   const { repo, number, url, head } = target
   if (must(root, ["rev-parse", "HEAD"]) !== head) {
     throw new CannotRun(`HEAD moved from ${head} while the Gate ran`, "call again on the head to prove")
   }
+  requireClean(root, "the Gate wrote the tree: commit what it wrote, push, then call again")
   if (footprint === "local") {
     const store = localReviews(root)
     store.recordGate(number, head)

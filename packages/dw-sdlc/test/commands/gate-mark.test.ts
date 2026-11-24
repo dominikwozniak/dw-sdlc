@@ -76,6 +76,19 @@ describe("dw-sdlc gate --mark", () => {
     assert.deepEqual(run.posts, [])
   })
 
+  it("leaves no mark when the Gate wrote the tree while it ran", () => {
+    const { root, head } = checkout(["touch made"], {})
+    write(join(root, COMMITTED_FILE), JSON.stringify({ gate: { steps: ["touch made"], drift: "allow" } }))
+    git(root, "add", "-A")
+    commit(root, "-m", "allow drift")
+    const moved = git(root, "rev-parse", "HEAD").trim()
+    const run = mark(root, pullRequest(moved))
+    assert.notEqual(head, moved)
+    assert.equal(run.status, 2, run.stdout + run.stderr)
+    assert.match(run.stderr, /uncommitted changes/)
+    assert.deepEqual(run.posts, [])
+  })
+
   it("refuses a HEAD that is not the pull request's pushed head", () => {
     const { root } = checkout(["true"])
     const run = mark(root, pullRequest("b01dfacec0ffee0ddba11c0de5ca1ab1e0ddba11"))
@@ -91,7 +104,10 @@ describe("dw-sdlc gate --mark", () => {
   })
 
   it("records the mark in the git dir under footprint local, and pr ship reads it there", () => {
-    const { root, head } = checkout(["true"], { footprint: "local", pr: { merge: "ask", review: "full" } })
+    const { root, head } = checkout(["true"], {
+      footprint: "local",
+      pr: { merge: "ask", review: "full", ciUnavailable: "gate" }
+    })
     const run = mark(root, pullRequest(head))
     assert.equal(run.status, 0, run.stdout + run.stderr)
     assert.deepEqual(run.posts, [])

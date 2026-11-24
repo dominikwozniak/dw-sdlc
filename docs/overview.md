@@ -322,7 +322,7 @@ The script runs its own Actions in the same call, each at most once, then reads 
   lets the script merge for one call.
 - **It never merges on skipped CI.** A ready head whose every check was skipped counts as having no
   CI: the script waits for the run that marking it ready starts.
-- **When GitHub runs no CI, the Gate proves the head.** `dw-sdlc gate --mark` leaves a Gate mark.
+- **Under `pr.ciUnavailable: gate`, a Gate mark stands in for a job GitHub never ran.**
 - **It never deletes a branch.** A `done` names the deletion command for the dev while the branch
   still stands on `origin`.
 

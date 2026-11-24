@@ -2,7 +2,7 @@
 // the pull request answers its Action at the time given; every later row that holds rides in its
 // blockers. The last rows say who merges what no row before them holds back.
 
-import type { Footprint, PrMerge, ResolvedConfig } from "../agentic-config.ts"
+import type { Footprint, PrCiUnavailable, PrMerge, ResolvedConfig } from "../agentic-config.ts"
 import { shellLine } from "../shell-line.ts"
 import {
   BUDGET_MINUTES,
@@ -13,9 +13,7 @@ import {
   GRACE_SECONDS,
   pendingOf,
   proven,
-  ranNothing,
-  unavailableOf,
-  unavailableWhy
+  unavailableOf
 } from "./ci.ts"
 import type { ReviewFull } from "./review-full.ts"
 import { type ReadMarks, reviewCall, type ReviewPolicy } from "./standing.ts"
@@ -52,8 +50,8 @@ export type Action =
 export type ScriptAction = "update-branch" | "mark-ready" | "mark-reviewed" | "merge"
 /**
  * What the decision reads beside the pull request: who merges it, how closely a Review reads it, the
- * dev's word or `pr.review`, the slash command a `full` Review runs, where the Review state lives, and
- * whether the repository declares `gate.steps`, a Gate that can prove a head CI never ran on.
+ * dev's word or `pr.review`, the slash command a `full` Review runs, where the Review state lives, whether
+ * a Gate mark stands in for CI unavailable, and whether `gate.steps` declares a Gate to leave one.
  */
 export type Policy = {
   merge: PrMerge
@@ -61,18 +59,20 @@ export type Policy = {
   reviewCommand: string
   reviewFull: ReviewFull
   footprint: Footprint
-  gate: boolean
+  ciUnavailable: PrCiUnavailable
+  gateSteps: boolean
 }
 /**
  * The policy a repository declares in its `pr` key and `footprint`, `reviewFull` as `reviewFullOf` reads
  * it; a flag for one call goes over it.
  */
 export function declaredPolicy(
-  { pr: { merge, review, reviewCommand }, footprint, gate }: Pick<ResolvedConfig, "pr" | "footprint" | "gate">,
+  { pr, footprint, gate }: Pick<ResolvedConfig, "pr" | "footprint" | "gate">,
   reviewFull: ReviewFull
 ): Policy {
-  const steps = gate.steps.length > 0
-  return { merge, review: { depth: review, source: "config" }, reviewCommand, reviewFull, footprint, gate: steps }
+  const { merge, review, reviewCommand, ciUnavailable } = pr
+  const declared = { merge, review: { depth: review, source: "config" }, reviewCommand, reviewFull } as const
+  return { ...declared, footprint, ciUnavailable, gateSteps: gate.steps.length > 0 }
 }
 
 /** An Action the pull request needs beside the one its answer names, so one push can fix several. */
@@ -87,7 +87,7 @@ export type Answer = Blocker & {
 }
 
 type Row = {
-  when: (pr: PrState, policy: Policy, now: number) => boolean
+  when: (pr: PrState, policy: Policy) => boolean
   answer: (pr: PrState, now: number, policy: Policy) => Omit<Answer, "blockers">
   /** A row that wins answers with no blockers: a merged, closed or still-computing pull request. */
   alone?: true
@@ -100,6 +100,10 @@ type Row = {
  * head the fix then leaves behind. A pending status would turn the pull request unstable.
  */
 export const REVIEW_STATE = "success"
+
+/** The checks CI unavailable leaves to a Gate mark: none under pr.ciUnavailable ci, where they fail. */
+const unavailableUnder = (pr: PrState, policy: Policy) => unavailableOf(pr, policy.ciUnavailable === "gate")
+const failingUnder = (pr: PrState, policy: Policy) => failingOf(pr, policy.ciUnavailable === "gate")
 
 /** The unresolved threads whose last comment is the viewer's, or with `false` someone else's. */
 function threads(pr: PrState, lastByViewer: boolean): Thread[] {
@@ -249,11 +253,13 @@ export function devCommand(pr: PrState, action: ScriptAction, policy: Policy): s
 export const GATE_MARK = shellLine(["dw-sdlc", "gate", "--mark"])
 
 /**
- * CI unavailable, `reason` saying on what: with gate.steps the agent proves the head with the Gate, else
- * the merge is the dev's, never the script's on a head nothing proved.
+ * CI unavailable under pr.ciUnavailable gate: with gate.steps the agent proves the head with the Gate,
+ * else the merge is the dev's, never the script's on a head nothing proved.
  */
-function unavailable(pr: PrState, policy: Policy, reason: string): Omit<Answer, "blockers"> {
-  if (policy.gate) {
+function unavailable(pr: PrState, policy: Policy): Omit<Answer, "blockers"> {
+  const names = unavailableUnder(pr, policy).map(({ name }) => `${name} ran no step`)
+  const reason = `CI unavailable on ${pr.head.slice(0, 7)}: ${namesOf(names)}`
+  if (policy.gateSteps) {
     return { status: "act", action: "prove-locally", actor: "agent", reason, command: GATE_MARK }
   }
   return {
@@ -318,13 +324,13 @@ const ROWS: Row[] = [
     answer: (pr) => ({ status: "act", action: "update-branch", actor: "script", reason: `behind ${pr.base}` })
   },
   {
-    when: (pr) => failingOf(pr).length > 0,
-    answer: (pr) => ({
+    when: (pr, policy) => failingUnder(pr, policy).length > 0,
+    answer: (pr, _, policy) => ({
       status: "act",
       action: "fix-ci",
       actor: "agent",
-      reason: `${failingOf(pr).length} check(s) failing`,
-      details: { checks: failingOf(pr).map(failure) }
+      reason: `${failingUnder(pr, policy).length} check(s) failing`,
+      details: { checks: failingUnder(pr, policy).map(failure) }
     })
   },
   {
@@ -347,35 +353,33 @@ const ROWS: Row[] = [
     answer: (pr, _, policy) => reviewAnswer(pr, policy)
   },
   {
-    // CI unavailable: a job GitHub never ran, as under a billing lock. A Gate mark on the head stands in.
-    when: (pr, _, now) => !pr.draft && !proven(pr) && unavailableOf(pr, now).length > 0,
-    answer: (pr, now, policy) => {
-      const why = unavailableWhy(unavailableOf(pr, now))
-      return unavailable(pr, policy, `CI unavailable on ${pr.head.slice(0, 7)}: ${namesOf(why)}`)
-    }
+    // CI unavailable under pr.ciUnavailable gate: a job GitHub never ran, as under a billing lock. A Gate
+    // mark on the head stands in for it.
+    when: (pr, policy) => !pr.draft && !proven(pr) && unavailableUnder(pr, policy).length > 0,
+    answer: (pr, _, policy) => unavailable(pr, policy)
   },
   {
     // A head whose every check was skipped, or that has none, has run nothing. A draft's runs skip or
     // never start until `ready` starts the run, so a draft is no case of it: `mark-ready` is its row.
-    // Past the grace it is CI unavailable, which a Gate mark stands in for.
-    when: (pr) => !pr.draft && !proven(pr) && ranNothing(pr),
-    answer: (pr, now, policy) => {
-      if (now - ciStartOf(pr) <= GRACE_SECONDS * 1000) {
-        return { status: "wait", action: "wait", actor: "script", reason: "unverified", recheckAfter: 15 }
-      }
-      const reason =
-        ciOf(pr).length === 0
-          ? `no check reported on ${pr.head.slice(0, 7)} within ${GRACE_SECONDS} s of its commit or its ready`
-          : `every check on ${pr.head.slice(0, 7)} was skipped, ${GRACE_SECONDS} s after its commit or its ready`
-      return policy.gate
-        ? unavailable(pr, policy, reason)
-        : { status: "park", action: "unverified", actor: "dev", reason, command: devCommand(pr, "merge", policy) }
-    }
+    when: (pr) => !pr.draft && (ciOf(pr).length === 0 || ciOf(pr).every((check) => check.bucket === "skipping")),
+    answer: (pr, now, policy) =>
+      now - ciStartOf(pr) <= GRACE_SECONDS * 1000
+        ? { status: "wait", action: "wait", actor: "script", reason: "unverified", recheckAfter: 15 }
+        : {
+            status: "park",
+            action: "unverified",
+            actor: "dev",
+            reason:
+              ciOf(pr).length === 0
+                ? `no check reported on ${pr.head.slice(0, 7)} within ${GRACE_SECONDS} s of its commit or its ready`
+                : `every check on ${pr.head.slice(0, 7)} was skipped, ${GRACE_SECONDS} s after its commit or its ready`,
+            command: devCommand(pr, "merge", policy)
+          }
   },
   {
-    when: (pr, _, now) => pendingOf(pr, now).length > 0,
+    when: (pr) => pendingOf(pr).length > 0,
     answer: (pr, now) => {
-      const pending = pendingOf(pr, now)
+      const pending = pendingOf(pr)
       const start = Math.min(
         ...pending.map((check) => (check.startedAt === null ? ciStartOf(pr) : Date.parse(check.startedAt)))
       )
@@ -479,13 +483,13 @@ function blockerOf({ action, actor, reason, details }: Omit<Answer, "blockers">)
 
 /** The Action `pr` needs at `now`, milliseconds since the epoch, under `policy`. */
 export function decide(pr: PrState, now: number, policy: Policy): Answer {
-  const index = ROWS.findIndex((row) => row.when(pr, policy, now))
+  const index = ROWS.findIndex((row) => row.when(pr, policy))
   const row = ROWS[index]
   if (row === undefined) {
     throw new Error(`no row of the decision matches ${pr.url} under pr.merge ${policy.merge}`)
   }
   const later =
-    row.alone === true ? [] : ROWS.slice(index + 1).filter((other) => !other.merging && other.when(pr, policy, now))
+    row.alone === true ? [] : ROWS.slice(index + 1).filter((other) => !other.merging && other.when(pr, policy))
   return {
     ...row.answer(pr, now, policy),
     blockers: later.map((other) => blockerOf(other.answer(pr, now, policy)))

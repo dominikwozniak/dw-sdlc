@@ -4,7 +4,6 @@ import { join } from "node:path"
 import { describe, it } from "node:test"
 
 import {
-  matchesEnvGlob,
   COMMITTED_FILE,
   LOCAL_FILE,
   STRICTEST_GUARDRAILS,
@@ -12,6 +11,7 @@ import {
   resolveConfig,
   validateDocument
 } from "../src/agentic-config.ts"
+import { matchesEnvGlob } from "../src/env-glob.ts"
 import { commit, git, REPO_ROOT, repo, scratch, write } from "./harness.ts"
 
 const ORG_REMOTE = "git@github.com:acme/app.git"
@@ -53,7 +53,13 @@ describe("inference, with no config file", () => {
       protectedBranches: ["master", "main", "production"]
     })
     assert.deepEqual(config.gate, { steps: [], drift: "fail", checks: { run: [] } })
-    assert.deepEqual(config.pr, { merge: "ask", review: "auto", reviewCommand: "/code-review", reviewFull: [] })
+    assert.deepEqual(config.pr, {
+      merge: "ask",
+      review: "auto",
+      reviewCommand: "/code-review",
+      reviewFull: [],
+      ciUnavailable: "ci"
+    })
     assert.deepEqual(config.worktree, { setup: [] })
     assert.equal(config.baseBranch, "auto")
   })
@@ -508,7 +514,8 @@ describe("pr.review", () => {
       merge: "auto",
       review: "off",
       reviewCommand: "/code-review",
-      reviewFull: []
+      reviewFull: [],
+      ciUnavailable: "ci"
     })
 
     const tighter = repo({
@@ -519,7 +526,8 @@ describe("pr.review", () => {
       merge: "auto",
       review: "full",
       reviewCommand: "/code-review",
-      reviewFull: []
+      reviewFull: [],
+      ciUnavailable: "ci"
     })
   })
 
@@ -536,7 +544,13 @@ describe("pr.review", () => {
       const { config, problems, layers } = resolveConfig(root)
       assert.deepEqual(problems, [{ file: LOCAL_FILE, path: "pr.review", message }])
       assert.deepEqual(layers, { committed: "valid", local: "invalid" })
-      assert.deepEqual(config.pr, { merge: "ask", review: "full", reviewCommand: "/code-review", reviewFull: [] })
+      assert.deepEqual(config.pr, {
+        merge: "ask",
+        review: "full",
+        reviewCommand: "/code-review",
+        reviewFull: [],
+        ciUnavailable: "ci"
+      })
       assert.equal(config.baseBranch, "auto")
     }
   })
@@ -564,7 +578,8 @@ describe("pr.review", () => {
       merge: "ask",
       review: "light",
       reviewCommand: "/code-review",
-      reviewFull: []
+      reviewFull: [],
+      ciUnavailable: "ci"
     })
 
     const cases: [string, string, string][] = [
@@ -634,7 +649,13 @@ describe("pr.reviewCommand", () => {
       const { config, problems, layers } = resolveConfig(repo({ files }))
       assert.deepEqual(problems, [], JSON.stringify(files))
       assert.equal(layers.local, "valid")
-      assert.deepEqual(config.pr, { merge: "ask", review: "auto", reviewCommand: TOOLKIT, reviewFull: [] })
+      assert.deepEqual(config.pr, {
+        merge: "ask",
+        review: "auto",
+        reviewCommand: TOOLKIT,
+        reviewFull: [],
+        ciUnavailable: "ci"
+      })
     }
   })
 
@@ -655,7 +676,7 @@ describe("pr.reviewCommand", () => {
       assert.notDeepEqual(problems, [])
       assert.deepEqual(
         config.pr,
-        { merge: "ask", review: "full", reviewCommand: command, reviewFull: [] },
+        { merge: "ask", review: "full", reviewCommand: command, reviewFull: [], ciUnavailable: "ci" },
         JSON.stringify(files)
       )
     }
