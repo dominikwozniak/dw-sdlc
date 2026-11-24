@@ -73,7 +73,7 @@ hash runs the whole Gate.
 --mark leaves the Gate mark when the Gate passes: the commit status dw-sdlc/gate in state success on
 the pull request's head, or under footprint local a record in .git/dw-sdlc/gates/<n>.json, under the
 common git dir. pr ship takes it in the place of CI GitHub never ran on that head. It needs a clean
-tree whose HEAD is the head of the branch's pull request, as gh pr view resolves it, and an
+tree whose HEAD is the head of the pull request gh pr view resolves from the current directory, and an
 authenticated gh, and it does not combine with --update-baseline, which writes the tree. A Gate that
 does not pass leaves no mark.
 
