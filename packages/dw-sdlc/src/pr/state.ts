@@ -24,6 +24,8 @@ import type { Commit, History, LeftBehind, Posted, Standing } from "./standing.t
 
 /** The commit status a clean review of the head leaves on it. */
 export const REVIEW = "dw-sdlc/review"
+/** The commit status `dw-sdlc gate --mark` leaves on a head the Gate passed on: the Gate mark. */
+export const GATE = "dw-sdlc/gate"
 /** How the description of a success the script posts under off begins: no one read that head. */
 export const OFF_PREFIX = "off:"
 /**
@@ -57,7 +59,7 @@ export const QUERY = `query($owner: String!, $name: String!, $number: Int!) {
         latest: comments(last: 1) { nodes { viewerDidAuthor } } } }
       commits(last: 1) { nodes { commit { committedDate statusCheckRollup {
         contexts(first: ${CHECKS_READ}) { pageInfo { hasNextPage } nodes {
-          ... on CheckRun { name status conclusion detailsUrl startedAt isRequired(pullRequestNumber: $number) }
+          ... on CheckRun { name status conclusion detailsUrl startedAt isRequired(pullRequestNumber: $number) steps(first: 1) { totalCount } }
           ... on StatusContext { context state targetUrl createdAt isRequired(pullRequestNumber: $number) } } } }
         status { context(name: "${REVIEW}") { context state targetUrl createdAt isRequired(pullRequestNumber: $number) } } } } }
       history: commits(last: 100) { nodes { commit { oid parents { totalCount } status { context(name: "${REVIEW}") { state description } } } } }
@@ -77,6 +79,8 @@ export type CiCheck = {
   /** The command that prints a failed GitHub Actions job's log; null for any other CI. */
   log: string[] | null
   startedAt: string | null
+  /** A GitHub Actions job that ended failed with no step run: GitHub never ran it, as under a billing lock. */
+  unstarted: boolean
 }
 export type Thread = {
   id: string
@@ -139,6 +143,9 @@ export type PrState = PullRequest & Standing
 
 const FAIL = new Set(["ERROR", "FAILURE", "TIMED_OUT", "ACTION_REQUIRED", "CANCELLED", "STARTUP_FAILURE"])
 const SKIPPING = new Set(["SKIPPED", "NEUTRAL"])
+/** The conclusions of a job GitHub refused to run: with no step run, no test failed. */
+const REFUSED = new Set(["FAILURE", "STARTUP_FAILURE"])
+const ACTIONS_RUN = /\/actions\/runs\/\d+/
 
 /** A check's bucket as `gh pr checks` sorts it: every word not passed, failed or skipped is pending. */
 function bucketOf(word: string | null): Bucket {
@@ -161,13 +168,17 @@ function checkOf(context: Node, repo: string): CiCheck {
   if ("name" in context.value) {
     const status = string(context, "status")
     const link = stringOrNull(context, "detailsUrl")
+    const conclusion = status === "COMPLETED" ? stringOrNull(context, "conclusion") : status
+    // Another app's check run reports no steps at all: only a GitHub Actions job's zero means none ran.
+    const stepless = integer(child(context, "steps"), "totalCount") === 0
     return {
       name: string(context, "name"),
-      bucket: bucketOf(status === "COMPLETED" ? stringOrNull(context, "conclusion") : status),
+      bucket: bucketOf(conclusion),
       required: boolean(context, "isRequired"),
       link,
       log: logCommand(link, repo),
-      startedAt: timeOrNull(context, "startedAt")
+      startedAt: timeOrNull(context, "startedAt"),
+      unstarted: conclusion !== null && REFUSED.has(conclusion) && stepless && link !== null && ACTIONS_RUN.test(link)
     }
   }
   if ("context" in context.value) {
@@ -178,7 +189,8 @@ function checkOf(context: Node, repo: string): CiCheck {
       required: boolean(context, "isRequired"),
       link,
       log: logCommand(link, repo),
-      startedAt: time(context, "createdAt")
+      startedAt: time(context, "createdAt"),
+      unstarted: false
     }
   }
   throw new ReplyError(`${context.at} is neither a CheckRun nor a StatusContext`)

@@ -16,6 +16,7 @@ import { findingOf } from "../checks/check.ts"
 import { CHECK_NAMES, type EnabledCheck, enabledChecks, shippedCheck } from "../checks/index.ts"
 import { watchDrift } from "../drift.ts"
 import { type Fingerprint, fingerprint, isGreen, stampGreen } from "../gate-cache.ts"
+import { leaveMark, markTarget } from "../pr/gate-mark.ts"
 import { annotation, type Failure, failureJson, failureLine, hintLines } from "../report.ts"
 import {
   holdingSignals,
@@ -29,7 +30,7 @@ import {
 
 export const summary = "run the Gate: the Steps of gate.steps in order, then every Check under gate.checks"
 
-const USAGE = `Usage: dw-sdlc gate [--json] [--verbose] [--root <dir>] [--update-baseline | --cache]
+const USAGE = `Usage: dw-sdlc gate [--json] [--verbose] [--root <dir>] [--update-baseline | --cache] [--mark]
 
 Runs the Gate of the repository holding --root (default: the current directory): each Step of
 gate.steps in order from the repository root, stopping at the first that fails; then every Check
@@ -69,10 +70,17 @@ file joins. Where there is no baseline, it records one. The Ratchet is judged ag
 Untracked files count and ignored files do not. Each worktree keeps its own stamp. A tree it cannot
 hash runs the whole Gate.
 
+--mark leaves the Gate mark when the Gate passes: the commit status dw-sdlc/gate in state success on
+the pull request's head, or under footprint local a record in .git/dw-sdlc/gates/<n>.json, under the
+common git dir. pr ship takes it in the place of CI GitHub never ran on that head. It needs a clean
+tree whose HEAD is the head of the branch's pull request, as gh pr view resolves it, and an
+authenticated gh, and it does not combine with --update-baseline, which writes the tree. A Gate that
+does not pass leaves no mark.
+
 Exit 0 when everything passes, 1 when a Step or a Check fails or a Step drifts, 2 when the Gate
 cannot run: a --root that names no directory, an invalid config layer, a Step or Check whose command
 the shell cannot find or execute, a Check missing an input it reads, or a tree it cannot record for
-Drift.`
+Drift, or a --mark it cannot leave.`
 
 type Outcome = { status: Status | "skipped"; exitCode: number | null; tail: string[] | null }
 /** `hint` is what the Step carries to try when it fails, null where it has none. */
@@ -84,6 +92,8 @@ type GateReport = {
   command: string | null
   /** Present on a run the cache skipped. */
   cached?: true
+  /** Present on a run --mark marked: the head, and where the mark went. */
+  mark?: { head: string; where: string }
   steps: StepReport[]
   checks: CheckReport[]
   failures: Failure[]
@@ -129,7 +139,7 @@ function plural(count: number, noun: string): string {
   return `${count} ${noun}${count === 1 ? "" : "s"}`
 }
 
-type Cli = { help: boolean; json: boolean; verbose: boolean; root: string | undefined; mode: Mode }
+type Cli = { help: boolean; json: boolean; verbose: boolean; root: string | undefined; mode: Mode; mark: boolean }
 
 function parseCli(argv: string[]): Cli {
   const { values } = readArgs(
@@ -141,7 +151,8 @@ function parseCli(argv: string[]): Cli {
         verbose: { type: "boolean" },
         root: { type: "string" },
         "update-baseline": { type: "boolean" },
-        cache: { type: "boolean" }
+        cache: { type: "boolean" },
+        mark: { type: "boolean" }
       }
     },
     USAGE
@@ -151,9 +162,16 @@ function parseCli(argv: string[]): Cli {
   if (refresh && cache) {
     throw usageError("--cache and --update-baseline do not combine: a refresh needs the Gate to run", USAGE)
   }
+  const mark = values.mark === true
+  if (refresh && mark) {
+    throw usageError(
+      "--mark and --update-baseline do not combine: a mark proves a commit, and a refresh writes the tree",
+      USAGE
+    )
+  }
   const mode = refresh ? "update-baseline" : cache ? "cache" : "plain"
   const flags = { help: values.help === true, json: values.json === true, verbose: values.verbose === true }
-  return { ...flags, root: values.root, mode }
+  return { ...flags, root: values.root, mode, mark }
 }
 
 function configFailure({ file, path, message }: Problem): Failure {
@@ -459,6 +477,16 @@ export async function run(argv: string[]): Promise<number> {
   }
 
   const { json, verbose, mode } = cli
-  const report = await runGate(repositoryRoot(rootDir(cli.root)), { json, verbose, mode })
-  return printReport(report, json, "gate")
+  const root = repositoryRoot(rootDir(cli.root))
+  const target = cli.mark ? markTarget(root) : undefined
+  const report = await runGate(root, { json, verbose, mode })
+  if (target === undefined || report.status !== "pass") {
+    return printReport(report, json, "gate")
+  }
+  const where = leaveMark(root, target, resolveConfig(root).config.footprint)
+  const code = printReport({ ...report, mark: { head: target.head, where } }, json, "gate")
+  if (!json) {
+    process.stdout.write(`gate: marked ${target.head}: ${where}\n`)
+  }
+  return code
 }

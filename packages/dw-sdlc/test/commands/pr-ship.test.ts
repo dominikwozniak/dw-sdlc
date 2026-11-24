@@ -283,7 +283,8 @@ describe("dw-sdlc pr ship", () => {
           required: true,
           link: RUN,
           log: ["gh", "run", "view", "--job", "124272841543", "-R", "byarcadia-app/foundation", "--log-failed"],
-          startedAt: "2026-10-31T11:01:00Z"
+          startedAt: "2026-10-31T11:01:00Z",
+          unstarted: false
         },
         {
           name: "Lint",
@@ -291,17 +292,19 @@ describe("dw-sdlc pr ship", () => {
           required: false,
           link: "https://ci.example.com/7",
           log: null,
-          startedAt: "2026-10-31T11:02:00Z"
+          startedAt: "2026-10-31T11:02:00Z",
+          unstarted: false
         },
-        { name: "Docs", bucket: "skipping", required: false, link: null, log: null, startedAt: null },
-        { name: "Deploy", bucket: "fail", required: false, link: null, log: null, startedAt: null },
+        { name: "Docs", bucket: "skipping", required: false, link: null, log: null, startedAt: null, unstarted: false },
+        { name: "Deploy", bucket: "fail", required: false, link: null, log: null, startedAt: null, unstarted: false },
         {
           name: "ci/legacy",
           bucket: "pending",
           required: false,
           link: null,
           log: null,
-          startedAt: "2026-10-31T11:03:00Z"
+          startedAt: "2026-10-31T11:03:00Z",
+          unstarted: false
         },
         {
           name: "dw-sdlc/review",
@@ -309,7 +312,8 @@ describe("dw-sdlc pr ship", () => {
           required: false,
           link: null,
           log: null,
-          startedAt: "2026-10-31T11:05:00Z"
+          startedAt: "2026-10-31T11:05:00Z",
+          unstarted: false
         }
       ],
       unresolvedThreads: [
@@ -558,9 +562,10 @@ describe("dw-sdlc pr ship while no check has answered", () => {
   it("counts a check not yet started from the head's ready when it left draft after its commit", () => {
     const queued: Context = { kind: "run", name: "Check", state: "QUEUED", startedAt: null }
     const readied: Pr = { ...PENDING, readyAt: READY_AT, checks: [queued, REVIEWED] }
+    const unavailable = "CI unavailable on e36732e: Check never started within 40 min"
     const cases: [number, number, string][] = [
       [30, 20, "ci-pending"],
-      [41 * 60, 30, "1 check(s) pending for 41 min, past the 40 min budget"]
+      [41 * 60, 30, `${unavailable}: no gate.steps to prove it, so the merge is the dev's`]
     ]
     for (const [seconds, status, reason] of cases) {
       const run = json(readied, [], clockAt(READY_AT, seconds))

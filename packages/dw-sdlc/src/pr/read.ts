@@ -200,7 +200,8 @@ export function ghReads(sized: boolean, local: LocalReviews | null = null): Read
   }
   const query = (target: Target): PrState => {
     const parsed = parseOrCannotRun(() => parsePr(graphql(target), target.repo))
-    const { pr, history } = local === null ? parsed : withMarks(parsed, local.marksOf(target.number))
+    const { pr, history } =
+      local === null ? parsed : withMarks(parsed, local.marksOf(target.number), local.gatedOf(target.number))
     const awaits = pr.state === "OPEN" && awaitsReview(pr)
     return { ...pr, ...standingOf(history, comparesOn(target), { awaits, sized }) }
   }

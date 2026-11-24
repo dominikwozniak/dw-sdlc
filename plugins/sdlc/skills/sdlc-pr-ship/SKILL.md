@@ -30,6 +30,9 @@ is. Fix the agent's other `blockers` in the same push, all but `review`, which n
 push makes.
 
 - `act fix-ci`: run each `log` under `details.checks`, or read its `link`; fix, then `git push`.
+- `act prove-locally`: GitHub ran no CI on the head. On a clean checkout at `<head>`, run
+  `node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" gate --mark`. Green leaves the Gate mark on the head;
+  red, fix what it printed as under `fix-ci`, then `git push`. Exit 2: show what it printed and stop.
 - `act fix-conflicts`: `git fetch origin <base>`, rebase onto `origin/<base>`, resolve, then
   `git push --force-with-lease`.
 - `act address-review`: triage each thread under `details.threads` against the code, its opening
