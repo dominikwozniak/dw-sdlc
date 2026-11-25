@@ -524,12 +524,12 @@ describe("a local file with no committed file", () => {
   })
 
   it("still may not loosen a guardrail: the file drops and the strictest set runs", () => {
-    const root = repo({ files: { [LOCAL_FILE]: { guardrails: { forcePush: "allow" }, pr: { review: "light" } } } })
+    const root = repo({
+      files: { [LOCAL_FILE]: { guardrails: { protectedBranches: ["main"] }, pr: { review: "light" } } }
+    })
     const { config, problems, layers } = resolveConfig(root)
-    assert.deepEqual(
-      problems.map(({ path }) => path),
-      ["guardrails.forcePush"]
-    )
+    const message = 'drops "master", "production"; the local file may add protected branches, never remove them'
+    assert.deepEqual(problems, [{ file: LOCAL_FILE, path: "guardrails.protectedBranches", message }])
     assert.deepEqual(layers, { committed: "absent", local: "invalid" })
     assert.deepEqual(config.guardrails, STRICTEST_GUARDRAILS)
     assert.equal(config.pr.review, "full")
