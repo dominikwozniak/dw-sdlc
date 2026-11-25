@@ -39,8 +39,9 @@ refuses.
 - A repository's rules are a validated `.ai/agentic.config.json` with an optional local layer, never
   prose; the shape borrows `version`, `baseBranch: "auto"` and `validation.commands` from Open Mercato
   and tolerates unknown top-level keys (ADR 0002).
-- The local layer may tighten `guardrails.*`, `pr.merge` and `pr.review` and never loosen them;
-  everything else it overrides freely.
+- The local layer may tighten `guardrails.*` and never loosen them. Beside a committed file the same
+  holds for `pr.merge`, `pr.review` and `pr.ciUnavailable`; with no committed file it sets them
+  freely. Everything else it overrides freely.
 - Resolution order is local over committed over inferred; inference reads the package manager from
   the lockfile, so a repository with nothing committed still works.
 - An invalid layer is dropped whole, a loosening local file counts as invalid, and the guards then run

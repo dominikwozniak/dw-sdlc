@@ -128,12 +128,14 @@ def pr_loosenings($base; $local):
 def finalize: if .commit.convention != null then .commit.pattern //= commit_patterns[.commit.convention] else . end;
 
 # resolve($inferred; $committed; $local) — {config, problems}, the problems the local loosenings; a
-# layer is null when absent or invalid. On any problem the caller runs `on_strictest`. A loosening
-# local layer that names footprint local keeps it; a layer the schema refuses arrives here as null, so
-# only the package's resolver keeps its footprint, which no guard reads.
+# layer is null when absent or invalid. With no committed layer the local one sets the pr keys freely;
+# an invalid committed one is a problem the caller already holds. On any problem the caller runs
+# `on_strictest`. A loosening local layer that names footprint local keeps it; a layer the schema
+# refuses arrives here as null, so only the package's resolver keeps its footprint, which no guard reads.
 def resolve($inferred; $committed; $local):
   (defaults($inferred) | if $committed != null then apply($committed) else . end) as $base
-  | (loosenings($base.guardrails; $local.guardrails) + pr_loosenings($base.pr; $local.pr // {})) as $problems
+  | (loosenings($base.guardrails; $local.guardrails)
+      + (if $committed == null then [] else pr_loosenings($base.pr; $local.pr // {}) end)) as $problems
   | {
       config: ((if $local != null and ($problems | length) == 0 then $base | apply($local) else $base end)
         | if ($problems | length) > 0 and $local.footprint == "local" then .footprint = "local" else . end

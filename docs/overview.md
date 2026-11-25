@@ -126,7 +126,8 @@ The rules live in the repository, not in the plugin. Three layers set them, the 
 
 - A key no file sets is inferred: pnpm from the lockfile. No commit convention is inferred: with none
   set, a commit subject goes unchecked.
-- The local layer may tighten `guardrails`, `pr.merge` and `pr.review`. It never loosens them.
+- The local layer tightens `guardrails` and ranked `pr` keys, never loosens. With no
+  committed file it sets the `pr` ones freely.
 - `pr.reviewCommand`, `worker` and [`footprint`](../README.md#footprint-local) have no strictness
   order, so any layer sets them.
 - A linked worktree with no layer of its own reads the main checkout's.
