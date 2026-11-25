@@ -506,6 +506,36 @@ describe("pr.merge", () => {
   })
 })
 
+describe("a local file with no committed file", () => {
+  it("sets pr.merge, pr.review and pr.ciUnavailable freely, as the repository's only word on them", () => {
+    for (const review of ["full", "auto", "light", "off"]) {
+      const root = repo({ files: { [LOCAL_FILE]: { pr: { merge: "auto", review, ciUnavailable: "gate" } } } })
+      const { config, problems, layers } = resolveConfig(root)
+      assert.deepEqual(problems, [], review)
+      assert.deepEqual(layers, { committed: "absent", local: "valid" })
+      assert.deepEqual(config.pr, {
+        merge: "auto",
+        review,
+        reviewCommand: "/code-review",
+        reviewFull: [],
+        ciUnavailable: "gate"
+      })
+    }
+  })
+
+  it("still may not loosen a guardrail: the file drops and the strictest set runs", () => {
+    const root = repo({
+      files: { [LOCAL_FILE]: { guardrails: { protectedBranches: ["main"] }, pr: { review: "light" } } }
+    })
+    const { config, problems, layers } = resolveConfig(root)
+    const message = 'drops "master", "production"; the local file may add protected branches, never remove them'
+    assert.deepEqual(problems, [{ file: LOCAL_FILE, path: "guardrails.protectedBranches", message }])
+    assert.deepEqual(layers, { committed: "absent", local: "invalid" })
+    assert.deepEqual(config.guardrails, STRICTEST_GUARDRAILS)
+    assert.equal(config.pr.review, "full")
+  })
+})
+
 describe("pr.review", () => {
   it("takes off from the committed file, and a local full over it, pr.merge left as it was", () => {
     const committed = repo({ files: { [COMMITTED_FILE]: { pr: { merge: "auto", review: "off" } } } })

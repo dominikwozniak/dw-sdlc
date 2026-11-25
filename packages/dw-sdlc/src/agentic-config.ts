@@ -471,10 +471,10 @@ export function resolveConfig(root: string): Resolution {
     config = applyLayer(config, committed.value)
   }
   if (local.value !== undefined) {
-    const loosened = [
-      ...loosenings(config.guardrails, local.value.guardrails),
-      ...prLoosenings(config.pr, local.value.pr)
-    ]
+    // With no committed layer in force the local one is the repository's only word on how a pull
+    // request ends. An invalid committed file is a problem already, so the strictest set runs anyway.
+    const prLoosened = committed.value === undefined ? [] : prLoosenings(config.pr, local.value.pr)
+    const loosened = [...loosenings(config.guardrails, local.value.guardrails), ...prLoosened]
     if (loosened.length > 0) {
       problems.push(...loosened)
       localState = "invalid"

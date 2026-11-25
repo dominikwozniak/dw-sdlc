@@ -110,7 +110,8 @@ branch. `--dry-run` performs nothing.
 { "pr": { "merge": "auto", "review": "full" } }
 ```
 
-The local layer may tighten `pr.merge` and `pr.review`, never loosen them. `--merge` acts as `auto` and
+Beside a committed file, the local layer may tighten `pr.merge`, `pr.review` and `pr.ciUnavailable`,
+never loosen them; with no committed file it sets them freely. `--merge` acts as `auto` and
 `--review full|light|off` sets the depth for one call. A pull request the `gh` account did not open is
 always the dev's to merge. `light` spawns the `sdlc-reviewer` subagent of the
 [`sdlc` plugin](https://github.com/dominikwozniak/dw-sdlc/blob/main/plugins/sdlc/README.md#the-light-review).

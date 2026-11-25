@@ -11,7 +11,8 @@ eleven-line dependency bump as on a feature: Foundation #113, +11/−6, took 36 
 `pr.reviewCommand` names and the local layer may change; `light` runs one `sdlc-reviewer` subagent at
 medium effort over the diff and the files it touches; `off` has the script post `dw-sdlc/review`
 itself, its description naming why. `pr.review` sets a depth or `auto`, strictest first full, auto,
-light, off; the local layer only tightens it and an invalid layer runs `full`. Under `auto` built-in
+light, off; beside a committed file the local layer only tightens it, with none it sets it freely,
+and an invalid layer runs `full`. Under `auto` built-in
 rules route the depth from the changes: lockfiles alone are off, a file under `.github/workflows/` or
 more than 100 changed lines outside lockfiles is full, a Primitive the config names takes full whatever
 its size (ADR 0026), the rest light. After a push the depth is

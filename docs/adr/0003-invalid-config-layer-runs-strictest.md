@@ -7,7 +7,9 @@ status: accepted
 A layer can be malformed, fail the schema, or, the local one, loosen a guardrail the committed file
 set; the guards must answer something while it is broken, and a partial read of a failed file is the
 one answer nobody can predict. A layer with any problem is not applied at all, a local file that
-loosens `guardrails.*`, `pr.merge` or `pr.review` counts as invalid, and while any problem exists
+loosens `guardrails.*`, or beside a committed file `pr.merge`, `pr.review` or `pr.ciUnavailable`,
+counts as invalid. With no committed file the local one is the repository's only word on how a pull
+request ends, as in a repository the dev does not own, so it sets the `pr` keys freely. While any problem exists
 the guardrails are one fixed strictest set: `forcePush: deny`, `commitOnProtected: deny`,
 `filteredOutput: deny`, `envFiles: deny`, `protectedBranches` master, main, production, and the Ship script runs
 `pr.merge: ask` and `pr.review: full`; `pr.reviewCommand` and `worker`, which have no strictness

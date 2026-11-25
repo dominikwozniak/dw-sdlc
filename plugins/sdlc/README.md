@@ -9,8 +9,9 @@ The plugin of [dw-sdlc](../../README.md) that holds an agent session to a reposi
 - `sdlc-reviewer`, the subagent that reads a change at the `light` Review depth.
 
 The rules come from the repository's `.ai/agentic.config.json`, a machine's own
-`.ai/agentic.config.local.json`, which may tighten `guardrails`, `pr.merge` and `pr.review` and never
-loosen them, and what is inferred where neither file sets a key:
+`.ai/agentic.config.local.json`, and what is inferred where neither file sets a key. The local file may
+tighten `guardrails` and never loosen them. Beside a committed file the same holds for `pr.merge`,
+`pr.review` and `pr.ciUnavailable`; with none it sets them freely. See
 [Where the rules come from](../../docs/overview.md#where-the-rules-come-from). The plugin guards Node
 repositories, and App Store Connect from every repository; it carries no other stack-specific guard.
 How the plugin is built and tested: [Inside the sdlc plugin](../../docs/contributing/plugin-internals.md).
