@@ -299,6 +299,10 @@ describe("hooks/lib.sh agrees with resolveConfig", () => {
       () => repo({ files: { [COMMITTED_FILE]: {}, [LOCAL_FILE]: { pr: { review: "off" } } } })
     ],
     [
+      "on a local pr.review off beside a committed file the schema refuses",
+      () => repo({ files: { [COMMITTED_FILE]: { pr: { merge: "bogus" } }, [LOCAL_FILE]: { pr: { review: "off" } } } })
+    ],
+    [
       "on a committed pr.review off, and a local light over it",
       () => repo({ files: { [COMMITTED_FILE]: { pr: { review: "off" } }, [LOCAL_FILE]: { pr: { review: "light" } } } })
     ],

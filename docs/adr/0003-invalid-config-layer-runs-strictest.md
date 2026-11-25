@@ -8,7 +8,8 @@ A layer can be malformed, fail the schema, or, the local one, loosen a guardrail
 set; the guards must answer something while it is broken, and a partial read of a failed file is the
 one answer nobody can predict. A layer with any problem is not applied at all, a local file that
 loosens `guardrails.*`, or beside a committed file `pr.merge`, `pr.review` or `pr.ciUnavailable`,
-counts as invalid, and while any problem exists
+counts as invalid. With no committed file the local one is the repository's only word on how a pull
+request ends, as in a repository the dev does not own, so it sets the `pr` keys freely. While any problem exists
 the guardrails are one fixed strictest set: `forcePush: deny`, `commitOnProtected: deny`,
 `filteredOutput: deny`, `envFiles: deny`, `protectedBranches` master, main, production, and the Ship script runs
 `pr.merge: ask` and `pr.review: full`; `pr.reviewCommand` and `worker`, which have no strictness
@@ -25,6 +26,3 @@ until it is fixed, and `dw-sdlc config`, the session-start report and the doctor
 Applying the valid keys of a failed file, falling back to the ordinary defaults and refusing every
 command are the rejected shapes. A doctor `config` FAIL traced to this rule rather than to a real
 misconfiguration is the signal to reopen it.
-With no committed file the local one is the repository's only word on how a pull request ends, as
-in a repository the dev does not own, so it sets the `pr` keys freely; its guardrails still only
-tighten.
