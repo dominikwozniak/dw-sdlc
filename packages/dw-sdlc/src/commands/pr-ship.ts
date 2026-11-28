@@ -19,13 +19,14 @@ import {
   type Step
 } from "../pr/decide.ts"
 import { gateMarks } from "../pr/gate-marks.ts"
-import { gh, ghReads, namedProblem, nameItRemedy, now, type Reads, said } from "../pr/read.ts"
+import { gh, ghReads, namedProblem, nameItRemedy, type Reads, said } from "../pr/read.ts"
 import type { PrState } from "../pr/state.ts"
+import { type WaitClock, waitClock } from "../pr/wait.ts"
 import { shellLine } from "../shell-line.ts"
 
 export const summary = "decide the Action one pull request needs next, as a line or JSON"
 
-const USAGE = `Usage: dw-sdlc pr ship [<n>] [-R owner/name] [--merge] [--dry-run] [--json] [--verbose]
+const USAGE = `Usage: dw-sdlc pr ship [<n>] [-R owner/name] [--merge] [--dry-run] [--wait] [--json] [--verbose]
 
 Reads pull request <n> through gh, the one of the current branch as gh pr view resolves it when <n>
 is omitted, and answers the Action it needs next: the status, the action, whose turn it is and why.
@@ -50,6 +51,11 @@ run it blind again. It exits 2 too when GitHub refuses the compare it reads afte
 decides whether the update merged the base in.
 --dry-run performs nothing: it parks at the first Action the script would perform, under performed
 with ok null.
+--wait polls inside the script, every recheckAfter, and prints nothing until it returns one document,
+the first answer that is not wait, so a wait costs one turn of the agent. Its limit is the 40 min CI
+budget: a ci-pending wait past the budget answers park ci-stuck, and at its limit --wait answers wait
+again, with the same step, this call again. Under DW_SDLC_NOW it sleeps nothing: each poll moves its
+own clock on by recheckAfter. Run it in the background; the exit is the turn.
 CI unavailable is a GitHub Actions job on the head that failed with no step run, as GitHub leaves it
 under a billing lock. Under the default pr.ciUnavailable ci it fails as any check does. Under gate,
 with gate.steps the agent proves the head with dw-sdlc gate --mark, act prove-locally, and a Gate
@@ -81,6 +87,7 @@ type Cli = {
   verbose: boolean
   merge: boolean
   dryRun: boolean
+  wait: boolean
   number: number | undefined
   repo: string | undefined
 }
@@ -118,6 +125,7 @@ function parseCli(argv: string[]): Cli {
         verbose: { type: "boolean" },
         merge: { type: "boolean" },
         "dry-run": { type: "boolean" },
+        wait: { type: "boolean" },
         repo: { type: "string", short: "R" }
       }
     },
@@ -140,6 +148,7 @@ function parseCli(argv: string[]): Cli {
     verbose: values.verbose === true,
     merge: values.merge === true,
     dryRun: values["dry-run"] === true,
+    wait: values.wait === true,
     number: number === undefined ? undefined : Number(number),
     repo
   }
@@ -216,12 +225,17 @@ function scriptRun(
  * Reads and decides until the Action is not the script's. Each script Action runs at most once, then the
  * pull request is read again; under --dry-run, or when an Action comes round again, it is the dev's.
  */
-function ship(cli: Cli, root: string, policy: Policy): { pr: PrState; answer: Answer; performed: Performed[] } {
+function ship(
+  cli: Cli,
+  root: string,
+  policy: Policy,
+  clock: WaitClock
+): { pr: PrState; answer: Answer; performed: Performed[] } {
   const reads = ghReads(policy.footprint === "local" ? gateMarks(root) : null)
   let pr = readTarget(cli, root, reads)
   const performed: Performed[] = []
   for (;;) {
-    const answer = decide(pr, now(), policy)
+    const answer = decide(pr, clock.time(), policy)
     const { action } = answer
     if (!isScriptAction(action)) {
       return { pr, answer, performed }
@@ -259,6 +273,37 @@ function ship(cli: Cli, root: string, policy: Policy): { pr: PrState; answer: An
   }
 }
 
+/**
+ * One call of `ship`, or under --wait the polls of it: after each answer of `wait`, the clock lets its
+ * recheck pass and the pull request is read again, until the answer is not a wait or the limit is reached.
+ * What each poll performed stands in the one document.
+ */
+function shipUntilAnswered(
+  cli: Cli,
+  root: string,
+  policy: Policy
+): { pr: PrState; answer: Answer; performed: Performed[] } {
+  const clock = waitClock()
+  const performed: Performed[] = []
+  for (;;) {
+    let shipped: ReturnType<typeof ship>
+    try {
+      shipped = ship(cli, root, policy, clock)
+    } catch (error) {
+      if (error instanceof Interrupted && performed.length > 0) {
+        throw new Interrupted(new CannotRun(error.message, error.remedy), [...performed, ...error.performed])
+      }
+      throw error
+    }
+    performed.push(...shipped.performed)
+    const { answer } = shipped
+    if (!cli.wait || answer.status !== "wait" || clock.spent()) {
+      return { ...shipped, performed }
+    }
+    clock.pass(answer.recheckAfter)
+  }
+}
+
 /** The step at a wait: this call again with --wait --json, whose output is the next answer. */
 function waitStep(argv: string[]): Step {
   const kept = argv.filter((arg) => arg !== "--json" && arg !== "--wait")
@@ -285,7 +330,7 @@ export function run(argv: string[]): number {
   }
   let shipped: ReturnType<typeof ship>
   try {
-    shipped = ship(cli, root, policy)
+    shipped = shipUntilAnswered(cli, root, policy)
   } catch (error) {
     if (cli.json && error instanceof Interrupted) {
       const { message, remedy, performed } = error
