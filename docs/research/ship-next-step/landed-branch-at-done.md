@@ -15,12 +15,12 @@ the `sdlc` Bash guards refuse; what is left for the Ship script.
   `packages/dw-sdlc/src/pr/decide.ts:226`.
 - The script performs every host Action with `-R <repo>`, "so the checkout the script runs in plays no
   part": `packages/dw-sdlc/src/commands/pr-ship.ts:258-261` (`hostArgs(pr, action, policy, true)`,
-  `decide.ts:236-238`). The dev's printed command leaves `-R` out (`decide.ts:249`).
+  `decide.ts:237-239`). The dev's printed command leaves `-R` out (`decide.ts:249`).
 - The `MERGED` row answers `done`, actor `dev`, with the command
   `git push origin --delete <branch>` only when `pr.branchStands && !pr.fromFork`:
   `decide.ts:281-292`. `branchStands` is true when GitHub reports a `headRef`: `state.ts:119-120`, `369`.
 - The Ship skill: "Never delete a branch, the one `done` names included": `plugins/sdlc/skills/sdlc-pr-ship/SKILL.md:114`;
-  `park` and `done` print the command and stop, "the dev's to run, never yours": same file `:105-106`.
+  `park` and `done` print the command and stop, "the dev's to run, never yours": same file `:105-107`.
   The overview says the same, "It never deletes a branch": `docs/overview.md:327-328`.
 - This repository has `delete_branch_on_merge: true` and `allow_auto_merge: false`
   (`gh api repos/dominikwozniak/dw-sdlc`, read 2026-11-28). With the setting on, GitHub reports no `headRef`
@@ -50,7 +50,7 @@ Help text: "Delete the local and remote branch after merge". `mergeRun` runs, in
 
 | where the head branch is checked out                    | what gh does                                                                                                                                                                                                                                 | lines                                            |
 | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
-| nowhere                                                 | `git branch -D <head>`                                                                                                                                                                                                                       | `:512`                                           |
+| nowhere                                                 | `git branch -D <head>`                                                                                                                                                                                                                       | `:504`                                           |
 | the current linked worktree                             | skips the local delete, warns, prints `git worktree remove <path> && git branch -D <head>` for the dev                                                                                                                                       | `:430-437`                                       |
 | the current worktree, which is the main checkout        | checks `<base>` out (`git checkout <base>`, or a new tracking branch if none), `git pull --ff-only <remote> <base>` (a failed pull only warns), then `git branch -D <head>`; prints "Deleted local branch ... and switched to branch <base>" | `:440-483`, `Pull` `client.go:893-905`           |
 | the same, with `<base>` checked out in another worktree | skips, warns, prints `git checkout <base> && git branch -D <head>`                                                                                                                                                                           | `:450-457`                                       |
@@ -60,9 +60,9 @@ Help text: "Delete the local and remote branch after merge". `mergeRun` runs, in
 - The local delete is `git branch -D <head>` (`DeleteLocalBranch`, `client.go:665-676`); a failure after
   all those checks returns an error.
 - With a merge queue the flag is refused: "Cannot use `-d` or `--delete-branch` when merge queue enabled"
-  (`merge.go:246-250`).
+  (`merge.go:242-250`).
 - When the pull request was already merged, gh prompts on a terminal ("was already merged. Delete the branch
-  locally?") and otherwise warns only (`merge.go:385-395`).
+  locally?") and otherwise warns only (`merge.go:386-395`).
 - `-d` is a short flag of the same option (`merge.go:175`).
 
 ## GitHub: automatic deletion of head branches
@@ -108,7 +108,7 @@ by feeding each command as a PreToolUse payload to `bash-guard.sh` from this rep
 | command                                                                      | verdict                                                                  | source                                                                                        |
 | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
 | `git push origin --delete <b>`, `git push origin :<b>`, `-d`                 | refused: "deletes a remote branch"                                       | `block-dangerous-commands.sh:88`, parser `lib-git.sh:85,101,106,115`; test `:360-375`, `:454` |
-| `gh pr merge ... --delete-branch` or `-d`                                    | refused: "deletes the pull request's branch on GitHub and here"          | `:369-371`; test `:892`; `=false` passes `:909`; README `plugins/sdlc/README.md:150-158`      |
+| `gh pr merge ... --delete-branch` or `-d`                                    | refused: "deletes the pull request's branch on GitHub and here"          | `:369-371`; test `:892`; `=false` passes `:909`; README `plugins/sdlc/README.md:154-158`      |
 | `gh api -X DELETE .../git/refs/...`, GraphQL `deleteRef`                     | refused                                                                  | `:411`, `:420`                                                                                |
 | `git update-ref -d`                                                          | refused: "deletes a ref"                                                 | `:346-348`                                                                                    |
 | `git branch -D <b>` of a branch not Landed                                   | refused, naming the branch                                               | `:195-197`; probe                                                                             |
