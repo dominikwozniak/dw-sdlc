@@ -145,9 +145,12 @@ The script performs these itself; they show under `performed`, never as an answe
 
 ## wait
 
-The step is always the same call with `--wait`; its output is the next answer. `--wait` returns at
-its own time limit with a `wait` again, whose step is the same call; `ci-stuck` past the 40 min budget
-ends it.
+The step is always the same call with `--wait`; its output is the next answer. `--wait` polls inside
+the script every `recheckAfter`, prints nothing until it returns, then one document. Its limit is the
+40 min CI budget, so a `ci-pending` wait is one wake-up: past the budget the answer is `park ci-stuck`.
+At its limit it returns a `wait` again, whose step is the same call. While it runs in the background
+the session makes no model call; each exit is one turn. A Worker from a Brief runs it too; `/loop` and
+a call from another skill do not.
 
 ### wait ci-pending
 
@@ -205,7 +208,8 @@ Also `stop` (closed without merging), `ci-stuck`, `awaiting-reply` (with `detail
 
 ### done, main checkout
 
-The session finishes the Landed branch: the base, pulled, and the local branch gone.
+The session finishes the Landed branch from the step, so the guards see each command; the script
+itself stays at reads and gh.
 
 ```json
 {
@@ -239,7 +243,22 @@ The worktree and its branch are the Lead's Sweep's, after the Worker's Recap.
 
 ```json
 { "status": "done", "action": "done", "actor": "dev", "reason": "merged as def5678",
-  "next": [{ "by": "dev", "do": "the worktree and its branch go with /sdlc-sweep" }] }
+  "next": [{ "by": "dev", "run": "/sdlc-sweep" }] }
+```
+
+For `by: dev`, `run` is what the dev types, a shell or a slash command; for `by: agent` it is always shell.
+
+### done, main checkout, the local branch ahead of the head
+
+The step holds only what the state allows: no `git switch` when the checkout is on another branch, no
+`-D` when the branch is not local or its tip is not the merged head.
+
+```json
+{ "status": "done", "action": "done", "actor": "dev", "reason": "merged as def5678",
+  "next": [
+    { "by": "agent", "run": "git switch main && git pull --rebase" },
+    { "by": "agent", "do": "feat/x stays: its tip 9f8e7d6 is not the merged head abc1234, so it holds commits the pull request does not" }
+  ] }
 ```
 
 ## exit 2
