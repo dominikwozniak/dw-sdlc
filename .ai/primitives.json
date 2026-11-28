@@ -503,10 +503,11 @@
       "id": "distribution.plugin",
       "name": "sdlc plugin",
       "group": "distribution",
-      "summary": "The manifest wiring each guard and hook to its event, and the README; its version and the marketplace's bump together.",
-      "code": ["plugins/sdlc/.claude-plugin/plugin.json", "plugins/sdlc/README.md"],
+      "summary": "The manifest, bin/dw-sdlc on the Bash PATH and the README; its version and the marketplace's bump together.",
+      "code": ["plugins/sdlc/.claude-plugin/plugin.json", "plugins/sdlc/bin/dw-sdlc", "plugins/sdlc/README.md"],
       "docs": [
         "plugins/sdlc/README.md#install",
+        "plugins/sdlc/README.md#the-bin",
         "docs/contributing/releasing.md#releasing-the-plugin",
         "docs/adr/0010-one-sdlc-plugin-carries-guards-sync-and-gate.md"
       ]

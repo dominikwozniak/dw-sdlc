@@ -1,0 +1,14 @@
+#!/bin/bash
+# The dw-sdlc CLI on the Bash tool's PATH: Claude Code adds this directory while the plugin is enabled.
+# Runs the package the plugin links, so a step that names bare `dw-sdlc` works from any directory.
+# `exec` hands argv, stdin, stdout, stderr and the exit code straight through.
+set -uo pipefail
+
+# Follow a symlink to the bin first; `readlink -f` is missing on older macOS.
+self="${BASH_SOURCE[0]}"
+while [[ -L "$self" ]]; do
+  target=$(readlink "$self") || exit 2
+  [[ "$target" == /* ]] && self="$target" || self="$(dirname "$self")/$target"
+done
+bin_dir=$(cd "$(dirname "$self")" && pwd) || exit 2
+exec node "$bin_dir/../dw-sdlc/src/cli.ts" "$@"
