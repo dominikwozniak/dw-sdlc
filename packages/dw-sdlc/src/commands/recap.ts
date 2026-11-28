@@ -6,9 +6,8 @@ import { CannotRun, readArgs, usageError } from "../cannot-run.ts"
 import { asked, must } from "../git.ts"
 import { pausedIn } from "../paused-operation.ts"
 import { type Answer, decide, declaredPolicy, labelOf, lineOf } from "../pr/decide.ts"
-import { localReviews } from "../pr/local-reviews.ts"
+import { gateMarks } from "../pr/gate-marks.ts"
 import { defaultBranch, ghReads, now } from "../pr/read.ts"
-import { reviewFullOf } from "../pr/review-full.ts"
 import type { PrState } from "../pr/state.ts"
 import { holds } from "../pr/upstream.ts"
 import { type Candidate, type Next, READY_LABEL, readNext } from "../recap-next.ts"
@@ -152,11 +151,10 @@ function workersText(workers: Worker[]): string {
 
 /** This checkout's pull request and the Action the Ship script's decision gives it, or null when it has none. */
 function readShipped(root: string): Shipped | null {
-  // An invalid config layer resolves to ask and full, as in the Ship script.
+  // An invalid config layer resolves to ask, as in the Ship script.
   const { config } = resolveConfig(root)
-  const policy = declaredPolicy(config, reviewFullOf(root, config))
-  const local = config.footprint === "local" ? localReviews(root) : null
-  const found = ghReads(policy.review.depth === "auto", local).checkout(root)
+  const policy = declaredPolicy(config)
+  const found = ghReads(config.footprint === "local" ? gateMarks(root) : null).checkout(root)
   return "problem" in found ? null : { pr: found, answer: decide(found, now(), policy) }
 }
 

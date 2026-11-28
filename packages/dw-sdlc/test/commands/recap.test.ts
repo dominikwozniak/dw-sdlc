@@ -10,7 +10,17 @@ import { describe, it } from "node:test"
 import { COMMITTED_FILE, LOCAL_FILE } from "../../src/agentic-config.ts"
 import { commit, git, initRepo, runBin, scratch, write, writeJson } from "../harness.ts"
 import { fakeHerdr, listing, type Listed, type Reply, terminal } from "../hc-harness.ts"
-import { backlogOf, fakeGh, GREEN, type Pr, type Response, type Scenario, served } from "../pr-harness.ts"
+import {
+  backlogOf,
+  type Context,
+  fakeGh,
+  GREEN,
+  type Pr,
+  RUN,
+  type Response,
+  type Scenario,
+  served
+} from "../pr-harness.ts"
 
 const AUTH = ["auth", "status", "--active", "--hostname", "github.com"]
 const VIEW = ["pr", "view", "--json", "url"]
@@ -330,18 +340,21 @@ describe("dw-sdlc recap", () => {
     assert.deepEqual(calls, [AUTH, VIEW, READ, BACKLOG_40], "it reads the pull request and writes nothing")
   })
 
-  it("under footprint local reads the Review state from the local file, not the head's status", () => {
+  it("under footprint local reads the Gate mark from the local file, not the head's status", () => {
     const root = clone()
-    writeJson(join(root, LOCAL_FILE), { footprint: "local", pr: { review: "full" } })
+    writeJson(join(root, COMMITTED_FILE), { pr: { ciUnavailable: "gate" }, gate: { steps: ["true"] } })
+    writeJson(join(root, LOCAL_FILE), { footprint: "local" })
     branch(root, 1)
     git(root, "push", "-q", "-u", "origin", "feat")
-    const pr = { ...GREEN, head: head(root), branch: "feat" }
+    const refused: Context = { kind: "run", name: "Check", state: "FAILURE", link: RUN, steps: 0 }
+    const marked: Context = { kind: "status", name: "dw-sdlc/gate", state: "SUCCESS" }
+    const pr = { ...GREEN, head: head(root), branch: "feat", checks: [refused, marked] }
     assert.equal(
       document(root, withPr(pr)).doc.pullRequest?.action,
-      "review",
+      "prove-locally",
       "the status GitHub holds counts for nothing"
     )
-    writeJson(join(root, ".git", "dw-sdlc", "reviews", "40.json"), { [head(root)]: "clean" })
+    writeJson(join(root, ".git", "dw-sdlc", "gates", "40.json"), [head(root)])
     assert.equal(document(root, withPr(pr)).doc.pullRequest?.action, "ready-to-merge")
   })
 
@@ -365,6 +378,9 @@ describe("dw-sdlc recap", () => {
       assert.equal(doc.pullRequest?.status, "act")
       assert.equal(doc.pullRequest?.action, action)
       assert.equal(doc.pullRequest?.actor, "script")
+      if (action === "merge") {
+        assert.equal(doc.pullRequest?.reason, "green, no open thread or change request, and the viewer's own")
+      }
       assert.deepEqual(calls, [AUTH, VIEW, READ, BACKLOG_40], `${action} is read, never performed`)
     }
   })

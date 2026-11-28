@@ -10,7 +10,6 @@ def strictness: {
   filteredOutput: ["deny", "allow"],
   envFiles: ["deny", "git"],
   merge: ["ask", "auto"],
-  review: ["full", "auto", "light", "off"],
   ciUnavailable: ["ci", "gate"]
 };
 
@@ -25,12 +24,12 @@ def strictest: {
   protectedBranches: ["master", "main", "production"]
 };
 
-# pr.merge and pr.review while any layer is invalid: the Ship script merges nothing itself and the
-# agent reviews every head in full.
-def strictest_pr: {merge: "ask", review: "full", ciUnavailable: "ci"};
+# pr.merge and pr.ciUnavailable while any layer is invalid: the Ship script merges nothing itself and no
+# Gate mark stands in for CI.
+def strictest_pr: {merge: "ask", ciUnavailable: "ci"};
 
-# A resolved config as it runs while any layer is invalid; pr.reviewCommand, pr.reviewFull and worker have no
-# strictest value and keep what the valid layers name, footprint too, but for the local `resolve` keeps.
+# A resolved config as it runs while any layer is invalid; worker has no strictest value and keeps what the
+# valid layers name, footprint too, but for the local `resolve` keeps.
 def on_strictest: .guardrails = strictest | .pr += strictest_pr;
 
 # The preset each commit.convention names. `conventional` is Conventional Commits; `ticket-key` is a ticket
@@ -53,15 +52,14 @@ def defaults($inferred): {
   },
   commit: {},
   gate: ({steps: [], drift: "fail", checks: {run: []}} + ($inferred.gate // {})),
-  pr: {merge: "ask", review: "auto", reviewCommand: "/code-review", reviewFull: [], ciUnavailable: "ci"},
+  pr: {merge: "ask", ciUnavailable: "ci"},
   worker: {command: "claude", model: "sonnet", effort: "high"},
   worktree: {setup: []},
   footprint: "github"
 };
 
 # guardrails.envFiles merges key by key, each list wholesale; the other guardrails as one value.
-# gate.checks merges Check by Check, `run` wholesale; gate.steps wholesale. pr.reviewFull is the union of
-# the layers, in order, an id once.
+# gate.checks merges Check by Check, `run` wholesale; gate.steps wholesale.
 def apply($layer):
   . as $base
   | {
@@ -72,9 +70,7 @@ def apply($layer):
         | .envFiles = ($base.guardrails.envFiles + ($layer.guardrails.envFiles // {}))),
       commit: ($base.commit + ($layer.commit // {})),
       gate: (($base.gate + ($layer.gate // {})) | .checks = ($base.gate.checks + ($layer.gate.checks // {}))),
-      pr: (($base.pr + ($layer.pr // {}))
-        | .reviewFull = (reduce (($base.pr.reviewFull + ($layer.pr.reviewFull // []))[]) as $id
-            ([]; if any(.[]; . == $id) then . else . + [$id] end))),
+      pr: ($base.pr + ($layer.pr // {})),
       worker: ($base.worker + ($layer.worker // {})),
       worktree: {setup: ($layer.worktree.setup // $base.worktree.setup)},
       footprint: ($layer.footprint // $base.footprint)
@@ -115,10 +111,10 @@ def loosenings($base; $local):
           "drops \($dropped | map(tojson) | join(", ")); the local file may add protected branches, never remove them"))
   ] end;
 
-# Each local pr key less strict than the one it would override: merge auto over ask, review off over light
-# over auto over full, ciUnavailable gate over ci.
+# Each local pr key less strict than the one it would override: merge auto over ask, ciUnavailable gate
+# over ci.
 def pr_loosenings($base; $local):
-  [("merge", "review", "ciUnavailable") as $key
+  [("merge", "ciUnavailable") as $key
     | select($local[$key] != null and _rank($key; $local[$key]) > _rank($key; $base[$key]))
     | _problem("pr.\($key)";
         "\($local[$key] | tojson) loosens \($base[$key] | tojson); the local file may tighten pr.\($key), never loosen it")];

@@ -3,7 +3,7 @@
 // and on its allowed tools, the package linked, and the marketplace listing this plugin at the manifest's version.
 
 import assert from "node:assert/strict"
-import { readdirSync, readFileSync, realpathSync, statSync } from "node:fs"
+import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from "node:fs"
 import { join } from "node:path"
 import { describe, it } from "node:test"
 
@@ -51,10 +51,6 @@ const SELF_STARTED_SKILL = "sdlc-pr-open"
 /** The skill the model starts when the dev asks for subagents in so many words, its description holding it there. */
 const ASK_STARTED_SKILL = "sdlc-research"
 const MODEL_REACHABLE = [WORKER_STARTED_SKILL, WORD_STARTED_SKILL, SELF_STARTED_SKILL, ASK_STARTED_SKILL]
-/** The subagents under `agents/`, each a file named as its `name`, spawned as `sdlc:<name>`. */
-const AGENTS = ["sdlc-reviewer"]
-/** The tools a subagent of the plugin may list: none that edits a file. Its instructions keep Bash to git's reads. */
-const ALLOWED_TOOLS = new Set(["Read", "Grep", "Bash"])
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
@@ -154,33 +150,11 @@ describe("the sdlc plugin", () => {
     assert.doesNotMatch(description, /: /, "a colon and a space end a plain YAML value")
   })
 
-  it("has sdlc-pr-ship keep a Review to details.paths, the files whose own change moved past a merge of the base", () => {
+  it("has sdlc-pr-ship run no Review: no act review, no pr reviewed, no depth flag, no reviewer subagent", () => {
     const text = readFileSync(join(PLUGIN_ROOT, "skills", "sdlc-pr-ship", "SKILL.md"), "utf8")
-    assert.match(text, /When\s+the\s+answer\s+has\s+`details\.paths`/)
-    assert.match(text, /`--\s+<paths>`\s+on\s+each\s+`git\s+diff`/)
-    assert.match(text, /An\s+empty\s+list\s+leaves\s+nothing\s+to\s+read/)
-  })
-
-  it("has sdlc-pr-ship review the whole pull request over a details.open read mark", () => {
-    const text = readFileSync(join(PLUGIN_ROOT, "skills", "sdlc-pr-ship", "SKILL.md"), "utf8")
-    assert.match(text, /When\s+the\s+answer\s+has\s+`details\.open`/)
-    assert.match(text, /Review\s+reads\s+the\s+whole\s+pull\s+request\s+from\s+`origin\/<base>`/)
-    assert.match(text, /its\s+Findings\s+stand\s+in\s+for\s+the\s+mark's/)
-    assert.match(text, /`references\/review\.md`\s+has\s+you\s+fix\s+them/)
-  })
-
-  it("has sdlc-pr-ship read the one light Review the limit buys, holding each Finding's fix to its test", () => {
-    const text = readFileSync(join(PLUGIN_ROOT, "skills", "sdlc-pr-ship", "SKILL.md"), "utf8")
-    assert.match(text, /`limit`\s+the\s+review\s+limit,\s+which\s+buys\s+one\s+`light`\s+Review/)
-    assert.match(text, /name\s+to\s+it\s+the\s+Findings\s+that\s+fix\s+answers,\s+each\s+held\s+to\s+its\s+test/)
-    assert.match(text, /the\s+one\s+`light`\s+Review\s+such\s+a\s+fix\s+bought\s+left\s+a\s+Finding\s+open/)
-  })
-
-  it("has sdlc-pr-ship fetch a <since> a rebase left behind and diff it with two dots", () => {
-    const text = readFileSync(join(PLUGIN_ROOT, "skills", "sdlc-pr-ship", "SKILL.md"), "utf8")
-    assert.match(text, /`git\s+fetch\s+origin\s+<since>`\s+when\s+the\s+checkout\s+lacks\s+it/)
-    assert.match(text, /two\s+dots,\s+`<since>\.\.<head>`,\s+on\s+each\s+`git\s+diff`\s+below\s+that\s+shows\s+three/)
-    assert.match(text, /a\s+merge\s+of\s+the\s+base\s+or\s+a\s+rebase\s+came\s+after\s+`<since>`/)
+    assert.doesNotMatch(text, /act review|pr reviewed|--review\b|sdlc-reviewer|review-limit|mark-reviewed/)
+    assert.equal(existsSync(join(PLUGIN_ROOT, "skills", "sdlc-pr-ship", "references")), false)
+    assert.equal(existsSync(join(PLUGIN_ROOT, "agents")), false, "the plugin ships no subagent")
   })
 
   it("lets the model reach sdlc-pr-open, its description triggering on opening a pull request and on its body", () => {
@@ -280,71 +254,6 @@ describe("the sdlc plugin", () => {
     const text = readFileSync(join(PLUGIN_ROOT, "skills", WORD_STARTED_SKILL, "SKILL.md"), "utf8")
     assert.match(skillFrontmatter(WORD_STARTED_SKILL), /^argument-hint: "\[dry-run\]"$/m)
     assert.match(text, /Add `--dry-run` only when the dev asked to look first, as `\/sdlc-sweep dry-run`/)
-  })
-
-  it("ships each subagent under its name, at medium effort on the session's model, with no tool that edits a file", () => {
-    assert.deepEqual(
-      readdirSync(join(PLUGIN_ROOT, "agents")).toSorted(),
-      AGENTS.map((name) => `${name}.md`)
-    )
-    for (const name of AGENTS) {
-      const text = readFileSync(join(PLUGIN_ROOT, "agents", `${name}.md`), "utf8")
-      const frontmatter = /^---\n([\s\S]*?)\n---\n/.exec(text)?.[1] ?? ""
-      const field = (key: string) => new RegExp(`^${key}: (.+)$`, "m").exec(frontmatter)?.[1]
-      assert.equal(field("name"), name)
-      assert.ok((field("description") ?? "").length > 0, `${name} has a description`)
-      assert.equal(field("effort"), "medium", `${name} runs at medium effort`)
-      assert.equal(field("model"), "inherit", `${name} runs on the session's model`)
-      const tools = (field("tools") ?? "").split(",").map((tool) => tool.trim())
-      assert.ok(
-        tools.length > 0 && tools.every((tool) => ALLOWED_TOOLS.has(tool)),
-        `${name} tools: ${tools.join(", ")}`
-      )
-    }
-  })
-
-  it("has sdlc-reviewer list what no one asked for as added: lines, only with a spec and outside the Finding count", () => {
-    const text = readFileSync(join(PLUGIN_ROOT, "agents", "sdlc-reviewer.md"), "utf8")
-    assert.match(text, /`added: <file>:<line> — <what the spec did not ask for>`/)
-    assert.match(text, /When\s+a\s+spec\s+is\s+stated/)
-    assert.match(text, /does\s+not\s+count\s+toward\s+`findings: <n>`\s+and\s+never\s+holds\s+the\s+merge/)
-    assert.match(text, /leaves\s+undone\s+stays\s+a\s+Finding,\s+never\s+an\s+`added:`\s+line/)
-  })
-
-  it("has sdlc-reviewer read the Coding standards and count a broken rule, cited with file:line, as a Finding", () => {
-    const text = readFileSync(join(PLUGIN_ROOT, "agents", "sdlc-reviewer.md"), "utf8")
-    assert.match(text, /`CODING_STANDARDS\.md`\s+and\s+`CONTRIBUTING\.md`,\s+each\s+whole,\s+when\s+it\s+exists/)
-    assert.match(text, /A\s+broken\s+rule\s+of\s+the\s+Coding\s+standards/)
-    assert.match(text, /It\s+needs\s+no\s+harm/)
-    assert.match(text, /Every\s+Finding\s+cites\s+`file:line`/)
-  })
-
-  it("has review.md hold a broken Coding standard as a Finding at both depths, each Finding citing file:line", () => {
-    const text = readFileSync(join(PLUGIN_ROOT, "skills", "sdlc-pr-ship", "references", "review.md"), "utf8")
-    assert.match(text, /a\s+broken\s+rule\s+of\s+the\s+Coding\s+standards/)
-    assert.match(text, /Every\s+Finding\s+cites\s+`file:line`\s+as\s+its\s+evidence/)
-    assert.match(text, /Both\s+Review\s+depths\s+read\s+`CODING_STANDARDS\.md`\s+and\s+`CONTRIBUTING\.md`/)
-  })
-
-  it("has sdlc-pr-ship read references/review.md before a Review, which holds what a Finding is and when a Review is skipped", () => {
-    const skill = readFileSync(join(PLUGIN_ROOT, "skills", "sdlc-pr-ship", "SKILL.md"), "utf8")
-    assert.match(skill, /- `act review`: first read `references\/review\.md`, whole, before the Review starts/)
-    const review = readFileSync(join(PLUGIN_ROOT, "skills", "sdlc-pr-ship", "references", "review.md"), "utf8")
-    assert.match(review, /A\s+Review\s+is\s+clean\s+when\s+it\s+reports\s+no\s+Finding/)
-    assert.match(review, /Never\s+post\s+a\s+success\s+over\s+an\s+open\s+Finding/)
-    assert.match(
-      review,
-      /Skip\s+either\s+Review,\s+`full`\s+or\s+`light`,\s+when\s+one\s+earlier\s+in\s+this\s+conversation/
-    )
-    assert.match(review, /name\s+each\s+of\s+those\s+Findings\s+to\s+the\s+Review/)
-  })
-
-  it("has sdlc-pr-ship carry added: lines and scope creep into Decisions without you at every Review depth", () => {
-    const text = readFileSync(join(PLUGIN_ROOT, "skills", "sdlc-pr-ship", "references", "review.md"), "utf8")
-    assert.match(text, /Whatever\s+the\s+Review\s+depth,\s+carry\s+what\s+no\s+one\s+asked\s+for/)
-    assert.match(text, /Recap's\s+"Decisions\s+without\s+you"/)
-    assert.match(text, /at\s+`light`,\s+each\s+`added:`\s+line/)
-    assert.match(text, /at\s+`full`,\s+each\s+scope-creep\s+item\s+`code-review`\s+reports/)
   })
 
   it("has sdlc-pr-ship wait in the background on the dev's run, the script the only loop, and name no Next for a wait", () => {

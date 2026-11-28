@@ -30,14 +30,14 @@ const NO_PR: Response = { exit: 1, stderr: 'no pull requests found for branch "f
 const FOUND: Response = { stdout: JSON.stringify({ url: URL }) }
 const NAME_IT = "name it: dw-sdlc pr ship <n> -R owner/name"
 
-/** A clone of a bare remote, on main at one pushed commit, its config asking for full Reviews. */
+/** A clone of a bare remote, on main at one pushed commit, its config the default merge. */
 function clone(): string {
   const remote = scratch("remote")
   git(remote, "init", "-q", "--bare", "-b", "main")
   const root = join(scratch("clone"), "checkout")
   git(remote, "clone", "-q", remote, root)
   git(root, "symbolic-ref", "HEAD", "refs/heads/main")
-  writeJson(join(root, COMMITTED_FILE), { pr: { review: "full" } })
+  writeJson(join(root, COMMITTED_FILE), { pr: { merge: "ask" } })
   git(root, "add", COMMITTED_FILE)
   commit(root, "-m", "init")
   git(root, "push", "-q", "-u", "origin", "main")

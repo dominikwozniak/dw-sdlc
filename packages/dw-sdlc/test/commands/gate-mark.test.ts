@@ -106,16 +106,15 @@ describe("dw-sdlc gate --mark", () => {
   it("records the mark in the git dir under footprint local, and pr ship reads it there", () => {
     const { root, head } = checkout(["true"], {
       footprint: "local",
-      pr: { merge: "ask", review: "full", ciUnavailable: "gate" }
+      pr: { merge: "ask", ciUnavailable: "gate" }
     })
     const run = mark(root, pullRequest(head))
     assert.equal(run.status, 0, run.stdout + run.stderr)
     assert.deepEqual(run.posts, [])
     assert.deepEqual(JSON.parse(readFileSync(join(root, GATES), "utf8")), [head])
 
-    // GitHub ran no job on the head, and its Review state is clean: the mark stands in for CI.
+    // GitHub ran no job on the head: the mark stands in for CI.
     const refused: Context = { kind: "run", name: "Check", state: "FAILURE", link: RUN, steps: 0 }
-    write(join(root, ".git", "dw-sdlc", "reviews", "40.json"), JSON.stringify({ [head]: "clean" }))
     const gh = fakeGh({ graphql: [served({ ...pullRequest(head), checks: [refused] })] })
     const ship = runBin(["pr", "ship", "40", "-R", "byarcadia-app/foundation", "--json"], root, {
       ...gh.env,

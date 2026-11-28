@@ -1,14 +1,13 @@
 // The read the pr commands and recap make: gh as a child process, its auth, the pull request a command names,
-// its state from one GraphQL request and the Review's standing at its head from GitHub's compares, through
+// its state from one GraphQL request and whether an update merged the base in from GitHub's compare, through
 // gh, and beside them the default branch and the clock the decision reads.
 
 import { CannotRun } from "../cannot-run.ts"
 import { type Called, firstLine, need } from "../exec.ts"
-import { behindOf, changedOf, changesOf, compareArgs } from "./delta.ts"
-import { type LocalReviews, withMarks } from "./local-reviews.ts"
+import { behindOf, compareArgs } from "./delta.ts"
+import { type GateMarks, withGateMarks } from "./gate-marks.ts"
 import { ReplyError } from "./reply.ts"
-import { type Compares, standingOf } from "./standing.ts"
-import { awaitsReview, parseDefaultBranch, parsePr, parseView, type PrState, type PullRequest, QUERY } from "./state.ts"
+import { parseDefaultBranch, parsePr, parseView, type PrState, QUERY } from "./state.ts"
 import { holds, renamedUpstream } from "./upstream.ts"
 
 /** The pull request a command line names; what it leaves out, `gh pr view` resolves. */
@@ -133,42 +132,33 @@ function short(commit: string): string {
   return commit.slice(0, 7)
 }
 
-/** The gh adapter of the standing's compares on one pull request, and the compare an update is judged by. */
-type GhCompares = Compares & { behind: (base: string, head: string) => number }
-
 /**
- * The gh adapter on `target`. A compare of two commits never changes, so it asks gh for each once, for its
- * own life; a compare gh refuses stops the command, naming it.
+ * How many commits of `base` the head of a pull request on `target` lacks, by GitHub's compare. A compare of
+ * two commits never changes, so `replies` keeps each for the call's own life; a compare gh refuses stops
+ * the command, naming it.
  */
-function ghCompares(target: Target): GhCompares {
-  const replies = new Map<string, string>()
-  const replyOf = (from: string, to: string, what: string): string => {
-    const key = `${from}...${to}`
-    const known = replies.get(key)
-    if (known !== undefined) {
-      return known
+function behindBy(target: Target, replies: Map<string, string>, base: string, head: string): number {
+  const key = `${base}...${head}`
+  let reply = replies.get(key)
+  if (reply === undefined) {
+    const called = gh(compareArgs(target.repo, base, head))
+    if (called.status !== 0) {
+      throw new CannotRun(
+        `${target.repo}#${target.number}: the compare with ${short(base)}: ${said(called.stderr)}`,
+        REMEDIES.read
+      )
     }
-    const reply = gh(compareArgs(target.repo, from, to))
-    if (reply.status !== 0) {
-      throw new CannotRun(`${target.repo}#${target.number}: ${what}: ${said(reply.stderr)}`, REMEDIES.read)
-    }
-    replies.set(key, reply.stdout)
-    return reply.stdout
+    reply = called.stdout
+    replies.set(key, reply)
   }
-  return {
-    ownChanges: (base, commit) =>
-      parseOrCannotRun(() => changesOf(replyOf(base, commit, `the compare with ${short(commit)}`))),
-    changed: (from, head) =>
-      parseOrCannotRun(() => changedOf(replyOf(from, head, `the compare of ${short(from)}...${short(head)}`))),
-    behind: (base, head) => parseOrCannotRun(() => behindOf(replyOf(base, head, `the compare with ${short(base)}`)))
-  }
+  return parseOrCannotRun(() => behindOf(reply))
 }
 
-/** The pull request `named` from the one GraphQL request alone, without the compares the Review's standing reads. */
-export function pullRequestNamed(named: Named, command: string): PullRequest {
+/** The pull request `named` from the one GraphQL request alone. */
+export function pullRequestNamed(named: Named, command: string): PrState {
   requireAuth()
   const target = targetOf(named, command)
-  return parseOrCannotRun(() => parsePr(graphql(target), target.repo)).pr
+  return parseOrCannotRun(() => parsePr(graphql(target), target.repo))
 }
 
 /** The reads of pull requests one command makes through gh, each one's compares kept for the reads' life. */
@@ -187,23 +177,20 @@ export type Reads = {
 }
 
 /**
- * The reads of one command; with `sized`, as `pr.review: auto` needs, each sizes the changes a Review would
- * read. Under footprint local, `local` holds the Review state each read takes in the place of the statuses.
+ * The reads of one command. Under footprint local, `marks` holds the Gate marks each read takes in the
+ * place of the statuses.
  */
-export function ghReads(sized: boolean, local: LocalReviews | null = null): Reads {
-  const adapters = new Map<string, GhCompares>()
-  const comparesOn = (target: Target): GhCompares => {
+export function ghReads(marks: GateMarks | null = null): Reads {
+  const compares = new Map<string, Map<string, string>>()
+  const comparesOn = (target: Target): Map<string, string> => {
     const key = `${target.repo}#${target.number}`
-    const adapter = adapters.get(key) ?? ghCompares(target)
-    adapters.set(key, adapter)
-    return adapter
+    const replies = compares.get(key) ?? new Map<string, string>()
+    compares.set(key, replies)
+    return replies
   }
   const query = (target: Target): PrState => {
-    const parsed = parseOrCannotRun(() => parsePr(graphql(target), target.repo))
-    const { pr, history } =
-      local === null ? parsed : withMarks(parsed, local.marksOf(target.number), local.gatedOf(target.number))
-    const awaits = pr.state === "OPEN" && awaitsReview(pr)
-    return { ...pr, ...standingOf(history, comparesOn(target), { awaits, sized }) }
+    const pr = parseOrCannotRun(() => parsePr(graphql(target), target.repo))
+    return marks === null ? pr : withGateMarks(pr, marks.headsOf(target.number))
   }
   return {
     named: (named, command) => {
@@ -233,7 +220,7 @@ export function ghReads(sized: boolean, local: LocalReviews | null = null): Read
         : { problem: `${pr.url}, found by ${named}, lacks HEAD ${short(head)}`, lacksHead: true }
     },
     again: query,
-    carriesBase: (before, after) => comparesOn(after).behind(before.baseOid, after.head) === 0
+    carriesBase: (before, after) => behindBy(after, comparesOn(after), before.baseOid, after.head) === 0
   }
 }
 

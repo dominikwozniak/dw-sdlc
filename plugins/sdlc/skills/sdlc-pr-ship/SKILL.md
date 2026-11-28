@@ -7,9 +7,7 @@ argument-hint: "[pull request number]"
 # sdlc-pr-ship
 
 The Ship script, `dw-sdlc pr ship`, reads a pull request and answers with its `status` and the Action it
-needs next: what the script does itself, and what it leaves to you. This skill owns the Review loop: when a
-head is reviewed, at which depth, what counts as a Finding, and when to stop. At `full` it runs the reviewer
-the config names.
+needs next: what the script does itself, and what it leaves to you.
 
 Call the Ship script with the number `$ARGUMENTS` names, or none for the current branch's pull
 request; a later call takes `<n>` from the end of the answer's `pr`:
@@ -18,16 +16,14 @@ request; a later call takes `<n>` from the end of the answer's `pr`:
 node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" pr ship [<n>] --json
 ```
 
-Add `--merge` only when the dev wrote "merge" for this pull request in the conversation, and
-`--review full`, `--review light` or `--review off` only when they wrote that Review depth for it.
+Add `--merge` only when the dev wrote "merge" for this pull request in the conversation.
 Add `--dry-run` only when they asked for one, then show the answer and stop. Exit 2, cannot run: show
 what it printed and stop. Otherwise read `status`, then `action`; `<base>` and
 `<head>` are the answer's. Before an `act`, the checkout must be the pull request's branch at
 `<head>`: behind it, `git pull --rebase`, since the script may have updated the branch; anything
 else, say so and stop. The script updates the branch itself, and only when GitHub reports it
 `BEHIND`, under a rule that a branch be up to date; a branch only behind `<base>` merges as it
-is. Fix the agent's other `blockers` in the same push, all but `review`, which needs the head the
-push makes.
+is. Fix the agent's other `blockers` in the same push.
 
 - `act fix-ci`: run each `log` under `details.checks`, or read its `link`; fix, then `git push`.
 - `act prove-locally`: GitHub ran no CI on the head. On a clean checkout at `<head>`, run
@@ -40,59 +36,6 @@ push makes.
   for changes (`gh pr view <n> --json reviews`). Fix it and resolve the thread with
   `resolveReviewThread` through `gh api graphql`, or reply with `addPullRequestReviewThreadReply`
   and leave it open for the reviewer; `git push` when code changed.
-- `act review`: first read `references/review.md`, whole, before the Review starts: it says
-  whether an earlier Review stands in for this one, which earlier Findings to name to it, and how
-  to judge its report, what is a Finding and what is declined or carried. `details.depth` is the
-  Review depth, and `details.source` says who set it: `flag` the dev, `config` the repository,
-  `auto` the script's rules from the size of the changes and the Primitives `pr.reviewFull` lists,
-  `limit` the review limit, which buys one `light` Review of a fix that carries its test once the
-  Gate is green on it; name to it the Findings that fix answers, each held to its test.
-  Only under `auto` may you raise it, `light` to `full`, when the change looks riskier than its size,
-  saying why in one line; never lower one. A depth the dev or the config set stands: when you think
-  it wrong, say so in one line and review at it. The Review reads the changes since `<since>`:
-  `details.since`, the last head a Review read, clean or not, when the answer has it, else
-  `origin/<base>`. After a rebase or an amend `<since>` can be a head the branch left behind:
-  `git fetch origin <since>` when the checkout lacks it, and two dots, `<since>..<head>`, on each
-  `git diff` below that shows three, the `light` one included.
-  When the answer has `details.paths`, a merge of the base or a rebase came after `<since>`,
-  and the Review reads only those files, the ones whose own change moved: `-- <paths>` on each
-  `git diff` below, and the paths named to the command at `full`. An empty list leaves nothing to
-  read: a Finding an earlier Review left open stays open, and with none the Review is clean.
-  When the answer has `details.open`, the read mark on that head left Findings no later commit
-  answers. With those Findings in this conversation, `references/review.md` has you fix them and
-  push first. Without them, the answer names no `since`: the Review reads the whole pull request
-  from `origin/<base>`, and its Findings stand in for the mark's. At
-  `full`, run the slash command `details.reviewCommand` names, with its arguments, on those
-  changes, naming that range to it: `<since>..<head>`. It is the config's
-  `pr.reviewCommand`, `/code-review` by default, the review skill of the engineering skills
-  (`mattpocock/skills`). A command this session does not have ends the run: name it, say that
-  `pr.reviewCommand` in `.ai/agentic.config.json` names the reviewer this repository has, and stop.
-  At `light`, `git fetch origin <base>`, then spawn the `sdlc:sdlc-reviewer` subagent. It does not
-  see this conversation, so its prompt holds all it reads: the diff command
-  `git diff <since>...<head>`, the files `git diff --name-only <since>...<head>` lists, the spec as
-  this conversation states it, the issue or the dev's ask, else "none stated", and the Primitives the
-  change touches, the guards, hooks, scripts, config keys and skills the repository's catalogue
-  lists. Get those once, over the same range, from the checkout at `<head>`:
-
-  ```bash
-  node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" primitives --diff <since> --json
-  ```
-
-  Put in the prompt, for each Primitive of its `primitives`, the `id`, the `class`, the `summary`
-  and each `docs` entry whose `touched` is false, nothing else of the catalogue; "none" when the
-  list is empty. Exit 2, a repository with no catalogue included, sends "not read" and the one line it
-  printed, never "none". Its report's first line, `clean` or `findings: <n>`, is the result.
-
-  When the Review is clean, or skipped under `references/review.md`, run
-  `node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" pr reviewed <n> --head <head>`; its exit 2
-  says whether the head moved or it cannot run. When it leaves a Finding open, run
-  `node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" pr reviewed <n> --head <head> --findings` on the
-  head it read, the read mark the next Review reads the fix from; then fix each Finding,
-  `git push` and call the script again. At `off`, and over a head that only merged the base in
-  since a success, or that a rebase left with the own changes that success read, with no read mark
-  open after it, unless the dev's
-  `--review` names a depth, the script marks the head reviewed itself, so no `act review` comes.
-
 - `wait`, when the dev invoked the skill: tell the dev the `reason` in one line, start one background
   wait with the Bash tool's `run_in_background`, and end the turn; its exit wakes the session, and
   then you call the script again, whatever the exit code. At `ci-pending` the wait is
@@ -101,11 +44,6 @@ push makes.
   wait needs no limit of its own. Under `/loop`, run from a Brief, or called by another skill, start
   no wait: tell the `reason` and `recheckAfter` and end the turn, and the next call comes with the
   loop's wake-up or the next message.
-- `park review-limit`: three Reviews with no success between them left a Finding open, and the head
-  is no fix that carries its test on a green Gate, or the one `light` Review such a fix bought left a
-  Finding open too. Print the `reason`, the Findings the last fix answered, from this conversation,
-  and the `command`, then stop. The command is `pr reviewed --accept`, which accepts the head with its Findings open: the
-  dev's to run, never yours. The dev's `--review <depth>` buys one more Review past the limit.
 - `park` and `done`, whatever the `action`: print the `reason`, and the `command` when there is one,
   and stop. The command is the dev's to run, never yours.
 
@@ -123,9 +61,7 @@ no background wait, when the script exits 2, when a guard refuses a command, or 
 reviewer's turn. In this order:
 
 1. The outcome in one sentence: the `status`, and its `reason`.
-2. The rest of what the run printed: the `recheckAfter` at a `wait`; the Findings the last fix answered and
-   the `command` at a `park`. With no Recap to carry them, the declined, follow-up and decision lines of
-   the Reviews.
+2. The rest of what the run printed: the `recheckAfter` at a `wait`; the `command` at a `park`.
 3. `Next: <command>` in a code span as the last line, the dev's command and never run by this skill. The
    closed list:
    - `done`: `/sdlc-sweep`;

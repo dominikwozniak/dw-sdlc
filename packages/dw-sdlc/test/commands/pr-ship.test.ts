@@ -56,9 +56,9 @@ const DEV_MERGE = `gh pr merge 40 --squash --match-head-commit ${HEAD}`
 
 /** The files of a test's checkout: a relative path and its text, an object written as JSON. */
 type Files = Record<string, string | object>
-/** pr.review full, so a head no one reviewed asks for a Review with no compare to read; `pr-ship-route` reads auto. */
-const FULL: Files = { [COMMITTED_FILE]: { pr: { review: "full" } } }
-const AUTO: Files = { [COMMITTED_FILE]: { pr: { merge: "auto", review: "full" } } }
+/** No committed layer, the checkout a repository starts with; AUTO sets pr.merge auto. */
+const DEFAULTS: Files = {}
+const AUTO: Files = { [COMMITTED_FILE]: { pr: { merge: "auto" } } }
 
 /** As GitHub reports a merged pull request: mergeability no longer computed. */
 const MERGED: Pr = {
@@ -102,8 +102,7 @@ const MIXED: Pr = {
     },
     { kind: "run", name: "Docs", state: "NEUTRAL" },
     { kind: "run", name: "Deploy", state: "STARTUP_FAILURE" },
-    { kind: "status", name: "ci/legacy", state: "EXPECTED", startedAt: "2026-10-31T11:03:00Z" },
-    { kind: "status", name: "dw-sdlc/review", state: "SUCCESS", startedAt: "2026-10-31T11:05:00Z" }
+    { kind: "status", name: "ci/legacy", state: "EXPECTED", startedAt: "2026-10-31T11:03:00Z" }
   ],
   threads: [
     {
@@ -124,13 +123,13 @@ const MIXED: Pr = {
  * `dw-sdlc pr ship <args>` against a fake gh playing `scenario`, from a repository with no pull request
  * whose checkout holds `files`, its agentic config among them.
  */
-function ship(args: string[], scenario: Scenario, env: NodeJS.ProcessEnv = {}, files: Files = FULL) {
+function ship(args: string[], scenario: Scenario, env: NodeJS.ProcessEnv = {}, files: Files = DEFAULTS) {
   const gh = fakeGh(scenario)
   const run = runInProcess(["pr", "ship", ...args], repo({ files }), { ...gh.env, ...env })
   return { ...run, calls: gh.calls() }
 }
 
-function json(pr: Pr, flags: string[] = [], env: NodeJS.ProcessEnv = {}, files: Files = FULL) {
+function json(pr: Pr, flags: string[] = [], env: NodeJS.ProcessEnv = {}, files: Files = DEFAULTS) {
   const run = ship([...TARGET, "--json", ...flags], { graphql: [served(pr)] }, env, files)
   assert.notEqual(run.stdout, "", `no document; exit ${run.status}: ${run.stderr}`)
   return { ...run, document: JSON.parse(run.stdout) as unknown }
@@ -306,15 +305,6 @@ describe("dw-sdlc pr ship", () => {
           log: null,
           startedAt: "2026-10-31T11:03:00Z",
           unstarted: false
-        },
-        {
-          name: "dw-sdlc/review",
-          bucket: "pass",
-          required: false,
-          link: null,
-          log: null,
-          startedAt: "2026-10-31T11:05:00Z",
-          unstarted: false
         }
       ],
       unresolvedThreads: [
@@ -335,14 +325,7 @@ describe("dw-sdlc pr ship", () => {
           lastByViewer: false
         }
       ],
-      cutOff: [],
-      lastRead: null,
-      open: null,
-      marks: { count: 0, since: null },
-      carried: false,
-      changed: null,
-      scope: null,
-      fixTested: false
+      cutOff: []
     })
     const bare = json({ ...GREEN, checks: [] }, ["--verbose"]).document
     assert.ok(typeof bare === "object" && bare !== null && "facts" in bare)
@@ -365,8 +348,7 @@ describe("dw-sdlc pr ship", () => {
   it("prints its usage with --help", () => {
     const run = ship(["--help"], {})
     assert.equal(run.status, 0, run.stderr)
-    const usage =
-      "Usage: dw-sdlc pr ship [<n>] [-R owner/name] [--merge] [--review full|light|off] [--dry-run] [--json] [--verbose]\n"
+    const usage = "Usage: dw-sdlc pr ship [<n>] [-R owner/name] [--merge] [--dry-run] [--json] [--verbose]\n"
     assert.ok(run.stdout.startsWith(usage), run.stdout)
     assert.deepEqual(run.calls, [])
   })
@@ -387,28 +369,20 @@ describe("dw-sdlc pr ship", () => {
   })
 })
 
-/** The script's own review marker on the head: a context, never a check. */
-const REVIEWED: Context = {
-  kind: "status",
-  name: "dw-sdlc/review",
-  state: "SUCCESS",
-  startedAt: "2026-10-31T11:05:00Z"
-}
-/** Reviewed, and no check reported on the head, committed at 11:00. */
-const UNCHECKED: Pr = { ...GREEN, checks: [REVIEWED] }
+/** What a pull request reviewed under the old Ship script leaves on its head: a context, never a check. */
+const STALE: Context = { kind: "status", name: "dw-sdlc/review", state: "FAILURE", startedAt: "2026-10-31T11:05:00Z" }
+/** No check reported on the head, a stale dw-sdlc/review status beside it, committed at 11:00. */
+const UNCHECKED: Pr = { ...GREEN, checks: [STALE] }
 const STARTED = "2026-10-31T11:01:00Z"
 const READY_AT = "2026-10-31T12:00:00Z"
 const SKIPPED_RUN: Context = { kind: "run", name: "Check", state: "SKIPPED", link: RUN, startedAt: STARTED }
-/** Reviewed, its one check skipped: what a draft reports in a repository that runs CI once it is ready. */
-const SKIPPED: Pr = { ...GREEN, checks: [SKIPPED_RUN, REVIEWED] }
-/** Reviewed, its one required check running since STARTED. */
+/** Its one check skipped: what a draft reports in a repository that runs CI once it is ready. */
+const SKIPPED: Pr = { ...GREEN, checks: [SKIPPED_RUN] }
+/** Its one required check running since STARTED. */
 const PENDING: Pr = {
   ...GREEN,
   mergeStateStatus: "BLOCKED",
-  checks: [
-    { kind: "run", name: "Check", state: "IN_PROGRESS", link: RUN, startedAt: STARTED, required: true },
-    REVIEWED
-  ]
+  checks: [{ kind: "run", name: "Check", state: "IN_PROGRESS", link: RUN, startedAt: STARTED, required: true }]
 }
 
 /** The environment that sets the script's clock `seconds` after `time`. */
@@ -419,7 +393,7 @@ function clockAt(time: string, seconds: number): NodeJS.ProcessEnv {
 describe("dw-sdlc pr ship while no check has answered", () => {
   const merge = `gh pr merge 40 --squash --match-head-commit ${HEAD}`
 
-  it("waits 15 s on a head whose only context is dw-sdlc/review, 60 s after its commit", () => {
+  it("waits 15 s on a head whose only context is a stale dw-sdlc/review status, 60 s after its commit", () => {
     const run = json(UNCHECKED, [], clockAt(GREEN.committedAt, 60))
     assert.equal(run.status, 20, run.stderr)
     assert.deepEqual(run.document, {
@@ -563,7 +537,7 @@ describe("dw-sdlc pr ship while no check has answered", () => {
 
   it("counts a check not yet started from the head's ready when it left draft after its commit", () => {
     const queued: Context = { kind: "run", name: "Check", state: "QUEUED", startedAt: null }
-    const readied: Pr = { ...PENDING, readyAt: READY_AT, checks: [queued, REVIEWED] }
+    const readied: Pr = { ...PENDING, readyAt: READY_AT, checks: [queued] }
     const cases: [number, number, string][] = [
       [30, 20, "ci-pending"],
       [41 * 60, 30, "1 check(s) pending for 41 min, past the 40 min budget"]
@@ -623,28 +597,28 @@ describe("dw-sdlc pr ship hands the pull request to the agent", () => {
         { ...GREEN, draft: true, checks: [FAILING] },
         10,
         "act fix-ci: 1 check(s) failing",
-        ["review", "mark-ready"]
+        ["mark-ready"]
       ],
       [
         "conflicts, CI failing",
         { ...GREEN, mergeable: "CONFLICTING", mergeStateStatus: "DIRTY", checks: [FAILING] },
         10,
         "act fix-conflicts: conflicts with main",
-        ["fix-ci", "review"]
+        ["fix-ci"]
       ],
       [
         "CI failing",
         { ...GREEN, mergeStateStatus: "UNSTABLE", checks: [FAILING] },
         10,
         "act fix-ci: 1 check(s) failing",
-        ["review"]
+        []
       ],
       [
-        "open thread, not reviewed",
+        "open thread",
         { ...GREEN, checks: [PASSING], threads: [THREAD] },
         10,
         "act address-review: 1 unresolved thread(s)",
-        ["review"]
+        []
       ],
       [
         "changes requested",
@@ -654,10 +628,10 @@ describe("dw-sdlc pr ship hands the pull request to the agent", () => {
         []
       ],
       [
-        "green, not reviewed",
+        "green",
         { ...GREEN, checks: [PASSING] },
-        10,
-        "act review: no dw-sdlc/review success on e36732e",
+        30,
+        `park ready-to-merge: pr.merge is ask: the merge is the dev's — ${DEV_MERGE}`,
         []
       ],
       [
@@ -673,14 +647,6 @@ describe("dw-sdlc pr ship hands the pull request to the agent", () => {
       assert.deepEqual([run.status, run.stdout], [status, `${line}\n`], `${name}: ${run.stderr}`)
       assert.deepEqual(blockersOf(json(pr).document), blockers, name)
     }
-  })
-
-  it("asks for the review while CI runs, the wait for CI riding in blockers", () => {
-    const running: Context = { kind: "run", name: "Check", state: "IN_PROGRESS", link: RUN, startedAt: STARTED }
-    const run = json({ ...GREEN, checks: [running] }, [], clockAt(STARTED, 9 * 60))
-    assert.equal(run.status, 10, run.stderr)
-    assert.ok(typeof run.document === "object" && run.document !== null && "action" in run.document)
-    assert.deepEqual([run.document.action, blockersOf(run.document)], ["review", ["wait"]], run.stdout)
   })
 
   it("answers fix-conflicts for conflicts and a failing check, the check riding in blockers for the same push", () => {
@@ -701,12 +667,6 @@ describe("dw-sdlc pr ship hands the pull request to the agent", () => {
           actor: "agent",
           reason: "1 check(s) failing",
           details: { checks: [{ name: "Check", link: RUN, log: LOG }] }
-        },
-        {
-          action: "review",
-          actor: "agent",
-          reason: "no dw-sdlc/review success on e36732e",
-          details: { depth: "full", source: "config", reviewCommand: "/code-review" }
         }
       ],
       performed: []
@@ -717,7 +677,7 @@ describe("dw-sdlc pr ship hands the pull request to the agent", () => {
   it("lists each failing check with its link, and the command that prints its log only for an Actions job", () => {
     const circle: Context = { kind: "status", name: "ci/circleci", state: "ERROR", link: CIRCLE }
     const skipped: Context = { kind: "run", name: "Docs", state: "SKIPPED" }
-    const run = json({ ...GREEN, mergeStateStatus: "UNSTABLE", checks: [FAILING, circle, skipped, REVIEWED] })
+    const run = json({ ...GREEN, mergeStateStatus: "UNSTABLE", checks: [FAILING, circle, skipped] })
     assert.equal(run.status, 10, run.stderr)
     assert.deepEqual(run.document, {
       pr: URL,
@@ -738,13 +698,15 @@ describe("dw-sdlc pr ship hands the pull request to the agent", () => {
     })
   })
 
-  it("takes a dw-sdlc/review success on the head as its review, and a dw-sdlc/ failure as neither CI nor a review", () => {
-    const reviewed = json({ ...GREEN, checks: [FAILING, REVIEWED] })
-    assert.deepEqual([reviewed.status, blockersOf(reviewed.document)], [10, []], reviewed.stdout)
-    const failed = json({ ...GREEN, checks: [PASSING, { ...REVIEWED, state: "FAILURE" }] })
-    assert.equal(failed.status, 10, failed.stderr)
-    assert.ok(typeof failed.document === "object" && failed.document !== null && "action" in failed.document)
-    assert.deepEqual([failed.document.action, blockersOf(failed.document)], ["review", []], failed.stdout)
+  it("takes a dw-sdlc/review status of any state as neither CI nor a blocker, so it never changes the answer", () => {
+    const baseline = json({ ...GREEN, checks: [FAILING] })
+    for (const state of ["SUCCESS", "FAILURE", "PENDING"]) {
+      const run = json({ ...GREEN, checks: [FAILING, { ...STALE, state }] })
+      assert.deepEqual(run.document, baseline.document, state)
+    }
+    const green = json({ ...GREEN, checks: [PASSING, STALE] })
+    assert.equal(green.status, 30, green.stderr)
+    assert.deepEqual(fieldsOf(green.document, ["action", "blockers"]), { action: "ready-to-merge", blockers: [] })
   })
 
   it("hands the agent the threads someone else spoke last on; resolved and outdated threads do not count", () => {
@@ -1116,55 +1078,47 @@ describe("dw-sdlc pr ship ends a pull request", () => {
   })
 
   it("lists awaiting-approval among the blockers, and who merges never", () => {
-    const unreviewed = json({ ...GREEN, checks: [PASSING], reviewDecision: "REVIEW_REQUIRED" }, [], {}, AUTO)
-    assert.deepEqual(blockersOf(unreviewed.document), ["awaiting-approval"], unreviewed.stdout)
-    const failing = json({ ...GREEN, checks: [FAILING, REVIEWED], viewerDidAuthor: false }, [], {}, AUTO)
+    const required = json({ ...GREEN, checks: [FAILING], reviewDecision: "REVIEW_REQUIRED" }, [], {}, AUTO)
+    assert.deepEqual(blockersOf(required.document), ["awaiting-approval"], required.stdout)
+    const failing = json({ ...GREEN, checks: [FAILING], viewerDidAuthor: false }, [], {}, AUTO)
     assert.deepEqual(blockersOf(failing.document), [], failing.stdout)
   })
 
-  it("parks another author's pull request as ready-to-merge, reviewed or not, under ask, auto and --merge", () => {
+  it("parks another author's pull request as ready-to-merge under ask, auto and --merge", () => {
     for (const [flags, files] of [
       [[], {}],
       [[], AUTO],
       [["--merge"], {}]
     ] satisfies [string[], Files][]) {
-      for (const [reviewed, checks] of [
-        ["reviewed", GREEN.checks],
-        ["not reviewed", [PASSING]]
-      ] satisfies [string, Context[]][]) {
-        const name = `${reviewed}, flags [${flags.join(" ")}], config ${JSON.stringify(files)}`
-        const run = json({ ...GREEN, viewerDidAuthor: false, checks }, flags, {}, files)
-        assert.equal(run.status, 30, `${name}: ${run.stderr}`)
-        assert.deepEqual(
-          run.document,
-          {
-            pr: URL,
-            head: HEAD,
-            base: "main",
-            status: "park",
-            action: "ready-to-merge",
-            actor: "dev",
-            reason: "another author's pull request: the merge is the dev's",
-            command: DEV_MERGE,
-            blockers: [],
-            performed: []
-          },
-          name
-        )
-        assert.deepEqual(run.calls, [AUTH, READ], name)
-      }
+      const name = `flags [${flags.join(" ")}], config ${JSON.stringify(files)}`
+      const run = json({ ...GREEN, viewerDidAuthor: false }, flags, {}, files)
+      assert.equal(run.status, 30, `${name}: ${run.stderr}`)
+      assert.deepEqual(
+        run.document,
+        {
+          pr: URL,
+          head: HEAD,
+          base: "main",
+          status: "park",
+          action: "ready-to-merge",
+          actor: "dev",
+          reason: "another author's pull request: the merge is the dev's",
+          command: DEV_MERGE,
+          blockers: [],
+          performed: []
+        },
+        name
+      )
+      assert.deepEqual(run.calls, [AUTH, READ], name)
     }
   })
 
-  it("lists no review among the blockers of another author's pull request, only of the viewer's own", () => {
-    for (const [viewerDidAuthor, blockers] of [
-      [true, ["review"]],
-      [false, []]
-    ] satisfies [boolean, string[]][]) {
+  it("lists no blocker of another author's pull request that is the viewer's own to carry", () => {
+    for (const viewerDidAuthor of [true, false]) {
       const run = json({ ...GREEN, viewerDidAuthor, mergeStateStatus: "UNSTABLE", checks: [FAILING] }, [], {}, AUTO)
       assert.equal(run.status, 10, run.stderr)
       assert.deepEqual(fieldsOf(run.document, ["action"]), { action: "fix-ci" })
-      assert.deepEqual(blockersOf(run.document), blockers, run.stdout)
+      assert.deepEqual(blockersOf(run.document), [], run.stdout)
     }
   })
 
@@ -1189,7 +1143,7 @@ describe("dw-sdlc pr ship ends a pull request", () => {
       })
       assert.deepEqual(run.calls, [AUTH, READ], flags.join(" "))
     }
-    const failing = json({ ...GREEN, checks: [FAILING, REVIEWED] }, ["--dry-run"], {}, AUTO)
+    const failing = json({ ...GREEN, checks: [FAILING] }, ["--dry-run"], {}, AUTO)
     assert.deepEqual(fieldsOf(failing.document, ["action", "performed"]), { action: "fix-ci", performed: [] })
   })
 
@@ -1217,12 +1171,12 @@ describe("dw-sdlc pr ship ends a pull request", () => {
       clockAt(STARTED, 60),
       AUTO
     )
-    assert.equal(run.status, 10, run.stderr)
+    assert.equal(run.status, 20, run.stderr)
     assert.deepEqual(fieldsOf(JSON.parse(run.stdout), ["head", "status", "action", "reason", "performed"]), {
       head: moved,
-      status: "act",
-      action: "review",
-      reason: "no dw-sdlc/review success on 0d6c3f4",
+      status: "wait",
+      action: "wait",
+      reason: "ci-pending",
       performed: performedMerge(false, { exit: 1, stderr })
     })
     assert.deepEqual(run.calls, [AUTH, READ, MERGE, READ])
@@ -1273,9 +1227,9 @@ describe("dw-sdlc pr ship ends a pull request", () => {
   })
 })
 
-/** Green, reviewed and the viewer's own, behind its base under a rule that wants it up to date. */
+/** Green and the viewer's own, behind its base under a rule that wants it up to date. */
 const BEHIND: Pr = { ...GREEN, mergeStateStatus: "BEHIND" }
-/** Green, reviewed and the viewer's own, still a draft. */
+/** Green and the viewer's own, still a draft. */
 const DRAFT: Pr = { ...GREEN, draft: true }
 
 describe("dw-sdlc pr ship updates a branch and marks a draft ready", () => {
@@ -1285,17 +1239,17 @@ describe("dw-sdlc pr ship updates a branch and marks a draft ready", () => {
     const after: Pr = { ...GREEN, head: updated, mergeStateStatus: "BLOCKED", checks: [running] }
     const scenario = { graphql: [served(BEHIND), served(after)], commands: comparedBehind(0, UPDATED) }
     const run = ship([...TARGET, "--json"], scenario, clockAt(STARTED, 60), AUTO)
-    assert.equal(run.status, 10, run.stderr)
+    assert.equal(run.status, 20, run.stderr)
     assert.deepEqual(JSON.parse(run.stdout), {
       pr: URL,
       head: updated,
       base: "main",
-      status: "act",
-      action: "review",
-      actor: "agent",
-      reason: "no dw-sdlc/review success on 5f0c2a7",
-      details: { depth: "full", source: "config", reviewCommand: "/code-review" },
-      blockers: [{ action: "wait", actor: "script", reason: "ci-pending" }],
+      status: "wait",
+      action: "wait",
+      actor: "script",
+      reason: "ci-pending",
+      recheckAfter: 60,
+      blockers: [],
       performed: [ran("update-branch", true)]
     })
     assert.deepEqual(run.calls, [AUTH, READ, UPDATE, READ, UPDATED_COMPARE])
@@ -1346,7 +1300,7 @@ describe("dw-sdlc pr ship updates a branch and marks a draft ready", () => {
     assert.deepEqual(run.calls, [AUTH, READ])
   })
 
-  it("marks a green, reviewed draft ready, then merges it under pr.merge auto, both under performed in order", () => {
+  it("marks a green draft ready, then merges it under pr.merge auto, both under performed in order", () => {
     const run = ship([...TARGET, "--json"], { graphql: [served(DRAFT), served(GREEN), served(MERGED)] }, {}, AUTO)
     assert.equal(run.status, 0, run.stderr)
     assert.deepEqual(JSON.parse(run.stdout), {
@@ -1365,7 +1319,7 @@ describe("dw-sdlc pr ship updates a branch and marks a draft ready", () => {
     assert.deepEqual(run.calls, [AUTH, READ, READY, READ, MERGE, READ])
   })
 
-  it("marks a reviewed draft ready on its skipped check, then waits for the run ready starts", () => {
+  it("marks a draft ready on its skipped check, then waits for the run ready starts", () => {
     const graphql = [served({ ...SKIPPED, draft: true }), served({ ...SKIPPED, readyAt: READY_AT })]
     const run = ship([...TARGET, "--json"], { graphql }, clockAt(READY_AT, 5), AUTO)
     assert.equal(run.status, 20, run.stderr)
@@ -1406,7 +1360,7 @@ describe("dw-sdlc pr ship updates a branch and marks a draft ready", () => {
     assert.deepEqual(run.calls, [AUTH, READ, READY, READ])
   })
 
-  it("parks another author's draft for the dev with no command, reviewed or not: marking it ready is the author's", () => {
+  it("parks another author's draft for the dev with no command: marking it ready is the author's", () => {
     const awaiting = {
       action: "awaiting-author",
       actor: "dev",
@@ -1434,10 +1388,9 @@ describe("dw-sdlc pr ship updates a branch and marks a draft ready", () => {
     assert.deepEqual(fieldsOf(failing.document, ["action", "blockers"]), { action: "fix-ci", blockers: [awaiting] })
   })
 
-  it("marks a draft ready last: never while CI fails or runs, the head is unreviewed or a thread awaits a reply", () => {
+  it("marks a draft ready last: never while CI fails or runs or a thread awaits a reply", () => {
     const cases: [string, Pr, NodeJS.ProcessEnv, string][] = [
-      ["CI failing", { ...DRAFT, checks: [FAILING, REVIEWED] }, {}, "fix-ci"],
-      ["not reviewed", { ...DRAFT, checks: [PASSING] }, {}, "review"],
+      ["CI failing", { ...DRAFT, checks: [FAILING] }, {}, "fix-ci"],
       ["CI pending", { ...PENDING, draft: true }, clockAt(STARTED, 10 * 60), "wait"],
       ["awaiting a reply", { ...DRAFT, threads: [{ ...THREAD, lastByViewer: true }] }, {}, "awaiting-reply"]
     ]
@@ -1568,326 +1521,59 @@ describe("dw-sdlc pr ship updates a branch and marks a draft ready", () => {
   })
 })
 
-/** Where the script posts the status on HEAD, the repository named in the path. */
-const STATUSES = `repos/byarcadia-app/foundation/statuses/${HEAD}`
-
-/** The post that marks HEAD reviewed, `why` its description. */
-function marked(why: string): string[] {
-  return [
-    "api",
-    STATUSES,
-    "--method",
-    "POST",
-    "--silent",
-    "-f",
-    "state=success",
-    "-f",
-    "context=dw-sdlc/review",
-    "-f",
-    `target_url=${URL}`,
-    "-f",
-    `description=${why}`
-  ]
-}
-
-/** The same post as `performed` and a parked answer print it. */
-function markedCommand(why: string): string {
-  const fields = `-f state=success -f context=dw-sdlc/review -f target_url=${URL} -f 'description=${why}'`
-  return `gh api ${STATUSES} --method POST --silent ${fields}`
-}
-
-/** The post under `performed`, as `performedEntry` records it. */
-function markedRun(why: string, ok: boolean | null, response: Response = {}): unknown {
-  return { action: "mark-reviewed", ...performedEntry(markedCommand(why), ok, response) }
-}
-
-/** pr.review off, and the merge the script's. */
-const OFF: Files = { [COMMITTED_FILE]: { pr: { merge: "auto", review: "off" } } }
-/** Green and the viewer's own, its head not reviewed. */
-const UNREVIEWED: Pr = { ...GREEN, checks: [PASSING] }
-
-describe("dw-sdlc pr ship at a Review depth", () => {
-  it("asks the agent for a full Review under pr.review full, the depth and where it came from under details", () => {
-    const run = json(UNREVIEWED)
-    assert.equal(run.status, 10, run.stderr)
-    assert.deepEqual(run.document, {
-      pr: URL,
-      head: HEAD,
-      base: "main",
-      status: "act",
-      action: "review",
-      actor: "agent",
-      reason: "no dw-sdlc/review success on e36732e",
-      details: { depth: "full", source: "config", reviewCommand: "/code-review" },
-      blockers: [],
-      performed: []
-    })
-    assert.deepEqual(run.calls, [AUTH, READ])
-  })
-
-  it("takes --review full over pr.review off, the flag named as the source", () => {
-    const run = json(UNREVIEWED, ["--review", "full"], {}, OFF)
-    assert.equal(run.status, 10, run.stderr)
-    assert.deepEqual(fieldsOf(run.document, ["action", "actor", "details", "performed"]), {
-      action: "review",
-      actor: "agent",
-      details: { depth: "full", source: "flag", reviewCommand: "/code-review" },
-      performed: []
-    })
-    assert.deepEqual(run.calls, [AUTH, READ])
-  })
-
-  it("names the command pr.reviewCommand sets for a full Review, the local layer's over the committed one", () => {
-    const toolkit = "/pr-review-toolkit:review-pr code errors"
-    const cases: [Files, string[], string][] = [
-      [{ [COMMITTED_FILE]: { pr: { review: "full", reviewCommand: "/review" } } }, [], "/review"],
-      [
-        {
-          [COMMITTED_FILE]: { pr: { review: "full", reviewCommand: "/review" } },
-          [LOCAL_FILE]: { pr: { reviewCommand: toolkit } }
-        },
-        [],
-        toolkit
-      ],
-      [{ ...OFF, [LOCAL_FILE]: { pr: { reviewCommand: toolkit } } }, ["--review", "full"], toolkit]
-    ]
-    for (const [files, flags, reviewCommand] of cases) {
-      const run = json(UNREVIEWED, flags, {}, files)
-      assert.equal(run.status, 10, run.stderr)
-      assert.deepEqual(
-        fieldsOf(run.document, ["action", "details"]),
-        { action: "review", details: { depth: "full", source: flags.length > 0 ? "flag" : "config", reviewCommand } },
-        JSON.stringify(files)
-      )
-    }
-  })
-
-  it("asks the agent for a light Review under pr.review light or --review light, each source named", () => {
-    const light: Files = { [COMMITTED_FILE]: { pr: { review: "light" } } }
-    const cases: [string[], Files, string][] = [
-      [[], light, "config"],
-      [["--review", "light"], OFF, "flag"],
-      [["--review", "light"], {}, "flag"]
-    ]
-    for (const [args, files, source] of cases) {
-      const run = json(UNREVIEWED, args, {}, files)
-      assert.equal(run.status, 10, run.stderr)
-      assert.deepEqual(fieldsOf(run.document, ["status", "action", "actor", "details", "performed"]), {
-        status: "act",
-        action: "review",
-        actor: "agent",
-        details: { depth: "light", source },
-        performed: []
-      })
-      assert.deepEqual(run.calls, [AUTH, READ], JSON.stringify(args))
-    }
-  })
-
-  it("posts the dw-sdlc/review success itself under --review off, reads again and answers what that read gives", () => {
-    const run = ship([...TARGET, "--json", "--review", "off"], { graphql: [served(UNREVIEWED), served(GREEN)] })
-    assert.equal(run.status, 30, run.stderr)
-    assert.deepEqual(fieldsOf(JSON.parse(run.stdout), ["action", "reason", "performed"]), {
-      action: "ready-to-merge",
-      reason: "pr.merge is ask: the merge is the dev's",
-      performed: [markedRun("off: --review off", true)]
-    })
-    assert.deepEqual(run.calls, [AUTH, READ, marked("off: --review off"), READ])
-  })
-
-  it("posts the status under pr.review off, then merges under pr.merge auto in the same call", () => {
-    const run = ship([...TARGET, "--json"], { graphql: [served(UNREVIEWED), served(GREEN), served(MERGED)] }, {}, OFF)
+describe("dw-sdlc pr ship once the Review has left it", () => {
+  it("merges a green head under pr.merge auto with no dw-sdlc/review status, asking nothing of a Review", () => {
+    const run = ship([...TARGET, "--json"], { graphql: [served(GREEN), served(MERGED)] }, {}, AUTO)
     assert.equal(run.status, 0, run.stderr)
     assert.deepEqual(fieldsOf(JSON.parse(run.stdout), ["status", "performed"]), {
       status: "done",
-      performed: [markedRun("off: pr.review", true), ran("merge", true)]
+      performed: performedMerge(true)
     })
-    assert.deepEqual(run.calls, [AUTH, READ, marked("off: pr.review"), READ, MERGE, READ])
+    assert.deepEqual(run.calls, [AUTH, READ, MERGE, READ])
   })
 
-  it("runs full while a config layer is invalid or loosens pr.review, whatever the committed file sets", () => {
-    const cases: Files[] = [
-      { ...OFF, [LOCAL_FILE]: "{ not json" },
-      { ...OFF, [LOCAL_FILE]: { pr: { review: "none" } } },
-      { [COMMITTED_FILE]: { pr: { review: "full" } }, [LOCAL_FILE]: { pr: { review: "off" } } }
-    ]
-    for (const files of cases) {
-      const run = json(UNREVIEWED, [], {}, files)
-      assert.equal(run.status, 10, run.stderr)
-      assert.deepEqual(fieldsOf(run.document, ["action", "details", "performed"]), {
-        action: "review",
-        details: { depth: "full", source: "config", reviewCommand: "/code-review" },
-        performed: []
+  it("ignores a stale dw-sdlc/review status on the head, of any state: the merge goes ahead", () => {
+    for (const state of ["FAILURE", "ERROR", "PENDING", "SUCCESS"]) {
+      const stale: Pr = { ...GREEN, checks: [PASSING, { ...STALE, state }] }
+      const run = ship([...TARGET, "--json"], { graphql: [served(stale), served(MERGED)] }, {}, AUTO)
+      assert.equal(run.status, 0, `${state}: ${run.stderr}`)
+      assert.deepEqual(fieldsOf(JSON.parse(run.stdout), ["status", "performed"]), {
+        status: "done",
+        performed: performedMerge(true)
       })
-      assert.deepEqual(run.calls, [AUTH, READ], JSON.stringify(files))
+      assert.deepEqual(run.calls, [AUTH, READ, MERGE, READ], state)
     }
   })
 
-  it("takes --review off over a config layer that is invalid, the dev's word beating the strictest set", () => {
-    const files = { ...OFF, [LOCAL_FILE]: "{ not json" }
-    const run = ship(
-      [...TARGET, "--json", "--review", "off"],
-      { graphql: [served(UNREVIEWED), served(GREEN)] },
-      {},
-      files
-    )
-    assert.equal(run.status, 30, run.stderr)
-    assert.deepEqual(fieldsOf(JSON.parse(run.stdout), ["action", "reason", "performed"]), {
-      action: "ready-to-merge",
-      reason: "pr.merge is ask: the merge is the dev's",
-      performed: [markedRun("off: --review off", true)]
-    })
-    assert.deepEqual(run.calls, [AUTH, READ, marked("off: --review off"), READ])
-  })
-
-  it("keeps every other row under off: conflicts, failing CI and threads go to the agent, the post riding in blockers", () => {
-    const cases: [string, Pr, string, string[]][] = [
-      [
-        "conflicts",
-        { ...UNREVIEWED, mergeable: "CONFLICTING", mergeStateStatus: "DIRTY" },
-        "fix-conflicts",
-        ["mark-reviewed"]
-      ],
-      ["CI failing", { ...GREEN, mergeStateStatus: "UNSTABLE", checks: [FAILING] }, "fix-ci", ["mark-reviewed"]],
-      ["open thread", { ...UNREVIEWED, threads: [THREAD] }, "address-review", ["mark-reviewed"]]
+  it("holds the merge for an open thread, a change request and another author's pull request, as before", () => {
+    const holds: [string, Pr, string][] = [
+      ["an open thread", { ...GREEN, threads: [THREAD] }, "address-review"],
+      ["a change request", { ...GREEN, reviewDecision: "CHANGES_REQUESTED" }, "address-review"],
+      ["another author", { ...GREEN, viewerDidAuthor: false }, "ready-to-merge"]
     ]
-    for (const [name, pr, action, blockers] of cases) {
-      const run = json(pr, [], {}, OFF)
-      assert.equal(run.status, 10, `${name}: ${run.stderr}`)
-      assert.deepEqual([fieldsOf(run.document, ["action"]), blockersOf(run.document)], [{ action }, blockers], name)
+    for (const [name, pr, action] of holds) {
+      const run = json(pr, [], {}, AUTO)
+      assert.deepEqual(fieldsOf(run.document, ["action", "performed"]), { action, performed: [] }, name)
       assert.deepEqual(run.calls, [AUTH, READ], name)
     }
-    const conflicting = json({ ...UNREVIEWED, mergeable: "CONFLICTING", mergeStateStatus: "DIRTY" }, [], {}, OFF)
-    assert.ok(typeof conflicting.document === "object" && conflicting.document !== null)
-    assert.ok("blockers" in conflicting.document && Array.isArray(conflicting.document.blockers))
-    assert.deepEqual(conflicting.document.blockers, [
-      {
-        action: "mark-reviewed",
-        actor: "script",
-        reason: "no dw-sdlc/review success on e36732e",
-        details: { depth: "off", source: "config" }
-      }
-    ])
   })
 
-  it("never marks another author's pull request reviewed under off: it parks for the dev with no post", () => {
-    for (const [flags, files] of [
-      [[], OFF],
-      [["--review", "off"], {}]
-    ] satisfies [string[], Files][]) {
-      const name = `flags [${flags.join(" ")}], config ${JSON.stringify(files)}`
-      const run = json({ ...UNREVIEWED, viewerDidAuthor: false }, flags, {}, files)
-      assert.equal(run.status, 30, `${name}: ${run.stderr}`)
-      assert.deepEqual(
-        fieldsOf(run.document, ["action", "reason", "command", "blockers", "performed"]),
-        {
-          action: "ready-to-merge",
-          reason: "another author's pull request: the merge is the dev's",
-          command: DEV_MERGE,
-          blockers: [],
-          performed: []
-        },
-        name
-      )
-      assert.deepEqual(run.calls, [AUTH, READ], name)
-      const failing = json(
-        { ...GREEN, viewerDidAuthor: false, mergeStateStatus: "UNSTABLE", checks: [FAILING] },
-        flags,
-        {},
-        files
-      )
-      assert.deepEqual(blockersOf(failing.document), [], `${name}: ${failing.stdout}`)
-    }
+  it("refuses --review as an unknown option before any gh call, and lists no Review in its usage", () => {
+    const run = ship([...TARGET, "--review", "off"], {})
+    assert.equal(run.status, 2)
+    assert.ok(lines(run.stderr)[0]?.startsWith("dw-sdlc pr ship: Unknown option '--review'"), run.stderr)
+    assert.deepEqual(run.calls, [])
+    const help = ship(["--help"], {})
+    assert.equal(help.status, 0, help.stderr)
+    assert.ok(!/--review|dw-sdlc\/review|reviewed|Review|pr\.review/.test(help.stdout), help.stdout)
   })
 
-  it("posts the status while CI runs, then waits for CI", () => {
-    const running: Context = { kind: "run", name: "Check", state: "IN_PROGRESS", link: RUN, startedAt: STARTED }
-    const pending: Pr = { ...GREEN, mergeStateStatus: "BLOCKED", checks: [running] }
-    const scenario = { graphql: [served(pending), served({ ...pending, checks: [running, REVIEWED] })] }
-    const run = ship([...TARGET, "--json"], scenario, clockAt(STARTED, 9 * 60), OFF)
-    assert.equal(run.status, 20, run.stderr)
-    assert.deepEqual(fieldsOf(JSON.parse(run.stdout), ["action", "reason", "performed"]), {
-      action: "wait",
-      reason: "ci-pending",
-      performed: [markedRun("off: pr.review", true)]
-    })
-    assert.deepEqual(run.calls, [AUTH, READ, marked("off: pr.review"), READ])
-  })
-
-  it("parks the post for the dev with its command under --dry-run, running nothing", () => {
-    const reason = "the script would mark it reviewed; --dry-run performs nothing"
-    const run = json(UNREVIEWED, ["--dry-run"], {}, OFF)
-    assert.equal(run.status, 30, run.stderr)
-    assert.deepEqual(run.document, {
-      pr: URL,
-      head: HEAD,
-      base: "main",
-      status: "park",
-      action: "mark-reviewed",
-      actor: "dev",
-      reason,
-      details: { depth: "off", source: "config" },
-      command: markedCommand("off: pr.review"),
-      blockers: [],
-      performed: [markedRun("off: pr.review", null)]
-    })
-    assert.deepEqual(run.calls, [AUTH, READ])
-    const line = ship([...TARGET, "--dry-run", "--review", "off"], { graphql: [served(UNREVIEWED)] })
-    const command = markedCommand("off: --review off")
-    assert.deepEqual([line.status, line.stdout], [30, `park mark-reviewed: ${reason} — ${command}\n`], line.stderr)
-  })
-
-  it("posts at most once per call: a refused post, or one the next read does not show, goes to the dev", () => {
-    const refusal = { exit: 1, stderr: "gh: Resource not accessible by integration (HTTP 403)\n" }
-    const cases: [Response, string][] = [
-      [refusal, "gh refused the mark-reviewed: Resource not accessible by integration (HTTP 403)"],
-      [{}, "gh accepted the mark-reviewed; the read does not show it yet"]
-    ]
-    for (const [response, reason] of cases) {
-      const scenario = {
-        graphql: [served(UNREVIEWED), served(UNREVIEWED)],
-        commands: { [`api ${STATUSES}`]: response }
-      }
-      const run = ship([...TARGET, "--json"], scenario, {}, OFF)
-      assert.equal(run.status, 30, run.stderr)
-      assert.deepEqual(
-        fieldsOf(JSON.parse(run.stdout), ["status", "action", "actor", "reason", "command", "performed"]),
-        {
-          status: "park",
-          action: "mark-reviewed",
-          actor: "dev",
-          reason,
-          command: markedCommand("off: pr.review"),
-          performed: [markedRun("off: pr.review", false, response)]
-        }
-      )
-      assert.deepEqual(run.calls, [AUTH, READ, marked("off: pr.review"), READ], reason)
-    }
-  })
-
-  it("records a post as ok when the read after shows it on the head, though gh exited non-zero", () => {
-    const scenario = { graphql: [served(UNREVIEWED), served(GREEN)], commands: { [`api ${STATUSES}`]: LOST } }
-    const run = ship([...TARGET, "--json", "--review", "off"], scenario)
-    assert.equal(run.status, 30, run.stderr)
-    assert.deepEqual(fieldsOf(JSON.parse(run.stdout), ["action", "reason", "performed"]), {
-      action: "ready-to-merge",
-      reason: "pr.merge is ask: the merge is the dev's",
-      performed: [markedRun("off: --review off", true, LOST)]
-    })
-    assert.deepEqual(run.calls, [AUTH, READ, marked("off: --review off"), READ])
-  })
-
-  it("exits 2 with the usage on a depth it does not take, before any gh call", () => {
-    for (const depth of ["auto", "FULL", "Light"]) {
-      const run = ship([...TARGET, "--review", depth], {})
-      assert.equal(run.status, 2, depth)
-      const [first = "", ...rest] = lines(run.stderr)
-      assert.equal(first, `dw-sdlc pr ship: --review takes full, light or off, not ${JSON.stringify(depth)}`)
-      assert.ok(
-        rest.some((line) => line.startsWith("Usage: dw-sdlc pr ship")),
-        run.stderr
-      )
-      assert.deepEqual(run.calls, [], depth)
-    }
+  it("has no pr reviewed command: the bin names it unknown", () => {
+    const run = runBin(["pr", "reviewed", "40"], repo(), {})
+    assert.equal(run.status, 2)
+    assert.ok(run.stderr.includes('unknown command "pr"'), run.stderr)
+    const usage = runBin(["--help"], repo(), {})
+    assert.ok(!usage.stdout.includes("pr reviewed"), usage.stdout)
   })
 })
 
@@ -1903,44 +1589,6 @@ describe("dw-sdlc pr ship records what an Action did when the read cannot show i
       performed: [ran("update-branch", false)]
     })
     assert.deepEqual(run.calls, [AUTH, READ, UPDATE, READ, UPDATED_COMPARE])
-  })
-
-  it("names both heads when the head moved after a mark-reviewed, the same reason when it did not", () => {
-    const off: Files = { [COMMITTED_FILE]: { pr: { review: "off" } } }
-    const post = ["api", `repos/byarcadia-app/foundation/statuses/${HEAD}`]
-    const posted = `gh ${[...post, "--method", "POST", "--silent"].join(" ")}`
-    const unreviewed: Pr = { ...GREEN, checks: [] }
-    const cases: [Pr, string][] = [
-      [
-        { ...unreviewed, head: UPDATED },
-        `the mark-reviewed posted on ${HEAD.slice(0, 7)}, and the head moved to ${UPDATED.slice(0, 7)}`
-      ],
-      [unreviewed, "gh accepted the mark-reviewed; the read does not show it yet"]
-    ]
-    for (const [after, reason] of cases) {
-      const scenario = { graphql: [served(unreviewed), served(after)], commands: comparedBehind(0, UPDATED) }
-      const run = ship([...TARGET, "--json"], scenario, {}, off)
-      assert.equal(run.status, 30, run.stderr)
-      const document = JSON.parse(run.stdout) as { action: string; reason: string; performed: { command: string }[] }
-      assert.equal(document.action, "mark-reviewed")
-      assert.equal(document.reason, reason)
-      assert.ok(document.performed[0]?.command.startsWith(posted), document.performed[0]?.command)
-    }
-  })
-
-  it("keeps gh's refusal as the reason when the head moved after a mark-reviewed gh refused", () => {
-    const off: Files = { [COMMITTED_FILE]: { pr: { review: "off" } } }
-    const unreviewed: Pr = { ...GREEN, checks: [] }
-    const refused = { exit: 1, stderr: "X HTTP 422: Validation Failed\n" }
-    const post = `api repos/byarcadia-app/foundation/statuses/${HEAD}`
-    const scenario = {
-      graphql: [served(unreviewed), served({ ...unreviewed, head: UPDATED })],
-      commands: { [post]: refused, ...comparedBehind(0, UPDATED) }
-    }
-    const run = ship([...TARGET, "--json"], scenario, {}, off)
-    assert.equal(run.status, 30, run.stderr)
-    const { reason } = JSON.parse(run.stdout) as { reason: string }
-    assert.equal(reason, "gh refused the mark-reviewed: HTTP 422: Validation Failed")
   })
 
   it("answers exit 2 when gh refuses the compare after an update, or its reply does not parse, the update named as run with ok null", () => {

@@ -136,47 +136,27 @@ export type Pr = {
   checks: Context[]
   /** Whether more checks follow `checks` than the one read holds; none when left out. */
   moreChecks?: boolean
-  /** The contexts past the ones the read holds; the head's review status among them is read by its name. */
-  pastRead?: Context[]
   threads: Thread[]
   /** Whether more threads follow `threads` than the one read holds; none when left out. */
   moreThreads?: boolean
   /** Each reviewer's latest review; none when left out. */
   reviews?: Review[]
-  /** The pull request's commits before the head, oldest first, each with its dw-sdlc/review state. */
+  /** The pull request's commits before the head, oldest first. */
   history: Commit[]
   /** How many parents the head has: 2 for a merge; 1 when left out. */
   headParents?: number
-  /** The review status of the head's own commit node, as `history` gives a commit's; none when left out. */
-  headReview?: Pick<Commit, "review" | "described">
-  /**
-   * The heads force pushes left behind, oldest first, as the timeline lists their events: null an event
-   * whose commit GitHub no longer has. None when left out.
-   */
-  rewritten?: (Commit | null)[]
   /** The checks on the heads of the repository's last merged pull requests, oldest first; none when left out. */
   merged?: Context[][]
 }
 
-/**
- * A commit of the pull request: `review` null is a commit with statuses but no dw-sdlc/review among
- * them, left out one with none; `described` its description, a clean review's when left out; `parents`
- * 2 is a merge, 1 when left out.
- */
-export type Commit = {
-  oid: string
-  review?: string | null
-  described?: string
-  parents?: number
-  /** For a head a force push left behind: the commits under it, its first parent first. None when left out. */
-  under?: Commit[]
-}
+/** A commit of the pull request: `parents` 2 is a merge, 1 when left out. */
+export type Commit = { oid: string; parents?: number }
 
 export const HEAD = "e36732e33915969ef4449becafeecd2e2846d544"
 export const BASE_OID = "8ba44d6f750333be72a05ca309e37b5984e3a0b9"
 export const RUN = "https://github.com/byarcadia-app/foundation/actions/runs/41116749914/job/124272841543"
 
-/** Open, CI green, the head reviewed, no thread. */
+/** Open, CI green, no thread. */
 export const GREEN: Pr = {
   repo: "byarcadia-app/foundation",
   number: 40,
@@ -192,10 +172,7 @@ export const GREEN: Pr = {
   base: "main",
   baseOid: BASE_OID,
   mergeCommit: null,
-  checks: [
-    { kind: "run", name: "Check", state: "SUCCESS", link: RUN, startedAt: "2026-10-31T11:01:00Z" },
-    { kind: "status", name: "dw-sdlc/review", state: "SUCCESS", startedAt: "2026-10-31T11:05:00Z" }
-  ],
+  checks: [{ kind: "run", name: "Check", state: "SUCCESS", link: RUN, startedAt: "2026-10-31T11:01:00Z" }],
   threads: [],
   history: []
 }
@@ -235,41 +212,9 @@ function threadOf(thread: Thread): object {
   }
 }
 
-/** A commit's status node: none, a status without the review, or the review's state. */
-function statusOf({ review, described = "a clean review of this head" }: Commit): object | null {
-  const context = review === null || review === undefined ? null : { state: review, description: described }
-  return review === undefined ? null : { context }
-}
-
 /** A commit node of the history the reply carries. */
-function commitOf(commit: Commit): object {
-  return { commit: { oid: commit.oid, parents: { totalCount: commit.parents ?? 1 }, status: statusOf(commit) } }
-}
-
-/**
- * A force push's event as the timeline lists it: the head it left behind, and that head's history, it
- * first, each commit with its status and its first parent, the next one down.
- */
-function forcePushOf(commit: Commit | null): object {
-  if (commit === null) {
-    return { beforeCommit: null }
-  }
-  const line = [commit, ...(commit.under ?? [])]
-  const nodes = line.map((each, index) => {
-    const parent = line[index + 1]
-    return {
-      oid: each.oid,
-      parents: { nodes: parent === undefined ? [] : [{ oid: parent.oid }] },
-      status: statusOf(each)
-    }
-  })
-  return { beforeCommit: { oid: commit.oid, history: { nodes } } }
-}
-
-/** The head's status as the reply reads it by name: the review status `checks` or `pastRead` holds, else none. */
-function headStatusOf({ checks, pastRead = [] }: Pr): object | null {
-  const review = [...checks, ...pastRead].find(({ kind, name }) => kind === "status" && name === "dw-sdlc/review")
-  return review === undefined ? null : { context: contextOf(review) }
+function commitOf({ oid, parents = 1 }: Commit): object {
+  return { commit: { oid, parents: { totalCount: parents } } }
 }
 
 /** The `pullRequest` node of the reply, an object a test may break before serving it. */
@@ -304,11 +249,8 @@ export function pullRequestOf(pr: Pr): Record<string, unknown> {
         commit: commit === null ? null : { oid: commit }
       }))
     },
-    commits: {
-      nodes: [{ commit: { committedDate: pr.committedAt, statusCheckRollup: rollup, status: headStatusOf(pr) } }]
-    },
-    history: { nodes: [...pr.history, { oid: pr.head, parents: pr.headParents ?? 1, ...pr.headReview }].map(commitOf) },
-    rewritten: { nodes: (pr.rewritten ?? []).map(forcePushOf) }
+    commits: { nodes: [{ commit: { committedDate: pr.committedAt, statusCheckRollup: rollup } }] },
+    history: { nodes: [...pr.history, { oid: pr.head, parents: pr.headParents ?? 1 }].map(commitOf) }
   }
 }
 

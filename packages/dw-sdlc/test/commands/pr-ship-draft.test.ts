@@ -1,4 +1,4 @@
-// `dw-sdlc pr ship` on a reviewed draft of the viewer that no check has reported on: a draft starts no
+// `dw-sdlc pr ship` on a draft of the viewer that no check has reported on: a draft starts no
 // run, so waiting on one only parks it as unverified. The script marks it ready, and the run ready
 // starts is what the head then waits for.
 
@@ -7,21 +7,14 @@ import { describe, it } from "node:test"
 
 import { COMMITTED_FILE } from "../../src/agentic-config.ts"
 import { repo, runBin } from "../harness.ts"
-import { type Context, fakeGh, GREEN, type Pr, type Response, served } from "../pr-harness.ts"
+import { fakeGh, GREEN, type Pr, type Response, served } from "../pr-harness.ts"
 
 const TARGET = ["40", "-R", "byarcadia-app/foundation"]
 const READY = ["pr", "ready", "40", "-R", "byarcadia-app/foundation"]
-const AUTO = { [COMMITTED_FILE]: { pr: { merge: "auto", review: "full" } } }
+const AUTO = { [COMMITTED_FILE]: { pr: { merge: "auto" } } }
 
-/** The script's own review marker on the head: a context, never a check. */
-const REVIEWED: Context = {
-  kind: "status",
-  name: "dw-sdlc/review",
-  state: "SUCCESS",
-  startedAt: "2026-10-31T11:05:00Z"
-}
-/** Reviewed, and no check reported on the head, committed at 11:00. */
-const UNCHECKED: Pr = { ...GREEN, checks: [REVIEWED] }
+/** No check reported on the head, committed at 11:00. */
+const UNCHECKED: Pr = { ...GREEN, checks: [] }
 
 /** The time `seconds` after the head's commit, as an ISO 8601 time. */
 function after(seconds: number): string {
@@ -35,7 +28,7 @@ function ship(graphql: Response[], now: string) {
   return { ...run, answer, calls: gh.calls() }
 }
 
-describe("dw-sdlc pr ship on a reviewed draft no check has reported on", () => {
+describe("dw-sdlc pr ship on a draft no check has reported on", () => {
   it("marks it ready within the grace and past it, then waits for the run ready starts", () => {
     for (const seconds of [5, 60, 121, 3600]) {
       const readied = { ...UNCHECKED, readyAt: after(seconds) }

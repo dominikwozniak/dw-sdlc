@@ -287,63 +287,40 @@ describe("hooks/lib.sh agrees with resolveConfig", () => {
         })
     ],
     [
-      "on a committed pr.review off, and a local full over it",
-      () => repo({ files: { [COMMITTED_FILE]: { pr: { review: "off" } }, [LOCAL_FILE]: { pr: { review: "full" } } } })
+      "on a local pr.ciUnavailable gate and pr.merge auto with no committed file, which sets them freely",
+      () => repo({ files: { [LOCAL_FILE]: { pr: { merge: "auto", ciUnavailable: "gate" } } } })
     ],
     [
-      "on a local pr.review off and pr.merge auto with no committed file, which sets them freely",
-      () => repo({ files: { [LOCAL_FILE]: { pr: { merge: "auto", review: "off" } } } })
-    ],
-    [
-      "on a local pr.review off over the default auto of a committed file that names no pr",
-      () => repo({ files: { [COMMITTED_FILE]: {}, [LOCAL_FILE]: { pr: { review: "off" } } } })
-    ],
-    [
-      "on a local pr.review off beside a committed file the schema refuses",
-      () => repo({ files: { [COMMITTED_FILE]: { pr: { merge: "bogus" } }, [LOCAL_FILE]: { pr: { review: "off" } } } })
-    ],
-    [
-      "on a committed pr.review off, and a local light over it",
-      () => repo({ files: { [COMMITTED_FILE]: { pr: { review: "off" } }, [LOCAL_FILE]: { pr: { review: "light" } } } })
-    ],
-    [
-      "on a local pr.review auto over a committed light",
-      () => repo({ files: { [COMMITTED_FILE]: { pr: { review: "light" } }, [LOCAL_FILE]: { pr: { review: "auto" } } } })
-    ],
-    [
-      "on a local pr.review auto over a committed full",
-      () => repo({ files: { [COMMITTED_FILE]: { pr: { review: "full" } }, [LOCAL_FILE]: { pr: { review: "auto" } } } })
-    ],
-    [
-      "on a local pr.review light over a committed full",
-      () => repo({ files: { [COMMITTED_FILE]: { pr: { review: "full" } }, [LOCAL_FILE]: { pr: { review: "light" } } } })
-    ],
-    [
-      "on a committed pr.review off beside an invalid local file",
+      "on a committed pr.ciUnavailable gate, and a local ci over it",
       () =>
         repo({
-          files: { [COMMITTED_FILE]: { pr: { review: "off" } }, [LOCAL_FILE]: { pr: { review: "none" } } }
+          files: { [COMMITTED_FILE]: { pr: { ciUnavailable: "gate" } }, [LOCAL_FILE]: { pr: { ciUnavailable: "ci" } } }
         })
     ],
     [
-      "on a committed pr.reviewCommand, and a local one over it",
+      "on a local pr.ciUnavailable gate over the default of a committed file that names no pr",
+      () => repo({ files: { [COMMITTED_FILE]: {}, [LOCAL_FILE]: { pr: { ciUnavailable: "gate" } } } })
+    ],
+    [
+      "on a local pr.ciUnavailable gate beside a committed file the schema refuses",
+      () =>
+        repo({
+          files: { [COMMITTED_FILE]: { pr: { merge: "bogus" } }, [LOCAL_FILE]: { pr: { ciUnavailable: "gate" } } }
+        })
+    ],
+    [
+      "on a committed pr.ciUnavailable gate beside an invalid local file",
       () =>
         repo({
           files: {
-            [COMMITTED_FILE]: { pr: { reviewCommand: "/review" } },
-            [LOCAL_FILE]: { pr: { reviewCommand: "/pr-review-toolkit:review-pr code errors" } }
+            [COMMITTED_FILE]: { pr: { ciUnavailable: "gate" } },
+            [LOCAL_FILE]: { pr: { ciUnavailable: "none" } }
           }
         })
     ],
     [
-      "on a committed pr.reviewCommand beside a local file loosening pr.review",
-      () =>
-        repo({
-          files: {
-            [COMMITTED_FILE]: { pr: { reviewCommand: "/review" } },
-            [LOCAL_FILE]: { pr: { review: "off", reviewCommand: "/other" } }
-          }
-        })
+      "on a committed pr.review, which the schema no longer knows",
+      () => repo({ files: { [COMMITTED_FILE]: { pr: { review: "off", merge: "auto" } } } })
     ],
     [
       "on a committed worker, and a local one over it key by key",
@@ -356,43 +333,14 @@ describe("hooks/lib.sh agrees with resolveConfig", () => {
         })
     ],
     [
-      "on a committed worker beside a local file loosening pr.review",
+      "on a committed worker beside a local file loosening pr.merge",
       () =>
         repo({
           files: {
             [COMMITTED_FILE]: { worker: { model: "opus" } },
-            [LOCAL_FILE]: { pr: { review: "off" }, worker: { command: "cswap run" } }
+            [LOCAL_FILE]: { pr: { merge: "auto" }, worker: { command: "cswap run" } }
           }
         })
-    ],
-    [
-      "on a committed pr.reviewFull, and a local one added to it, an id once",
-      () =>
-        repo({
-          files: {
-            [COMMITTED_FILE]: { pr: { reviewFull: ["guards.lib", "tools.ship"] } },
-            [LOCAL_FILE]: { pr: { reviewFull: ["tools.ship", "guards.dispatcher"] } }
-          }
-        })
-    ],
-    ["on a local pr.reviewFull alone", () => repo({ files: { [LOCAL_FILE]: { pr: { reviewFull: ["guards.lib"] } } } })],
-    [
-      "on a committed pr.reviewFull beside a local file loosening pr.review",
-      () =>
-        repo({
-          files: {
-            [COMMITTED_FILE]: { pr: { reviewFull: ["guards.lib"] } },
-            [LOCAL_FILE]: { pr: { review: "off", reviewFull: ["tools.ship"] } }
-          }
-        })
-    ],
-    [
-      "on a committed pr.reviewFull with a duplicate id the schema refuses",
-      () => repo({ files: { [COMMITTED_FILE]: { pr: { reviewFull: ["guards.lib", "guards.lib"] } } } })
-    ],
-    [
-      "on a committed pr.reviewCommand in a file the schema refuses",
-      () => repo({ files: { [COMMITTED_FILE]: { pr: { reviewCommand: "/review", draft: true } } } })
     ]
   ]
   for (const [name, make] of cases) {

@@ -6,7 +6,6 @@
     { "id": "config", "name": "Agentic config" },
     { "id": "tools", "name": "Scripts" },
     { "id": "skills", "name": "Skills" },
-    { "id": "agents", "name": "Subagents" },
     { "id": "distribution", "name": "Distribution" },
     { "id": "gate", "name": "Gate" }
   ],
@@ -207,7 +206,7 @@
       "id": "config.pr",
       "name": "pr key",
       "group": "config",
-      "summary": "pr.merge, who merges; pr.review, the Review depth; pr.reviewCommand, what full runs; pr.reviewFull, ids read in full.",
+      "summary": "pr.merge, who merges; pr.ciUnavailable, what stands in for a CI job GitHub never ran.",
       "code": ["packages/dw-sdlc/config/agentic.config.schema.json"],
       "docs": ["docs/overview.md#where-the-rules-come-from", "docs/adr/0003-invalid-config-layer-runs-strictest.md"]
     },
@@ -303,10 +302,9 @@
       "id": "tools.ship",
       "name": "Ship script",
       "group": "tools",
-      "summary": "dw-sdlc pr ship answers the Action a pull request needs next, by exit code; pr reviewed pins a clean review to its head.",
+      "summary": "dw-sdlc pr ship answers the Action a pull request needs next, by exit code, and merges a green one under pr.merge auto.",
       "code": [
         "packages/dw-sdlc/src/commands/pr-ship.ts",
-        "packages/dw-sdlc/src/commands/pr-reviewed.ts",
         "packages/dw-sdlc/src/pr/",
         "packages/dw-sdlc/src/shell-line.ts"
       ],
@@ -486,18 +484,6 @@
       "docs": [
         "plugins/sdlc/README.md#researching-with-subagents",
         "docs/adr/0028-sdlc-research-extends-research-and-the-model-may-start-it.md"
-      ]
-    },
-    {
-      "id": "agents.reviewer",
-      "name": "sdlc-reviewer",
-      "group": "agents",
-      "summary": "The light Review: a subagent over a diff, its files, the Agent map and the Coding standards; Bash reads git.",
-      "code": ["plugins/sdlc/agents/sdlc-reviewer.md", "plugins/sdlc/evals/sdlc-reviewer/"],
-      "docs": [
-        "plugins/sdlc/README.md#shipping-a-pull-request",
-        "docs/adr/0013-review-depth-follows-the-change-the-devs-word-overrides.md",
-        "docs/contributing/evals.md#the-sdlc-reviewer-agent"
       ]
     },
     {
