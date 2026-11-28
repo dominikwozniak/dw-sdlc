@@ -169,6 +169,13 @@ describe("the sdlc plugin", () => {
     assert.match(text, /`references\/review\.md`\s+has\s+you\s+fix\s+them/)
   })
 
+  it("has sdlc-pr-ship read the one light Review the limit buys, holding each Finding's fix to its test", () => {
+    const text = readFileSync(join(PLUGIN_ROOT, "skills", "sdlc-pr-ship", "SKILL.md"), "utf8")
+    assert.match(text, /`limit`\s+the\s+review\s+limit,\s+which\s+buys\s+one\s+`light`\s+Review/)
+    assert.match(text, /name\s+to\s+it\s+the\s+Findings\s+that\s+fix\s+answers,\s+each\s+held\s+to\s+its\s+test/)
+    assert.match(text, /the\s+one\s+`light`\s+Review\s+such\s+a\s+fix\s+bought\s+left\s+a\s+Finding\s+open/)
+  })
+
   it("has sdlc-pr-ship fetch a <since> a rebase left behind and diff it with two dots", () => {
     const text = readFileSync(join(PLUGIN_ROOT, "skills", "sdlc-pr-ship", "SKILL.md"), "utf8")
     assert.match(text, /`git\s+fetch\s+origin\s+<since>`\s+when\s+the\s+checkout\s+lacks\s+it/)

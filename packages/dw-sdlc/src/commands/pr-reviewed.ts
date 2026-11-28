@@ -4,10 +4,10 @@
 
 import { type Footprint, repositoryRoot, resolveConfig } from "../agentic-config.ts"
 import { CannotRun, readArgs, usageError } from "../cannot-run.ts"
-import { REVIEW, REVIEW_STATE, reviewStatusArgs } from "../pr/decide.ts"
 import { localReviews, type Mark } from "../pr/local-reviews.ts"
 import { gh, namedProblem, pullRequestNamed, said } from "../pr/read.ts"
-import { ACCEPTED, MARK_STATE, READ_MARK } from "../pr/state.ts"
+import { REVIEW_STATE, reviewStatusArgs } from "../pr/review-status.ts"
+import { ACCEPTED, MARK_STATE, READ_MARK, REVIEW } from "../pr/state.ts"
 
 export const summary = "pin a Review to the head it read, as a commit status or in the local Review state"
 

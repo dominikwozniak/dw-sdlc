@@ -276,6 +276,7 @@ describe("dw-sdlc pr ship", () => {
       mergeCommit: null,
       changeRequests: [],
       commits: [HEAD],
+      ciDurations: [],
       checks: [
         {
           name: "Check",
@@ -340,7 +341,8 @@ describe("dw-sdlc pr ship", () => {
       marks: { count: 0, since: null },
       carried: false,
       changed: null,
-      scope: null
+      scope: null,
+      fixTested: false
     })
     const bare = json({ ...GREEN, checks: [] }, ["--verbose"]).document
     assert.ok(typeof bare === "object" && bare !== null && "facts" in bare)

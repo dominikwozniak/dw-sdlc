@@ -102,7 +102,15 @@ describe("the Review's standing at a pull request's head", () => {
   it("reads the whole pull request at the depth set when no Review read it, asking no compare", () => {
     const compares = inMemory()
     const standing = standingOf(upTo([pushed(PUSHED)]), compares, AWAITS)
-    const none = { lastRead: null, open: null, marks: NO_MARK, carried: false, changed: null, scope: null }
+    const none = {
+      lastRead: null,
+      open: null,
+      marks: NO_MARK,
+      carried: false,
+      changed: null,
+      scope: null,
+      fixTested: false
+    }
     assert.deepEqual(standing, none)
     assert.deepEqual(reviewCall(standing, FULL), {
       kind: "review",
@@ -206,6 +214,33 @@ describe("the Review's standing at a pull request's head", () => {
     assert.deepEqual(reviewCall(fourth, flag("light")), { kind: "limit", count: 4, since: CLEAN })
   })
 
+  it("at the limit, has a fix that carries its test wait for a green Gate, then read once at light", () => {
+    const marks = [clean(CLEAN), marked(READ), marked(SECOND), marked(THIRD)]
+    const light = { kind: "review", depth: "light", source: "limit", since: THIRD, paths: null, open: null }
+    const tests = ["src/retry.test.ts", "spec/models/user_spec.rb", "pkg/retry_test.go", "tests/test_retry.py"]
+    for (const path of tests) {
+      const changed = inMemory({}, { [THIRD]: [RETRY, { path, previous: null, lines: 4 }] })
+      const standing = standingOf(upTo([...marks, pushed(PUSHED)]), changed, AWAITS)
+      assert.equal(standing.fixTested, true, path)
+      assert.deepEqual(reviewCall(standing, FULL), { kind: "awaits-gate", count: 3, since: CLEAN }, path)
+      assert.deepEqual(reviewCall(standing, FULL, { gateGreen: true }), light, path)
+      assert.equal(reviewCall(standing, flag("full"), { gateGreen: true }).kind, "review", "the dev's word first")
+    }
+    for (const path of ["src/testing.ts", "src/latest.ts"]) {
+      const changed = inMemory({}, { [THIRD]: [RETRY, { path, previous: null, lines: 4 }] })
+      const standing = standingOf(upTo([...marks, pushed(PUSHED)]), changed, AWAITS)
+      assert.equal(reviewCall(standing, FULL, { gateGreen: true }).kind, "limit", path)
+    }
+    const test: OwnChange = { path: "src/paywall.test.tsx", status: "added", previous: null, lines: ["+it()"] }
+    const merged = upTo([...marks, pushed(PUSHED)], { headMerge: true })
+    const own = inMemory({ [THIRD]: [PAYWALL], [HEAD]: [PAYWALL, test] })
+    const standing = standingOf(merged, own, AWAITS)
+    assert.deepEqual(reviewCall(standing, FULL, { gateGreen: true }), {
+      ...light,
+      paths: ["src/paywall.test.tsx"]
+    })
+  })
+
   it("names open a read mark only merges of the base came after, and reads the whole pull request", () => {
     const history = upTo([clean(CLEAN), marked(READ, true)], { headMerge: true })
     const compares = inMemory({}, { [BASE]: [RETRY] })
@@ -216,7 +251,8 @@ describe("the Review's standing at a pull request's head", () => {
       marks: { count: 1, since: CLEAN },
       carried: false,
       changed: [RETRY],
-      scope: null
+      scope: null,
+      fixTested: false
     })
     assert.deepEqual(reviewCall(standing, AUTO), {
       kind: "review",
@@ -256,7 +292,8 @@ describe("the Review's standing at a pull request's head", () => {
       marks: { count: 1, since: CLEAN },
       carried: false,
       changed: null,
-      scope: null
+      scope: null,
+      fixTested: false
     }
     assert.deepEqual(standing, expected)
     const same = inMemory({ [CLEAN]: [PAYWALL], [HEAD]: [PAYWALL] })
@@ -310,7 +347,8 @@ describe("the Review's standing at a pull request's head", () => {
       marks: { count: 0, since: READ },
       carried: false,
       changed: null,
-      scope: null
+      scope: null,
+      fixTested: false
     })
     assert.deepEqual(compares.asked, [])
   })

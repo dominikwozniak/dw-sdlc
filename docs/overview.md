@@ -386,9 +386,9 @@ changes one the dev or the config set.
   head's carries its success. Otherwise the Review reads from that head, kept to the files whose own
   change moved, as after a merge. A read mark the rebase left as it was stays open, and the
   marks on left-behind heads and the commits under them count toward the limit.
-- **The limit is three.** Three Reviews with no success between them park the pull request as
-  `review-limit`, with `pr reviewed --accept` as the dev's command. No config key moves the limit. The dev's `--review <depth>` buys one more
-  Review.
+- **The limit is three.** Three Reviews with no success between them park as `review-limit`, for
+  the dev's `pr reviewed --accept`; no key moves it. Their `--review <depth>` buys one more, as
+  does, at `light`, a fix with its test on a green Gate.
 
 What the skill does at each step is in the plugin README's
 [Shipping a pull request](../plugins/sdlc/README.md#shipping-a-pull-request).

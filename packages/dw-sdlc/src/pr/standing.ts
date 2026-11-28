@@ -12,6 +12,11 @@ import { type ChangedFile, route } from "./route.ts"
  * the loop back on.
  */
 const REVIEW_LIMIT = 3
+/**
+ * A test file by its path, in the layouts the common test runners read: a `test`, `tests`, `__tests__` or
+ * `spec` directory, a `.test.` or `.spec.` name, Go's `_test` and Ruby's `_spec` suffixes, Python's `test_`.
+ */
+const TEST_FILE = /(^|\/)(test|tests|__tests__|spec)\/|[._](test|spec)\.[^/]+$|(^|\/)test_[^/]+$/
 
 /** What a commit's review status says: a success, the read mark, a success posted under off, or none. */
 export type Posted = "clean" | "findings" | "off" | null
@@ -89,6 +94,11 @@ export type Standing = {
    * the files a fix touched, the base's own left out. Null with neither, or when a compare cannot show them.
    */
   scope: string[] | null
+  /**
+   * Whether, at the review limit, the commits since the last read mark change a test file: a fix that
+   * carries its test, which buys one more Review once the Gate is green on the head.
+   */
+  fixTested: boolean
 }
 
 /** A change as a key, equal exactly when the two changes are. */
@@ -218,8 +228,31 @@ function readMarksOf(history: History): ReadMarks {
 }
 
 /**
+ * Whether the fix since the last read mark, with the read marks at the limit, changes a test file: of the
+ * files whose own change moved when the base moved after the mark, else of the files changed since it. A
+ * compare that cannot list them all shows none.
+ */
+function fixTestedAt(
+  lastRead: LastRead | null,
+  marks: ReadMarks,
+  scope: string[] | null,
+  { changed }: Compares,
+  head: string
+): boolean {
+  if (marks.count !== REVIEW_LIMIT || lastRead === null || lastRead.clean) {
+    return false
+  }
+  if (lastRead.baseMoved) {
+    return scope !== null && scope.some((path) => TEST_FILE.test(path))
+  }
+  const since = changed(lastRead.commit, head)
+  return since !== "unsized" && since.some(({ path }) => TEST_FILE.test(path))
+}
+
+/**
  * The standing at the head of `history`. The compares run only when a Review `awaits` the head, and the
- * files that Review would read are read only when `sized`, as `pr.review: auto` routes on them.
+ * files that Review would read are read only when `sized`, as `pr.review: auto` routes on them, or at
+ * the limit, where they show whether the fix carries its test.
  */
 export function standingOf(
   history: History,
@@ -231,7 +264,7 @@ export function standingOf(
   const read =
     inHistory.open === null ? (leftBehindMark(history) ?? inHistory.lastRead ?? leftBehindRead(history)) : null
   if (!awaits) {
-    return { lastRead: read, open: inHistory.open, marks, carried: false, changed: null, scope: null }
+    return { lastRead: read, open: inHistory.open, marks, carried: false, changed: null, scope: null, fixTested: false }
   }
   const { head, base } = history
   const own = (commit: string): OwnChange[] | null => compares.ownChanges(base, commit)
@@ -242,26 +275,30 @@ export function standingOf(
   const carried =
     lastRead !== null && lastRead.clean && lastRead.baseOnly && sameChanges(own(lastRead.commit), own(head))
   if (carried) {
-    return { ...reads, carried, changed: null, scope: null }
+    return { ...reads, carried, changed: null, scope: null, fixTested: false }
   }
   const scope = lastRead?.baseMoved === true ? movedFiles(own(lastRead.commit), own(head)) : null
+  const fixed = { ...reads, carried, scope, fixTested: fixTestedAt(lastRead, marks, scope, compares, head) }
   if (!sized) {
-    return { ...reads, carried, changed: null, scope }
+    return { ...fixed, changed: null }
   }
   const changed = compares.changed(lastRead?.commit ?? base, head)
   if (scope === null || changed === "unsized") {
-    return { ...reads, carried, changed, scope }
+    return { ...fixed, changed }
   }
   const within = changed.filter(
     ({ path, previous }) => scope.includes(path) || (previous !== null && scope.includes(previous))
   )
-  return { ...reads, carried, changed: within, scope }
+  return { ...fixed, changed: within }
 }
 
 /** Who set the depth: the dev's `--review` for this call, or `pr.review`, a depth or `auto`. */
 export type ReviewPolicy = { depth: ReviewDepth; source: "flag" } | { depth: PrReview; source: "config" }
-/** Where a Review depth comes from: the dev's word, `pr.review`, or the rules `pr.review: auto` routes by. */
-export type DepthSource = "flag" | "config" | "auto"
+/**
+ * Where a Review depth comes from: the dev's word, `pr.review`, the rules `pr.review: auto` routes by, or
+ * the review limit, whose one more Review over a fix that carries its test is light.
+ */
+export type DepthSource = "flag" | "config" | "auto" | "limit"
 /** A depth as the answer names it, and under off why no one reads the head. */
 export type Depth =
   | { depth: Exclude<ReviewDepth, "off">; source: DepthSource }
@@ -269,12 +306,14 @@ export type Depth =
 
 /**
  * The Review the head gets: the success of the read it carries; a Review at a depth that reads from `since`,
- * kept to `paths`, over the read mark left `open`, where under off the script posts the success; or the park.
+ * kept to `paths`, over the read mark left `open`, where under off the script posts the success; the park;
+ * or, at the limit over a fix that carries its test, the Review that waits for the Gate to turn green.
  */
 export type ReviewCall =
   | { kind: "carry"; from: string }
   | (Depth & { kind: "review"; since: string | null; paths: string[] | null; open: string | null })
   | (ReadMarks & { kind: "limit" })
+  | (ReadMarks & { kind: "awaits-gate" })
 
 /** Whether a Finding stands: a read mark since the last success, as the last read, or left open (ADR 0016). */
 function findingsOpen({ marks, lastRead, open }: Standing): boolean {
@@ -294,21 +333,33 @@ function depthOf({ depth, source }: ReviewPolicy, standing: Standing, reviewFull
 
 /**
  * The Review the head gets at `standing` under `review`; the dev's word goes over a carry. `reviewFull`
- * is the rule `pr.reviewFull` adds to the depth `pr.review: auto` routes.
+ * is the rule `pr.reviewFull` adds to the depth `pr.review: auto` routes, and `gateGreen` whether the
+ * Gate is green on the head, by CI or a Gate mark.
  */
-export function reviewCall(standing: Standing, review: ReviewPolicy, reviewFull: ReviewFull = null): ReviewCall {
-  const { lastRead, open, marks, carried, scope } = standing
+export function reviewCall(
+  standing: Standing,
+  review: ReviewPolicy,
+  { reviewFull = null, gateGreen = false }: { reviewFull?: ReviewFull; gateGreen?: boolean } = {}
+): ReviewCall {
+  const { lastRead, open, marks, carried, scope, fixTested } = standing
   const flagged = review.source === "flag"
   if (carried && lastRead !== null && !flagged) {
     return { kind: "carry", from: lastRead.commit }
   }
   const depth = depthOf(review, standing, reviewFull)
-  // The dev's own depth buys one Review past the limit, and only one: the flag rides on every
-  // later call. Their --review off posts past it: no one reads, by their word.
-  const limit = flagged ? REVIEW_LIMIT + 1 : REVIEW_LIMIT
+  // Over a carry the dev's depth reads the whole diff: the changes after the read are only the base's.
+  const since = carried ? null : (lastRead?.commit ?? null)
+  // One Review past the limit, and only one: the dev's own depth, whose flag rides on every later call,
+  // else a light one over a fix that carries its test, once the Gate is green on it. The dev's
+  // --review off posts past the limit: no one reads, by their word.
+  const limit = flagged || fixTested ? REVIEW_LIMIT + 1 : REVIEW_LIMIT
   if (!(flagged && depth.depth === "off") && marks.count >= limit) {
     return { ...marks, kind: "limit" }
   }
-  // Over a carry the dev's depth reads the whole diff: the changes after the read are only the base's.
-  return { ...depth, kind: "review", since: carried ? null : (lastRead?.commit ?? null), paths: scope, open }
+  if (!flagged && fixTested) {
+    return gateGreen
+      ? { depth: "light", source: "limit", kind: "review", since, paths: scope, open }
+      : { ...marks, kind: "awaits-gate" }
+  }
+  return { ...depth, kind: "review", since, paths: scope, open }
 }

@@ -20,8 +20,11 @@ changed still shows the base's lines beside the fix's, and they count toward its
 the later commits leave with the own changes as it read them, merges of the base or not, has no fix to
 read: the Review reads the whole pull request (ADR 0023). Three Reviews without a success between them
 park the pull request for the dev. The park's command, the dev's to run, posts success as "accepted by
-the dev, findings open"; the dev's `--review <depth>` buys one Review past the limit. A success starts
-the count again. The rule holds at every depth: while a Finding is open, `auto` never routes `off` from the
+the dev, findings open"; the dev's `--review <depth>` buys one Review past the limit. Without it, a fix
+after the third that changes a test file buys one `light` Review once the Gate is green on the head,
+its CI passed or a Gate mark on it, and a Finding from that Review parks: byarcadia-app/daylight-arc-app#135
+parked a 10-line fix with its test on a green Gate, and the dev accepted it without a read of their
+own. A success starts the count again. The rule holds at every depth: while a Finding is open, `auto` never routes `off` from the
 changed files alone, and only the dev's `--review off` posts a success past the limit.
 
 ## Consequences

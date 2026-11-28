@@ -590,7 +590,8 @@ read mark and the limit. What reads the change at `full` is the reviewer you nam
   Everything else is declined with one line.
 - A Review that follows a fix reads the fix alone and checks each Finding it answers.
 - Three Reviews with no success between them park the pull request, with
-  `dw-sdlc pr reviewed --accept` as your command.
+  `dw-sdlc pr reviewed --accept` as your command. A fix after the third that carries its test gets one
+  `light` Review first, once the Gate is green on it, and parks only when that Review finds something.
 
 ### The light Review
 

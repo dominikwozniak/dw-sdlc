@@ -87,6 +87,8 @@ export type Context = {
   state: string
   link?: string | null
   startedAt?: string | null
+  /** When a CheckRun completed: none when left out. */
+  completedAt?: string | null
   required?: boolean
   /** How many steps a CheckRun's job ran: none while it runs, one once it completed, when left out. */
   steps?: number
@@ -152,6 +154,8 @@ export type Pr = {
    * whose commit GitHub no longer has. None when left out.
    */
   rewritten?: (Commit | null)[]
+  /** The checks on the heads of the repository's last merged pull requests, oldest first; none when left out. */
+  merged?: Context[][]
 }
 
 /**
@@ -199,7 +203,8 @@ export const GREEN: Pr = {
 /** The words a CheckRun reports as its status while it has no conclusion. */
 const RUNNING = new Set(["QUEUED", "IN_PROGRESS", "WAITING", "PENDING", "REQUESTED"])
 
-function contextOf({ kind, name, state, link = null, startedAt = null, required = false, steps }: Context): object {
+function contextOf(context: Context): object {
+  const { kind, name, state, link = null, startedAt = null, completedAt = null, required = false, steps } = context
   if (kind === "status") {
     return { context: name, state, targetUrl: link, createdAt: startedAt ?? GREEN.committedAt, isRequired: required }
   }
@@ -210,6 +215,7 @@ function contextOf({ kind, name, state, link = null, startedAt = null, required 
     conclusion: running ? null : state,
     detailsUrl: link,
     startedAt,
+    completedAt,
     isRequired: required,
     steps: { totalCount: steps ?? (running ? 0 : 1) }
   }
@@ -306,14 +312,23 @@ export function pullRequestOf(pr: Pr): Record<string, unknown> {
   }
 }
 
-/** The response of `gh api graphql` whose reply holds `pullRequest`. */
-export function reply(pullRequest: Record<string, unknown>): Response {
-  return { stdout: JSON.stringify({ data: { repository: { pullRequest } } }) }
+/** The `merged` node of the reply: the last merged pull requests, each with the checks on its head. */
+function mergedOf(merged: Context[][]): object {
+  const nodes = merged.map((checks) => {
+    const rollup = checks.length === 0 ? null : { contexts: { nodes: checks.map(contextOf) } }
+    return { commits: { nodes: [{ commit: { statusCheckRollup: rollup } }] } }
+  })
+  return { nodes }
+}
+
+/** The response of `gh api graphql` whose reply holds `pullRequest`, and `merged` beside it. */
+export function reply(pullRequest: Record<string, unknown>, merged: Context[][] = []): Response {
+  return { stdout: JSON.stringify({ data: { repository: { pullRequest, merged: mergedOf(merged) } } }) }
 }
 
 /** The response of `gh api graphql` for `pr`, as GitHub reports it. */
 export function served(pr: Pr): Response {
-  return reply(pullRequestOf(pr))
+  return reply(pullRequestOf(pr), pr.merged)
 }
 
 /** An open issue labelled for an agent, as a test states it: no assignee, no open blocker and no parent when left out. */
