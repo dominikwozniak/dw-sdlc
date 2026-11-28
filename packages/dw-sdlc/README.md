@@ -114,7 +114,7 @@ Beside a committed file, the local layer may tighten `pr.merge`, `pr.review` and
 never loosen them; with no committed file it sets them freely. `--merge` acts as `auto` and
 `--review full|light|off` sets the depth for one call. A pull request the `gh` account did not open is
 always the dev's to merge. `light` spawns the `sdlc-reviewer` subagent of the
-[`sdlc` plugin](https://github.com/dominikwozniak/dw-sdlc/blob/main/plugins/sdlc/README.md#the-light-review).
+[`sdlc` plugin](https://github.com/dominikwozniak/dw-sdlc/blob/main/plugins/sdlc/README.md#the-review).
 
 `dw-sdlc pr reviewed <n> --head <sha>` pins a Review to the head it read, as the commit status
 `dw-sdlc/review`: clean, Findings open with `--findings`, or accepted by the dev with `--accept`. Under
