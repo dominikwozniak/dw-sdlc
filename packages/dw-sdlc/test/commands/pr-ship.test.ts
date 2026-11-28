@@ -370,7 +370,7 @@ describe("dw-sdlc pr ship", () => {
   it("prints its usage with --help", () => {
     const run = ship(["--help"], {})
     assert.equal(run.status, 0, run.stderr)
-    const usage = "Usage: dw-sdlc pr ship [<n>] [-R owner/name] [--merge] [--dry-run] [--json] [--verbose]\n"
+    const usage = "Usage: dw-sdlc pr ship [<n>] [-R owner/name] [--merge] [--dry-run] [--wait] [--json] [--verbose]\n"
     assert.ok(run.stdout.startsWith(usage), run.stdout)
     assert.deepEqual(run.calls, [])
   })

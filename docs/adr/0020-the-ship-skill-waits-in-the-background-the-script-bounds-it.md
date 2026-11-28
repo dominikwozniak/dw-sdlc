@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded by ADR 0029
 ---
 
 # The Ship skill waits in the background, and the script bounds the wait
