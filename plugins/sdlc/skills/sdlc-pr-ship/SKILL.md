@@ -44,7 +44,9 @@ push makes.
   whether an earlier Review stands in for this one, which earlier Findings to name to it, and how
   to judge its report, what is a Finding and what is declined or carried. `details.depth` is the
   Review depth, and `details.source` says who set it: `flag` the dev, `config` the repository,
-  `auto` the script's rules from the size of the changes and the Primitives `pr.reviewFull` lists.
+  `auto` the script's rules from the size of the changes and the Primitives `pr.reviewFull` lists,
+  `limit` the review limit, which buys one `light` Review of a fix that carries its test once the
+  Gate is green on it; name to it the Findings that fix answers, each held to its test.
   Only under `auto` may you raise it, `light` to `full`, when the change looks riskier than its size,
   saying why in one line; never lower one. A depth the dev or the config set stands: when you think
   it wrong, say so in one line and review at it. The Review reads the changes since `<since>`:
@@ -99,9 +101,10 @@ push makes.
   wait needs no limit of its own. Under `/loop`, run from a Brief, or called by another skill, start
   no wait: tell the `reason` and `recheckAfter` and end the turn, and the next call comes with the
   loop's wake-up or the next message.
-- `park review-limit`: three Reviews with no success between them left a Finding open. Print the
-  `reason`, the Findings the last fix answered, from this conversation, and the `command`, then
-  stop. The command is `pr reviewed --accept`, which accepts the head with its Findings open: the
+- `park review-limit`: three Reviews with no success between them left a Finding open, and the head
+  is no fix that carries its test on a green Gate, or the one `light` Review such a fix bought left a
+  Finding open too. Print the `reason`, the Findings the last fix answered, from this conversation,
+  and the `command`, then stop. The command is `pr reviewed --accept`, which accepts the head with its Findings open: the
   dev's to run, never yours. The dev's `--review <depth>` buys one more Review past the limit.
 - `park` and `done`, whatever the `action`: print the `reason`, and the `command` when there is one,
   and stop. The command is the dev's to run, never yours.

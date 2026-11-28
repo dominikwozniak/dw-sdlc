@@ -10,12 +10,17 @@ import {
   ciStartOf,
   failingOf,
   failure,
+  gateComing,
+  gateGreen,
   GRACE_SECONDS,
   pendingOf,
+  pendingStartOf,
   proven,
+  recheckOf,
   unavailableOf
 } from "./ci.ts"
 import type { ReviewFull } from "./review-full.ts"
+import { reviewStatusArgs } from "./review-status.ts"
 import { type ReadMarks, reviewCall, type ReviewPolicy } from "./standing.ts"
 import { awaitsReview, OFF_PREFIX, type PrState, REVIEW, type Thread } from "./state.ts"
 
@@ -87,7 +92,7 @@ export type Answer = Blocker & {
 }
 
 type Row = {
-  when: (pr: PrState, policy: Policy) => boolean
+  when: (pr: PrState, policy: Policy, now: number) => boolean
   answer: (pr: PrState, now: number, policy: Policy) => Omit<Answer, "blockers">
   /** A row that wins answers with no blockers: a merged, closed or still-computing pull request. */
   alone?: true
@@ -95,15 +100,14 @@ type Row = {
   merging?: true
 }
 
-/**
- * The state of the review status a clean or skipped Review leaves; the read mark's is failure, on a
- * head the fix then leaves behind. A pending status would turn the pull request unstable.
- */
-export const REVIEW_STATE = "success"
-
 /** The checks CI unavailable leaves to a Gate mark: none under pr.ciUnavailable ci, where they fail. */
 const unavailableUnder = (pr: PrState, policy: Policy) => unavailableOf(pr, policy.ciUnavailable === "gate")
 const failingUnder = (pr: PrState, policy: Policy) => failingOf(pr, policy.ciUnavailable === "gate")
+
+/** The Review `pr` gets under `policy`, the Gate green on its head or not. */
+function callOf(pr: PrState, policy: Policy): ReturnType<typeof reviewCall> {
+  return reviewCall(pr, policy.review, { reviewFull: policy.reviewFull, gateGreen: gateGreen(pr) })
+}
 
 /** The unresolved threads whose last comment is the viewer's, or with `false` someone else's. */
 function threads(pr: PrState, lastByViewer: boolean): Thread[] {
@@ -132,24 +136,9 @@ function listed({ id, path, line, author, body }: Thread): Record<string, unknow
   return { id, path, line, author, body }
 }
 
-/**
- * The gh arguments that post `dw-sdlc/review` on the head, a success unless `state` says otherwise,
- * `description` saying how it was read. The path names the repository, so the call reads the same from
- * any checkout.
- */
-export function reviewStatusArgs(
-  pr: Pick<PrState, "url" | "repo" | "head">,
-  description: string,
-  state: string = REVIEW_STATE
-): string[] {
-  const fields = { state, context: REVIEW, target_url: pr.url, description }
-  const flags = Object.entries(fields).flatMap(([key, value]) => ["-f", `${key}=${value}`])
-  return ["api", `repos/${pr.repo}/statuses/${pr.head}`, "--method", "POST", "--silent", ...flags]
-}
-
 /** The success the script marks the head with: the Review it carries, else why its depth is off. */
 function scriptMark(pr: PrState, policy: Policy): { carry: string } | { off: string } {
-  const call = reviewCall(pr, policy.review, policy.reviewFull)
+  const call = callOf(pr, policy)
   if (call.kind === "carry") {
     return { carry: call.from }
   }
@@ -194,11 +183,12 @@ function reviewLimit(pr: PrState, { count, since }: ReadMarks): Omit<Answer, "bl
  */
 function reviewAnswer(pr: PrState, policy: Policy): Omit<Answer, "blockers"> {
   const head = { status: "act", reason: `no ${REVIEW} success on ${pr.head.slice(0, 7)}` } as const
-  const call = reviewCall(pr, policy.review, policy.reviewFull)
+  const call = callOf(pr, policy)
   if (call.kind === "carry") {
     return { ...head, action: "mark-reviewed", actor: "script", details: { since: call.from } }
   }
-  if (call.kind === "limit") {
+  // A gate call here is one whose Gate can no longer turn green: the limit parks it.
+  if (call.kind === "limit" || call.kind === "gate") {
     return reviewLimit(pr, call)
   }
   const { depth, source, since, paths, open } = call
@@ -349,7 +339,8 @@ const ROWS: Row[] = [
   },
   {
     // Another author's pull request needs no Review: the dev merges it.
-    when: awaitsReview,
+    // At the limit, a fix that carries its test waits for its Gate: the CI rows below answer meanwhile.
+    when: (pr, policy, now) => awaitsReview(pr) && !(callOf(pr, policy).kind === "gate" && gateComing(pr, now, policy)),
     answer: (pr, _, policy) => reviewAnswer(pr, policy)
   },
   {
@@ -380,12 +371,16 @@ const ROWS: Row[] = [
     when: (pr) => pendingOf(pr).length > 0,
     answer: (pr, now) => {
       const pending = pendingOf(pr)
-      const start = Math.min(
-        ...pending.map((check) => (check.startedAt === null ? ciStartOf(pr) : Date.parse(check.startedAt)))
-      )
+      const start = pendingStartOf(pr)
       const minutes = Math.floor((now - start) / 60_000)
       return now - start <= BUDGET_MINUTES * 60_000
-        ? { status: "wait", action: "wait", actor: "script", reason: "ci-pending", recheckAfter: 60 }
+        ? {
+            status: "wait",
+            action: "wait",
+            actor: "script",
+            reason: "ci-pending",
+            recheckAfter: recheckOf(pr, start, now)
+          }
         : {
             status: "park",
             action: "ci-stuck",
@@ -483,13 +478,13 @@ function blockerOf({ action, actor, reason, details }: Omit<Answer, "blockers">)
 
 /** The Action `pr` needs at `now`, milliseconds since the epoch, under `policy`. */
 export function decide(pr: PrState, now: number, policy: Policy): Answer {
-  const index = ROWS.findIndex((row) => row.when(pr, policy))
+  const index = ROWS.findIndex((row) => row.when(pr, policy, now))
   const row = ROWS[index]
   if (row === undefined) {
     throw new Error(`no row of the decision matches ${pr.url} under pr.merge ${policy.merge}`)
   }
   const later =
-    row.alone === true ? [] : ROWS.slice(index + 1).filter((other) => !other.merging && other.when(pr, policy))
+    row.alone === true ? [] : ROWS.slice(index + 1).filter((other) => !other.merging && other.when(pr, policy, now))
   return {
     ...row.answer(pr, now, policy),
     blockers: later.map((other) => blockerOf(other.answer(pr, now, policy)))

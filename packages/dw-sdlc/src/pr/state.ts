@@ -26,6 +26,8 @@ import type { Commit, History, LeftBehind, Posted, Standing } from "./standing.t
 export const REVIEW = "dw-sdlc/review"
 /** The commit status `dw-sdlc gate --mark` leaves on a head the Gate passed on: the Gate mark. */
 export const GATE = "dw-sdlc/gate"
+/** The prefix of the contexts the script posts itself, as `dw-sdlc/review`: never CI. */
+export const OWN_PREFIX = "dw-sdlc/"
 /** How the description of a success the script posts under off begins: no one read that head. */
 export const OFF_PREFIX = "off:"
 /**
@@ -46,6 +48,8 @@ const THREADS_READ = 100
  */
 const FORCE_PUSHES_READ = 20
 const LEFT_BEHIND_READ = 20
+/** How many of the repository's last merged pull requests the read times CI on, by the checks on each head. */
+const MERGED_READ = 10
 
 export const QUERY = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
@@ -67,6 +71,8 @@ export const QUERY = `query($owner: String!, $name: String!, $number: Int!) {
         beforeCommit { oid history(first: ${LEFT_BEHIND_READ}) { nodes { oid parents(first: 1) { nodes { oid } }
           status { context(name: "${REVIEW}") { state description } } } } } } } }
     }
+    merged: pullRequests(last: ${MERGED_READ}, states: MERGED) { nodes { commits(last: 1) { nodes { commit {
+      statusCheckRollup { contexts(first: ${CHECKS_READ}) { nodes { ... on CheckRun { name startedAt completedAt } } } } } } } } }
   }
 }`
 
@@ -136,6 +142,11 @@ export type PullRequest = {
   cutOff: string[]
   /** The oids of the pull request's last 100 commits, oldest first, the head last. */
   commits: string[]
+  /**
+   * The seconds CI took on the heads of the repository's last merged pull requests, from the first start
+   * to the last completion among their CheckRuns; a head with none timed is left out.
+   */
+  ciDurations: number[]
 }
 
 /** The pull request and the Review's standing at its head. */
@@ -324,6 +335,21 @@ function changeRequestsOf(pr: Node, history: Commit[]): ChangeRequest[] {
     })
 }
 
+/** The seconds CI took on one merged head: its CheckRuns' first start to their last completion, the script's own left out. */
+function ciDurationOf(head: Node): number | null {
+  const rollup = childOrNull(child(firstNode(head, "commits"), "commit"), "statusCheckRollup")
+  const runs = (rollup === null ? [] : nodes(rollup, "contexts")).filter(
+    // A StatusContext the query selects no field of reads as an empty node.
+    (context) => "name" in context.value && !string(context, "name").startsWith(OWN_PREFIX)
+  )
+  const starts = runs.flatMap((run) => timeOrNull(run, "startedAt") ?? []).map(Date.parse)
+  const ends = runs.flatMap((run) => timeOrNull(run, "completedAt") ?? []).map(Date.parse)
+  if (starts.length === 0 || ends.length === 0) {
+    return null
+  }
+  return Math.max(0, (Math.max(...ends) - Math.min(...starts)) / 1000)
+}
+
 /** The repository and number of the pull request whose URL `gh pr view --json url` printed. */
 export function parseView(reply: string): { repo: string; number: number } {
   const url = string(rootOf(reply, "the reply of gh pr view"), "url")
@@ -344,7 +370,8 @@ export function parseDefaultBranch(reply: string): string {
  * Review's standing at its head is read from.
  */
 export function parsePr(reply: string, repo: string): { pr: PullRequest; history: History } {
-  const pr = child(child(child(rootOf(reply, "the reply"), "data"), "repository"), "pullRequest")
+  const repository = child(child(rootOf(reply, "the reply"), "data"), "repository")
+  const pr = child(repository, "pullRequest")
   const commit = child(firstNode(pr, "commits"), "commit")
   const rollup = childOrNull(commit, "statusCheckRollup")
   const mergeCommit = childOrNull(pr, "mergeCommit")
@@ -380,7 +407,8 @@ export function parsePr(reply: string, repo: string): { pr: PullRequest; history
       ...(rollup !== null && hasMore(rollup, "contexts") ? [`the first ${CHECKS_READ} checks`] : []),
       ...(hasMore(pr, "reviewThreads") ? [`the first ${THREADS_READ} threads`] : [])
     ],
-    commits: commits.map(({ oid }) => oid)
+    commits: commits.map(({ oid }) => oid),
+    ciDurations: nodes(repository, "merged").flatMap((merged) => ciDurationOf(merged) ?? [])
   }
   const history = { commits, leftBehind: leftBehindOf(pr, commits), head, base: parsed.baseOid }
   return { pr: parsed, history }

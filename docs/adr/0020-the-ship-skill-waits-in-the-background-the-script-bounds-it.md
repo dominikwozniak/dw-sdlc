@@ -19,6 +19,8 @@ starts no wait and ends the turn on the `reason`, since the loop or the Lead alr
 A dev-invoked run ends only at a `park`, a `done`, an exit 2, a refused guard or the reviewer's turn,
 so its answer names no `Next:` for a `wait`. The session's background job holds no state the script
 needs: a session closed mid-wait loses nothing, and the next `/sdlc-pr-ship` reads the pull request
-afresh. A Worker waits the Lead's way until the Brief says otherwise. Two shapes were rejected. A
+afresh. A Worker waits the Lead's way until the Brief says otherwise: the Lead sleeps `recheckAfter`,
+which at `ci-pending` is when CI likely ends, from the repository's last merged pull requests, so a
+usual run takes one wake. Two shapes were rejected. A
 `sleep` in the foreground blocks the session and is the second loop #165 ruled out. A wait of
 `recheckAfter` for CI too wakes the session every minute, up to forty turns on one run.

@@ -6,7 +6,18 @@ import { describe, it } from "node:test"
 
 import { COMMITTED_FILE } from "../../src/agentic-config.ts"
 import { repo, runBin } from "../harness.ts"
-import { BASE_OID, type Commit, fakeGh, GREEN, HEAD, type Pr, type Response, RUN, served } from "../pr-harness.ts"
+import {
+  BASE_OID,
+  type Commit,
+  type Context,
+  fakeGh,
+  GREEN,
+  HEAD,
+  type Pr,
+  type Response,
+  RUN,
+  served
+} from "../pr-harness.ts"
 
 const TARGET = ["40", "-R", "byarcadia-app/foundation"]
 const AUTH = ["auth", "status", "--active", "--hostname", "github.com"]
@@ -254,5 +265,68 @@ describe("dw-sdlc pr ship after three Reviews with no success between them", () 
       assert.equal(run.status, 10, `${name}: ${run.stderr}`)
       assert.deepEqual(answered(run.answer, ["action", "actor"]), { action: "review", actor: "agent" }, name)
     }
+  })
+})
+
+/** What the compare from the last read mark answers once a fix with its test is pushed. */
+const TESTED: Response = {
+  stdout: JSON.stringify({
+    status: "ahead",
+    behind_by: 0,
+    files: [
+      { filename: "src/paywall.tsx", status: "modified", additions: 1, deletions: 1, patch: "@@ -1 +1 @@\n-a\n+b" },
+      { filename: "src/paywall.test.tsx", status: "modified", additions: 4, deletions: 0, patch: "@@ -1 +1,4 @@\n+t" }
+    ]
+  })
+}
+const TESTED_FIX = { [compare(THIRD)]: TESTED, [compare(FOURTH)]: TESTED }
+const RUNNING: Context = {
+  kind: "run",
+  name: "Check",
+  state: "IN_PROGRESS",
+  link: RUN,
+  startedAt: "2026-10-31T11:01:00Z"
+}
+
+describe("dw-sdlc pr ship at the limit, over a fix that carries its test", () => {
+  it("asks for one light Review once the Gate is green on the head, at every pr.review", () => {
+    const gateMark: Context = { kind: "status", name: "dw-sdlc/gate", state: "SUCCESS" }
+    const cases: [string, Pr, Record<string, string | object>][] = [
+      ["green CI under full", pushed(THREE_MARKS), FULL],
+      ["green CI under auto", pushed(THREE_MARKS), {}],
+      ["green CI under light", pushed(THREE_MARKS), { [COMMITTED_FILE]: { pr: { review: "light" } } }],
+      ["a Gate mark while CI runs", pushed(THREE_MARKS, { checks: [RUNNING, gateMark] }), FULL]
+    ]
+    for (const [name, pr, files] of cases) {
+      const run = ship([], pr, files, TESTED_FIX)
+      assert.equal(run.status, 10, `${name}: ${run.stdout}${run.stderr}`)
+      assert.deepEqual(
+        answered(run.answer, ["status", "action", "actor", "details"]),
+        { status: "act", action: "review", actor: "agent", details: { depth: "light", source: "limit", since: THIRD } },
+        name
+      )
+    }
+  })
+
+  it("waits on CI that runs or is yet to report, and parks at the limit once none can turn green", () => {
+    const cases: [string, Pr, string, number, string][] = [
+      ["CI running", pushed(THREE_MARKS, { checks: [RUNNING] }), "2026-10-31T11:03:00Z", 20, "ci-pending"],
+      ["no check yet", pushed(THREE_MARKS, { checks: [] }), "2026-10-31T11:01:00Z", 20, "unverified"],
+      ["no check past the grace", pushed(THREE_MARKS, { checks: [] }), "2026-10-31T11:03:00Z", 30, "review-limit"]
+    ]
+    for (const [name, pr, now, status, what] of cases) {
+      const gh = fakeGh({ graphql: [served(pr)], commands: { ...FIXED, ...TESTED_FIX } })
+      const run = runBin(["pr", "ship", ...TARGET, "--json"], repo({ files: FULL }), { ...gh.env, DW_SDLC_NOW: now })
+      assert.equal(run.status, status, `${name}: ${run.stdout}${run.stderr}`)
+      const answer = JSON.parse(run.stdout) as Record<string, unknown>
+      assert.equal(status === 20 ? answer.reason : answer.action, what, name)
+    }
+  })
+
+  it("parks once that one light Review left a Finding open", () => {
+    const history: Commit[] = [...THREE_MARKS.slice(0, -1), { oid: FOURTH, ...MARK }, { oid: PUSHED, review: null }]
+    const run = ship([], pushed(history), FULL, TESTED_FIX)
+    assert.equal(run.status, 30, run.stderr)
+    assert.deepEqual(answered(run.answer, ["action", "actor"]), { action: "review-limit", actor: "dev" })
   })
 })
