@@ -112,6 +112,14 @@ describe("dw-sdlc pr ship --json carries next", () => {
     assert.deepEqual(document.next, [{ by: "agent", run: `dw-sdlc pr ship 40 -R ${REPOSITORY} --merge --wait --json` }])
   })
 
+  it("describes next and its two step forms in --help", () => {
+    const run = runBin(["pr", "ship", "--help"], repo(), {})
+    assert.equal(run.status, 0, run.stderr)
+    assert.match(run.stdout, /Every answer carries next/)
+    assert.match(run.stdout, /\{ by, run \} is an exact\s+command/)
+    assert.match(run.stdout, /\{ by, do \}\s+is one line of judgement/)
+  })
+
   it("leaves a park with nothing for the dev to run an empty next", () => {
     for (const [name, pr] of [CASES[1], CASES[9]] as [string, Pr][]) {
       assert.deepEqual(answer(pr).next, [], name)
