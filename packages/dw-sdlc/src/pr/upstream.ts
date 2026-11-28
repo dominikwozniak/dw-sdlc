@@ -9,7 +9,7 @@ import type { PrState } from "./state.ts"
  * The remote branch name `branch` tracks, when it differs from `branch`. Read from the config, so it holds
  * after the remote deleted the branch.
  */
-function upstreamName(root: string, branch: string): string | undefined {
+export function upstreamName(root: string, branch: string): string | undefined {
   const remote = asked(root, ["config", "--get", `branch.${branch}.remote`])
   const merge = asked(root, ["config", "--get", `branch.${branch}.merge`])
   if (remote === undefined || remote === "." || merge === undefined || !merge.startsWith("refs/heads/")) {

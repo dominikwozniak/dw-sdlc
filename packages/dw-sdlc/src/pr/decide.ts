@@ -40,6 +40,7 @@ export type Action =
   | "awaiting-approval"
   | "partial-read"
   | "ready-to-merge"
+  | "wrong-checkout"
   | "merge"
 /** The Actions the script performs itself, each one gh command. */
 export type ScriptAction = "update-branch" | "mark-ready" | "merge"
