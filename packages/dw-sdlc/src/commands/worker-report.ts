@@ -22,7 +22,7 @@ it at once with exit 1.
 Once the Recap is delivered it reads the Recap's first word, its verdict, and when that is done, act, wait or
 park it sets the label ${VERDICT_LABEL}=<word> on this terminal. A Sweep stops a Worker only once it has
 delivered a Recap of done or park, so a Worker whose turn ended on a question, or at a wait, keeps its
-terminal and worktree. A first word that is no verdict, or one that opens a question, sets no label. When hc label refuses, the Recap is
+terminal and worktree. A first word that is no verdict sets no label. When hc label refuses, the Recap is
 still delivered and the command exits 1: the Sweep keeps the Worker until the label is set, so do not send
 the Recap again.
 
@@ -82,7 +82,7 @@ const VERDICTS = new Set(["done", "act", "wait", "park"])
  */
 function verdictOf(recap: string): string | undefined {
   const first = recap.split("\n")[0] ?? ""
-  const word = first.match(/^[^\p{L}\p{N}]*(\p{L}+)[`*_]*\s*(?:$|[:.–—-])/u)?.[1]?.toLowerCase()
+  const word = first.match(/^[^\p{L}\p{N}]*(\p{L}+)[`*_]*(?:$|[:.]|\s*[–—]|\s+-)/u)?.[1]?.toLowerCase()
   return word !== undefined && VERDICTS.has(word) ? word : undefined
 }
 

@@ -44,17 +44,15 @@ function worker(address: string, cwd: string, status?: string, state: Listed["st
 
 type Herdr = { terminals: Listed[]; kill?: Reply | Reply[]; rm?: Reply; ls?: Reply[]; get?: Reply }
 
-/** An `hc get` that reports a live terminal that delivered its Recap, `done`, with no foreground folder, so the launch folder stands. */
-const GOT: Reply = {
-  stdout: JSON.stringify({ address: "t0", state: "live", labels: { "dw-sdlc.verdict": "done" } })
-}
-
-/** An `hc get` for a terminal whose Worker has delivered no Recap, or one with the verdict `word`. */
+/** An `hc get` for a live terminal with no foreground folder, so the launch folder stands; its Worker delivered no Recap, or one opening `verdict`. */
 function got(verdict?: string): Reply {
   return {
     stdout: JSON.stringify({ address: "t0", state: "live", labels: verdict ? { "dw-sdlc.verdict": verdict } : {} })
   }
 }
+
+/** An `hc get` for a Worker that delivered its Recap, `done`. */
+const GOT = got("done")
 
 /** Spawns the Sweep with the fake `hc` listing the terminals, the live ones answering the second `hc ls`. */
 function sweep(root: string, args: string[], { terminals, kill = {}, rm = {}, ls, get = GOT }: Herdr) {

@@ -63,6 +63,7 @@ describe("dw-sdlc worker report", () => {
       "Done with step 1, which next?\n",
       "Park the old flag?\n",
       "Act as the Lead?\n",
+      "done-ish, but which step next?\n",
       LONG
     ]
     for (const recap of questions) {
