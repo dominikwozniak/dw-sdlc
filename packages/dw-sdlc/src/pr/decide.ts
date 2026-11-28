@@ -20,6 +20,7 @@ import {
   redHeadsOf,
   unavailableOf
 } from "./ci.ts"
+import { devCommand } from "./host.ts"
 import type { PrState, Thread } from "./state.ts"
 
 export type Status = "act" | "wait" | "park" | "done"
@@ -46,22 +47,22 @@ export type Action =
   | "ready-to-merge"
   | "wrong-checkout"
   | "merge"
-/** The Actions the script performs itself, each one gh command. */
-export type ScriptAction = "update-branch" | "mark-ready" | "merge"
 /**
  * What the decision reads beside the pull request: who merges it, where the Gate mark lives, whether a
- * Gate mark stands in for CI unavailable, and whether `gate.steps` declares a Gate to leave one.
+ * Gate mark stands in for CI unavailable, whether `gate.steps` declares a Gate to leave one, and whether
+ * the dev's word "merge without CI" holds for this call.
  */
 export type Policy = {
   merge: PrMerge
   footprint: Footprint
   ciUnavailable: PrCiUnavailable
   gateSteps: boolean
+  withoutCi: boolean
 }
 /** The policy a repository declares in its `pr` key and `footprint`; a flag for one call goes over it. */
 export function declaredPolicy({ pr, footprint, gate }: Pick<ResolvedConfig, "pr" | "footprint" | "gate">): Policy {
   const { merge, ciUnavailable } = pr
-  return { merge, footprint, ciUnavailable, gateSteps: gate.steps.length > 0 }
+  return { merge, footprint, ciUnavailable, gateSteps: gate.steps.length > 0, withoutCi: false }
 }
 
 /**
@@ -94,6 +95,8 @@ type Row = {
   alone?: true
   /** A row that never rides in blockers: who merges is no blocker. */
   merging?: true
+  /** A row on the head's CI, which --without-ci moves aside: a Gate mark on the head stands in for CI. */
+  ci?: true
 }
 
 /** Whether a Gate mark may stand in for CI unavailable: under pr.ciUnavailable ci those checks fail. */
@@ -153,32 +156,10 @@ const agent = (run: string): Step => ({ by: "agent", run })
 const agentDo = (line: string): Step => ({ by: "agent", do: line })
 const dev = (run: string): Step => ({ by: "dev", run })
 
-/** A script Action's gh arguments; `repo` is `-R` and the repository when the call names it, else empty. */
-const HOST: Record<ScriptAction, (pr: PrState, repo: string[]) => string[]> = {
-  "update-branch": (pr, repo) => ["pr", "update-branch", String(pr.number), ...repo],
-  "mark-ready": (pr, repo) => ["pr", "ready", String(pr.number), ...repo],
-  merge: (pr, repo) => ["pr", "merge", String(pr.number), ...repo, "--squash", "--match-head-commit", pr.head]
-}
-
-export function isScriptAction(action: Action): action is ScriptAction {
-  return Object.hasOwn(HOST, action)
-}
-
-/**
- * The gh arguments of a script Action, `-R` naming the repository when `named`. The update merges the
- * base in, never --rebase, which rewrites the branch on GitHub; the merge names the head it read.
- */
-export function hostArgs(pr: PrState, action: ScriptAction, named: boolean): string[] {
-  return HOST[action](pr, named ? ["-R", pr.repo] : [])
-}
-
-/** The command a script Action leaves the dev to run, from a checkout of the repository. */
-export function devCommand(pr: PrState, action: ScriptAction): string {
-  return shellLine(["gh", ...hostArgs(pr, action, false)])
-}
-
 /** The command that runs the Gate and leaves its mark on the head it passed on. */
 export const GATE_MARK = shellLine(["dw-sdlc", "gate", "--mark"])
+/** How the agent proves the head: the Gate, which leaves its mark when green; red is fixed and pushed. */
+const PROVE: Step[] = [agent(GATE_MARK), agentDo("red: fix what it printed, then git push")]
 
 /**
  * CI unavailable under pr.ciUnavailable gate: with gate.steps the agent proves the head with the Gate,
@@ -193,7 +174,7 @@ function unavailable(pr: PrState, policy: Policy): Omit<Answer, "blockers"> {
       action: "prove-locally",
       actor: "agent",
       reason,
-      next: [agent(GATE_MARK), agentDo("red: fix what it printed, then git push")]
+      next: PROVE
     }
   }
   return {
@@ -201,13 +182,14 @@ function unavailable(pr: PrState, policy: Policy): Omit<Answer, "blockers"> {
     action: "ci-unavailable",
     actor: "dev",
     reason: `${reason}: no gate.steps to prove it, so the merge is the dev's`,
-    next: [dev(devCommand(pr, "merge"))]
+    next: [dev(devCommand(pr, "merge", policy))]
   }
 }
 
 /** The merge left to the dev, `reason` saying why it is theirs. */
-export function readyToMerge(pr: PrState, reason: string): Omit<Answer, "blockers"> {
-  return { status: "park", action: "ready-to-merge", actor: "dev", reason, next: [dev(devCommand(pr, "merge"))] }
+export function readyToMerge(pr: PrState, policy: Policy, reason: string): Omit<Answer, "blockers"> {
+  const next = [dev(devCommand(pr, "merge", policy))]
+  return { status: "park", action: "ready-to-merge", actor: "dev", reason, next }
 }
 
 const ROWS: Row[] = [
@@ -287,7 +269,8 @@ const ROWS: Row[] = [
           { by: "dev", do: 'say "merge without CI" to merge on a Gate mark, past the failing CI' }
         ]
       }
-    }
+    },
+    ci: true
   },
   {
     when: (pr, policy) => !limited(pr, policy) && failingUnder(pr, policy).length > 0,
@@ -302,7 +285,8 @@ const ROWS: Row[] = [
           `read each failing check's log under details.checks, fix the cause, ${asBlocker ? "in the same push" : "then git push"}`
         )
       ]
-    })
+    }),
+    ci: true
   },
   {
     when: (pr) => threads(pr, false).length > 0,
@@ -338,13 +322,26 @@ const ROWS: Row[] = [
     // CI unavailable under pr.ciUnavailable gate: a job GitHub never ran, as under a billing lock. A Gate
     // mark on the head stands in for it.
     when: (pr, policy) => !pr.draft && !proven(pr) && !limited(pr, policy) && unavailableUnder(pr, policy).length > 0,
-    answer: (pr, _, policy) => unavailable(pr, policy)
+    answer: (pr, _, policy) => unavailable(pr, policy),
+    ci: true
+  },
+  {
+    // --without-ci: the dev's word waives CI, and a Gate mark on the head stands in for it, whatever CI says.
+    // After the rows whose fix is a push, which would leave a new head to prove.
+    when: (pr, { withoutCi }) => withoutCi && !proven(pr),
+    answer: (pr) => ({
+      status: "act",
+      action: "prove-locally",
+      actor: "agent",
+      reason: `--without-ci: no Gate mark on ${pr.head.slice(0, 7)} stands in for CI`,
+      next: PROVE
+    })
   },
   {
     // A head whose every check was skipped, or that has none, has run nothing. A draft's runs skip or
     // never start until `ready` starts the run, so a draft is no case of it: `mark-ready` is its row.
     when: (pr) => !pr.draft && (ciOf(pr).length === 0 || ciOf(pr).every((check) => check.bucket === "skipping")),
-    answer: (pr, now) =>
+    answer: (pr, now, policy) =>
       now - ciStartOf(pr) <= GRACE_SECONDS * 1000
         ? { status: "wait", action: "wait", actor: "script", reason: "unverified", recheckAfter: 15, next: [] }
         : {
@@ -355,8 +352,9 @@ const ROWS: Row[] = [
               ciOf(pr).length === 0
                 ? `no check reported on ${pr.head.slice(0, 7)} within ${GRACE_SECONDS} s of its commit or its ready`
                 : `every check on ${pr.head.slice(0, 7)} was skipped, ${GRACE_SECONDS} s after its commit or its ready`,
-            next: [dev(devCommand(pr, "merge"))]
-          }
+            next: [dev(devCommand(pr, "merge", policy))]
+          },
+    ci: true
   },
   {
     when: (pr) => pendingOf(pr).length > 0,
@@ -380,7 +378,8 @@ const ROWS: Row[] = [
             reason: `${pending.length} check(s) pending for ${minutes} min, past the ${BUDGET_MINUTES} min budget`,
             next: []
           }
-    }
+    },
+    ci: true
   },
   {
     when: (pr) => threads(pr, true).length > 0,
@@ -431,17 +430,17 @@ const ROWS: Row[] = [
   {
     // A failure or an open thread past what the read holds shows in no row above.
     when: (pr) => pr.cutOff.length > 0,
-    answer: (pr) => ({
+    answer: (pr, _, policy) => ({
       status: "park",
       action: "partial-read",
       actor: "dev",
       reason: `the read holds only ${pr.cutOff.join(" and ")}: the merge is the dev's`,
-      next: [dev(devCommand(pr, "merge"))]
+      next: [dev(devCommand(pr, "merge", policy))]
     })
   },
   {
     when: (pr) => !pr.viewerDidAuthor,
-    answer: (pr) => readyToMerge(pr, "another author's pull request: the merge is the dev's"),
+    answer: (pr, _, policy) => readyToMerge(pr, policy, "another author's pull request: the merge is the dev's"),
     merging: true
   },
   {
@@ -457,7 +456,7 @@ const ROWS: Row[] = [
   },
   {
     when: (_, { merge }) => merge === "ask",
-    answer: (pr) => readyToMerge(pr, "pr.merge is ask: the merge is the dev's"),
+    answer: (pr, _, policy) => readyToMerge(pr, policy, "pr.merge is ask: the merge is the dev's"),
     merging: true
   }
 ]
@@ -481,13 +480,14 @@ function blockerOf({ action, actor, reason, details, next }: Omit<Answer, "block
 
 /** The Action `pr` needs at `now`, milliseconds since the epoch, under `policy`. */
 export function decide(pr: PrState, now: number, policy: Policy): Answer {
-  const index = ROWS.findIndex((row) => row.when(pr, policy))
-  const row = ROWS[index]
+  const rows = policy.withoutCi ? ROWS.filter((row) => row.ci !== true) : ROWS
+  const index = rows.findIndex((row) => row.when(pr, policy))
+  const row = rows[index]
   if (row === undefined) {
     throw new Error(`no row of the decision matches ${pr.url} under pr.merge ${policy.merge}`)
   }
   const later =
-    row.alone === true ? [] : ROWS.slice(index + 1).filter((other) => !other.merging && other.when(pr, policy))
+    row.alone === true ? [] : rows.slice(index + 1).filter((other) => !other.merging && other.when(pr, policy))
   return {
     ...row.answer(pr, now, policy, false),
     blockers: later.map((other) => blockerOf(other.answer(pr, now, policy, true)))

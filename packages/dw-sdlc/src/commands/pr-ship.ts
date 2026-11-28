@@ -9,18 +9,15 @@ import {
   type Answer,
   decide,
   declaredPolicy,
-  devCommand,
-  hostArgs,
-  isScriptAction,
   lineOf,
   type Policy,
   readyToMerge,
-  type ScriptAction,
   type Status,
   type Step
 } from "../pr/decide.ts"
 import { withLanded } from "../pr/done.ts"
 import { gateMarks } from "../pr/gate-marks.ts"
+import { devCommand, hostArgs, isScriptAction, type ScriptAction } from "../pr/host.ts"
 import { gh, ghReads, namedProblem, nameItRemedy, type Reads, said } from "../pr/read.ts"
 import type { PrState } from "../pr/state.ts"
 import { type WaitClock, waitClock } from "../pr/wait.ts"
@@ -28,7 +25,7 @@ import { shellLine } from "../shell-line.ts"
 
 export const summary = "decide the Action one pull request needs next, as a line or JSON"
 
-const USAGE = `Usage: dw-sdlc pr ship [<n>] [-R owner/name] [--merge] [--dry-run] [--wait] [--json] [--verbose]
+const USAGE = `Usage: dw-sdlc pr ship [<n>] [-R owner/name] [--merge] [--without-ci] [--dry-run] [--wait] [--json] [--verbose]
 
 Reads pull request <n> through gh, the one of the current branch as gh pr view resolves it when <n>
 is omitted, and answers the Action it needs next: the status, the action, whose turn it is and why.
@@ -71,6 +68,16 @@ with gate.steps the agent proves the head with dw-sdlc gate --mark, act prove-lo
 mark, the dw-sdlc/gate success on the head, stands in for that job: the merge follows pr.merge as
 on green CI. Without gate.steps it parks ci-unavailable, the merge the dev's. A job that ran a step
 and failed is fix-ci under both.
+--without-ci carries the dev's word "merge without CI" for this call. A Gate mark on the head stands in
+for CI, whatever CI says: without one the answer is act prove-locally, with dw-sdlc gate --mark as its
+step, and a red Gate is fixed and pushed as under fix-ci. It moves aside the CI rows only, fix-ci,
+unverified, ci-pending, ci-stuck and ci-limit; conflicts, threads, changes requested, a required
+approval, a draft and another author's pull request hold the merge under it too. It does not imply
+--merge: the merge follows pr.merge. Every merge it runs or names for the dev is gh pr merge <n>
+--admin --squash --match-head-commit <head>, since gh turns on auto-merge in place of merging while
+required checks have not passed. A merge GitHub refuses, as for a viewer whose role cannot bypass the
+rules, parks ready-to-merge with that command as the dev's step. Without --without-ci no merge carries
+--admin.
 Under footprint local in .ai/agentic.config.json or its local layer, the script reads no dw-sdlc/gate
 status: the Gate marks come from .git/dw-sdlc/gates/<n>.json, under the common git dir, the file
 gate --mark writes. Every decision is the one the status would give.
@@ -107,6 +114,7 @@ type Cli = {
   json: boolean
   verbose: boolean
   merge: boolean
+  withoutCi: boolean
   dryRun: boolean
   wait: boolean
   number: number | undefined
@@ -145,6 +153,7 @@ function parseCli(argv: string[]): Cli {
         json: { type: "boolean" },
         verbose: { type: "boolean" },
         merge: { type: "boolean" },
+        "without-ci": { type: "boolean" },
         "dry-run": { type: "boolean" },
         wait: { type: "boolean" },
         repo: { type: "string", short: "R" }
@@ -168,6 +177,7 @@ function parseCli(argv: string[]): Cli {
     json: values.json === true,
     verbose: values.verbose === true,
     merge: values.merge === true,
+    withoutCi: values["without-ci"] === true,
     dryRun: values["dry-run"] === true,
     wait: values.wait === true,
     number: number === undefined ? undefined : Number(number),
@@ -210,11 +220,12 @@ function reasonOf(
 }
 
 /** A script Action the call leaves to the dev, `reason` saying why; a merge parks as ready-to-merge. */
-function handedOver(pr: PrState, answer: Answer, action: ScriptAction, reason: string): Answer {
+function handedOver(pr: PrState, policy: Policy, answer: Answer, action: ScriptAction, reason: string): Answer {
   if (action === "merge") {
-    return { ...readyToMerge(pr, reason), blockers: answer.blockers }
+    return { ...readyToMerge(pr, policy, reason), blockers: answer.blockers }
   }
-  return { ...answer, status: "park", actor: "dev", reason, next: [{ by: "dev", run: devCommand(pr, action) }] }
+  const next: Step[] = [{ by: "dev", run: devCommand(pr, action, policy) }]
+  return { ...answer, status: "park", actor: "dev", reason, next }
 }
 
 /** The pull request the call names, else this checkout's; none found stops the call with what to name. */
@@ -236,9 +247,10 @@ function readTarget(cli: Cli, root: string, reads: Reads): PrState {
 /** The command a script Action runs, and the run: gh, naming the repository, so the checkout plays no part. */
 function scriptRun(
   pr: PrState,
-  action: ScriptAction
+  action: ScriptAction,
+  policy: Policy
 ): { command: string; perform: () => { status: number; stderr: string } } {
-  const args = hostArgs(pr, action, true)
+  const args = hostArgs(pr, action, true, policy)
   return { command: shellLine(["gh", ...args]), perform: () => gh(args) }
 }
 
@@ -263,13 +275,13 @@ function ship(
     if (!isScriptAction(action)) {
       return { pr, answer: withLanded(root, pr, withCheckout(root, pr, answer, checkout), checkout), performed }
     }
-    const { command, perform } = scriptRun(pr, action)
+    const { command, perform } = scriptRun(pr, action, policy)
     const { would } = NAMED[action]
     if (cli.dryRun) {
       performed.push({ action, command, ok: null })
       return {
         pr,
-        answer: handedOver(pr, answer, action, `the script would ${would}; --dry-run performs nothing`),
+        answer: handedOver(pr, policy, answer, action, `the script would ${would}; --dry-run performs nothing`),
         performed
       }
     }
@@ -277,7 +289,7 @@ function ship(
     // --dry-run returns before any Action runs, so an earlier one always carries gh's exit.
     if (done !== undefined && done.ok !== null) {
       const reason = reasonOf(done, NAMED[action])
-      return { pr, answer: handedOver(pr, answer, action, reason), performed }
+      return { pr, answer: handedOver(pr, policy, answer, action, reason), performed }
     }
     const { status, stderr } = perform()
     const before = pr
@@ -351,7 +363,8 @@ export function run(argv: string[]): number {
   const { config } = resolveConfig(root)
   const policy: Policy = {
     ...declaredPolicy(config),
-    ...(cli.merge ? { merge: "auto" } : {})
+    ...(cli.merge ? { merge: "auto" } : {}),
+    withoutCi: cli.withoutCi
   }
   let shipped: ReturnType<typeof ship>
   try {
