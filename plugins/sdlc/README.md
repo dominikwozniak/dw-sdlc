@@ -29,6 +29,7 @@ session skills.
 | `bash-guard.sh` and the Bash guards it spawns, `rtk-rewrite.sh` | `PreToolUse` hook, Bash   | before every Bash command                                      | [Guards](#guards)                                          |
 | `block-env-access.sh`                                           | `PreToolUse` hook         | before every Read, Edit, Write, MultiEdit, NotebookEdit, Grep  | [Guards](#guards)                                          |
 | `large-file-guard.sh`                                           | `PostToolUse` hook, Write | after every Write                                              | [Guards](#guards)                                          |
+| `bin/dw-sdlc`                                                   | executable on `PATH`      | wherever the Bash tool runs a command                          | [The bin](#the-bin)                                        |
 | `session-start.sh`, `references-sync.sh`                        | `SessionStart` hooks      | at a session's start                                           | [Session start](#session-start), [References](#references) |
 | `commit-msg.sh`                                                 | git hook                  | on a commit typed in a terminal, once a repository wires it    | [Commit hook](#commit-hook)                                |
 | `/sdlc-setup`                                                   | skill                     | you type it                                                    | [Setup](#setup)                                            |
@@ -38,7 +39,6 @@ session skills.
 | `/sdlc-pr-ship`                                                 | skill                     | you type it, or a Worker on its Brief                          | [Shipping a pull request](#shipping-a-pull-request)        |
 | `/sdlc-sweep`                                                   | skill                     | you type it, or say "go" on a Recap follow-up that names it    | [Sweeping](#sweeping)                                      |
 | `/sdlc-research`                                                | skill                     | you type it, or ask the agent for subagents in so many words   | [Researching with subagents](#researching-with-subagents)  |
-| `sdlc-reviewer`                                                 | subagent                  | `/sdlc-pr-ship` spawns it at the `light` Review depth          | [The light Review](#the-light-review)                      |
 
 A Worker is a Claude Code session that works on one Brief, the fixed-shape first message the
 [`sdlc-sessions`](../sdlc-sessions/README.md) plugin writes; a Recap is that plugin's report of where a
@@ -355,6 +355,17 @@ spellings get past a rule; each is listed, not caught.
 A fix that closes one of these in passing removes its line. One that turns up in ordinary work leaves
 the list for a ticket and a regression test.
 
+## The bin
+
+`bin/dw-sdlc` puts the package CLI on the Bash tool's `PATH`. Claude Code adds a plugin's `bin/` to it
+while the plugin is enabled, so a step that names bare `dw-sdlc …` runs from any directory of any
+repository.
+
+- **Runs:** `node dw-sdlc/src/cli.ts`, the package the plugin links, by `exec`: argv, stdin, stdout,
+  stderr and the exit code pass through.
+- **Needs:** Node 24, which runs the TypeScript as written.
+- **Only `sdlc` ships one:** `sdlc-sessions` has no `bin/`.
+
 ## Commit hook
 
 The guards judge the agent's tool calls, so a commit typed in a terminal never meets them.
@@ -580,7 +591,7 @@ read mark and the limit. What reads the change at `full` is the reviewer you nam
 | depth   | who reads the change                                                  | set by                             |
 | ------- | --------------------------------------------------------------------- | ---------------------------------- |
 | `full`  | the slash command `pr.reviewCommand` names, `/code-review` by default | `--review`, `pr.review`, or `auto` |
-| `light` | the [`sdlc-reviewer`](#the-light-review) subagent                     | the same                           |
+| `light` | the `sdlc-reviewer` subagent                                          | the same                           |
 | `off`   | no one; the script marks the head reviewed                            | the same                           |
 
 - The agent may raise an `auto` depth from `light` to `full`, saying why; it never lowers one.
@@ -592,16 +603,6 @@ read mark and the limit. What reads the change at `full` is the reviewer you nam
 - Three Reviews with no success between them park the pull request, with
   `dw-sdlc pr reviewed --accept` as your command. A fix after the third that carries its test gets one
   `light` Review first, once the Gate is green on it, and parks only when that Review finds something.
-
-### The light Review
-
-`agents/sdlc-reviewer.md` reads a `light` Review: a subagent on the session's model at `effort: medium`,
-with `Read`, `Grep` and read-only `Bash`. It does not see the conversation; the prompt hands it the diff
-command, the files, the spec, the Primitives the change touches with their untouched docs, and after a
-fix the Findings it answers. It reads those files, those docs, `AGENTS.md`, and `CODING_STANDARDS.md`
-and `CONTRIBUTING.md` where they exist, skips what the Gate checks, and reports under 300 words. Its first line is `clean` or `findings: <n>`; `smell:`,
-`follow-up:`, `fixed:` and `added:` lines follow and change no count; an `added:` line names what the
-spec did not ask for.
 
 ## Sweeping
 
