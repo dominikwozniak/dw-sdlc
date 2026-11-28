@@ -53,5 +53,6 @@ export function withLanded(root: string, pr: PrState, answer: Answer, at: Checko
   if (at === undefined || answer.action !== "done") {
     return answer
   }
-  return { ...answer, next: mainCheckout(root) === undefined ? mainCheckoutSteps(root, pr, at) : [SWEEP] }
+  const inLinkedWorktree = mainCheckout(root) !== undefined
+  return { ...answer, next: inLinkedWorktree ? [SWEEP] : mainCheckoutSteps(root, pr, at) }
 }
