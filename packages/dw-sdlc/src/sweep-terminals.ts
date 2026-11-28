@@ -37,7 +37,7 @@ export type Holder =
 /** The terminal to stop and remove, or only to remove once it has finished. */
 export type TerminalPlan = { kind: "terminal"; name: string; reason: string; stop: boolean; tree?: string }
 
-/** Statuses of a Worker that is not at the end of its turn, with how the Sweep says it. */
+/** Statuses of a Worker that is at work or yet to report, with how the Sweep says it. */
 const AT_WORK: Record<string, string> = {
   working: "working",
   blocked: "blocked, waiting for the dev",
@@ -157,12 +157,14 @@ export function holdersOf({ own, workers, others }: Terminals, main: string, tre
  * the end of a turn with no Recap of `done` or `park` delivered. Undefined for one that has ended.
  */
 export function atWork({ status, verdict }: Located): string | undefined {
-  return (
-    AT_WORK[status] ?? (verdict !== undefined && ENDED.has(verdict) ? undefined : `${status}, its end not reported`)
-  )
+  const working = AT_WORK[status]
+  if (working !== undefined) {
+    return working
+  }
+  return verdict !== undefined && ENDED.has(verdict) ? undefined : `${status}, its end not reported`
 }
 
-/** What the terminals in a worktree keep it for, or null when only Workers at the end of their turn are in it. */
+/** What the terminals in a worktree keep it for, or null when only Workers that reported their end are in it. */
 export function whyHeld(holders: Holder[]): { reason: string; command: string | null } | null {
   const reasons: string[] = []
   const kills: string[] = []

@@ -22,13 +22,13 @@ it at once with exit 1.
 Once the Recap is delivered it reads the Recap's first word, its verdict, and when that is done, act, wait or
 park it sets the label ${VERDICT_LABEL}=<word> on this terminal. A Sweep stops a Worker only once it has
 delivered a Recap of done or park, so a Worker whose turn ended on a question, or at a wait, keeps its
-terminal and worktree. A first word that is no verdict sets no label. When hc label refuses, the Recap is
+terminal and worktree. A first word that is no verdict, or one that opens a question, sets no label. When hc label refuses, the Recap is
 still delivered and the command exits 1: the Sweep keeps the Worker until the label is set, so do not send
 the Recap again.
 
 Needs a terminal herdr started ($HC_TERMINAL_ID) and hc on PATH.
 
-Exit 0 delivered, 1 not delivered, 2 when it cannot run.`
+Exit 0 delivered, 1 not delivered or delivered with its label refused, 2 when it cannot run.`
 
 const DEFAULT_ATTEMPTS = 30
 const DEFAULT_INTERVAL = 60
@@ -75,9 +75,14 @@ function parseCli(argv: string[]): Cli | { help: true } {
 /** The verdicts a Recap opens with: the Action words of /sdlc-recap. */
 const VERDICTS = new Set(["done", "act", "wait", "park"])
 
-/** The verdict a Recap opens with, as `done` in "`done`: merged" or "**Done** - merged"; undefined when it opens with none. */
+/**
+ * The verdict a Recap opens with: its first word, in markup or not, when a colon, a full stop, a dash or the
+ * end of the line follows it, as `done` in "`done`: merged" or "**Done** - merged". "Done with step 1, which
+ * next?" is a question that starts with the word, so it has none.
+ */
 function verdictOf(recap: string): string | undefined {
-  const word = recap.match(/^[^\p{L}\p{N}]*(\p{L}+)/u)?.[1]?.toLowerCase()
+  const first = recap.split("\n")[0] ?? ""
+  const word = first.match(/^[^\p{L}\p{N}]*(\p{L}+)[`*_]*\s*(?:$|[:.–—-])/u)?.[1]?.toLowerCase()
   return word !== undefined && VERDICTS.has(word) ? word : undefined
 }
 
@@ -97,7 +102,7 @@ function messageFor(file: string): { message: string; path: string; verdict: str
 }
 
 /** Sets the verdict on this terminal: exit 0, or exit 1 with what is left undone. */
-function mark(own: string, verdict: string): number {
+function labelVerdict(own: string, verdict: string): number {
   const refused = labelTerminal(own, { [VERDICT_LABEL]: verdict })
   if (refused === undefined) {
     return 0
@@ -116,7 +121,7 @@ async function report({ to, recap, attempts, interval }: Cli): Promise<number> {
     const sent = sendTo(to, message)
     if (sent === "sent") {
       process.stdout.write(`reported to ${to}\n`)
-      return verdict === undefined ? 0 : mark(own, verdict)
+      return verdict === undefined ? 0 : labelVerdict(own, verdict)
     }
     if (sent !== "blocked") {
       process.stderr.write(`dw-sdlc worker report: ${sent.refused} — the Recap stays at ${path}\n`)

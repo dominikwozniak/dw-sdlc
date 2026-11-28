@@ -57,7 +57,15 @@ describe("dw-sdlc worker report", () => {
   })
 
   it("sets no label for a message that opens with no verdict, as a question does", () => {
-    for (const recap of ["Question: keep the old flag?\n", "PR #9: merged, nothing left\n", LONG]) {
+    const questions = [
+      "Question: keep the old flag?\n",
+      "PR #9: merged, nothing left\n",
+      "Done with step 1, which next?\n",
+      "Park the old flag?\n",
+      "Act as the Lead?\n",
+      LONG
+    ]
+    for (const recap of questions) {
       const run = report([], [SENT], recap)
       assert.equal(run.status, 0, run.stderr)
       assert.deepEqual(
