@@ -44,8 +44,17 @@ function worker(address: string, cwd: string, status?: string, state: Listed["st
 
 type Herdr = { terminals: Listed[]; kill?: Reply | Reply[]; rm?: Reply; ls?: Reply[]; get?: Reply }
 
-/** An `hc get` that reports a live terminal with no foreground folder, so the launch folder stands. */
-const GOT: Reply = { stdout: JSON.stringify({ address: "t0", state: "live" }) }
+/** An `hc get` that reports a live terminal that delivered its Recap, `done`, with no foreground folder, so the launch folder stands. */
+const GOT: Reply = {
+  stdout: JSON.stringify({ address: "t0", state: "live", labels: { "dw-sdlc.verdict": "done" } })
+}
+
+/** An `hc get` for a terminal whose Worker has delivered no Recap, or one with the verdict `word`. */
+function got(verdict?: string): Reply {
+  return {
+    stdout: JSON.stringify({ address: "t0", state: "live", labels: verdict ? { "dw-sdlc.verdict": verdict } : {} })
+  }
+}
 
 /** Spawns the Sweep with the fake `hc` listing the terminals, the live ones answering the second `hc ls`. */
 function sweep(root: string, args: string[], { terminals, kill = {}, rm = {}, ls, get = GOT }: Herdr) {
@@ -113,7 +122,7 @@ describe("a Worker done in a worktree that goes", () => {
             listing(self(root), worker("t5", root, "done"))
           ],
           get: GOT,
-          "get t5": terminal("t5", { status: "done", foreground: tree }),
+          "get t5": terminal("t5", { status: "done", foreground: tree, labels: { "dw-sdlc.verdict": "done" } }),
           kill: {},
           rm: {}
         }
@@ -130,6 +139,66 @@ describe("a Worker done in a worktree that goes", () => {
     )
     assert.deepEqual(trees(root), [root])
   })
+})
+
+describe("a Worker whose turn ended with no Recap delivered", () => {
+  for (const status of ["done", "idle", "error"]) {
+    it(`is kept with its worktree and branch when its status is ${status}, with no call that stops it`, () => {
+      const root = clone()
+      const tree = addTree(root, join(scratch("unreported"), "tree"), "topic")
+      const { run, hc } = sweep(root, ["--json"], {
+        terminals: [self(root), worker("t5", tree, status)],
+        get: got()
+      })
+      assert.deepEqual(hc, [])
+      const { removed, kept } = documentOf(run.stdout)
+      assert.deepEqual(removed, [])
+      assert.match(
+        kept.find(({ kind }) => kind === "worktree")?.reason ?? "",
+        new RegExp(`Worker worker-t5 \\(t5\\) is ${status}, its end not reported`)
+      )
+      assert.match(kept.find(({ kind }) => kind === "terminal")?.reason ?? "", /its end not reported/)
+      assert.deepEqual(trees(root), [root, tree])
+      assert.ok(branches(root).includes("topic"))
+      assert.equal(run.status, 1)
+    })
+  }
+
+  it("is kept after a Recap that only waits, since a wait is no end", () => {
+    const root = clone()
+    const tree = addTree(root, join(scratch("waiting"), "tree"), "topic")
+    const { run, hc } = sweep(root, [], { terminals: [self(root), worker("t5", tree, "done")], get: got("wait") })
+    assert.deepEqual(hc, [])
+    assert.deepEqual(trees(root), [root, tree])
+    assert.equal(run.status, 1)
+  })
+
+  it("is kept when its folder is gone too", () => {
+    const root = clone()
+    const gone = join(scratch("unreported-gone"), "tree")
+    const { run, hc } = sweep(root, ["--json"], {
+      terminals: [self(root), worker("t5", gone, "done")],
+      get: got()
+    })
+    assert.deepEqual(hc, [])
+    assert.equal(documentOf(run.stdout).kept.find(({ kind }) => kind === "terminal")?.name, "t5")
+  })
+})
+
+describe("a Worker that reported its end", () => {
+  for (const verdict of ["done", "park"]) {
+    it(`is stopped and removed with its worktree after a Recap of ${verdict}`, () => {
+      const root = clone()
+      const tree = addTree(root, join(scratch("reported"), "tree"), "topic")
+      const { run, hc } = sweep(root, [], { terminals: [self(root), worker("t5", tree, "done")], get: got(verdict) })
+      assert.equal(run.status, 0, run.stderr)
+      assert.deepEqual(hc, [
+        ["kill", "t5"],
+        ["rm", "t5"]
+      ])
+      assert.deepEqual(trees(root), [root])
+    })
+  }
 })
 
 describe("a Worker that is not done", () => {

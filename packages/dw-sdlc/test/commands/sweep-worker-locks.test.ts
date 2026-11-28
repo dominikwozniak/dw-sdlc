@@ -75,7 +75,7 @@ function sweep(root: string, tree: string, args: string[], { status = "done", ki
     {
       hc: {
         "ls --json": [listing(lead, worker), listing(lead, worker)],
-        "get t5": terminal("t5", { status, foreground: tree, pid: workerPid }),
+        "get t5": terminal("t5", { status, foreground: tree, pid: workerPid, labels: { "dw-sdlc.verdict": "done" } }),
         get: { stdout: JSON.stringify({ address: SELF, state: "live" }) },
         kill,
         rm: {}
