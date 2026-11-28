@@ -65,16 +65,6 @@ export function failingOf(pr: PrState, markStandsIn: boolean): CiCheck[] {
   return ciOf(pr).filter((check) => check.bucket === "fail" && !unavailable.includes(check))
 }
 
-/**
- * Whether the Gate is green on the head: a Gate mark, or CI that ran a check and passed every one it ran.
- * A Gate mark beside failing CI never reaches a Review: fix-ci answers first.
- */
-export function gateGreen(pr: PrState): boolean {
-  const ci = ciOf(pr)
-  const passed = ci.some((check) => check.bucket === "pass")
-  return proven(pr) || (passed && ci.every((check) => check.bucket === "pass" || check.bucket === "skipping"))
-}
-
 /** Whether the head carries a Gate mark: the Gate passed on it. */
 export function proven(pr: PrState): boolean {
   return pr.checks.some((check) => check.name === GATE && check.bucket === "pass")

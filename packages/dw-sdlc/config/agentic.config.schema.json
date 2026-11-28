@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/dominikwozniak/dw-sdlc/main/packages/dw-sdlc/config/agentic.config.schema.json",
   "title": "agentic.config",
-  "description": "How a repository works for an agent. `.ai/agentic.config.json` is committed; `.ai/agentic.config.local.json` overrides it on one machine and may tighten `guardrails` but never loosen them. Beside a committed file the same holds for `pr.merge`, `pr.review` and `pr.ciUnavailable`. With no committed file it sets those three freely. A key neither file sets is inferred: the Node package manager from the lockfile and `gate.command` from the manifest's `check` script. Unknown top-level keys are tolerated so other tool families can share the file; the keys named here refuse unknown children.",
+  "description": "How a repository works for an agent. `.ai/agentic.config.json` is committed; `.ai/agentic.config.local.json` overrides it on one machine and may tighten `guardrails` but never loosen them. Beside a committed file the same holds for `pr.merge` and `pr.ciUnavailable`. With no committed file it sets those two freely. A key neither file sets is inferred: the Node package manager from the lockfile and `gate.command` from the manifest's `check` script. Unknown top-level keys are tolerated so other tool families can share the file; the keys named here refuse unknown children.",
   "type": "object",
   "properties": {
     "$schema": {
@@ -468,31 +468,16 @@
       "additionalProperties": false
     },
     "pr": {
-      "description": "How the Ship script, `dw-sdlc pr ship`, ends a pull request. Beside a committed file the local override may tighten `merge`, `review` and `ciUnavailable` and never loosen them; with no committed file it sets them freely. It adds to `reviewFull` either way.",
+      "description": "How the Ship script, `dw-sdlc pr ship`, ends a pull request. Beside a committed file the local override may tighten `merge` and `ciUnavailable` and never loosen them; with no committed file it sets them freely.",
       "type": "object",
       "properties": {
         "merge": {
-          "description": "Who merges a pull request that is green, reviewed and authored by the account `gh` runs as. `auto`: the script squash merges it, naming the head it read. `ask`: it parks with the merge command for the dev. Default `ask`, which an invalid layer runs too. Strictest first: ask, auto.",
+          "description": "Who merges a pull request that is green, has no open review thread or change request, and is authored by the account `gh` runs as. `auto`: the script squash merges it, naming the head it read. `ask`: it parks with the merge command for the dev. Default `ask`, which an invalid layer runs too. Strictest first: ask, auto.",
           "enum": ["ask", "auto"]
-        },
-        "review": {
-          "description": "The Review depth of a head the Ship script finds unreviewed, which the dev's `--review` overrides for one call. `full`: the agent runs the command `pr.reviewCommand` names over the changes. `light`: one `sdlc-reviewer` subagent reads the diff at medium effort. `off`: the script posts the `dw-sdlc/review` success itself and no one reads them. `auto`: built-in rules route the depth from the changes the Review would read: lockfiles alone `off`; a file under `.github/workflows/`, a file the code of a Primitive in `pr.reviewFull` names, more than 100 changed lines outside lockfiles, or a change the script cannot size, more files than GitHub's compare lists or a file outside lockfiles with no patch, `full`; the rest `light`. Default `auto`; an invalid layer runs `full`. Strictest first: full, auto, light, off.",
-          "enum": ["full", "auto", "light", "off"]
-        },
-        "reviewFull": {
-          "description": "Ids of Primitives in the catalogue (`gate.checks.primitives.file`, default `.ai/primitives.json`). Under `pr.review: auto`, a changed file, or its name before a rename, that the `code` of a listed Primitive names, as a file or a directory above it, routes a `full` Review whatever the size of the change. Exact ids, no globs and no groups. List narrowly: only Primitives where a small wrong change does damage that is hard to undo; a wide list turns every change into a `full` Review. The dev's `--review` and a `pr.review` set to a depth still stand. Fails closed: a catalogue missing or unreadable, or a listed id it lacks, routes `full`; the `primitives` Check reports an id the catalogue lacks. The local override adds ids and never removes one: the list is the union of both layers. No ids by default.",
-          "type": "array",
-          "items": { "type": "string", "minLength": 1 },
-          "uniqueItems": true
         },
         "ciUnavailable": {
           "description": "What stands in for CI unavailable: a GitHub Actions job on the head that failed with no step run, as GitHub leaves it under a billing lock. `ci`: nothing, so it fails as any check does and the agent gets `fix-ci`. `gate`: a Gate mark on the head, the `dw-sdlc/gate` success `dw-sdlc gate --mark` leaves, stands in for it, and the merge follows `merge` as on green CI. Under `gate`, a head without one answers `prove-locally` for the agent, or with no `gate.steps` parks `ci-unavailable` with the merge command for the dev. A job that ran a step and failed is `fix-ci` under both. Default `ci`, which an invalid layer runs too. Strictest first: ci, gate.",
           "enum": ["ci", "gate"]
-        },
-        "reviewCommand": {
-          "description": "The slash command a `full` Review runs over the pull request's changes, as `/pr-review-toolkit:review-pr code errors`. Default `/code-review`. No strictness order: the local override sets it freely.",
-          "type": "string",
-          "minLength": 1
         }
       },
       "additionalProperties": false
@@ -533,7 +518,7 @@
       "additionalProperties": false
     },
     "footprint": {
-      "description": "What dw-sdlc leaves on GitHub. `github`, the default: the Ship script posts the `dw-sdlc/review` commit status on the heads it carries, kickoff, a Recap and the Lead file a Brief as an issue, and a Worker's branch is pushed as Claude Code names it, `worktree-worker-<issue>-<slug>`. `local`: nothing on GitHub names dw-sdlc. The Review state is a file per pull request under `.git/dw-sdlc/reviews/`, a Brief a file under `.git/dw-sdlc/briefs/`, and `/sdlc-pr-open` renames a Worker's branch before its first push. It tightens and loosens no guard, so the local layer may set it, as it does for a repository the dev does not own. An invalid layer that names `local` still keeps it, so a broken layer never sends the Review state back to GitHub.",
+      "description": "What dw-sdlc leaves on GitHub. `github`, the default: `dw-sdlc gate --mark` posts the `dw-sdlc/gate` commit status on the head it proves, kickoff, a Recap and the Lead file a Brief as an issue, and a Worker's branch is pushed as Claude Code names it, `worktree-worker-<issue>-<slug>`. `local`: nothing on GitHub names dw-sdlc. The Gate mark is a file per pull request under `.git/dw-sdlc/gates/`, a Brief a file under `.git/dw-sdlc/briefs/`, and `/sdlc-pr-open` renames a Worker's branch before its first push. It tightens and loosens no guard, so the local layer may set it, as it does for a repository the dev does not own. An invalid layer that names `local` still keeps it, so a broken layer never sends the Gate mark back to GitHub.",
       "enum": ["github", "local"]
     }
   }

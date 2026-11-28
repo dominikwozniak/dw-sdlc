@@ -4,25 +4,17 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 
-import { COMMITTED_FILE } from "../../src/agentic-config.ts"
 import { repo, runBin } from "../harness.ts"
 import { type Context, fakeGh, GREEN, HEAD, type Pr, RUN, served, type Thread } from "../pr-harness.ts"
 
 const URL = "https://github.com/byarcadia-app/foundation/pull/40"
 const TARGET = ["40", "-R", "byarcadia-app/foundation", "--json"]
-const FULL = { [COMMITTED_FILE]: { pr: { review: "full" } } }
 const STARTED = "2026-10-31T11:01:00Z"
 const READ_BY_REVIEW = "1111111111111111111111111111111111111111"
 const PUSHED = "2222222222222222222222222222222222222222"
 const MERGED_IN = "3333333333333333333333333333333333333333"
 
 const PASSING: Context = { kind: "run", name: "Check", state: "SUCCESS", link: RUN, startedAt: STARTED }
-const REVIEWED: Context = {
-  kind: "status",
-  name: "dw-sdlc/review",
-  state: "SUCCESS",
-  startedAt: "2026-10-31T11:05:00Z"
-}
 const THREAD: Thread = {
   id: "PRRT_kwDOexample",
   path: "packages/payments/src/paywall.tsx",
@@ -32,10 +24,10 @@ const THREAD: Thread = {
   lastByViewer: true
 }
 
-/** Changes requested by alice on READ_BY_REVIEW, answered by the push of the head, CI green and the head reviewed. */
+/** Changes requested by alice on READ_BY_REVIEW, answered by the push of the head, CI green. */
 const ANSWERED: Pr = {
   ...GREEN,
-  checks: [PASSING, REVIEWED],
+  checks: [PASSING],
   reviewDecision: "CHANGES_REQUESTED",
   reviews: [{ author: "alice", state: "CHANGES_REQUESTED", commit: READ_BY_REVIEW }],
   history: [{ oid: READ_BY_REVIEW }]
@@ -45,7 +37,7 @@ const ANSWERED: Pr = {
 function answer(pr: Pr, seconds = 0) {
   const now = new Date(Date.parse(STARTED) + seconds * 1000).toISOString()
   const gh = fakeGh({ graphql: [served(pr)] })
-  const run = runBin(["pr", "ship", ...TARGET], repo({ files: FULL }), { ...gh.env, DW_SDLC_NOW: now })
+  const run = runBin(["pr", "ship", ...TARGET], repo(), { ...gh.env, DW_SDLC_NOW: now })
   assert.notEqual(run.stdout, "", `no document; exit ${run.status}: ${run.stderr}`)
   return { status: run.status, stderr: run.stderr, document: JSON.parse(run.stdout) as Record<string, unknown> }
 }
@@ -148,13 +140,9 @@ describe("dw-sdlc pr ship once a push answers a review that requests changes", (
     assert.deepEqual(blockersOf(run.document), ["awaiting-review"])
   })
 
-  it("runs the pull request's own Review and CI first", () => {
-    const unreviewed = answer({ ...ANSWERED, checks: [PASSING] })
-    assert.equal(unreviewed.status, 10, unreviewed.stderr)
-    assert.equal(unreviewed.document.action, "review")
-    assert.deepEqual(blockersOf(unreviewed.document), ["awaiting-review"])
+  it("runs CI first", () => {
     const running: Context = { ...PASSING, state: "IN_PROGRESS" }
-    const pending = answer({ ...ANSWERED, checks: [running, REVIEWED] }, 60)
+    const pending = answer({ ...ANSWERED, checks: [running] }, 60)
     assert.equal(pending.status, 20, pending.stderr)
     assert.equal(pending.document.action, "wait")
     assert.deepEqual(blockersOf(pending.document), ["awaiting-review"])

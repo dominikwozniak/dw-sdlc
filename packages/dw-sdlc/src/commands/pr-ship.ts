@@ -2,8 +2,8 @@
 // needs next, performs it when it is the script's and reads again, then answers the first Action that
 // is not, as a line or one JSON document, with an exit code that names whose turn it is.
 
-import { repositoryRoot, resolveConfig, REVIEW_DEPTHS, type ReviewDepth } from "../agentic-config.ts"
-import { CannotRun, messageOf, readArgs, usageError } from "../cannot-run.ts"
+import { repositoryRoot, resolveConfig } from "../agentic-config.ts"
+import { CannotRun, readArgs, usageError } from "../cannot-run.ts"
 import {
   type Answer,
   decide,
@@ -12,22 +12,19 @@ import {
   hostArgs,
   isScriptAction,
   lineOf,
-  localMark,
   type Policy,
   readyToMerge,
-  REVIEW,
   type ScriptAction,
   type Status
 } from "../pr/decide.ts"
-import { type LocalReviews, localReviews } from "../pr/local-reviews.ts"
+import { gateMarks } from "../pr/gate-marks.ts"
 import { gh, ghReads, namedProblem, nameItRemedy, now, type Reads, said } from "../pr/read.ts"
-import { reviewFullOf } from "../pr/review-full.ts"
 import type { PrState } from "../pr/state.ts"
 import { shellLine } from "../shell-line.ts"
 
 export const summary = "decide the Action one pull request needs next, as a line or JSON"
 
-const USAGE = `Usage: dw-sdlc pr ship [<n>] [-R owner/name] [--merge] [--review full|light|off] [--dry-run] [--json] [--verbose]
+const USAGE = `Usage: dw-sdlc pr ship [<n>] [-R owner/name] [--merge] [--dry-run] [--json] [--verbose]
 
 Reads pull request <n> through gh, the one of the current branch as gh pr view resolves it when <n>
 is omitted, and answers the Action it needs next: the status, the action, whose turn it is and why.
@@ -36,39 +33,20 @@ for it, the script asks for the upstream's, and reads it only when its commits h
 The script performs its own Actions, each at most once and then reads again: it updates a branch
 GitHub reports BEHIND, marks a draft ready once nothing else holds it back, and squash merges a pull
 request ready to merge under pr.merge auto in .ai/agentic.config.json or with --merge for this call;
-under ask, the default, it parks with the merge command. GitHub reports BEHIND only under a rule
-that a branch be up to date; a branch only behind its base merges as it is. A head without a
-${REVIEW} success gets the Review depth --review names for this call, else pr.review: under full
-the agent reviews it with the command pr.reviewCommand names, /code-review by default; under light
-one sdlc-reviewer subagent reads the diff; under off the script posts the success itself, its
-description saying why. Under auto, the default, the script routes the depth from the changes the
-Review would read: lockfiles alone off, unless a Finding is open; a file under .github/workflows/,
-a file the code of a Primitive listed in pr.reviewFull names (every change when that list cannot be
-held to the catalogue), more than 100 changed lines outside lockfiles, or a change it cannot size,
-more files than GitHub's compare lists or a file outside lockfiles with no patch, full; the rest light. After a push it names
-the last commit a Review read under details.since, where the Review reads from and auto routes from:
-one with a ${REVIEW} success not posted under off, or the read mark pr reviewed --findings
-posts. It carries a success over a head whose only commits since are merges of the base, unless
---review names a depth for the call; a read mark never carries. A read mark no later commit answers,
-on the head or before commits that leave the own changes as it read them, is named under
-details.open: the Review then reads the whole pull request, and nothing carries over it. After a merge or a rebase, details.paths names
-the files whose own change moved, the only ones the Review reads. Three Reviews that left a Finding
-open with no success between them park as review-limit at every depth, pr reviewed --accept the
-dev's command: the dev's --review <depth> buys one more Review, and their --review off posts past it.
-Without their word, a fix since the last read mark that changes a test file buys one light Review,
-details.source limit, once the Gate is green on the head: its CI passed, or it carries a Gate mark.
-Until then the next answer comes first when it is a wait or an act short of a merge, as while CI
-runs. When it would park or merge, the head parks at the limit. So does a Finding from that Review.
-A ci-pending wait rechecks when CI likely ends: the median time CI took on the heads of the 10
-newest merged pull requests, from the first start to the last completion of their check runs, less
-the time since the first start on this head, between 60 and 600 s; 60 s when none shows a run.
+under ask, the default, it parks with the merge command. Under auto the merge needs green CI or a Gate
+mark, no open review thread, no change request, and the viewer's own pull request; nothing else is
+waited for. GitHub reports BEHIND only under a rule that a branch be up to date; a branch only behind
+its base merges as it is. A ci-pending wait rechecks when CI likely ends: the median time CI took on
+the heads of the 10 newest merged pull requests, from the first start to the last completion of their
+check runs, less the time since the first start on this head, between 60 and 600 s; 60 s when none
+shows a run.
 Each Action the call runs is listed under performed. Its ok says whether the read after it shows the
 Action took effect, whatever gh's exit status; gh's exit status and stderr stand beside it, so an ok
 false with exit 0 is an Action gh accepted that the read does not show yet. An update counts when
 the head carries the base it read. When the read after an Action fails, the call exits 2 and names
 each Action that ran with gh's exit, under performed too with --json: it may have landed, so do not
-run it blind again. It exits 2 too when GitHub refuses the compare it reads after a read mark: that
-compare decides whether the mark's Findings still stand, so the script stops and posts nothing.
+run it blind again. It exits 2 too when GitHub refuses the compare it reads after an update, which
+decides whether the update merged the base in.
 --dry-run performs nothing: it parks at the first Action the script would perform, under performed
 with ok null.
 CI unavailable is a GitHub Actions job on the head that failed with no step run, as GitHub leaves it
@@ -77,19 +55,13 @@ with gate.steps the agent proves the head with dw-sdlc gate --mark, act prove-lo
 mark, the dw-sdlc/gate success on the head, stands in for that job: the merge follows pr.merge as
 on green CI. Without gate.steps it parks ci-unavailable, the merge the dev's. A job that ran a step
 and failed is fix-ci under both.
-Under footprint local in .ai/agentic.config.json or its local layer, the script posts no ${REVIEW}
-status and reads none: what a Review left on each commit comes from .git/dw-sdlc/reviews/<n>.json,
-under the common git dir, the file pr reviewed writes, and the Gate marks from
-.git/dw-sdlc/gates/<n>.json, the file gate --mark writes. Its mark-reviewed writes there too: clean
-for a carry, off under off. The command it names for an off head is pr reviewed --off. Every
-decision is the one the statuses would give.
+Under footprint local in .ai/agentic.config.json or its local layer, the script reads no dw-sdlc/gate
+status: the Gate marks come from .git/dw-sdlc/gates/<n>.json, under the common git dir, the file
+gate --mark writes. Every decision is the one the status would give.
 One line, or one document with --json; --verbose adds the state as read to the document under
 facts. Needs an authenticated gh.
 
 Exit 0 done, 10 the agent's turn, 20 wait, 30 the dev's turn, 2 when it cannot run.`
-
-/** The depths --review takes, strictest first, as a sentence lists them. */
-const DEPTHS_SENTENCE = `${REVIEW_DEPTHS.slice(0, -1).join(", ")} or ${REVIEW_DEPTHS.at(-1)}`
 
 const EXIT: Record<Status, number> = { done: 0, act: 10, wait: 20, park: 30 }
 
@@ -98,7 +70,6 @@ type Cli = {
   json: boolean
   verbose: boolean
   merge: boolean
-  review: ReviewDepth | undefined
   dryRun: boolean
   number: number | undefined
   repo: string | undefined
@@ -136,7 +107,6 @@ function parseCli(argv: string[]): Cli {
         json: { type: "boolean" },
         verbose: { type: "boolean" },
         merge: { type: "boolean" },
-        review: { type: "string" },
         "dry-run": { type: "boolean" },
         repo: { type: "string", short: "R" }
       }
@@ -145,7 +115,6 @@ function parseCli(argv: string[]): Cli {
   )
   const [number, ...more] = positionals
   const { repo } = values
-  const review = REVIEW_DEPTHS.find((depth) => depth === values.review)
   if (values.help !== true) {
     if (more.length > 0) {
       throw usageError(`name one pull request, not ${positionals.length}`, USAGE)
@@ -154,16 +123,12 @@ function parseCli(argv: string[]): Cli {
     if (problem !== undefined) {
       throw usageError(problem, USAGE)
     }
-    if (values.review !== undefined && review === undefined) {
-      throw usageError(`--review takes ${DEPTHS_SENTENCE}, not ${JSON.stringify(values.review)}`, USAGE)
-    }
   }
   return {
     help: values.help === true,
     json: values.json === true,
     verbose: values.verbose === true,
     merge: values.merge === true,
-    review,
     dryRun: values["dry-run"] === true,
     number: number === undefined ? undefined : Number(number),
     repo
@@ -174,11 +139,6 @@ function parseCli(argv: string[]): Cli {
 const NAMED: Record<ScriptAction, { would: string; act: string; still: string }> = {
   "update-branch": { would: "update the branch", act: "the update", still: "the branch still reads behind its base" },
   "mark-ready": { would: "mark it ready", act: "the mark-ready", still: "the pull request still reads as a draft" },
-  "mark-reviewed": {
-    would: "mark it reviewed",
-    act: "the mark-reviewed",
-    still: `the head still carries no ${REVIEW} success`
-  },
   merge: { would: "merge it", act: "the merge", still: "the pull request still reads open" }
 }
 
@@ -190,25 +150,17 @@ const TOOK: Record<ScriptAction, (before: PrState, after: PrState, reads: Reads)
   // A moved head alone may be a push: the update took effect when the head carries the base it read.
   "update-branch": (before, after, reads) => after.head !== before.head && reads.carriesBase(before, after),
   "mark-ready": (_, after) => !after.draft,
-  // The post names the head it read: a head moved since carries none of it.
-  "mark-reviewed": (before, after) =>
-    after.head === before.head && after.checks.some((check) => check.name === REVIEW && check.bucket === "pass"),
   merge: (_, after) => after.state === "MERGED"
 }
 
 /**
- * Why an Action that ran comes round again. A head that moved after a mark-reviewed names both heads;
- * otherwise gh refused it, or accepted it and the read shows nothing yet, or the effect is gone again.
+ * Why an Action that ran comes round again: gh refused it, or accepted it and the read shows nothing yet,
+ * or the effect is gone again.
  */
 function reasonOf(
-  { action, ok, exit, stderr = "" }: { action: ScriptAction; ok: boolean; exit: number; stderr?: string },
-  pr: PrState,
-  ranOn: string | undefined,
+  { ok, exit, stderr = "" }: { ok: boolean; exit: number; stderr?: string },
   { act, still }: { act: string; still: string }
 ): string {
-  if (action === "mark-reviewed" && exit === 0 && ranOn !== undefined && ranOn !== pr.head) {
-    return `${act} posted on ${ranOn.slice(0, 7)}, and the head moved to ${pr.head.slice(0, 7)}`
-  }
   if (ok) {
     return `${act} ran, and ${still}`
   }
@@ -218,11 +170,11 @@ function reasonOf(
 }
 
 /** A script Action the call leaves to the dev, `reason` saying why; a merge parks as ready-to-merge. */
-function handedOver(pr: PrState, policy: Policy, answer: Answer, action: ScriptAction, reason: string): Answer {
+function handedOver(pr: PrState, answer: Answer, action: ScriptAction, reason: string): Answer {
   if (action === "merge") {
-    return { ...readyToMerge(pr, policy, reason), blockers: answer.blockers }
+    return { ...readyToMerge(pr, reason), blockers: answer.blockers }
   }
-  return { ...answer, status: "park", actor: "dev", reason, command: devCommand(pr, action, policy) }
+  return { ...answer, status: "park", actor: "dev", reason, command: devCommand(pr, action) }
 }
 
 /** The pull request the call names, else this checkout's; none found stops the call with what to name. */
@@ -241,30 +193,12 @@ function readTarget(cli: Cli, root: string, reads: Reads): PrState {
   return found
 }
 
-/**
- * The command a script Action runs, and the run: gh, or under footprint local a mark-reviewed recorded in
- * the Review state, which posts nothing.
- */
+/** The command a script Action runs, and the run: gh, naming the repository, so the checkout plays no part. */
 function scriptRun(
   pr: PrState,
-  action: ScriptAction,
-  policy: Policy,
-  local: LocalReviews | null
+  action: ScriptAction
 ): { command: string; perform: () => { status: number; stderr: string } } {
-  if (action === "mark-reviewed" && local !== null) {
-    const { mark, command } = localMark(pr, policy)
-    const perform = (): { status: number; stderr: string } => {
-      try {
-        local.record(pr.number, pr.head, mark)
-        return { status: 0, stderr: "" }
-      } catch (error) {
-        return { status: 1, stderr: messageOf(error) }
-      }
-    }
-    return { command, perform }
-  }
-  // -R names the repository, so the checkout the script runs in plays no part.
-  const args = hostArgs(pr, action, policy, true)
+  const args = hostArgs(pr, action, true)
   return { command: shellLine(["gh", ...args]), perform: () => gh(args) }
 }
 
@@ -273,40 +207,35 @@ function scriptRun(
  * pull request is read again; under --dry-run, or when an Action comes round again, it is the dev's.
  */
 function ship(cli: Cli, root: string, policy: Policy): { pr: PrState; answer: Answer; performed: Performed[] } {
-  const local = policy.footprint === "local" ? localReviews(root) : null
-  // Only pr.review auto routes the depth from the changes, so only it reads them.
-  const reads = ghReads(policy.review.depth === "auto", local)
+  const reads = ghReads(policy.footprint === "local" ? gateMarks(root) : null)
   let pr = readTarget(cli, root, reads)
   const performed: Performed[] = []
-  // The head each Action ran on.
-  const postedOn = new Map<ScriptAction, string>()
   for (;;) {
     const answer = decide(pr, now(), policy)
     const { action } = answer
     if (!isScriptAction(action)) {
       return { pr, answer, performed }
     }
-    const { command, perform } = scriptRun(pr, action, policy, local)
+    const { command, perform } = scriptRun(pr, action)
     const { would } = NAMED[action]
     if (cli.dryRun) {
       performed.push({ action, command, ok: null })
       return {
         pr,
-        answer: handedOver(pr, policy, answer, action, `the script would ${would}; --dry-run performs nothing`),
+        answer: handedOver(pr, answer, action, `the script would ${would}; --dry-run performs nothing`),
         performed
       }
     }
     const done = performed.find((earlier) => earlier.action === action)
     // --dry-run returns before any Action runs, so an earlier one always carries gh's exit.
     if (done !== undefined && done.ok !== null) {
-      const reason = reasonOf(done, pr, postedOn.get(action), NAMED[action])
-      return { pr, answer: handedOver(pr, policy, answer, action, reason), performed }
+      const reason = reasonOf(done, NAMED[action])
+      return { pr, answer: handedOver(pr, answer, action, reason), performed }
     }
     const { status, stderr } = perform()
     const before = pr
     const message = stderr.trim()
     const record = { action, command, exit: status, ...(message === "" ? {} : { stderr: message }) }
-    postedOn.set(action, before.head)
     try {
       pr = reads.again(pr)
       performed.push({ ...record, ok: TOOK[action](before, pr, reads) })
@@ -331,13 +260,12 @@ export function run(argv: string[]): number {
     process.stdout.write(`${USAGE}\n`)
     return 0
   }
-  // An invalid config layer resolves to ask and full, like every other strictest setting.
+  // An invalid config layer resolves to ask, like every other strictest setting.
   const root = repositoryRoot(process.cwd())
   const { config } = resolveConfig(root)
   const policy: Policy = {
-    ...declaredPolicy(config, reviewFullOf(root, config)),
-    ...(cli.merge ? { merge: "auto" } : {}),
-    ...(cli.review === undefined ? {} : { review: { depth: cli.review, source: "flag" } })
+    ...declaredPolicy(config),
+    ...(cli.merge ? { merge: "auto" } : {})
   }
   let shipped: ReturnType<typeof ship>
   try {

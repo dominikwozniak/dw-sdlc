@@ -30,27 +30,12 @@ export type EnvPolicy = "deny" | "git"
 export type EnvFiles = { policy: EnvPolicy; allow: string[]; deny: string[] }
 /** Who merges a pull request the Ship script finds ready: the script under `auto`, the dev under `ask`. */
 export type PrMerge = "ask" | "auto"
-/**
- * How closely a Review reads an unreviewed head: the command `pr.reviewCommand` names under `full`,
- * one `sdlc-reviewer` subagent under `light`, no one under `off`.
- */
-export type ReviewDepth = "full" | "light" | "off"
-/** The Review depths, strictest first: what the dev's `--review` names. */
-export const REVIEW_DEPTHS = ["full", "light", "off"] as const satisfies readonly ReviewDepth[]
-/** `pr.review`: a Review depth, or `auto`, which routes one from the changes by built-in rules. */
-export type PrReview = ReviewDepth | "auto"
 /** What stands in for a CI job GitHub never ran: nothing under `ci`, a Gate mark on the head under `gate`. */
 export type PrCiUnavailable = "ci" | "gate"
 
-/**
- * How the Ship script ends a pull request: who merges it, how closely it is reviewed, the slash command
- * a `full` Review runs, the Primitives `auto` reads in full (ADR 0026), what stands in for CI unavailable.
- */
+/** How the Ship script ends a pull request: who merges it, what stands in for CI unavailable. */
 export type PrConfig = {
   merge: PrMerge
-  review: PrReview
-  reviewCommand: string
-  reviewFull: string[]
   ciUnavailable: PrCiUnavailable
 }
 
@@ -61,7 +46,7 @@ export type WorkerEffort = (typeof WORKER_EFFORTS)[number]
 export type WorkerConfig = { command: string; model: string; effort: WorkerEffort }
 
 /**
- * What dw-sdlc leaves on GitHub: under `github` the review status, Briefs filed as issues and the Worker's
+ * What dw-sdlc leaves on GitHub: under `github` the Gate mark, Briefs filed as issues and the Worker's
  * branch name; under `local` nothing that names it, its state kept under `.git/dw-sdlc/`.
  */
 export type Footprint = "github" | "local"
@@ -148,7 +133,6 @@ export const STRICTNESS = {
   filteredOutput: ["deny", "allow"],
   envFiles: ["deny", "git"],
   merge: ["ask", "auto"],
-  review: ["full", "auto", "light", "off"],
   ciUnavailable: ["ci", "gate"]
 } as const satisfies {
   forcePush: readonly ForcePush[]
@@ -156,7 +140,6 @@ export const STRICTNESS = {
   filteredOutput: readonly FilteredOutput[]
   envFiles: readonly EnvPolicy[]
   merge: readonly PrMerge[]
-  review: readonly PrReview[]
   ciUnavailable: readonly PrCiUnavailable[]
 }
 
@@ -174,17 +157,12 @@ export const STRICTEST_GUARDRAILS: Guardrails = {
 
 /** What the Ship script runs on while any layer is invalid, and with nothing declared: it merges nothing itself. */
 export const STRICTEST_PR_MERGE: PrMerge = "ask"
-/** The Review depth while any layer is invalid: the agent reads every head in full. */
-export const STRICTEST_PR_REVIEW: PrReview = "full"
 const STRICTEST_PR = {
   merge: STRICTEST_PR_MERGE,
-  review: STRICTEST_PR_REVIEW,
   ciUnavailable: "ci"
-} as const satisfies Partial<PrConfig>
-/** The command a `full` Review runs with nothing declared; it has no strictness order. */
-export const DEFAULT_REVIEW_COMMAND = "/code-review"
-/** What a repository gets with nothing declared: the merge the dev's, the depth routed from the changes. */
-const DEFAULT_PR: PrConfig = { ...STRICTEST_PR, review: "auto", reviewCommand: DEFAULT_REVIEW_COMMAND, reviewFull: [] }
+} as const satisfies PrConfig
+/** What a repository gets with nothing declared: the merge the dev's, no CI stood in for. */
+const DEFAULT_PR: PrConfig = { ...STRICTEST_PR }
 
 /** What a Worker starts with when no layer says otherwise; no key has a strictness order. */
 const DEFAULT_WORKER: WorkerConfig = { command: "claude", model: "sonnet", effort: "high" }
@@ -333,7 +311,7 @@ export function inferConfig(root: string): ResolvedConfig {
     guardrails: cloneGuardrails(DEFAULT_GUARDRAILS),
     commit: {},
     gate: inferGate(root),
-    pr: { ...DEFAULT_PR, reviewFull: [...DEFAULT_PR.reviewFull] },
+    pr: { ...DEFAULT_PR },
     worker: { ...DEFAULT_WORKER },
     worktree: { setup: [] },
     footprint: "github"
@@ -352,7 +330,7 @@ function applyLayer(base: ResolvedConfig, layer: AgenticConfig): ResolvedConfig 
     },
     commit: { ...base.commit, ...layer.commit },
     gate: { ...base.gate, ...layer.gate, checks: { ...base.gate.checks, ...layer.gate?.checks } },
-    pr: { ...base.pr, ...layer.pr, reviewFull: [...new Set([...base.pr.reviewFull, ...(layer.pr?.reviewFull ?? [])])] },
+    pr: { ...base.pr, ...layer.pr },
     worker: { ...base.worker, ...layer.worker },
     worktree: { setup: layer.worktree?.setup ?? base.worktree.setup },
     footprint: layer.footprint ?? base.footprint
@@ -419,7 +397,7 @@ function loosenings(base: Guardrails, local: GuardrailsLayer | undefined): Probl
 
 /** Each local `pr` key less strict than the one it would override, by its order in STRICTNESS. */
 function prLoosenings(base: PrConfig, local: Partial<PrConfig> | undefined): Problem[] {
-  const keys = ["merge", "review", "ciUnavailable"] as const
+  const keys = ["merge", "ciUnavailable"] as const
   return keys.flatMap((key) => {
     const value = local?.[key]
     if (value === undefined || rank(key, value) <= rank(key, base[key])) {
@@ -483,9 +461,8 @@ export function resolveConfig(root: string): Resolution {
     }
   }
   if (problems.length > 0) {
-    // `reviewCommand`, `reviewFull` and `worker` keep what the valid layers name. A dropped layer that names
-    // footprint local keeps it, so a broken layer never sends the Review state back to GitHub; a valid local
-    // layer's own footprint still wins.
+    // `worker` keeps what the valid layers name. A dropped layer that names footprint local keeps it, so a
+    // broken layer never sends the Gate mark back to GitHub; a valid local layer's own footprint still wins.
     const named = localState === "valid" ? local.value?.footprint : undefined
     const footprint = named ?? (committed.namesLocal === true || local.namesLocal === true ? "local" : config.footprint)
     const pr = { ...config.pr, ...STRICTEST_PR }

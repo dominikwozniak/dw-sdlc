@@ -44,17 +44,7 @@
     }
   },
   "pr": {
-    "merge": "auto",
-    "reviewFull": [
-      "guards.dispatcher",
-      "guards.lib",
-      "guards.dangerous-commands",
-      "guards.env-access",
-      "guards.credential-leak",
-      "config.resolver",
-      "tools.ship",
-      "tools.sweep"
-    ]
+    "merge": "auto"
   },
   "worktree": { "setup": ["pnpm install"] }
 }

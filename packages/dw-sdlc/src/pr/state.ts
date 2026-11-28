@@ -1,6 +1,5 @@
 // One pull request as the Ship script reads it: the one GraphQL query, and its reply parsed into the
-// state the decision reads, the review history the Review's standing is read from beside it. Every field
-// the state needs is checked; a reply that fails names the field.
+// state the decision reads. Every field the state needs is checked; a reply that fails names the field.
 
 import {
   boolean,
@@ -20,34 +19,15 @@ import {
   time,
   timeOrNull
 } from "./reply.ts"
-import type { Commit, History, LeftBehind, Posted, Standing } from "./standing.ts"
 
-/** The commit status a clean review of the head leaves on it. */
-export const REVIEW = "dw-sdlc/review"
 /** The commit status `dw-sdlc gate --mark` leaves on a head the Gate passed on: the Gate mark. */
 export const GATE = "dw-sdlc/gate"
-/** The prefix of the contexts the script posts itself, as `dw-sdlc/review`: never CI. */
+/** The prefix of the contexts dw-sdlc posts itself, as `dw-sdlc/gate`: never CI. */
 export const OWN_PREFIX = "dw-sdlc/"
-/** How the description of a success the script posts under off begins: no one read that head. */
-export const OFF_PREFIX = "off:"
-/**
- * The read mark: the review status in this state and with this description says a Review read that
- * head and left a Finding open.
- */
-export const MARK_STATE = "failure"
-export const READ_MARK = "read, findings open"
-/** How the description of the success the dev's `--accept` posts reads: the head, taken with its Findings open. */
-export const ACCEPTED = "accepted by the dev, findings open"
 
 /** How many checks and review threads the one read holds; each list's `pageInfo` says when more follow. */
 const CHECKS_READ = 50
 const THREADS_READ = 100
-/**
- * How many of the last force pushes the read holds, each with the head it left behind, and how many
- * commits of that head's history.
- */
-const FORCE_PUSHES_READ = 20
-const LEFT_BEHIND_READ = 20
 /** How many of the newest merged pull requests, by when they opened, the read times CI on, by each head's checks. */
 const MERGED_READ = 10
 
@@ -65,11 +45,8 @@ export const QUERY = `query($owner: String!, $name: String!, $number: Int!) {
         contexts(first: ${CHECKS_READ}) { pageInfo { hasNextPage } nodes {
           ... on CheckRun { name status conclusion detailsUrl startedAt isRequired(pullRequestNumber: $number) steps(first: 1) { totalCount } }
           ... on StatusContext { context state targetUrl createdAt isRequired(pullRequestNumber: $number) } } } }
-        status { context(name: "${REVIEW}") { context state targetUrl createdAt isRequired(pullRequestNumber: $number) } } } } }
-      history: commits(last: 100) { nodes { commit { oid parents { totalCount } status { context(name: "${REVIEW}") { state description } } } } }
-      rewritten: timelineItems(last: ${FORCE_PUSHES_READ}, itemTypes: [HEAD_REF_FORCE_PUSHED_EVENT]) { nodes { ... on HeadRefForcePushedEvent {
-        beforeCommit { oid history(first: ${LEFT_BEHIND_READ}) { nodes { oid parents(first: 1) { nodes { oid } }
-          status { context(name: "${REVIEW}") { state description } } } } } } } }
+      } } }
+      history: commits(last: 100) { nodes { commit { oid parents { totalCount } } } }
     }
     merged: pullRequests(last: ${MERGED_READ}, states: MERGED) { nodes { commits(last: 1) { nodes { commit {
       statusCheckRollup { contexts(first: ${CHECKS_READ}) { nodes { ... on CheckRun { name startedAt completedAt } } } } } } } } }
@@ -105,8 +82,8 @@ const REVIEW_DECISIONS = ["APPROVED", "CHANGES_REQUESTED", "REVIEW_REQUIRED"] as
 /** A reviewer whose latest review requests changes, and whether a push has answered it. */
 export type ChangeRequest = { reviewer: string; answered: boolean }
 
-/** The pull request as the reply holds it, before the Review's standing is read. */
-export type PullRequest = {
+/** The pull request as the reply holds it. */
+export type PrState = {
   url: string
   repo: string
   number: number
@@ -148,9 +125,6 @@ export type PullRequest = {
    */
   ciDurations: number[]
 }
-
-/** The pull request and the Review's standing at its head. */
-export type PrState = PullRequest & Standing
 
 const FAIL = new Set(["ERROR", "FAILURE", "TIMED_OUT", "ACTION_REQUIRED", "CANCELLED", "STARTUP_FAILURE"])
 const SKIPPING = new Set(["SKIPPED", "NEUTRAL"])
@@ -207,22 +181,10 @@ function checkOf(context: Node, repo: string): CiCheck {
   throw new ReplyError(`${context.at} is neither a CheckRun nor a StatusContext`)
 }
 
-/**
- * The head's checks as the rollup lists them. With more past its first 50, the review status is read by
- * its name too, so whether the head is reviewed never hangs on where the rollup lists it.
- */
+/** The head's checks as the rollup lists them. */
 function checksOf(commit: Node, repo: string): CiCheck[] {
   const rollup = childOrNull(commit, "statusCheckRollup")
-  if (rollup === null) {
-    return []
-  }
-  const listed = nodes(rollup, "contexts").map((context) => checkOf(context, repo))
-  if (!hasMore(rollup, "contexts") || listed.some(({ name }) => name === REVIEW)) {
-    return listed
-  }
-  const status = childOrNull(commit, "status")
-  const review = status === null ? null : childOrNull(status, "context")
-  return review === null ? listed : [...listed, checkOf(review, repo)]
+  return rollup === null ? [] : nodes(rollup, "contexts").map((context) => checkOf(context, repo))
 }
 
 /** A thread by its opening comment; a deleted account's comment has no author and reads as GitHub's ghost. */
@@ -239,82 +201,20 @@ function threadOf(thread: Node): Thread {
   }
 }
 
-/** The viewer's own pull request without a review success on its head: the one a Review reads. */
-export function awaitsReview(pr: Pick<PrState, "viewerDidAuthor" | "checks">): boolean {
-  return pr.viewerDidAuthor && !pr.checks.some((check) => check.name === REVIEW && check.bucket === "pass")
-}
+/** A commit of the pull request's history; `merge` when it has more than one parent. */
+type Commit = { oid: string; merge: boolean }
 
-/**
- * What a commit's review status says: `clean` a success, `findings` the read mark, `off` a success
- * posted under off, which says no one read the commit, null no status of the Review.
- */
-function postedOn(commit: Node): Posted {
-  const status = childOrNull(commit, "status")
-  const context = status === null ? null : childOrNull(status, "context")
-  if (context === null) {
-    return null
-  }
-  const state = string(context, "state")
-  const description = stringOrNull(context, "description") ?? ""
-  if (state === "SUCCESS") {
-    return description.startsWith(OFF_PREFIX) ? "off" : "clean"
-  }
-  return state === MARK_STATE.toUpperCase() && description === READ_MARK ? "findings" : null
-}
-
-/** The pull request's last 100 commits, oldest first, each with the review status it carries. */
+/** The pull request's last 100 commits, oldest first. */
 function historyOf(pr: Node): Commit[] {
   return nodes(pr, "history").map((node) => {
     const commit = child(node, "commit")
-    return {
-      oid: string(commit, "oid"),
-      posted: postedOn(commit),
-      merge: integer(child(commit, "parents"), "totalCount") > 1
-    }
+    return { oid: string(commit, "oid"), merge: integer(child(commit, "parents"), "totalCount") > 1 }
   })
 }
 
 /**
- * The commits a force push left behind: the head, then down its first parents within the history the
- * read holds of it. A merge's first parent is the branch, so the walk stays off the base's side.
- */
-function lineOf(left: Node): Omit<LeftBehind, "forksAt">[] {
-  const held = new Map(nodes(left, "history").map((commit) => [string(commit, "oid"), commit]))
-  const line: Omit<LeftBehind, "forksAt">[] = []
-  let commit = held.get(string(left, "oid"))
-  while (commit !== undefined && line.length < held.size) {
-    line.push({ oid: string(commit, "oid"), posted: postedOn(commit) })
-    const [parent] = nodes(commit, "parents")
-    commit = parent === undefined ? undefined : held.get(string(parent, "oid"))
-  }
-  return line
-}
-
-/**
- * The commits the force pushes left behind, newest push first, each once and none the history still
- * holds: a line stops where it meets the history, as under an amend, or a newer push's line, and forks
- * where the commit it meets does.
- */
-function leftBehindOf(pr: Node, history: Commit[]): LeftBehind[] {
-  const forks = new Map(history.map(({ oid }, index) => [oid, index]))
-  const left: LeftBehind[] = []
-  for (const event of nodes(pr, "rewritten").toReversed()) {
-    const head = childOrNull(event, "beforeCommit")
-    const line = head === null ? [] : lineOf(head)
-    const met = line.findIndex(({ oid }) => forks.has(oid))
-    const meets = line[met]
-    const forksAt = meets === undefined ? -1 : (forks.get(meets.oid) ?? -1)
-    for (const commit of meets === undefined ? line : line.slice(0, met)) {
-      forks.set(commit.oid, forksAt)
-      left.push({ ...commit, forksAt })
-    }
-  }
-  return left
-}
-
-/**
- * Whether a non-merge commit follows `commit` in the history, oldest first, as the standing judges a read
- * mark. A commit outside the history, after a force-push or past the last 100, is not answered.
+ * Whether a non-merge commit follows `commit` in the history, oldest first: a push answers a change
+ * request made on it. A commit outside the history, after a force-push or past the last 100, is not answered.
  */
 function answeredAfter(history: Commit[], commit: string | null): boolean {
   const index = history.findIndex(({ oid }) => oid === commit)
@@ -365,11 +265,8 @@ export function parseDefaultBranch(reply: string): string {
   return string(child(rootOf(reply, "the reply of gh repo view"), "defaultBranchRef"), "name")
 }
 
-/**
- * The pull request in `reply`, the text `gh api graphql` printed for QUERY on `repo`, and the history the
- * Review's standing at its head is read from.
- */
-export function parsePr(reply: string, repo: string): { pr: PullRequest; history: History } {
+/** The pull request in `reply`, the text `gh api graphql` printed for QUERY on `repo`. */
+export function parsePr(reply: string, repo: string): PrState {
   const repository = child(child(rootOf(reply, "the reply"), "data"), "repository")
   const pr = child(repository, "pullRequest")
   const commit = child(firstNode(pr, "commits"), "commit")
@@ -379,7 +276,7 @@ export function parsePr(reply: string, repo: string): { pr: PullRequest; history
   const baseRef = childOrNull(pr, "baseRef")
   const commits = historyOf(pr)
   const [ready] = nodes(pr, "ready")
-  const parsed: PullRequest = {
+  return {
     url: string(pr, "url"),
     repo,
     number: integer(pr, "number"),
@@ -410,6 +307,4 @@ export function parsePr(reply: string, repo: string): { pr: PullRequest; history
     commits: commits.map(({ oid }) => oid),
     ciDurations: nodes(repository, "merged").flatMap((merged) => ciDurationOf(merged) ?? [])
   }
-  const history = { commits, leftBehind: leftBehindOf(pr, commits), head, base: parsed.baseOid }
-  return { pr: parsed, history }
 }

@@ -11,15 +11,13 @@ import { type Context, fakeGh, GREEN, type Pr, RUN, served } from "../pr-harness
 
 const TARGET = ["40", "-R", "byarcadia-app/foundation"]
 const STARTED = "2026-10-31T11:01:00Z"
-const REVIEWED: Context = { kind: "status", name: "dw-sdlc/review", state: "SUCCESS", startedAt: STARTED }
-/** Reviewed, its one required check running since STARTED. */
+/** A status of its own on a merged head: never a CheckRun, so no CI time. */
+const OWN: Context = { kind: "status", name: "dw-sdlc/gate", state: "SUCCESS", startedAt: STARTED }
+/** Its one required check running since STARTED. */
 const PENDING: Pr = {
   ...GREEN,
   mergeStateStatus: "BLOCKED",
-  checks: [
-    { kind: "run", name: "Check", state: "IN_PROGRESS", link: RUN, startedAt: STARTED, required: true },
-    REVIEWED
-  ]
+  checks: [{ kind: "run", name: "Check", state: "IN_PROGRESS", link: RUN, startedAt: STARTED, required: true }]
 }
 
 /** A CheckRun on a merged head that ran `seconds` from 10:00, named `name`. */
@@ -41,7 +39,7 @@ function ran(seconds: number, name = "Check"): Context {
 function recheckOf(merged: Context[][], elapsed: number, before: Context[] = []): unknown {
   const gh = fakeGh({ graphql: [served({ ...PENDING, checks: [...before, ...PENDING.checks], merged })] })
   const now = new Date(Date.parse(STARTED) + elapsed * 1000).toISOString()
-  const files = { [COMMITTED_FILE]: { pr: { review: "full" } } }
+  const files = { [COMMITTED_FILE]: { pr: { merge: "ask" } } }
   const run = runInProcess(["pr", "ship", ...TARGET, "--json"], repo({ files }), { ...gh.env, DW_SDLC_NOW: now })
   assert.equal(run.status, 20, run.stdout + run.stderr)
   const answer = JSON.parse(run.stdout) as Record<string, unknown>
@@ -52,7 +50,7 @@ function recheckOf(merged: Context[][], elapsed: number, before: Context[] = [])
 describe("dw-sdlc pr ship while CI runs", () => {
   it("rechecks 60 s on when no merged pull request shows how long CI takes", () => {
     assert.equal(recheckOf([], 10), 60)
-    assert.equal(recheckOf([[], [REVIEWED]], 10), 60, "a merged head with no CheckRun shows nothing")
+    assert.equal(recheckOf([[], [OWN]], 10), 60, "a merged head with no CheckRun shows nothing")
   })
 
   it("rechecks when CI usually ends: the median of the merged heads' runs, less the time this one has run", () => {

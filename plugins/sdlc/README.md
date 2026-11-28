@@ -586,7 +586,7 @@ read mark and the limit. What reads the change at `full` is the reviewer you nam
 - The agent may raise an `auto` depth from `light` to `full`, saying why; it never lowers one.
 - Under `auto`, a change to the code of a Primitive that `pr.reviewFull` lists reads in `full` whatever
   its size ([ADR 0026](../../docs/adr/0026-a-primitive-the-config-names-takes-a-full-review.md)).
-- A Finding holds the merge; [`review.md`](skills/sdlc-pr-ship/references/review.md) says what one is.
+- A Finding holds the merge; `review.md` says what one is.
   Everything else is declined with one line.
 - A Review that follows a fix reads the fix alone and checks each Finding it answers.
 - Three Reviews with no success between them park the pull request, with

@@ -37,14 +37,14 @@ describe("the bin lines of a skill", () => {
       'node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" pr ship [<n>] --json',
       "```",
       "",
-      'Then `node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" pr reviewed <n> --head <head> --to <dir>`; it exits 2.'
+      'Then `node "${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" pr ship <n> --head <head> --to <dir>`; it exits 2.'
     ].join("\n")
     assert.deepEqual(binLines(text), [
       { line: 4, text: "pr ship [<n>] --json", words: ["pr", "ship", "--json"] },
       {
         line: 7,
-        text: "pr reviewed <n> --head <head> --to <dir>",
-        words: ["pr", "reviewed", "1", "--head", "a".repeat(40), "--to", "x"]
+        text: "pr ship <n> --head <head> --to <dir>",
+        words: ["pr", "ship", "1", "--head", "a".repeat(40), "--to", "x"]
       }
     ])
   })
@@ -62,7 +62,7 @@ describe("the bin lines of a skill", () => {
 
   it("fail the probe, naming the skill and the line, when a skill names a subcommand or a flag the bin does not parse", () => {
     const plugin = join(PLUGINS, "sdlc")
-    for (const args of ["pr ship --jsn", "pr reviewd <n>", "pr reviewed <n> --sha <head>", "nope"]) {
+    for (const args of ["pr ship --jsn", "pr shpi <n>", "pr ship <n> --sha <head>", "pr reviewed <n>", "nope"]) {
       const text = `Run:\n\n\`node "\${CLAUDE_PLUGIN_ROOT}/dw-sdlc/src/cli.ts" ${args}\``
       const [message, ...rest] = violations(plugin, "skills/sdlc-x/SKILL.md", text)
       assert.deepEqual(rest, [], args)

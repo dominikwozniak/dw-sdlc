@@ -1,11 +1,11 @@
 // The Gate mark `dw-sdlc gate --mark` leaves: a green Gate pinned to the pull request's pushed head, which
 // stands in for CI unavailable. It is the `dw-sdlc/gate` commit status, or under footprint local a record in
-// the git dir beside the Review state. Only a clean tree whose HEAD is that head can carry one.
+// the git dir. Only a clean tree whose HEAD is that head can carry one.
 
 import type { Footprint } from "../agentic-config.ts"
 import { CannotRun } from "../cannot-run.ts"
 import { must } from "../git.ts"
-import { localReviews } from "./local-reviews.ts"
+import { gateMarks } from "./gate-marks.ts"
 import { gh, pullRequestNamed, said } from "./read.ts"
 import { GATE } from "./state.ts"
 
@@ -49,9 +49,9 @@ export function leaveMark(root: string, target: MarkTarget, footprint: Footprint
   }
   requireClean(root, "the Gate wrote the tree: commit what it wrote, push, then call again")
   if (footprint === "local") {
-    const store = localReviews(root)
-    store.recordGate(number, head)
-    return `recorded in ${store.gatesFileOf(number)}`
+    const store = gateMarks(root)
+    store.record(number, head)
+    return `recorded in ${store.fileOf(number)}`
   }
   const fields = { state: "success", context: GATE, target_url: url, description: DESCRIPTION }
   const flags = Object.entries(fields).flatMap(([key, value]) => ["-f", `${key}=${value}`])

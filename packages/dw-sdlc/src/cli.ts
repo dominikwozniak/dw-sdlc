@@ -8,7 +8,6 @@ import * as config from "./commands/config.ts"
 import * as doctor from "./commands/doctor.ts"
 import * as gate from "./commands/gate.ts"
 import * as leadStart from "./commands/lead-start.ts"
-import * as prReviewed from "./commands/pr-reviewed.ts"
 import * as prShip from "./commands/pr-ship.ts"
 import * as primitives from "./commands/primitives.ts"
 import * as recap from "./commands/recap.ts"
@@ -35,7 +34,6 @@ const COMMANDS = new Map<string, Command>([
   ["references sync", referencesSync],
   ["references setup", referencesSetup],
   ["pr ship", prShip],
-  ["pr reviewed", prReviewed],
   ["recap", recap],
   ["sweep", sweep],
   ["worker start", workerStart],
