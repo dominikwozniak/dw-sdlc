@@ -34,14 +34,14 @@ not exist; `gate/kody.md` is the kody note in this repository.
   command in backticks: `Unknown command "<raw>". Run \`kody --help\` for usage.`
   (`packages/cli/src/cli.ts:355`); the unreachable-API text adds "list recent runs with
   `kody api workflowRunList`first so you do not publish twice" and "This is retryable: run read-only
-  commands such as`kody dev check` again" (`packages/cli/src/network-error.ts:79-114`). A wrong
+  commands such as`kody dev check` again" (`packages/cli/src/network-error.ts:78-114`). A wrong
   `--api-url` answers "check --api-url / KODY_API_URL points at the Kody API host"
   (`packages/cli/src/http-error-body.ts:22`). The comment on that function says why it is short: "so
   the error stays readable" (`http-error-body.ts:2-6`).
 - **Safe to retry or not, said in the error.** `requestSentStatus` returns `false` for a connect-phase
   failure ("safe to retry the same write") and `"unknown"` otherwise ("do not assume unsent")
-  (`network-error.ts:69-78`). The message states "The request was not sent." or "The request may have
-  been sent; outcome is unknown." (`network-error.ts:91-107`).
+  (`network-error.ts:55-72`). The message states "The request was not sent." or "The request may have
+  been sent; outcome is unknown." (`network-error.ts:78-114`).
 - **Login prints the URL and the wait.** `kody login` prints the sign-in link on every run, then
   "Waiting for you to finish signing in…" (`packages/cli/src/login-notice.ts:1-14`); the device flow
   prints the code, its expiry and "Waiting for approval…" (`login-notice.ts:69`). When the browser
@@ -145,7 +145,7 @@ not exist; `gate/kody.md` is the kody note in this repository.
 ## Compared with the Ship script today
 
 - Ours: one `Answer` with `status` (`act | wait | park | done`), `action`, `actor`, `reason`, optional
-  `command` and `recheckAfter`, and `blockers` (`packages/dw-sdlc/src/pr/decide.ts:57-62, 100-109`); a
+  `command` and `recheckAfter`, and `blockers` (`packages/dw-sdlc/src/pr/decide.ts:79-88`); a
   line `<label>: <reason>[, recheck in N s][ — <command>]` (`decide.ts:474-478`); exit codes 0 done, 10
   act, 20 wait, 30 park, 2 cannot run (`packages/dw-sdlc/src/commands/pr-ship.ts:82-87`); an
   interrupted call prints `{ error, remedy, performed }` under `--json` (`pr-ship.ts:336-343`).
