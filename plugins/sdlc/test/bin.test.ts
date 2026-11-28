@@ -3,7 +3,7 @@
 
 import assert from "node:assert/strict"
 import { spawnSync } from "node:child_process"
-import { accessSync, constants } from "node:fs"
+import { accessSync, constants, symlinkSync } from "node:fs"
 import { delimiter, join } from "node:path"
 import { describe, it } from "node:test"
 
@@ -42,6 +42,14 @@ describe("bin/dw-sdlc", () => {
     const result = dwSdlc(["no-such-command"], outside)
     assert.equal(result.status, 2)
     assert.match(result.stderr, /^dw-sdlc: unknown command "no-such-command"/)
+  })
+
+  it("runs the CLI through a symlink to the bin, in a directory whose name holds a space", () => {
+    const linked = join(scratch("bin link"), "dw-sdlc")
+    symlinkSync(join(BIN_DIR, "dw-sdlc"), linked)
+    const result = spawnSync(linked, ["--help"], { cwd: outside, encoding: "utf8" })
+    assert.equal(result.status, 0, result.stderr)
+    assert.match(result.stdout, /^Usage: dw-sdlc <command> \[options\]/)
   })
 
   it("passes a command's own flags through", () => {

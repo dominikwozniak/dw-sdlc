@@ -6,7 +6,7 @@ The plugin of [dw-sdlc](../../README.md) that holds an agent session to a reposi
 - the session hooks, which report what a checkout lacks and bring its [References](#references) to their ref;
 - seven skills, which set a repository up, check a machine, add a Reference, open a pull request, ship it,
   sweep what landed and fan out subagents to research;
-- `sdlc-reviewer`, the subagent that reads a change at the `light` Review depth.
+- `bin/dw-sdlc`, the package CLI on the Bash tool's `PATH`.
 
 The rules come from the repository's `.ai/agentic.config.json`, a machine's own
 `.ai/agentic.config.local.json`, and what is inferred where neither file sets a key. The local file may
