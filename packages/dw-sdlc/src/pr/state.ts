@@ -31,6 +31,11 @@ const THREADS_READ = 100
 /** How many of the newest merged pull requests, by when they opened, the read times CI on, by each head's checks. */
 const MERGED_READ = 10
 
+/** The fields of one context of a commit's rollup, the head's and each history commit's alike. */
+const CONTEXT_FIELDS = `
+          ... on CheckRun { name status conclusion detailsUrl startedAt isRequired(pullRequestNumber: $number) steps(first: 1) { totalCount } }
+          ... on StatusContext { context state targetUrl createdAt isRequired(pullRequestNumber: $number) }`
+
 export const QUERY = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
     pullRequest(number: $number) {
@@ -42,11 +47,10 @@ export const QUERY = `query($owner: String!, $name: String!, $number: Int!) {
         comments(first: 1) { nodes { author { login } body } }
         latest: comments(last: 1) { nodes { viewerDidAuthor } } } }
       commits(last: 1) { nodes { commit { committedDate statusCheckRollup {
-        contexts(first: ${CHECKS_READ}) { pageInfo { hasNextPage } nodes {
-          ... on CheckRun { name status conclusion detailsUrl startedAt isRequired(pullRequestNumber: $number) steps(first: 1) { totalCount } }
-          ... on StatusContext { context state targetUrl createdAt isRequired(pullRequestNumber: $number) } } } }
+        contexts(first: ${CHECKS_READ}) { pageInfo { hasNextPage } nodes {${CONTEXT_FIELDS} } } }
       } } }
-      history: commits(last: 100) { nodes { commit { oid parents { totalCount } } } }
+      history: commits(last: 100) { nodes { commit { oid parents { totalCount }
+        statusCheckRollup { contexts(first: ${CHECKS_READ}) { nodes {${CONTEXT_FIELDS} } } } } } }
     }
     merged: pullRequests(last: ${MERGED_READ}, states: MERGED) { nodes { commits(last: 1) { nodes { commit {
       statusCheckRollup { contexts(first: ${CHECKS_READ}) { nodes { ... on CheckRun { name startedAt completedAt } } } } } } } } }
@@ -119,6 +123,8 @@ export type PrState = {
   cutOff: string[]
   /** The oids of the pull request's last 100 commits, oldest first, the head last. */
   commits: string[]
+  /** The commits before the head with the checks each rollup holds, oldest first: the CI the count of red heads reads. */
+  ciHistory: { oid: string; checks: CiCheck[] }[]
   /**
    * The seconds CI took on the heads of the repository's last merged pull requests, from the first start
    * to the last completion among their CheckRuns; a head with none timed is left out.
@@ -202,13 +208,17 @@ function threadOf(thread: Node): Thread {
 }
 
 /** A commit of the pull request's history; `merge` when it has more than one parent. */
-type Commit = { oid: string; merge: boolean }
+type Commit = { oid: string; merge: boolean; checks: CiCheck[] }
 
 /** The pull request's last 100 commits, oldest first. */
-function historyOf(pr: Node): Commit[] {
+function historyOf(pr: Node, repo: string): Commit[] {
   return nodes(pr, "history").map((node) => {
     const commit = child(node, "commit")
-    return { oid: string(commit, "oid"), merge: integer(child(commit, "parents"), "totalCount") > 1 }
+    return {
+      oid: string(commit, "oid"),
+      merge: integer(child(commit, "parents"), "totalCount") > 1,
+      checks: checksOf(commit, repo)
+    }
   })
 }
 
@@ -274,7 +284,7 @@ export function parsePr(reply: string, repo: string): PrState {
   const mergeCommit = childOrNull(pr, "mergeCommit")
   const head = string(pr, "headRefOid")
   const baseRef = childOrNull(pr, "baseRef")
-  const commits = historyOf(pr)
+  const commits = historyOf(pr, repo)
   const [ready] = nodes(pr, "ready")
   return {
     url: string(pr, "url"),
@@ -305,6 +315,7 @@ export function parsePr(reply: string, repo: string): PrState {
       ...(hasMore(pr, "reviewThreads") ? [`the first ${THREADS_READ} threads`] : [])
     ],
     commits: commits.map(({ oid }) => oid),
+    ciHistory: commits.slice(0, -1).map(({ oid, checks }) => ({ oid, checks })),
     ciDurations: nodes(repository, "merged").flatMap((merged) => ciDurationOf(merged) ?? [])
   }
 }

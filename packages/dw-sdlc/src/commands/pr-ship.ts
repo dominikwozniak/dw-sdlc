@@ -57,6 +57,13 @@ the first answer that is not wait, so a wait costs one turn of the agent. Its li
 budget: a ci-pending wait past the budget answers park ci-stuck, and at its limit --wait answers wait
 again, with the same step, this call again. Under DW_SDLC_NOW it sleeps nothing: each poll moves its
 own clock on by recheckAfter. Run it in the background; the exit is the turn.
+The CI limit is three heads in a row whose CI failed, the head counted: the third parks ci-limit, the
+dev's turn, with the failing checks under details.checks and the dev's two ways on in next, fix it or say
+"merge without CI". The count reads the last 100 commits of the pull request, each with its CI state. A
+head the update-branch merge made counts; CI unavailable that no Gate mark stands in for counts; a green
+head, or a head a Gate mark stands on, resets the count; a commit no check reported on, or whose checks
+all skipped or still run, counts for nothing. A rebase or a force push rewrites the history and restarts
+the count. A rerun of failed jobs is no head and never counts: red again on the same head is fix-ci.
 CI unavailable is a GitHub Actions job on the head that failed with no step run, as GitHub leaves it
 under a billing lock. Under the default pr.ciUnavailable ci it fails as any check does. Under gate,
 with gate.steps the agent proves the head with dw-sdlc gate --mark, act prove-locally, and a Gate

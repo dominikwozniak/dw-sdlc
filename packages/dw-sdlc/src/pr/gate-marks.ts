@@ -79,6 +79,13 @@ const GATE_CHECK: CiCheck = {
  * the Gate mark in the head's checks, any `dw-sdlc/gate` status GitHub holds dropped.
  */
 export function withGateMarks(pr: PrState, gated: string[]): PrState {
-  const own = pr.checks.filter(({ name }) => name !== GATE)
-  return { ...pr, checks: gated.includes(pr.head) ? [...own, GATE_CHECK] : own }
+  const marked = (oid: string, checks: CiCheck[]): CiCheck[] => {
+    const own = checks.filter(({ name }) => name !== GATE)
+    return gated.includes(oid) ? [...own, GATE_CHECK] : own
+  }
+  return {
+    ...pr,
+    checks: marked(pr.head, pr.checks),
+    ciHistory: pr.ciHistory.map(({ oid, checks }) => ({ oid, checks: marked(oid, checks) }))
+  }
 }
