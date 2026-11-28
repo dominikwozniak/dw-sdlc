@@ -45,8 +45,8 @@ function run(args: string[], root: string, graphql: Pr[]) {
 
 /** What both footprints must agree on. */
 function decision(stdout: string): Record<string, unknown> {
-  const { status, action, actor, reason, details, blockers, command } = JSON.parse(stdout) as Record<string, unknown>
-  return { status, action, actor, reason, details, blockers, command }
+  const { status, action, actor, reason, details, blockers, next } = JSON.parse(stdout) as Record<string, unknown>
+  return { status, action, actor, reason, details, blockers, next }
 }
 
 const posts = (calls: string[]): string[] => calls.filter((call) => call.includes("/statuses/"))

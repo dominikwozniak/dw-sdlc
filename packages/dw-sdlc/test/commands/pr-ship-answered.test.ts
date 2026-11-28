@@ -60,6 +60,7 @@ describe("dw-sdlc pr ship once a push answers a review that requests changes", (
       action: "awaiting-review",
       actor: "dev",
       reason: "changes requested by alice, answered by a push: the next review is the reviewer's",
+      next: [],
       blockers: [],
       performed: []
     })

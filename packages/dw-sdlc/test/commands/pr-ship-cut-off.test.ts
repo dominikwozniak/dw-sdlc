@@ -27,10 +27,10 @@ function ship(pr: Pr, args: string[] = []) {
 function assertParked(pr: Pr, reason: string, args: string[] = []): void {
   const run = ship(pr, args)
   assert.equal(run.status, 30, run.stderr)
-  const { status, action, actor, reason: said, command } = run.answer
+  const { status, action, actor, reason: said, next } = run.answer
   assert.deepEqual(
-    { status, action, actor, reason: said, command },
-    { status: "park", action: "partial-read", actor: "dev", reason, command: COMMAND }
+    { status, action, actor, reason: said, next },
+    { status: "park", action: "partial-read", actor: "dev", reason, next: [{ by: "dev", run: COMMAND }] }
   )
   assert.ok(!run.calls.some(([first, second]) => first === "pr" && second === "merge"), "the script did not merge")
 }
@@ -72,7 +72,8 @@ describe("dw-sdlc pr ship on a pull request its read does not hold whole", () =>
       {
         action: "partial-read",
         actor: "dev",
-        reason: "the read holds only the first 50 checks: the merge is the dev's"
+        reason: "the read holds only the first 50 checks: the merge is the dev's",
+        next: [{ by: "dev", run: COMMAND }]
       }
     ])
   })
