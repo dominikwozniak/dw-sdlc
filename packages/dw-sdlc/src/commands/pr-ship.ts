@@ -57,11 +57,11 @@ open with no success between them park as review-limit at every depth, pr review
 dev's command: the dev's --review <depth> buys one more Review, and their --review off posts past it.
 Without their word, a fix since the last read mark that changes a test file buys one light Review,
 details.source limit, once the Gate is green on the head: its CI passed, or it carries a Gate mark.
-Until then the CI answers come first, while CI runs or is yet to report or the agent can prove the
-head; once the Gate can no longer turn green, or that Review left a Finding open, it parks.
-A ci-pending wait rechecks when CI likely ends: the median time CI took on the heads of the last
-10 merged pull requests, from the first start to the last completion of their check runs, less the
-time this head's has run, between 30 and 600 s; 60 s when no merged head shows a run.
+Until then the answer after the Review's comes first while it waits or acts short of a merge, as
+while CI runs; where it would park or merge, or once that Review left a Finding open, it parks.
+A ci-pending wait rechecks when CI likely ends: the median time CI took on the heads of the 10
+newest merged pull requests, from the first start to the last completion of their check runs, less
+the time since the first start on this head, between 30 and 600 s; 60 s when none shows a run.
 Each Action the call runs is listed under performed. Its ok says whether the read after it shows the
 Action took effect, whatever gh's exit status; gh's exit status and stderr stand beside it, so an ok
 false with exit 0 is an Action gh accepted that the read does not show yet. An update counts when

@@ -222,7 +222,7 @@ describe("the Review's standing at a pull request's head", () => {
       const changed = inMemory({}, { [THIRD]: [RETRY, { path, previous: null, lines: 4 }] })
       const standing = standingOf(upTo([...marks, pushed(PUSHED)]), changed, AWAITS)
       assert.equal(standing.fixTested, true, path)
-      assert.deepEqual(reviewCall(standing, FULL), { kind: "gate", count: 3, since: CLEAN }, path)
+      assert.deepEqual(reviewCall(standing, FULL), { kind: "awaits-gate", count: 3, since: CLEAN }, path)
       assert.deepEqual(reviewCall(standing, FULL, { gateGreen: true }), light, path)
       assert.equal(reviewCall(standing, flag("full"), { gateGreen: true }).kind, "review", "the dev's word first")
     }

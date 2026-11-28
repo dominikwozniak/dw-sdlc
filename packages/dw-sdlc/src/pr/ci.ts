@@ -34,11 +34,13 @@ export function pendingStartOf(pr: PrState): number {
 }
 
 /**
- * The seconds until CI on the head likely ends, from `start`: the median of the repository's recent CI
- * durations, the higher middle of an even count, less the time run so far, within the floor and the
- * ceiling; with no duration known, a minute.
+ * The seconds until CI on the head likely ends: the median of the repository's recent CI durations, the
+ * higher middle of an even count, less the time since the first start among the head's checks, within
+ * the floor and the ceiling; with no duration known, a minute. A merged head is timed the same way.
  */
-export function recheckOf(pr: PrState, start: number, now: number): number {
+export function recheckOf(pr: PrState, now: number): number {
+  const started = ciOf(pr).flatMap(({ startedAt }) => (startedAt === null ? [] : [Date.parse(startedAt)]))
+  const start = started.length === 0 ? ciStartOf(pr) : Math.min(...started)
   const sorted = pr.ciDurations.toSorted((a, b) => a - b)
   const median = sorted[Math.floor(sorted.length / 2)]
   if (median === undefined) {
@@ -61,30 +63,14 @@ export function failingOf(pr: PrState, markStandsIn: boolean): CiCheck[] {
   return ciOf(pr).filter((check) => check.bucket === "fail" && !unavailable.includes(check))
 }
 
-/** Whether the Gate is green on the head: a Gate mark, or CI that ran a check and passed every one it ran. */
+/**
+ * Whether the Gate is green on the head: a Gate mark, or CI that ran a check and passed every one it ran.
+ * A Gate mark beside failing CI never reaches a Review: fix-ci answers first.
+ */
 export function gateGreen(pr: PrState): boolean {
   const ci = ciOf(pr)
   const passed = ci.some((check) => check.bucket === "pass")
   return proven(pr) || (passed && ci.every((check) => check.bucket === "pass" || check.bucket === "skipping"))
-}
-
-/**
- * Whether the Gate may still turn green on the head with no dev: CI runs or is yet to report, the agent
- * proves CI unavailable with the Gate, as `gateSteps` lets it where a Gate mark stands in, or the viewer's
- * draft has yet to start CI.
- */
-export function gateComing(
-  pr: PrState,
-  now: number,
-  { ciUnavailable, gateSteps }: { ciUnavailable: string; gateSteps: boolean }
-): boolean {
-  const ran = ciOf(pr).some((check) => check.bucket !== "skipping")
-  return (
-    pr.draft ||
-    pendingOf(pr).length > 0 ||
-    (gateSteps && unavailableOf(pr, ciUnavailable === "gate").length > 0) ||
-    (!ran && now - ciStartOf(pr) <= GRACE_SECONDS * 1000)
-  )
 }
 
 /** Whether the head carries a Gate mark: the Gate passed on it. */

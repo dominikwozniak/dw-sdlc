@@ -251,7 +251,8 @@ function fixTestedAt(
 
 /**
  * The standing at the head of `history`. The compares run only when a Review `awaits` the head, and the
- * files that Review would read are read only when `sized`, as `pr.review: auto` routes on them.
+ * files that Review would read are read only when `sized`, as `pr.review: auto` routes on them, or at
+ * the limit, where they show whether the fix carries its test.
  */
 export function standingOf(
   history: History,
@@ -312,7 +313,7 @@ export type ReviewCall =
   | { kind: "carry"; from: string }
   | (Depth & { kind: "review"; since: string | null; paths: string[] | null; open: string | null })
   | (ReadMarks & { kind: "limit" })
-  | (ReadMarks & { kind: "gate" })
+  | (ReadMarks & { kind: "awaits-gate" })
 
 /** Whether a Finding stands: a read mark since the last success, as the last read, or left open (ADR 0016). */
 function findingsOpen({ marks, lastRead, open }: Standing): boolean {
@@ -358,7 +359,7 @@ export function reviewCall(
   if (!flagged && fixTested) {
     return gateGreen
       ? { depth: "light", source: "limit", kind: "review", since, paths: scope, open }
-      : { ...marks, kind: "gate" }
+      : { ...marks, kind: "awaits-gate" }
   }
   return { ...depth, kind: "review", since, paths: scope, open }
 }

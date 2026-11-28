@@ -10,7 +10,6 @@ import {
   ciStartOf,
   failingOf,
   failure,
-  gateComing,
   gateGreen,
   GRACE_SECONDS,
   pendingOf,
@@ -92,8 +91,10 @@ export type Answer = Blocker & {
 }
 
 type Row = {
-  when: (pr: PrState, policy: Policy, now: number) => boolean
+  when: (pr: PrState, policy: Policy) => boolean
   answer: (pr: PrState, now: number, policy: Policy) => Omit<Answer, "blockers">
+  /** When it holds, the next row that holds answers in its place, if that row waits or acts short of a merge. */
+  yields?: (pr: PrState, policy: Policy) => boolean
   /** A row that wins answers with no blockers: a merged, closed or still-computing pull request. */
   alone?: true
   /** A row that never rides in blockers: who merges is no blocker. */
@@ -187,8 +188,8 @@ function reviewAnswer(pr: PrState, policy: Policy): Omit<Answer, "blockers"> {
   if (call.kind === "carry") {
     return { ...head, action: "mark-reviewed", actor: "script", details: { since: call.from } }
   }
-  // A gate call here is one whose Gate can no longer turn green: the limit parks it.
-  if (call.kind === "limit" || call.kind === "gate") {
+  // A head that awaits its Gate gets here when the rows below would park or merge: the Gate stays red.
+  if (call.kind === "limit" || call.kind === "awaits-gate") {
     return reviewLimit(pr, call)
   }
   const { depth, source, since, paths, open } = call
@@ -339,9 +340,10 @@ const ROWS: Row[] = [
   },
   {
     // Another author's pull request needs no Review: the dev merges it.
+    when: awaitsReview,
+    answer: (pr, _, policy) => reviewAnswer(pr, policy),
     // At the limit, a fix that carries its test waits for its Gate: the CI rows below answer meanwhile.
-    when: (pr, policy, now) => awaitsReview(pr) && !(callOf(pr, policy).kind === "gate" && gateComing(pr, now, policy)),
-    answer: (pr, _, policy) => reviewAnswer(pr, policy)
+    yields: (pr, policy) => callOf(pr, policy).kind === "awaits-gate"
   },
   {
     // CI unavailable under pr.ciUnavailable gate: a job GitHub never ran, as under a billing lock. A Gate
@@ -374,13 +376,7 @@ const ROWS: Row[] = [
       const start = pendingStartOf(pr)
       const minutes = Math.floor((now - start) / 60_000)
       return now - start <= BUDGET_MINUTES * 60_000
-        ? {
-            status: "wait",
-            action: "wait",
-            actor: "script",
-            reason: "ci-pending",
-            recheckAfter: recheckOf(pr, start, now)
-          }
+        ? { status: "wait", action: "wait", actor: "script", reason: "ci-pending", recheckAfter: recheckOf(pr, now) }
         : {
             status: "park",
             action: "ci-stuck",
@@ -476,15 +472,27 @@ function blockerOf({ action, actor, reason, details }: Omit<Answer, "blockers">)
   return { action, actor, reason, ...(details === undefined ? {} : { details }) }
 }
 
+/** The index of the row that answers: the first that holds, else the one a row that yields to it names. */
+function answering(pr: PrState, now: number, policy: Policy): number {
+  const first = ROWS.findIndex((row) => row.when(pr, policy))
+  if (ROWS[first]?.yields?.(pr, policy) !== true) {
+    return first
+  }
+  const next = ROWS.findIndex((row, at) => at > first && row.when(pr, policy))
+  const row = ROWS[next]
+  const { status } = row?.answer(pr, now, policy) ?? { status: "park" }
+  return row !== undefined && !row.merging && (status === "wait" || status === "act") ? next : first
+}
+
 /** The Action `pr` needs at `now`, milliseconds since the epoch, under `policy`. */
 export function decide(pr: PrState, now: number, policy: Policy): Answer {
-  const index = ROWS.findIndex((row) => row.when(pr, policy, now))
+  const index = answering(pr, now, policy)
   const row = ROWS[index]
   if (row === undefined) {
     throw new Error(`no row of the decision matches ${pr.url} under pr.merge ${policy.merge}`)
   }
   const later =
-    row.alone === true ? [] : ROWS.slice(index + 1).filter((other) => !other.merging && other.when(pr, policy, now))
+    row.alone === true ? [] : ROWS.slice(index + 1).filter((other) => !other.merging && other.when(pr, policy))
   return {
     ...row.answer(pr, now, policy),
     blockers: later.map((other) => blockerOf(other.answer(pr, now, policy)))

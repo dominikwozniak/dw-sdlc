@@ -48,7 +48,7 @@ const THREADS_READ = 100
  */
 const FORCE_PUSHES_READ = 20
 const LEFT_BEHIND_READ = 20
-/** How many of the repository's last merged pull requests the read times CI on, by the checks on each head. */
+/** How many of the newest merged pull requests, by when they opened, the read times CI on, by each head's checks. */
 const MERGED_READ = 10
 
 export const QUERY = `query($owner: String!, $name: String!, $number: Int!) {

@@ -34,9 +34,12 @@ function ran(seconds: number, name = "Check"): Context {
   }
 }
 
-/** The recheck `pr ship` answers on PENDING, `elapsed` seconds after its check started, CI on the merged heads as given. */
-function recheckOf(merged: Context[][], elapsed: number): unknown {
-  const gh = fakeGh({ graphql: [served({ ...PENDING, merged })] })
+/**
+ * The recheck `pr ship` answers on PENDING, `elapsed` seconds after its check started, CI on the merged
+ * heads as given and `before` beside its check.
+ */
+function recheckOf(merged: Context[][], elapsed: number, before: Context[] = []): unknown {
+  const gh = fakeGh({ graphql: [served({ ...PENDING, checks: [...before, ...PENDING.checks], merged })] })
   const now = new Date(Date.parse(STARTED) + elapsed * 1000).toISOString()
   const files = { [COMMITTED_FILE]: { pr: { review: "full" } } }
   const run = runInProcess(["pr", "ship", ...TARGET, "--json"], repo({ files }), { ...gh.env, DW_SDLC_NOW: now })
@@ -61,6 +64,17 @@ describe("dw-sdlc pr ship while CI runs", () => {
     const late: Context = { ...ran(30, "Lint"), startedAt: "2026-10-30T10:02:00Z", completedAt: "2026-10-30T10:05:00Z" }
     const own: Context = { ...ran(3600, "dw-sdlc/gate") }
     assert.equal(recheckOf([[ran(60), late, own]], 0), 300)
+  })
+
+  it("times this head as a merged one, from the first start among its checks, a job done before the pending one", () => {
+    const build: Context = {
+      kind: "run",
+      name: "Build",
+      state: "SUCCESS",
+      link: RUN,
+      startedAt: "2026-10-31T11:00:00Z"
+    }
+    assert.equal(recheckOf([[ran(300)]], 60, [build]), 180)
   })
 
   it("keeps the recheck within 30 s and 600 s", () => {
