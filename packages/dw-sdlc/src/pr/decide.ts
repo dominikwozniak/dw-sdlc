@@ -96,11 +96,13 @@ type Row = {
   merging?: true
 }
 
-/** The checks CI unavailable leaves to a Gate mark: none under pr.ciUnavailable ci, where they fail. */
-const unavailableUnder = (pr: PrState, policy: Policy) => unavailableOf(pr, policy.ciUnavailable === "gate")
-const failingUnder = (pr: PrState, policy: Policy) => failingOf(pr, policy.ciUnavailable === "gate")
+/** Whether a Gate mark may stand in for CI unavailable: under pr.ciUnavailable ci those checks fail. */
+const markStandsIn = ({ ciUnavailable }: Policy) => ciUnavailable === "gate"
+/** The checks CI unavailable leaves to a Gate mark: none under pr.ciUnavailable ci. */
+const unavailableUnder = (pr: PrState, policy: Policy) => unavailableOf(pr, markStandsIn(policy))
+const failingUnder = (pr: PrState, policy: Policy) => failingOf(pr, markStandsIn(policy))
 /** Whether the head is the third in a row with failing CI, where the agent's fixes stop. */
-const limited = (pr: PrState, policy: Policy) => limitedOf(pr, policy.ciUnavailable === "gate")
+const limited = (pr: PrState, policy: Policy) => limitedOf(pr, markStandsIn(policy))
 
 /** The unresolved threads whose last comment is the viewer's, or with `false` someone else's. */
 function threads(pr: PrState, lastByViewer: boolean): Thread[] {
@@ -269,16 +271,16 @@ const ROWS: Row[] = [
     })
   },
   {
-    // Before fix-ci: the third red head in a row is the dev's, the agent's fixes having failed twice.
+    // Before fix-ci: the third red head in a row is the dev's. The fix-ci and unavailable rows hold
+    // `!limited` so this row's Action never rides in their blockers, nor theirs in its own.
     when: (pr, policy) => limited(pr, policy),
     answer: (pr, _, policy) => {
-      const markStandsIn = policy.ciUnavailable === "gate"
-      const checks = redChecksOf(pr, markStandsIn)
+      const checks = redChecksOf(pr, markStandsIn(policy))
       return {
         status: "park",
         action: "ci-limit",
         actor: "dev",
-        reason: `CI failed on ${redHeadsOf(pr, markStandsIn)} heads in a row, the CI limit: ${namesOf(checks.map(({ name }) => name))} on ${pr.head.slice(0, 7)}`,
+        reason: `CI failed on ${redHeadsOf(pr, markStandsIn(policy))} heads in a row, the CI limit: ${namesOf(checks.map(({ name }) => name))} on ${pr.head.slice(0, 7)}`,
         details: { checks: checks.map(failure) },
         next: [
           { by: "dev", do: "fix the failing checks under details.checks yourself, then push" },

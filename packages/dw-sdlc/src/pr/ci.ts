@@ -20,8 +20,11 @@ export function ciStartOf(pr: PrState): number {
   return Math.max(Date.parse(pr.headCommittedAt), Date.parse(pr.readyAt ?? pr.headCommittedAt))
 }
 
+/** The checks of a commit that are CI: the ones dw-sdlc posts itself, as the Gate mark, are not. */
+const ciChecks = (checks: CiCheck[]): CiCheck[] => checks.filter((check) => !check.name.startsWith(OWN_PREFIX))
+
 export function ciOf(pr: PrState): CiCheck[] {
-  return pr.checks.filter((check) => !check.name.startsWith(OWN_PREFIX))
+  return ciChecks(pr.checks)
 }
 
 export function pendingOf(pr: PrState): CiCheck[] {
@@ -77,9 +80,6 @@ export function proven(pr: PrState): boolean {
 
 /** How many heads in a row with failing CI park the Ship script: the CI limit. */
 export const CI_LIMIT = 3
-
-/** The checks of a commit that are CI: the ones dw-sdlc posts itself, as the Gate mark, are not. */
-const ciChecks = (checks: CiCheck[]): CiCheck[] => checks.filter((check) => !check.name.startsWith(OWN_PREFIX))
 
 /**
  * The checks that make one commit red: the failing ones, bar CI unavailable when a Gate mark on the commit
