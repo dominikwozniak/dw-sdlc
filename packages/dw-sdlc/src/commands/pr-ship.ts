@@ -70,9 +70,10 @@ on green CI. Without gate.steps it parks ci-unavailable, the merge the dev's. A 
 and failed is fix-ci under both.
 --without-ci carries the dev's word "merge without CI" for this call. A Gate mark on the head stands in
 for CI, whatever CI says: without one the answer is act prove-locally, with dw-sdlc gate --mark as its
-step, and a red Gate is fixed and pushed as under fix-ci. It moves aside the CI rows only, fix-ci,
-unverified, ci-pending, ci-stuck and ci-limit; conflicts, threads, changes requested, a required
-approval, a draft and another author's pull request hold the merge under it too. It does not imply
+step, and a red Gate is fixed and pushed as under fix-ci. CI unavailable answers prove-locally too,
+with gate.steps or without. It moves aside the CI rows only, fix-ci, unverified, ci-pending, ci-stuck
+and ci-limit; conflicts, threads, changes requested, a required approval, a draft, another author's
+pull request and a partial read hold the merge under it too. It does not imply
 --merge: the merge follows pr.merge. Every merge it runs or names for the dev is gh pr merge <n>
 --admin --squash --match-head-commit <head>, since gh turns on auto-merge in place of merging while
 required checks have not passed. A merge GitHub refuses, as for a viewer whose role cannot bypass the

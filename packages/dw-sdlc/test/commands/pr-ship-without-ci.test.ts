@@ -104,28 +104,43 @@ describe("dw-sdlc pr ship --without-ci", () => {
   it("still blocks on conflicts, threads, changes requested, a required approval, a draft and another author's pull request", () => {
     const red: Pr = { ...GREEN, checks: [FAILING, MARKED] }
     const thread = { id: "PRRT_1", path: "src/a.ts", line: 3, author: "octocat", body: "rename it" }
-    const cases: [Pr, string][] = [
+    const requested = (commit: string): Pr => ({
+      ...red,
+      reviewDecision: "CHANGES_REQUESTED",
+      reviews: [{ author: "octocat", state: "CHANGES_REQUESTED", commit }],
+      history: [{ oid: "a1" }]
+    })
+    const adminMerge = [{ by: "dev", run: `gh pr merge 40 --admin --squash --match-head-commit ${HEAD}` }]
+    const cases: [Pr, string, object[]?][] = [
       [{ ...red, mergeable: "CONFLICTING" }, "act fix-conflicts"],
       [{ ...red, threads: [thread] }, "act address-review"],
-      [
-        {
-          ...red,
-          reviewDecision: "CHANGES_REQUESTED",
-          reviews: [{ author: "octocat", state: "CHANGES_REQUESTED", commit: HEAD }]
-        },
-        "act address-review"
-      ],
-      [{ ...red, reviewDecision: "REVIEW_REQUIRED" }, "park awaiting-approval"],
+      [requested(HEAD), "act address-review"],
+      [{ ...red, threads: [{ ...thread, lastByViewer: true }] }, "park awaiting-reply", []],
+      [requested("a1"), "park awaiting-review", []],
+      [{ ...red, reviewDecision: "REVIEW_REQUIRED" }, "park awaiting-approval", []],
       [{ ...red, draft: true }, "park mark-ready"],
-      [{ ...red, draft: true, viewerDidAuthor: false }, "park awaiting-author"],
-      [{ ...red, viewerDidAuthor: false }, "park ready-to-merge"]
+      [{ ...red, draft: true, viewerDidAuthor: false }, "park awaiting-author", []],
+      [{ ...red, moreThreads: true }, "park partial-read", adminMerge],
+      [{ ...red, viewerDidAuthor: false }, "park ready-to-merge", adminMerge]
     ]
-    for (const [pr, label] of cases) {
+    for (const [pr, label, next] of cases) {
       const run = ship({ graphql: [served(pr)] }, ["--without-ci", "--dry-run"])
       assert.equal(`${String(run.answer.status)} ${String(run.answer.action)}`, label)
       assert.deepEqual(run.answer.blockers, [], label)
       assert.deepEqual(merges(run.calls), [], label)
+      if (next !== undefined) {
+        assert.deepEqual(run.answer.next, next, label)
+      }
     }
+  })
+
+  it("hands CI unavailable to the agent to prove too, with no gate.steps where it parks without the flag", () => {
+    const refused: Context = { ...FAILING, steps: 0 }
+    const files = { [COMMITTED_FILE]: { pr: { merge: "auto", ciUnavailable: "gate" } } }
+    const without = ship({ graphql: [served({ ...GREEN, checks: [refused] })] }, [], files)
+    assert.equal(without.answer.action, "ci-unavailable")
+    const run = ship({ graphql: [served({ ...GREEN, checks: [refused] })] }, ["--without-ci"], files)
+    assert.deepEqual([run.status, run.answer.action, run.answer.blockers], [10, "prove-locally", []])
   })
 
   it("parks a merge GitHub refuses as ready-to-merge, the --admin merge the dev's step", () => {

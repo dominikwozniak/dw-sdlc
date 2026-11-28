@@ -158,8 +158,12 @@ const dev = (run: string): Step => ({ by: "dev", run })
 
 /** The command that runs the Gate and leaves its mark on the head it passed on. */
 export const GATE_MARK = shellLine(["dw-sdlc", "gate", "--mark"])
-/** How the agent proves the head: the Gate, which leaves its mark when green; red is fixed and pushed. */
-const PROVE: Step[] = [agent(GATE_MARK), agentDo("red: fix what it printed, then git push")]
+
+/** The head the agent proves with the Gate, which leaves its mark when green; red is fixed and pushed. */
+function proveLocally(reason: string): Omit<Answer, "blockers"> {
+  const next = [agent(GATE_MARK), agentDo("red: fix what it printed, then git push")]
+  return { status: "act", action: "prove-locally", actor: "agent", reason, next }
+}
 
 /**
  * CI unavailable under pr.ciUnavailable gate: with gate.steps the agent proves the head with the Gate,
@@ -169,13 +173,7 @@ function unavailable(pr: PrState, policy: Policy): Omit<Answer, "blockers"> {
   const names = unavailableUnder(pr, policy).map(({ name }) => `${name} ran no step`)
   const reason = `CI unavailable on ${pr.head.slice(0, 7)}: ${namesOf(names)}`
   if (policy.gateSteps) {
-    return {
-      status: "act",
-      action: "prove-locally",
-      actor: "agent",
-      reason,
-      next: PROVE
-    }
+    return proveLocally(reason)
   }
   return {
     status: "park",
@@ -329,13 +327,7 @@ const ROWS: Row[] = [
     // --without-ci: the dev's word waives CI, and a Gate mark on the head stands in for it, whatever CI says.
     // After the rows whose fix is a push, which would leave a new head to prove.
     when: (pr, { withoutCi }) => withoutCi && !proven(pr),
-    answer: (pr) => ({
-      status: "act",
-      action: "prove-locally",
-      actor: "agent",
-      reason: `--without-ci: no Gate mark on ${pr.head.slice(0, 7)} stands in for CI`,
-      next: PROVE
-    })
+    answer: (pr) => proveLocally(`--without-ci: no Gate mark on ${pr.head.slice(0, 7)} stands in for CI`)
   },
   {
     // A head whose every check was skipped, or that has none, has run nothing. A draft's runs skip or

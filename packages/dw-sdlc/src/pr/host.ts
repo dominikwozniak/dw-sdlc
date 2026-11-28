@@ -3,7 +3,7 @@
 // --admin, since gh turns on auto-merge in place of merging while required checks have not passed.
 
 import { shellLine } from "../shell-line.ts"
-import type { Policy } from "./decide.ts"
+import type { Action, Policy } from "./decide.ts"
 import type { PrState } from "./state.ts"
 
 /** The Actions the script performs itself, each one gh command. */
@@ -28,7 +28,7 @@ const HOST: Record<ScriptAction, (pr: PrState, repo: string[], admin: string[]) 
   ]
 }
 
-export function isScriptAction(action: string): action is ScriptAction {
+export function isScriptAction(action: Action): action is ScriptAction {
   return Object.hasOwn(HOST, action)
 }
 
