@@ -8,7 +8,7 @@ import { describe, it } from "node:test"
 
 import { COMMITTED_FILE } from "../../src/agentic-config.ts"
 import { repo, runBin, scratch, write } from "../harness.ts"
-import { type Context, fakeGh, GREEN, type Pr, RUN, served } from "../pr-harness.ts"
+import { BASE_OID, type Context, fakeGh, GREEN, type Pr, RUN, type Response, served } from "../pr-harness.ts"
 
 const TARGET = ["40", "-R", "byarcadia-app/foundation"]
 const STARTED = "2026-10-31T11:01:00Z"
@@ -25,8 +25,8 @@ const after = (minutes: number): string => new Date(Date.parse(STARTED) + minute
 type Waited = { status: number | null; stdout: string; stderr: string; graphql: number; sleeps: string[] }
 
 /** `pr ship --wait --json` over the replies in order, the clock at `clock` or the system's when left out. */
-function waited(replies: Pr[], clock?: string, args: string[] = []): Waited {
-  const gh = fakeGh({ graphql: replies.map(served) })
+function waited(replies: Pr[], clock?: string, args: string[] = [], commands: Record<string, Response> = {}): Waited {
+  const gh = fakeGh({ graphql: replies.map(served), commands })
   // A sleep of its own that waits for nothing and logs its seconds, first on PATH.
   const dir = scratch("sleep")
   write(join(dir, "sleep"), `#!/bin/sh\necho "$1" >>${JSON.stringify(join(dir, "slept"))}\n`)
@@ -98,6 +98,24 @@ describe("dw-sdlc pr ship --wait", () => {
     assert.equal(run.status, 30, run.stdout + run.stderr)
     assert.equal(run.graphql, 3)
     assert.deepEqual(run.sleeps, ["15", "15"])
+  })
+
+  it("names what an earlier poll performed when a later read fails", () => {
+    const updated = "5f0c2a7e9d4b1c3a6e8f0d2b4a6c8e0f1a3b5c7d"
+    const compare = `api repos/byarcadia-app/foundation/compare/${BASE_OID}...${updated}?per_page=1`
+    const behind = { stdout: JSON.stringify({ status: "ahead", ahead_by: 1, behind_by: 0 }) }
+    // The first poll updates the branch and waits on CI; the second finds no reply left, as a read that fails.
+    const replies = [
+      { ...GREEN, mergeStateStatus: "BEHIND" },
+      { ...PENDING, head: updated }
+    ]
+    const run = waited(replies, after(1), [], { [compare]: behind })
+    assert.equal(run.status, 2, run.stdout + run.stderr)
+    const document = JSON.parse(run.stdout) as { performed: { action: string; ok: boolean }[] }
+    assert.deepEqual(
+      document.performed.map(({ action, ok }) => [action, ok]),
+      [["update-branch", true]]
+    )
   })
 
   it("prints nothing but the one answer as a line when --json is left out", () => {

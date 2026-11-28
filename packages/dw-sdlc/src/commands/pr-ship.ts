@@ -290,8 +290,10 @@ function shipUntilAnswered(
     try {
       shipped = ship(cli, root, policy, clock)
     } catch (error) {
-      if (error instanceof Interrupted && performed.length > 0) {
-        throw new Interrupted(new CannotRun(error.message, error.remedy), [...performed, ...error.performed])
+      // An earlier poll may have run an Action: the document names it whatever stops a later poll.
+      if (error instanceof CannotRun && performed.length > 0) {
+        const later = error instanceof Interrupted ? error.performed : []
+        throw new Interrupted(new CannotRun(error.message, error.remedy), [...performed, ...later])
       }
       throw error
     }
