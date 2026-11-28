@@ -13,7 +13,8 @@ waived.
 
 `--without-ci` moves aside the CI rows only: `fix-ci`, `unverified`, `ci-pending`, `ci-stuck` and
 `ci-limit`. Without a Gate mark on the head the answer is `act prove-locally`, `dw-sdlc gate --mark`,
-and a red Gate is fixed and pushed as under `fix-ci`. Conflicts, unresolved threads, changes requested,
+and a red Gate is fixed and pushed as under `fix-ci`. CI unavailable answers `prove-locally` too, with
+`gate.steps` or without: the dev's word asks for the merge, so no `ci-unavailable` park hands it back. Conflicts, unresolved threads, changes requested,
 a required approval, a draft and another author's pull request block under it too. It does not imply
 `--merge`: "merge without CI" carries the word "merge", so the skill adds `--merge` under its existing
 rule, and the flag alone never merges past what `pr.merge` says.
