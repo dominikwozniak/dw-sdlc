@@ -462,8 +462,7 @@ export function resolveConfig(root: string): Resolution {
   }
   if (problems.length > 0) {
     // `worker` keeps what the valid layers name. A dropped layer that names footprint local keeps it, so a
-    // broken layer never sends the Gate mark back to GitHub; a valid local
-    // layer's own footprint still wins.
+    // broken layer never sends the Gate mark back to GitHub; a valid local layer's own footprint still wins.
     const named = localState === "valid" ? local.value?.footprint : undefined
     const footprint = named ?? (committed.namesLocal === true || local.namesLocal === true ? "local" : config.footprint)
     const pr = { ...config.pr, ...STRICTEST_PR }
