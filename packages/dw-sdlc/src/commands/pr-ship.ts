@@ -4,7 +4,7 @@
 
 import { repositoryRoot, resolveConfig } from "../agentic-config.ts"
 import { CannotRun, readArgs, usageError } from "../cannot-run.ts"
-import { checked, readCheckout } from "../pr/checkout.ts"
+import { readCheckout, withCheckout } from "../pr/checkout.ts"
 import {
   type Answer,
   decide,
@@ -68,7 +68,7 @@ status: the Gate marks come from .git/dw-sdlc/gates/<n>.json, under the common g
 gate --mark writes. Every decision is the one the status would give.
 Before it hands the agent a fix (fix-conflicts, fix-ci, address-review, prove-locally) the script checks
 the checkout, unless -R names the pull request. On the pull request's branch, by its own name or its
-upstream's, behind the head GitHub holds, git pull --rebase comes first in next. On another branch, or
+upstream's, behind the head GitHub holds, git pull --rebase comes first in next. On another branch, a detached HEAD, or
 with a commit the pull request lacks, the answer is park wrong-checkout: the one step is the dev's
 git switch <branch>, and the reason names where the checkout is and where it should be.
 Every answer carries next, the steps to follow in order, and each blocker carries its own next, so
@@ -246,7 +246,7 @@ function ship(
     const answer = decide(pr, clock.time(), policy)
     const { action } = answer
     if (!isScriptAction(action)) {
-      return { pr, answer: checked(root, pr, answer, checkout), performed }
+      return { pr, answer: withCheckout(root, pr, answer, checkout), performed }
     }
     const { command, perform } = scriptRun(pr, action)
     const { would } = NAMED[action]

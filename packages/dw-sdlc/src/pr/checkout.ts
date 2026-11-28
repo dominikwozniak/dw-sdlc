@@ -13,7 +13,7 @@ export type Checkout = { branch: string | null; head: string }
  * What the checkout is to the pull request: its branch at the head or behind it, its branch with a commit
  * the pull request lacks, or another branch.
  */
-export type Standing = "current" | "behind" | "ahead" | "elsewhere"
+type Standing = "current" | "behind" | "ahead" | "elsewhere"
 
 /** The checkout at `root`; undefined outside a repository or on a branch with no commit. */
 export function readCheckout(root: string): Checkout | undefined {
@@ -28,11 +28,11 @@ export function readCheckout(root: string): Checkout | undefined {
 }
 
 /**
- * Whether the checkout holds the pull request's branch, by its own name or by the name its upstream gives.
- * Behind: its tip is a commit of the pull request before the head. Any other tip on that branch is a
- * commit the pull request lacks.
+ * Where the checkout stands. It is the pull request's branch by its own name or by the name its upstream
+ * gives. Behind: its tip is one of the pull request's last 100 commits, before the head. Any other tip on
+ * that branch is a commit the pull request lacks.
  */
-export function standingOf(root: string, pr: Pick<PrState, "branch" | "head" | "commits">, at: Checkout): Standing {
+function standingOf(root: string, pr: Pick<PrState, "branch" | "head" | "commits">, at: Checkout): Standing {
   const { branch, head } = at
   const onBranch = branch !== null && (branch === pr.branch || upstreamName(root, branch) === pr.branch)
   if (!onBranch) {
@@ -68,7 +68,7 @@ const PULL: Step = { by: "agent", run: "git pull --rebase" }
  * branch behind the head `git pull --rebase` comes first in `next`; anywhere else the dev switches first.
  * An answer with no step for the agent stands as the pull request alone gives it.
  */
-export function checked(root: string, pr: PrState, answer: Answer, at: Checkout | undefined): Answer {
+export function withCheckout(root: string, pr: PrState, answer: Answer, at: Checkout | undefined): Answer {
   if (at === undefined || answer.status !== "act" || answer.actor !== "agent") {
     return answer
   }
