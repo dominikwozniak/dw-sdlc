@@ -297,6 +297,7 @@ describe("dw-sdlc pr ship", () => {
       mergeCommit: null,
       changeRequests: [],
       commits: [HEAD],
+      ciHistory: [],
       ciDurations: [],
       checks: [
         {

@@ -11,10 +11,13 @@ import {
   failingOf,
   failure,
   GRACE_SECONDS,
+  limitedOf,
   pendingOf,
   pendingStartOf,
   proven,
   recheckOf,
+  redChecksOf,
+  redHeadsOf,
   unavailableOf
 } from "./ci.ts"
 import type { PrState, Thread } from "./state.ts"
@@ -33,6 +36,7 @@ export type Action =
   | "prove-locally"
   | "ci-unavailable"
   | "ci-stuck"
+  | "ci-limit"
   | "awaiting-reply"
   | "awaiting-review"
   | "mark-ready"
@@ -95,6 +99,8 @@ type Row = {
 /** The checks CI unavailable leaves to a Gate mark: none under pr.ciUnavailable ci, where they fail. */
 const unavailableUnder = (pr: PrState, policy: Policy) => unavailableOf(pr, policy.ciUnavailable === "gate")
 const failingUnder = (pr: PrState, policy: Policy) => failingOf(pr, policy.ciUnavailable === "gate")
+/** Whether the head is the third in a row with failing CI, where the agent's fixes stop. */
+const limited = (pr: PrState, policy: Policy) => limitedOf(pr, policy.ciUnavailable === "gate")
 
 /** The unresolved threads whose last comment is the viewer's, or with `false` someone else's. */
 function threads(pr: PrState, lastByViewer: boolean): Thread[] {
@@ -263,7 +269,26 @@ const ROWS: Row[] = [
     })
   },
   {
-    when: (pr, policy) => failingUnder(pr, policy).length > 0,
+    // Before fix-ci: the third red head in a row is the dev's, the agent's fixes having failed twice.
+    when: (pr, policy) => limited(pr, policy),
+    answer: (pr, _, policy) => {
+      const markStandsIn = policy.ciUnavailable === "gate"
+      const checks = redChecksOf(pr, markStandsIn)
+      return {
+        status: "park",
+        action: "ci-limit",
+        actor: "dev",
+        reason: `CI failed on ${redHeadsOf(pr, markStandsIn)} heads in a row, the CI limit: ${namesOf(checks.map(({ name }) => name))} on ${pr.head.slice(0, 7)}`,
+        details: { checks: checks.map(failure) },
+        next: [
+          { by: "dev", do: "fix the failing checks under details.checks yourself, then push" },
+          { by: "dev", do: 'say "merge without CI" to merge on a Gate mark, past the failing CI' }
+        ]
+      }
+    }
+  },
+  {
+    when: (pr, policy) => !limited(pr, policy) && failingUnder(pr, policy).length > 0,
     answer: (pr, _, policy, asBlocker) => ({
       status: "act",
       action: "fix-ci",
@@ -310,7 +335,7 @@ const ROWS: Row[] = [
   {
     // CI unavailable under pr.ciUnavailable gate: a job GitHub never ran, as under a billing lock. A Gate
     // mark on the head stands in for it.
-    when: (pr, policy) => !pr.draft && !proven(pr) && unavailableUnder(pr, policy).length > 0,
+    when: (pr, policy) => !pr.draft && !proven(pr) && !limited(pr, policy) && unavailableUnder(pr, policy).length > 0,
     answer: (pr, _, policy) => unavailable(pr, policy)
   },
   {

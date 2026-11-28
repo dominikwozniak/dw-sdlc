@@ -65,9 +65,63 @@ export function failingOf(pr: PrState, markStandsIn: boolean): CiCheck[] {
   return ciOf(pr).filter((check) => check.bucket === "fail" && !unavailable.includes(check))
 }
 
+/** Whether `checks` hold a Gate mark: the Gate passed on the commit they belong to. */
+function marked(checks: CiCheck[]): boolean {
+  return checks.some((check) => check.name === GATE && check.bucket === "pass")
+}
+
 /** Whether the head carries a Gate mark: the Gate passed on it. */
 export function proven(pr: PrState): boolean {
-  return pr.checks.some((check) => check.name === GATE && check.bucket === "pass")
+  return marked(pr.checks)
+}
+
+/** How many heads in a row with failing CI park the Ship script: the CI limit. */
+export const CI_LIMIT = 3
+
+/** The checks of a commit that are CI: the ones dw-sdlc posts itself, as the Gate mark, are not. */
+const ciChecks = (checks: CiCheck[]): CiCheck[] => checks.filter((check) => !check.name.startsWith(OWN_PREFIX))
+
+/**
+ * The checks that make one commit red: the failing ones, bar CI unavailable when a Gate mark on the commit
+ * stands in for it. Under pr.ciUnavailable ci `markStandsIn` is false and CI unavailable fails as any check.
+ */
+function redOf(checks: CiCheck[], markStandsIn: boolean): CiCheck[] {
+  const failing = ciChecks(checks).filter((check) => check.bucket === "fail")
+  return markStandsIn && marked(checks) ? failing.filter((check) => !check.unstarted) : failing
+}
+
+/** The checks that make the head red, as the CI limit's park lists them. */
+export function redChecksOf(pr: PrState, markStandsIn: boolean): CiCheck[] {
+  return redOf(pr.checks, markStandsIn)
+}
+
+/** Whether a commit with no red check is a green head: a Gate mark stands on it, or its CI passed whole. */
+function greenOf(checks: CiCheck[]): boolean {
+  const ci = ciChecks(checks)
+  const passed = ci.some((check) => check.bucket === "pass")
+  return marked(checks) || (passed && ci.every((check) => check.bucket === "pass" || check.bucket === "skipping"))
+}
+
+/**
+ * How many heads in a row, the head counted, have failing CI. A head the update-branch merge made counts
+ * as any does. A green head ends the row. A commit no check reported on, or whose checks still run or all
+ * skipped, was never a head CI judged: it counts for nothing and ends nothing.
+ */
+export function redHeadsOf(pr: PrState, markStandsIn: boolean): number {
+  let count = 0
+  for (const { checks } of [...pr.ciHistory, pr].toReversed()) {
+    if (redOf(checks, markStandsIn).length > 0) {
+      count += 1
+    } else if (greenOf(checks)) {
+      break
+    }
+  }
+  return count
+}
+
+/** Whether the head is the CI limit's: red itself, and the third head in a row with failing CI. */
+export function limitedOf(pr: PrState, markStandsIn: boolean): boolean {
+  return redOf(pr.checks, markStandsIn).length > 0 && redHeadsOf(pr, markStandsIn) >= CI_LIMIT
 }
 
 /** A failing check as the agent reads it: its link, and the command that prints a GitHub Actions job's log. */

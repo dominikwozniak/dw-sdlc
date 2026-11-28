@@ -149,8 +149,11 @@ export type Pr = {
   merged?: Context[][]
 }
 
-/** A commit of the pull request: `parents` 2 is a merge, 1 when left out. */
-export type Commit = { oid: string; parents?: number }
+/**
+ * A commit of the pull request: `parents` 2 is a merge, 1 when left out; `checks` the CI state its rollup
+ * holds, none reported when left out.
+ */
+export type Commit = { oid: string; parents?: number; checks?: Context[] }
 
 export const HEAD = "e36732e33915969ef4449becafeecd2e2846d544"
 export const BASE_OID = "8ba44d6f750333be72a05ca309e37b5984e3a0b9"
@@ -213,8 +216,9 @@ function threadOf(thread: Thread): object {
 }
 
 /** A commit node of the history the reply carries. */
-function commitOf({ oid, parents = 1 }: Commit): object {
-  return { commit: { oid, parents: { totalCount: parents } } }
+function commitOf({ oid, parents = 1, checks = [] }: Commit): object {
+  const rollup = checks.length === 0 ? null : { contexts: { nodes: checks.map(contextOf) } }
+  return { commit: { oid, parents: { totalCount: parents }, statusCheckRollup: rollup } }
 }
 
 /** The `pullRequest` node of the reply, an object a test may break before serving it. */
@@ -250,7 +254,7 @@ export function pullRequestOf(pr: Pr): Record<string, unknown> {
       }))
     },
     commits: { nodes: [{ commit: { committedDate: pr.committedAt, statusCheckRollup: rollup } }] },
-    history: { nodes: [...pr.history, { oid: pr.head, parents: pr.headParents ?? 1 }].map(commitOf) }
+    history: { nodes: [...pr.history, { oid: pr.head, parents: pr.headParents ?? 1, checks: pr.checks }].map(commitOf) }
   }
 }
 
