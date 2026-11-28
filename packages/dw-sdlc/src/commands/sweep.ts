@@ -61,9 +61,11 @@ It never changes anything on a remote: the fetch only writes remote-tracking ref
 kept with git's words, one that outlives its time limit with the limit it hit, and the sweep goes on.
 
 In herdr ($HC_TERMINAL_ID set) it reads, with hc, the Workers of this session, the terminals whose parent is
-this one, and every other live terminal. A Worker whose status is none of working, blocked or yet to report
-is stopped (hc kill) then removed (hc rm) when its worktree goes in the same Sweep or its folder is already
-gone; a worktree is judged whole first, so no Worker is stopped beside work it could still commit. A live
+this one, and every other live terminal. A Worker that has reported its end, which is a Recap of done or park
+delivered by dw-sdlc worker report and left as the label dw-sdlc.verdict on its terminal, is stopped (hc kill)
+then removed (hc rm) when its worktree goes in the same Sweep or its folder is already gone; a Worker whose
+turn ended with no such report, as at a round of a grilling or a wait, is kept like one at work, and so is its
+worktree. A worktree is judged whole first, so no Worker is stopped beside work it could still commit. A live
 Claude Code lock on that worktree that names the Worker's own program, the pid hc get reports, does not keep
 it: once the Worker is stopped the lock is read again and lifted only when it is stale then, else the
 worktree stays. A finished Worker of this session is removed. This session's own terminal and another

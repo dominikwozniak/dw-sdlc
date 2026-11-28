@@ -13,8 +13,8 @@ const SENT: Reply = { stdout: "{}" }
 const LONG = `# Recap\n\n| step | result |\n| ---- | ------ |\n| PR | merged |\n`
 
 /** `dw-sdlc worker report <args>` for a Recap file holding `recap`, the calling terminal `t5`, `hc send` answering `sends`. */
-function report(args: string[], sends: Reply[], recap = LONG, env: NodeJS.ProcessEnv = {}) {
-  const herdr = fakeHerdr({ hc: { send: sends } }, "t5")
+function report(args: string[], sends: Reply[], recap = LONG, env: NodeJS.ProcessEnv = {}, label: Reply = {}) {
+  const herdr = fakeHerdr({ hc: { send: sends, label } }, "t5")
   const root = repo()
   write(join(root, "recap.md"), recap)
   const run = runBin(["worker", "report", "--to", "t2", "--recap", "recap.md", ...args], root, { ...herdr.env, ...env })
@@ -38,6 +38,58 @@ describe("dw-sdlc worker report", () => {
   it("sends a one-line Recap past the length limit as a path too", () => {
     const run = report([], [SENT], `${"word ".repeat(100)}\n`)
     assert.deepEqual(run.hc, [["send", "t2", join(run.root, "recap.md")]])
+  })
+
+  it("labels its own terminal with the verdict a delivered Recap opens with, whatever the markup around it", () => {
+    const recaps: [string, string][] = [
+      ["done: merged\n\n| outcome | link |\n", "done"],
+      ["`park`: waits for the dev\n", "park"],
+      ["**Done** - nothing left\n", "done"],
+      ["wait: CI runs, it wakes itself\n", "wait"],
+      ["act: the next step is its own\n", "act"]
+    ]
+    for (const [recap, verdict] of recaps) {
+      const run = report([], [SENT], recap)
+      assert.equal(run.status, 0, run.stderr)
+      assert.deepEqual(run.hc.at(-1), ["label", "t5", `dw-sdlc.verdict=${verdict}`], recap)
+      assert.equal(run.hc.length, 2, recap)
+    }
+  })
+
+  it("sets no label for a message that opens with no verdict, as a question does", () => {
+    const questions = [
+      "Question: keep the old flag?\n",
+      "PR #9: merged, nothing left\n",
+      "Done with step 1, which next?\n",
+      "Park the old flag?\n",
+      "Act as the Lead?\n",
+      "done-ish, but which step next?\n",
+      LONG
+    ]
+    for (const recap of questions) {
+      const run = report([], [SENT], recap)
+      assert.equal(run.status, 0, run.stderr)
+      assert.deepEqual(
+        run.hc.map(([verb]) => verb),
+        ["send"],
+        recap
+      )
+    }
+  })
+
+  it("sets no label when the Recap is not delivered", () => {
+    const run = report(["--interval", "0", "--attempts", "2"], [BLOCKED, BLOCKED], "done: merged\n")
+    assert.equal(run.status, 1)
+    assert.ok(run.hc.every(([verb]) => verb === "send"))
+  })
+
+  it("exits 1 when the label is refused, though the Recap is delivered, and says not to send it again", () => {
+    const run = report([], [SENT], "done: merged\n", {}, { exit: 1, stderr: "hc: no terminal t5\n" })
+    assert.equal(run.status, 1)
+    assert.equal(run.stdout, "reported to t2\n")
+    assert.match(run.stderr, /the Recap is delivered, but hc label t5 failed: hc: no terminal t5/)
+    assert.match(run.stderr, /dw-sdlc\.verdict=done/)
+    assert.equal(run.hc.filter(([verb]) => verb === "send").length, 1)
   })
 
   it("waits while the Lead is blocked and retries, never forcing the send", () => {

@@ -20,6 +20,9 @@ const BLOCKED = 9
 /** `hc kill`'s exit when the terminal finished before the stop. */
 const FINISHED = 11
 
+/** The label `worker report` sets on a Worker's own terminal: the first word of the Recap it delivered. */
+export const VERDICT_LABEL = "dw-sdlc.verdict"
+
 /** A terminal as `hc ls --json` lists it. */
 export type Listed = {
   address: string
@@ -51,6 +54,8 @@ export type Reading = {
   folder: string | undefined
   /** That program's pid. */
   pid: number | undefined
+  /** Its `dw-sdlc.verdict` label: the verdict of the Recap its Worker last delivered. */
+  verdict: string | undefined
 }
 
 /** What one call answered: its JSON object, or why there is none. */
@@ -116,7 +121,8 @@ function readingOf({ state, status, labels, first_message: first, foreground }: 
     firstMessage:
       isObject(first) && typeof first.sent === "boolean" ? { sent: first.sent, reason: word(first.reason) } : undefined,
     folder: word(program.cwd),
-    pid: typeof program.pid === "number" ? program.pid : undefined
+    pid: typeof program.pid === "number" ? program.pid : undefined,
+    verdict: isObject(labels) ? word(labels[VERDICT_LABEL]) : undefined
   }
 }
 

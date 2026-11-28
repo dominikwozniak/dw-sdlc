@@ -104,7 +104,7 @@ describe("readTerminal", () => {
   it("reads the state, status, space, first message and foreground program hc get reports", () => {
     const got = terminal("t7", {
       status: "idle",
-      labels: { "herdr.space": "sp1" },
+      labels: { "herdr.space": "sp1", "dw-sdlc.verdict": "park" },
       firstMessage: { sent: false, reason: "the agent was not ready" },
       foreground: "/work/repo/.claude/worktrees/w",
       pid: 4242
@@ -117,7 +117,8 @@ describe("readTerminal", () => {
       space: "sp1",
       firstMessage: { sent: false, reason: "the agent was not ready" },
       folder: "/work/repo/.claude/worktrees/w",
-      pid: 4242
+      pid: 4242,
+      verdict: "park"
     })
     const bare = withHc({ get: terminal("t7", { status: null }) }, () => readTerminal("t7")).value
     assert.deepEqual(bare, {
@@ -126,7 +127,8 @@ describe("readTerminal", () => {
       space: undefined,
       firstMessage: undefined,
       folder: undefined,
-      pid: undefined
+      pid: undefined,
+      verdict: undefined
     })
   })
 

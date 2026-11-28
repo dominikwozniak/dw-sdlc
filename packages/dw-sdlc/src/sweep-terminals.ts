@@ -1,5 +1,5 @@
-// What a Sweep does with herdr terminals: it stops and removes only a Worker of its own whose turn has ended,
-// in a worktree that goes in the same Sweep or is already gone. docs/adr/0015 sets the bounds.
+// What a Sweep does with herdr terminals: it stops and removes only a Worker of its own that has reported its
+// end, in a worktree that goes in the same Sweep or is already gone. docs/adr/0015 sets the bounds.
 
 import { existsSync, realpathSync } from "node:fs"
 
@@ -20,8 +20,11 @@ import { type LockVerdict, lockVerdict } from "./worktree-lock.ts"
 /** A live terminal of another session, or the sweeping one's own, with the place herdr shows it at. */
 type Seen = { address: string; name: string; folder: string; place: string }
 
-/** A Worker with the pid of the program `hc get` reports in its terminal, which a Claude Code lock names. */
-export type Located = Worker & { pid: number | undefined }
+/**
+ * A Worker with the pid of the program `hc get` reports in its terminal, which a Claude Code lock names, and
+ * the verdict its last report left on the terminal, undefined while it has delivered none.
+ */
+export type Located = Worker & { pid: number | undefined; verdict: string | undefined }
 
 export type Terminals = { own: Seen | undefined; workers: Located[]; others: Seen[] }
 
@@ -34,12 +37,15 @@ export type Holder =
 /** The terminal to stop and remove, or only to remove once it has finished. */
 export type TerminalPlan = { kind: "terminal"; name: string; reason: string; stop: boolean; tree?: string }
 
-/** Statuses of a Worker that is not at the end of its turn, with how the Sweep says it. */
+/** Statuses of a Worker that is at work or yet to report, with how the Sweep says it. */
 const AT_WORK: Record<string, string> = {
   working: "working",
   blocked: "blocked, waiting for the dev",
   unknown: "yet to report"
 }
+
+/** The verdicts of a Recap that end a Worker; a turn ends on every round of a grilling and at each wait. */
+const ENDED = new Set(["done", "park"])
 
 /** The address of the terminal the Sweep runs in, or undefined outside herdr. */
 export function sweepingTerminal(): string | undefined {
@@ -55,10 +61,12 @@ export function sweepingTerminal(): string | undefined {
 function located(workers: Worker[]): Located[] {
   return workers.flatMap((worker) => {
     if (!isLive(worker)) {
-      return [{ ...worker, pid: undefined }]
+      return [{ ...worker, pid: undefined, verdict: undefined }]
     }
     const reading = readTerminal(worker.address)
-    return "gone" in reading ? [] : [{ ...worker, folder: reading.folder ?? worker.folder, pid: reading.pid }]
+    return "gone" in reading
+      ? []
+      : [{ ...worker, folder: reading.folder ?? worker.folder, pid: reading.pid, verdict: reading.verdict }]
   })
 }
 
@@ -113,7 +121,7 @@ function treeOf(folder: string, roots: string[]): string | undefined {
 }
 
 /** A Worker whose terminal is live but whose folder is gone, with no worktree of `roots` around it, could commit nothing more. */
-export function workerWithoutFolder({ workers }: Terminals, roots: string[]): Worker[] {
+export function workerWithoutFolder({ workers }: Terminals, roots: string[]): Located[] {
   const standing = roots.filter((root) => existsSync(root))
   return workers.filter(
     (worker) => isLive(worker) && !existsSync(worker.folder) && treeOf(worker.folder, standing) === undefined
@@ -144,12 +152,19 @@ export function holdersOf({ own, workers, others }: Terminals, main: string, tre
   return held
 }
 
-/** How the Sweep says a Worker that is working, blocked or yet to report is, or undefined for one that is done. */
-export function atWork({ status }: Worker): string | undefined {
-  return AT_WORK[status]
+/**
+ * How the Sweep says a live Worker is that has not reported its end: working, blocked, yet to report, or at
+ * the end of a turn with no Recap of `done` or `park` delivered. Undefined for one that has ended.
+ */
+export function atWork({ status, verdict }: Located): string | undefined {
+  const working = AT_WORK[status]
+  if (working !== undefined) {
+    return working
+  }
+  return verdict !== undefined && ENDED.has(verdict) ? undefined : `${status}, its end not reported`
 }
 
-/** What the terminals in a worktree keep it for, or null when only Workers at the end of their turn are in it. */
+/** What the terminals in a worktree keep it for, or null when only Workers that reported their end are in it. */
 export function whyHeld(holders: Holder[]): { reason: string; command: string | null } | null {
   const reasons: string[] = []
   const kills: string[] = []
