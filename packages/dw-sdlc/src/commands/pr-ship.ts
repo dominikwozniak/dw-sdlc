@@ -15,7 +15,8 @@ import {
   type Policy,
   readyToMerge,
   type ScriptAction,
-  type Status
+  type Status,
+  type Step
 } from "../pr/decide.ts"
 import { gateMarks } from "../pr/gate-marks.ts"
 import { gh, ghReads, namedProblem, nameItRemedy, now, type Reads, said } from "../pr/read.ts"
@@ -58,7 +59,16 @@ and failed is fix-ci under both.
 Under footprint local in .ai/agentic.config.json or its local layer, the script reads no dw-sdlc/gate
 status: the Gate marks come from .git/dw-sdlc/gates/<n>.json, under the common git dir, the file
 gate --mark writes. Every decision is the one the status would give.
-One line, or one document with --json; --verbose adds the state as read to the document under
+Every answer carries next, the steps to follow in order, and each blocker carries its own next, so
+one push can answer every blocker. A step is by agent or by dev. { by, run } is an exact command: for
+the agent a shell command, for the dev what they type, a shell command or a slash command. { by, do }
+is one line of judgement, carried out on details: the failing checks under details.checks, each with
+its log command, and the threads under details.threads, each with a resolve command and a reply command
+whose only blank is <text>. The agent takes its steps in order and prints the dev's, never runs them.
+At wait, next is this call again with --wait --json. A park with a command for the dev has one by dev
+step; a park with none has an empty next, and its reason says whose move it is. Exit 2 has no next.
+One line, or one document with --json; the line is the label and the reason, the recheck, then each
+step of next in order, marked agent or dev. --verbose adds the state as read to the document under
 facts. Needs an authenticated gh.
 
 Exit 0 done, 10 the agent's turn, 20 wait, 30 the dev's turn, 2 when it cannot run.`
@@ -174,7 +184,7 @@ function handedOver(pr: PrState, answer: Answer, action: ScriptAction, reason: s
   if (action === "merge") {
     return { ...readyToMerge(pr, reason), blockers: answer.blockers }
   }
-  return { ...answer, status: "park", actor: "dev", reason, command: devCommand(pr, action) }
+  return { ...answer, status: "park", actor: "dev", reason, next: [{ by: "dev", run: devCommand(pr, action) }] }
 }
 
 /** The pull request the call names, else this checkout's; none found stops the call with what to name. */
@@ -249,6 +259,12 @@ function ship(cli: Cli, root: string, policy: Policy): { pr: PrState; answer: An
   }
 }
 
+/** The step at a wait: this call again with --wait --json, whose output is the next answer. */
+function waitStep(argv: string[]): Step {
+  const kept = argv.filter((arg) => arg !== "--json" && arg !== "--wait")
+  return { by: "agent", run: shellLine(["dw-sdlc", "pr", "ship", ...kept, "--wait", "--json"]) }
+}
+
 function documentOf(pr: PrState, answer: Answer, performed: Performed[], verbose: boolean): Record<string, unknown> {
   const facts = verbose ? { facts: pr } : {}
   return { pr: pr.url, head: pr.head, base: pr.base, ...answer, performed, ...facts }
@@ -277,7 +293,8 @@ export function run(argv: string[]): number {
     }
     throw error
   }
-  const { pr, answer, performed } = shipped
+  const { pr, performed } = shipped
+  const answer = shipped.answer.status === "wait" ? { ...shipped.answer, next: [waitStep(argv)] } : shipped.answer
   const output = cli.json ? JSON.stringify(documentOf(pr, answer, performed, cli.verbose), null, 2) : lineOf(answer)
   process.stdout.write(`${output}\n`)
   return EXIT[answer.status]

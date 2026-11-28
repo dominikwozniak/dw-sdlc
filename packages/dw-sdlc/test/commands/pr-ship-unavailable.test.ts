@@ -40,8 +40,16 @@ describe("dw-sdlc pr ship when CI is unavailable", () => {
     const run = ship({ ...GREEN, checks: [REFUSED] }, GATED)
     assert.equal(run.status, 10)
     assert.deepEqual(
-      [run.answer.status, run.answer.action, run.answer.actor, run.answer.command],
-      ["act", "prove-locally", "agent", "dw-sdlc gate --mark"]
+      [run.answer.status, run.answer.action, run.answer.actor, run.answer.next],
+      [
+        "act",
+        "prove-locally",
+        "agent",
+        [
+          { by: "agent", run: "dw-sdlc gate --mark" },
+          { by: "agent", do: "red: fix what it printed, then git push" }
+        ]
+      ]
     )
     assert.equal(run.answer.reason, "CI unavailable on e36732e: Check / Check ran no step")
   })
@@ -69,7 +77,7 @@ describe("dw-sdlc pr ship when CI is unavailable", () => {
       actor: "dev",
       reason:
         "CI unavailable on e36732e: Check / Check ran no step: no gate.steps to prove it, so the merge is the dev's",
-      command: DEV_MERGE,
+      next: [{ by: "dev", run: DEV_MERGE }],
       blockers: [],
       performed: []
     })

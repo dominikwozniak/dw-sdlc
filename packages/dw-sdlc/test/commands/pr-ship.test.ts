@@ -53,6 +53,8 @@ function comparedBehind(behind: number, head = HEAD, base = BASE_OID): Record<st
 const MERGE = ["pr", "merge", "40", "-R", "byarcadia-app/foundation", "--squash", "--match-head-commit", HEAD]
 /** The merge command an answer hands the dev. */
 const DEV_MERGE = `gh pr merge 40 --squash --match-head-commit ${HEAD}`
+/** The step at a wait: the same call again, waiting. */
+const WAIT = { by: "agent", run: "dw-sdlc pr ship 40 -R byarcadia-app/foundation --wait --json" }
 
 /** The files of a test's checkout: a relative path and its text, an object written as JSON. */
 type Files = Record<string, string | object>
@@ -82,6 +84,23 @@ const THREAD: Thread = {
 }
 /** THREAD as `details` lists it. */
 const LISTED = { id: THREAD.id, path: THREAD.path, line: THREAD.line, author: THREAD.author, body: THREAD.body }
+const RESOLVE_QUERY = "mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{id}}}"
+const REPLY_QUERY =
+  "mutation($id:ID!,$body:String!){addPullRequestReviewThreadReply(input:{pullRequestReviewThreadId:$id,body:$body}){comment{id}}}"
+/** A thread the agent answers: its listing, the command that resolves it and the one that replies with `<text>`. */
+const answerable = (thread: typeof LISTED) => ({
+  ...thread,
+  resolve: `gh api graphql -f query='${RESOLVE_QUERY}' -f id=${thread.id}`,
+  reply: `gh api graphql -f query='${REPLY_QUERY}' -f id=${thread.id} -f body=<text>`
+})
+const FIX_CI = {
+  by: "agent",
+  do: "read each failing check's log under details.checks, fix the cause, then git push"
+}
+const TRIAGE = {
+  by: "agent",
+  do: "triage each thread under details.threads against the code: fix it and run its resolve, or run its reply with why and leave it open; git push when code changed"
+}
 
 /** Every kind of check and thread a reply carries, on a draft another author opened. */
 const MIXED: Pr = {
@@ -147,7 +166,7 @@ describe("dw-sdlc pr ship", () => {
       action: "done",
       actor: "dev",
       reason: "merged as b04365a",
-      command: "git push origin --delete feat/example",
+      next: [{ by: "dev", run: "git push origin --delete feat/example" }],
       details: { mergeCommit: MERGE_COMMIT },
       blockers: [],
       performed: []
@@ -174,6 +193,7 @@ describe("dw-sdlc pr ship", () => {
       actor: "dev",
       reason: "merged as b04365a",
       details: { mergeCommit: MERGE_COMMIT },
+      next: [],
       blockers: [],
       performed: []
     })
@@ -191,8 +211,8 @@ describe("dw-sdlc pr ship", () => {
   it("shell-quotes a branch name the shell would split or expand in the deletion command", () => {
     const run = json({ ...MERGED, branch: "fix/it's-$HOME" })
     assert.equal(run.status, 0, run.stderr)
-    assert.ok(typeof run.document === "object" && run.document !== null && "command" in run.document)
-    assert.equal(run.document.command, `git push origin --delete 'fix/it'\\''s-$HOME'`)
+    assert.ok(typeof run.document === "object" && run.document !== null && "next" in run.document)
+    assert.deepEqual(run.document.next, [{ by: "dev", run: `git push origin --delete 'fix/it'\\''s-$HOME'` }])
   })
 
   it("parks a pull request closed without merging, the dev's to stop", () => {
@@ -206,6 +226,7 @@ describe("dw-sdlc pr ship", () => {
       action: "stop",
       actor: "dev",
       reason: "closed without merging",
+      next: [],
       blockers: [],
       performed: []
     })
@@ -224,6 +245,7 @@ describe("dw-sdlc pr ship", () => {
       actor: "script",
       reason: "mergeability-unknown",
       recheckAfter: 15,
+      next: [WAIT],
       blockers: [],
       performed: []
     })
@@ -242,7 +264,7 @@ describe("dw-sdlc pr ship", () => {
         action: "ready-to-merge",
         actor: "dev",
         reason: "pr.merge is ask: the merge is the dev's",
-        command: DEV_MERGE,
+        next: [{ by: "dev", run: DEV_MERGE }],
         blockers: [],
         performed: []
       })
@@ -353,14 +375,18 @@ describe("dw-sdlc pr ship", () => {
     assert.deepEqual(run.calls, [])
   })
 
-  it("prints one line without --json: the status, the action unless it repeats it, the reason and the command", () => {
+  it("prints one line without --json: the status, the action unless it repeats it, the reason, the recheck and each step marked agent or dev", () => {
     const cases: [Pr, number, string][] = [
-      [MERGED, 0, "done: merged as b04365a — git push origin --delete feat/example"],
+      [MERGED, 0, "done: merged as b04365a — dev: git push origin --delete feat/example"],
       [{ ...MERGED, headDeleted: true }, 0, "done: merged as b04365a"],
       [{ ...MERGED, fromFork: true }, 0, "done: merged as b04365a"],
       [{ ...GREEN, state: "CLOSED" }, 30, "park stop: closed without merging"],
-      [{ ...GREEN, mergeable: "UNKNOWN" }, 20, "wait: mergeability-unknown, recheck in 15 s"],
-      [GREEN, 30, `park ready-to-merge: pr.merge is ask: the merge is the dev's — ${DEV_MERGE}`]
+      [
+        { ...GREEN, mergeable: "UNKNOWN" },
+        20,
+        "wait: mergeability-unknown, recheck in 15 s — agent: dw-sdlc pr ship 40 -R byarcadia-app/foundation --wait --json"
+      ],
+      [GREEN, 30, `park ready-to-merge: pr.merge is ask: the merge is the dev's — dev: ${DEV_MERGE}`]
     ]
     for (const [pr, status, line] of cases) {
       const run = ship(TARGET, { graphql: [served(pr)] })
@@ -405,6 +431,7 @@ describe("dw-sdlc pr ship while no check has answered", () => {
       actor: "script",
       reason: "unverified",
       recheckAfter: 15,
+      next: [WAIT],
       blockers: [],
       performed: []
     })
@@ -422,7 +449,7 @@ describe("dw-sdlc pr ship while no check has answered", () => {
       action: "unverified",
       actor: "dev",
       reason: "no check reported on e36732e within 120 s of its commit or its ready",
-      command: merge,
+      next: [{ by: "dev", run: merge }],
       blockers: [],
       performed: []
     })
@@ -442,7 +469,7 @@ describe("dw-sdlc pr ship while no check has answered", () => {
       action: "unverified",
       actor: "dev",
       reason: "no check reported on e36732e within 120 s of its commit or its ready",
-      command: merge,
+      next: [{ by: "dev", run: merge }],
       blockers: [],
       performed: []
     })
@@ -460,6 +487,7 @@ describe("dw-sdlc pr ship while no check has answered", () => {
       actor: "script",
       reason: "unverified",
       recheckAfter: 15,
+      next: [WAIT],
       blockers: [],
       performed: []
     })
@@ -476,7 +504,7 @@ describe("dw-sdlc pr ship while no check has answered", () => {
       action: "unverified",
       actor: "dev",
       reason: "every check on e36732e was skipped, 120 s after its commit or its ready",
-      command: merge,
+      next: [{ by: "dev", run: merge }],
       blockers: [],
       performed: []
     })
@@ -499,6 +527,7 @@ describe("dw-sdlc pr ship while no check has answered", () => {
       actor: "script",
       reason: "ci-pending",
       recheckAfter: 60,
+      next: [WAIT],
       blockers: [],
       performed: []
     })
@@ -515,6 +544,7 @@ describe("dw-sdlc pr ship while no check has answered", () => {
       action: "ci-stuck",
       actor: "dev",
       reason: "1 check(s) pending for 41 min, past the 40 min budget",
+      next: [],
       blockers: [],
       performed: []
     })
@@ -563,14 +593,24 @@ describe("dw-sdlc pr ship while no check has answered", () => {
 
   it("prints each wait and park as one line", () => {
     const cases: [Pr, NodeJS.ProcessEnv, number, string][] = [
-      [UNCHECKED, clockAt(GREEN.committedAt, 60), 20, "wait: unverified, recheck in 15 s"],
+      [
+        UNCHECKED,
+        clockAt(GREEN.committedAt, 60),
+        20,
+        "wait: unverified, recheck in 15 s — agent: dw-sdlc pr ship 40 -R byarcadia-app/foundation --wait --json"
+      ],
       [
         UNCHECKED,
         clockAt(GREEN.committedAt, 121),
         30,
-        `park unverified: no check reported on e36732e within 120 s of its commit or its ready — ${merge}`
+        `park unverified: no check reported on e36732e within 120 s of its commit or its ready — dev: ${merge}`
       ],
-      [PENDING, clockAt(STARTED, 10 * 60), 20, "wait: ci-pending, recheck in 60 s"],
+      [
+        PENDING,
+        clockAt(STARTED, 10 * 60),
+        20,
+        "wait: ci-pending, recheck in 60 s — agent: dw-sdlc pr ship 40 -R byarcadia-app/foundation --wait --json"
+      ],
       [PENDING, clockAt(STARTED, 41 * 60), 30, "park ci-stuck: 1 check(s) pending for 41 min, past the 40 min budget"]
     ]
     for (const [pr, env, status, line] of cases) {
@@ -596,42 +636,42 @@ describe("dw-sdlc pr ship hands the pull request to the agent", () => {
         "draft, CI failing",
         { ...GREEN, draft: true, checks: [FAILING] },
         10,
-        "act fix-ci: 1 check(s) failing",
+        "act fix-ci: 1 check(s) failing — agent: read each failing check's log under details.checks, fix the cause, then git push",
         ["mark-ready"]
       ],
       [
         "conflicts, CI failing",
         { ...GREEN, mergeable: "CONFLICTING", mergeStateStatus: "DIRTY", checks: [FAILING] },
         10,
-        "act fix-conflicts: conflicts with main",
+        "act fix-conflicts: conflicts with main — agent: git fetch origin main && git rebase origin/main — agent: resolve each conflict keeping both sides' intent, git rebase --continue, then git push --force-with-lease",
         ["fix-ci"]
       ],
       [
         "CI failing",
         { ...GREEN, mergeStateStatus: "UNSTABLE", checks: [FAILING] },
         10,
-        "act fix-ci: 1 check(s) failing",
+        "act fix-ci: 1 check(s) failing — agent: read each failing check's log under details.checks, fix the cause, then git push",
         []
       ],
       [
         "open thread",
         { ...GREEN, checks: [PASSING], threads: [THREAD] },
         10,
-        "act address-review: 1 unresolved thread(s)",
+        `act address-review: 1 unresolved thread(s) — agent: ${TRIAGE.do}`,
         []
       ],
       [
         "changes requested",
         { ...GREEN, reviewDecision: "CHANGES_REQUESTED" },
         10,
-        "act address-review: changes requested",
+        "act address-review: changes requested — agent: gh pr view 40 -R byarcadia-app/foundation --json reviews — agent: answer the review asking for changes with a push; with nothing to change it is the reviewer's turn: say so and stop",
         []
       ],
       [
         "green",
         { ...GREEN, checks: [PASSING] },
         30,
-        `park ready-to-merge: pr.merge is ask: the merge is the dev's — ${DEV_MERGE}`,
+        `park ready-to-merge: pr.merge is ask: the merge is the dev's — dev: ${DEV_MERGE}`,
         []
       ],
       [
@@ -661,12 +701,25 @@ describe("dw-sdlc pr ship hands the pull request to the agent", () => {
       actor: "agent",
       reason: "conflicts with main",
       details: { base: "main" },
+      next: [
+        { by: "agent", run: "git fetch origin main && git rebase origin/main" },
+        {
+          by: "agent",
+          do: "resolve each conflict keeping both sides' intent, git rebase --continue, then git push --force-with-lease"
+        }
+      ],
       blockers: [
         {
           action: "fix-ci",
           actor: "agent",
           reason: "1 check(s) failing",
-          details: { checks: [{ name: "Check", link: RUN, log: LOG }] }
+          details: { checks: [{ name: "Check", link: RUN, log: LOG }] },
+          next: [
+            {
+              by: "agent",
+              do: "read each failing check's log under details.checks, fix the cause, in the same push"
+            }
+          ]
         }
       ],
       performed: []
@@ -693,6 +746,7 @@ describe("dw-sdlc pr ship hands the pull request to the agent", () => {
           { name: "ci/circleci", link: CIRCLE }
         ]
       },
+      next: [FIX_CI],
       blockers: [],
       performed: []
     })
@@ -730,13 +784,15 @@ describe("dw-sdlc pr ship hands the pull request to the agent", () => {
       action: "address-review",
       actor: "agent",
       reason: "2 unresolved thread(s)",
-      details: { threads: [LISTED, { ...ghost, author: "ghost" }] },
+      details: { threads: [answerable(LISTED), answerable({ ...ghost, author: "ghost" })] },
+      next: [TRIAGE],
       blockers: [
         {
           action: "awaiting-reply",
           actor: "dev",
           reason: "1 thread(s) await a reply",
-          details: { threads: [{ ...LISTED, id: "PRRT_replied" }] }
+          details: { threads: [{ ...LISTED, id: "PRRT_replied" }] },
+          next: []
         }
       ],
       performed: []
@@ -761,6 +817,7 @@ describe("dw-sdlc pr ship hands the pull request to the agent", () => {
       actor: "dev",
       reason: "1 thread(s) await a reply",
       details: { threads: [LISTED] },
+      next: [],
       blockers: [],
       performed: []
     })
@@ -1022,7 +1079,7 @@ describe("dw-sdlc pr ship ends a pull request", () => {
       action: "done",
       actor: "dev",
       reason: "merged as b04365a",
-      command: "git push origin --delete feat/example",
+      next: [{ by: "dev", run: "git push origin --delete feat/example" }],
       details: { mergeCommit: MERGE_COMMIT },
       blockers: [],
       performed: performedMerge(true)
@@ -1050,10 +1107,10 @@ describe("dw-sdlc pr ship ends a pull request", () => {
     for (const files of cases) {
       const run = json(GREEN, [], {}, files)
       assert.equal(run.status, 30, run.stderr)
-      assert.deepEqual(fieldsOf(run.document, ["action", "reason", "command", "performed"]), {
+      assert.deepEqual(fieldsOf(run.document, ["action", "reason", "next", "performed"]), {
         action: "ready-to-merge",
         reason: "pr.merge is ask: the merge is the dev's",
-        command: DEV_MERGE,
+        next: [{ by: "dev", run: DEV_MERGE }],
         performed: []
       })
       assert.deepEqual(run.calls, [AUTH, READ], JSON.stringify(files))
@@ -1071,6 +1128,7 @@ describe("dw-sdlc pr ship ends a pull request", () => {
       action: "awaiting-approval",
       actor: "dev",
       reason: "an approving review is required",
+      next: [],
       blockers: [],
       performed: []
     })
@@ -1103,7 +1161,7 @@ describe("dw-sdlc pr ship ends a pull request", () => {
           action: "ready-to-merge",
           actor: "dev",
           reason: "another author's pull request: the merge is the dev's",
-          command: DEV_MERGE,
+          next: [{ by: "dev", run: DEV_MERGE }],
           blockers: [],
           performed: []
         },
@@ -1137,7 +1195,7 @@ describe("dw-sdlc pr ship ends a pull request", () => {
         action: "ready-to-merge",
         actor: "dev",
         reason: "the script would merge it; --dry-run performs nothing",
-        command: DEV_MERGE,
+        next: [{ by: "dev", run: DEV_MERGE }],
         blockers: [],
         performed: performedMerge(null)
       })
@@ -1154,7 +1212,11 @@ describe("dw-sdlc pr ship ends a pull request", () => {
     ]
     for (const [files, flags, reason] of cases) {
       const run = ship([...TARGET, ...flags], { graphql: [served(GREEN)] }, {}, files)
-      assert.deepEqual([run.status, run.stdout], [30, `park ready-to-merge: ${reason} — ${DEV_MERGE}\n`], run.stderr)
+      assert.deepEqual(
+        [run.status, run.stdout],
+        [30, `park ready-to-merge: ${reason} — dev: ${DEV_MERGE}\n`],
+        run.stderr
+      )
     }
   })
 
@@ -1202,11 +1264,11 @@ describe("dw-sdlc pr ship ends a pull request", () => {
       const scenario = { graphql: [served(ready), served(ready)], commands: { "pr merge": merged } }
       const run = ship([...TARGET, "--json"], scenario, {}, AUTO)
       assert.equal(run.status, 30, run.stderr)
-      assert.deepEqual(fieldsOf(JSON.parse(run.stdout), ["action", "actor", "reason", "command", "performed"]), {
+      assert.deepEqual(fieldsOf(JSON.parse(run.stdout), ["action", "actor", "reason", "next", "performed"]), {
         action: "ready-to-merge",
         actor: "dev",
         reason,
-        command: DEV_MERGE,
+        next: [{ by: "dev", run: DEV_MERGE }],
         performed: performedMerge(false, merged)
       })
       assert.deepEqual(run.calls, [AUTH, READ, MERGE, READ], reason)
@@ -1249,6 +1311,7 @@ describe("dw-sdlc pr ship updates a branch and marks a draft ready", () => {
       actor: "script",
       reason: "ci-pending",
       recheckAfter: 60,
+      next: [WAIT],
       blockers: [],
       performed: [ran("update-branch", true)]
     })
@@ -1311,7 +1374,7 @@ describe("dw-sdlc pr ship updates a branch and marks a draft ready", () => {
       action: "done",
       actor: "dev",
       reason: "merged as b04365a",
-      command: "git push origin --delete feat/example",
+      next: [{ by: "dev", run: "git push origin --delete feat/example" }],
       details: { mergeCommit: MERGE_COMMIT },
       blockers: [],
       performed: [ran("mark-ready", true), ran("merge", true)]
@@ -1332,6 +1395,7 @@ describe("dw-sdlc pr ship updates a branch and marks a draft ready", () => {
       actor: "script",
       reason: "unverified",
       recheckAfter: 15,
+      next: [WAIT],
       blockers: [],
       performed: [ran("mark-ready", true)]
     })
@@ -1353,7 +1417,7 @@ describe("dw-sdlc pr ship updates a branch and marks a draft ready", () => {
       action: "ready-to-merge",
       actor: "dev",
       reason: "pr.merge is ask: the merge is the dev's",
-      command: DEV_MERGE,
+      next: [{ by: "dev", run: DEV_MERGE }],
       blockers: [],
       performed: [ran("mark-ready", true, warned)]
     })
@@ -1364,7 +1428,8 @@ describe("dw-sdlc pr ship updates a branch and marks a draft ready", () => {
     const awaiting = {
       action: "awaiting-author",
       actor: "dev",
-      reason: "another author's draft: marking it ready is the author's"
+      reason: "another author's draft: marking it ready is the author's",
+      next: []
     }
     for (const [flags, files] of [
       [[], {}],
@@ -1398,7 +1463,11 @@ describe("dw-sdlc pr ship updates a branch and marks a draft ready", () => {
       const run = json(pr, [], env, AUTO)
       assert.deepEqual(
         fieldsOf(run.document, ["action", "blockers", "performed"]),
-        { action, blockers: [{ action: "mark-ready", actor: "script", reason: "still a draft" }], performed: [] },
+        {
+          action,
+          blockers: [{ action: "mark-ready", actor: "script", reason: "still a draft", next: [] }],
+          performed: []
+        },
         name
       )
       assert.deepEqual(run.calls, [AUTH, READ], name)
@@ -1444,17 +1513,14 @@ describe("dw-sdlc pr ship updates a branch and marks a draft ready", () => {
       const scenario = { graphql: [served(pr), served(pr)], commands: { [key]: response } }
       const run = ship([...TARGET, "--json"], scenario, {}, AUTO)
       assert.equal(run.status, 30, run.stderr)
-      assert.deepEqual(
-        fieldsOf(JSON.parse(run.stdout), ["status", "action", "actor", "reason", "command", "performed"]),
-        {
-          status: "park",
-          action,
-          actor: "dev",
-          reason,
-          command,
-          performed: [ran(action, false, response)]
-        }
-      )
+      assert.deepEqual(fieldsOf(JSON.parse(run.stdout), ["status", "action", "actor", "reason", "next", "performed"]), {
+        status: "park",
+        action,
+        actor: "dev",
+        reason,
+        next: [{ by: "dev", run: command }],
+        performed: [ran(action, false, response)]
+      })
       assert.deepEqual(run.calls, [AUTH, READ, RUNS[action], READ], reason)
     }
   })
@@ -1506,17 +1572,17 @@ describe("dw-sdlc pr ship updates a branch and marks a draft ready", () => {
       const reason = `the script would ${would}; --dry-run performs nothing`
       const run = json(pr, ["--dry-run"], {}, AUTO)
       assert.equal(run.status, 30, run.stderr)
-      assert.deepEqual(fieldsOf(run.document, ["status", "action", "actor", "reason", "command", "performed"]), {
+      assert.deepEqual(fieldsOf(run.document, ["status", "action", "actor", "reason", "next", "performed"]), {
         status: "park",
         action,
         actor: "dev",
         reason,
-        command,
+        next: [{ by: "dev", run: command }],
         performed: [ran(action, null)]
       })
       assert.deepEqual(run.calls, [AUTH, READ], action)
       const line = ship([...TARGET, "--dry-run"], { graphql: [served(pr)] }, {}, AUTO)
-      assert.deepEqual([line.status, line.stdout], [30, `park ${action}: ${reason} — ${command}\n`], line.stderr)
+      assert.deepEqual([line.status, line.stdout], [30, `park ${action}: ${reason} — dev: ${command}\n`], line.stderr)
     }
   })
 })

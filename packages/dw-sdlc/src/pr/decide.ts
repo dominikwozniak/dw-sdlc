@@ -59,12 +59,24 @@ export function declaredPolicy({ pr, footprint, gate }: Pick<ResolvedConfig, "pr
   return { merge, footprint, ciUnavailable, gateSteps: gate.steps.length > 0 }
 }
 
+/**
+ * One step of an answer's `next`, the agent's or the dev's. `run` is an exact command: for the agent a
+ * shell command, for the dev what they type, shell or a slash command. `do` is one line of judgement,
+ * carried out on the answer's `details`.
+ */
+export type Step = { by: "agent" | "dev"; run: string } | { by: "agent" | "dev"; do: string }
+
 /** An Action the pull request needs beside the one its answer names, so one push can fix several. */
-export type Blocker = { action: Action; actor: Actor; reason: string; details?: Record<string, unknown> }
+export type Blocker = {
+  action: Action
+  actor: Actor
+  reason: string
+  details?: Record<string, unknown>
+  /** The steps, in order, that answer this Action; empty when the next move is nobody's to run. */
+  next: Step[]
+}
 export type Answer = Blocker & {
   status: Status
-  /** A shell-quoted command, when there is one to run. */
-  command?: string
   /** Seconds to wait before calling again. */
   recheckAfter?: number
   blockers: Blocker[]
@@ -72,7 +84,7 @@ export type Answer = Blocker & {
 
 type Row = {
   when: (pr: PrState, policy: Policy) => boolean
-  answer: (pr: PrState, now: number, policy: Policy) => Omit<Answer, "blockers">
+  answer: (pr: PrState, now: number, policy: Policy, asBlocker: boolean) => Omit<Answer, "blockers">
   /** A row that wins answers with no blockers: a merged, closed or still-computing pull request. */
   alone?: true
   /** A row that never rides in blockers: who merges is no blocker. */
@@ -106,9 +118,31 @@ function namesOf(names: string[]): string {
   return names.length < 2 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${last}`
 }
 
+const RESOLVE_THREAD = "mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{id}}}"
+const REPLY_TO_THREAD =
+  "mutation($id:ID!,$body:String!){addPullRequestReviewThreadReply(input:{pullRequestReviewThreadId:$id,body:$body}){comment{id}}}"
+
+/** The gh call that runs `mutation` on a thread; `more` is appended as it stands. */
+function graphql(mutation: string, id: string, more = ""): string {
+  return `gh api graphql -f query=${shellLine([mutation])} -f id=${shellLine([id])}${more}`
+}
+
 function listed({ id, path, line, author, body }: Thread): Record<string, unknown> {
   return { id, path, line, author, body }
 }
+
+/** A thread the agent answers: with the command that resolves it and the one that replies, `<text>` its only blank. */
+function answerable(thread: Thread): Record<string, unknown> {
+  return {
+    ...listed(thread),
+    resolve: graphql(RESOLVE_THREAD, thread.id),
+    reply: graphql(REPLY_TO_THREAD, thread.id, " -f body=<text>")
+  }
+}
+
+const agent = (run: string): Step => ({ by: "agent", run })
+const agentDo = (line: string): Step => ({ by: "agent", do: line })
+const dev = (run: string): Step => ({ by: "dev", run })
 
 /** A script Action's gh arguments; `repo` is `-R` and the repository when the call names it, else empty. */
 const HOST: Record<ScriptAction, (pr: PrState, repo: string[]) => string[]> = {
@@ -145,20 +179,26 @@ function unavailable(pr: PrState, policy: Policy): Omit<Answer, "blockers"> {
   const names = unavailableUnder(pr, policy).map(({ name }) => `${name} ran no step`)
   const reason = `CI unavailable on ${pr.head.slice(0, 7)}: ${namesOf(names)}`
   if (policy.gateSteps) {
-    return { status: "act", action: "prove-locally", actor: "agent", reason, command: GATE_MARK }
+    return {
+      status: "act",
+      action: "prove-locally",
+      actor: "agent",
+      reason,
+      next: [agent(GATE_MARK), agentDo("red: fix what it printed, then git push")]
+    }
   }
   return {
     status: "park",
     action: "ci-unavailable",
     actor: "dev",
     reason: `${reason}: no gate.steps to prove it, so the merge is the dev's`,
-    command: devCommand(pr, "merge")
+    next: [dev(devCommand(pr, "merge"))]
   }
 }
 
 /** The merge left to the dev, `reason` saying why it is theirs. */
 export function readyToMerge(pr: PrState, reason: string): Omit<Answer, "blockers"> {
-  return { status: "park", action: "ready-to-merge", actor: "dev", reason, command: devCommand(pr, "merge") }
+  return { status: "park", action: "ready-to-merge", actor: "dev", reason, next: [dev(devCommand(pr, "merge"))] }
 }
 
 const ROWS: Row[] = [
@@ -169,16 +209,14 @@ const ROWS: Row[] = [
       action: "done",
       actor: "dev",
       reason: pr.mergeCommit === null ? "merged" : `merged as ${pr.mergeCommit.slice(0, 7)}`,
-      ...(pr.branchStands && !pr.fromFork
-        ? { command: shellLine(["git", "push", "origin", "--delete", pr.branch]) }
-        : {}),
+      next: pr.branchStands && !pr.fromFork ? [dev(shellLine(["git", "push", "origin", "--delete", pr.branch]))] : [],
       ...(pr.mergeCommit === null ? {} : { details: { mergeCommit: pr.mergeCommit } })
     }),
     alone: true
   },
   {
     when: (pr) => pr.state === "CLOSED",
-    answer: () => ({ status: "park", action: "stop", actor: "dev", reason: "closed without merging" }),
+    answer: () => ({ status: "park", action: "stop", actor: "dev", reason: "closed without merging", next: [] }),
     alone: true
   },
   {
@@ -188,7 +226,8 @@ const ROWS: Row[] = [
       action: "wait",
       actor: "script",
       reason: "mergeability-unknown",
-      recheckAfter: 15
+      recheckAfter: 15,
+      next: []
     }),
     alone: true
   },
@@ -199,23 +238,42 @@ const ROWS: Row[] = [
       action: "fix-conflicts",
       actor: "agent",
       reason: `conflicts with ${pr.base}`,
-      details: { base: pr.base }
+      details: { base: pr.base },
+      next: [
+        agent(
+          `${shellLine(["git", "fetch", "origin", pr.base])} && ${shellLine(["git", "rebase", `origin/${pr.base}`])}`
+        ),
+        agentDo(
+          "resolve each conflict keeping both sides' intent, git rebase --continue, then git push --force-with-lease"
+        )
+      ]
     })
   },
   {
     // GitHub reports BEHIND only under a rule that a branch be up to date. A branch only behind its base
     // merges as it is: CI ran on its merge with the base as the base stood at that run.
     when: (pr) => pr.mergeStateStatus === "BEHIND",
-    answer: (pr) => ({ status: "act", action: "update-branch", actor: "script", reason: `behind ${pr.base}` })
+    answer: (pr) => ({
+      status: "act",
+      action: "update-branch",
+      actor: "script",
+      reason: `behind ${pr.base}`,
+      next: []
+    })
   },
   {
     when: (pr, policy) => failingUnder(pr, policy).length > 0,
-    answer: (pr, _, policy) => ({
+    answer: (pr, _, policy, asBlocker) => ({
       status: "act",
       action: "fix-ci",
       actor: "agent",
       reason: `${failingUnder(pr, policy).length} check(s) failing`,
-      details: { checks: failingUnder(pr, policy).map(failure) }
+      details: { checks: failingUnder(pr, policy).map(failure) },
+      next: [
+        agentDo(
+          `read each failing check's log under details.checks, fix the cause, ${asBlocker ? "in the same push" : "then git push"}`
+        )
+      ]
     })
   },
   {
@@ -225,12 +283,28 @@ const ROWS: Row[] = [
       action: "address-review",
       actor: "agent",
       reason: `${threads(pr, false).length} unresolved thread(s)`,
-      details: { threads: threads(pr, false).map(listed) }
+      details: { threads: threads(pr, false).map(answerable) },
+      next: [
+        agentDo(
+          "triage each thread under details.threads against the code: fix it and run its resolve, or run its reply with why and leave it open; git push when code changed"
+        )
+      ]
     })
   },
   {
     when: (pr) => pr.reviewDecision === "CHANGES_REQUESTED" && !reviewAnswered(pr),
-    answer: () => ({ status: "act", action: "address-review", actor: "agent", reason: "changes requested" })
+    answer: (pr) => ({
+      status: "act",
+      action: "address-review",
+      actor: "agent",
+      reason: "changes requested",
+      next: [
+        agent(shellLine(["gh", "pr", "view", String(pr.number), "-R", pr.repo, "--json", "reviews"])),
+        agentDo(
+          "answer the review asking for changes with a push; with nothing to change it is the reviewer's turn: say so and stop"
+        )
+      ]
+    })
   },
   {
     // CI unavailable under pr.ciUnavailable gate: a job GitHub never ran, as under a billing lock. A Gate
@@ -244,7 +318,7 @@ const ROWS: Row[] = [
     when: (pr) => !pr.draft && (ciOf(pr).length === 0 || ciOf(pr).every((check) => check.bucket === "skipping")),
     answer: (pr, now) =>
       now - ciStartOf(pr) <= GRACE_SECONDS * 1000
-        ? { status: "wait", action: "wait", actor: "script", reason: "unverified", recheckAfter: 15 }
+        ? { status: "wait", action: "wait", actor: "script", reason: "unverified", recheckAfter: 15, next: [] }
         : {
             status: "park",
             action: "unverified",
@@ -253,7 +327,7 @@ const ROWS: Row[] = [
               ciOf(pr).length === 0
                 ? `no check reported on ${pr.head.slice(0, 7)} within ${GRACE_SECONDS} s of its commit or its ready`
                 : `every check on ${pr.head.slice(0, 7)} was skipped, ${GRACE_SECONDS} s after its commit or its ready`,
-            command: devCommand(pr, "merge")
+            next: [dev(devCommand(pr, "merge"))]
           }
   },
   {
@@ -263,12 +337,20 @@ const ROWS: Row[] = [
       const start = pendingStartOf(pr)
       const minutes = Math.floor((now - start) / 60_000)
       return now - start <= BUDGET_MINUTES * 60_000
-        ? { status: "wait", action: "wait", actor: "script", reason: "ci-pending", recheckAfter: recheckOf(pr, now) }
+        ? {
+            status: "wait",
+            action: "wait",
+            actor: "script",
+            reason: "ci-pending",
+            recheckAfter: recheckOf(pr, now),
+            next: []
+          }
         : {
             status: "park",
             action: "ci-stuck",
             actor: "dev",
-            reason: `${pending.length} check(s) pending for ${minutes} min, past the ${BUDGET_MINUTES} min budget`
+            reason: `${pending.length} check(s) pending for ${minutes} min, past the ${BUDGET_MINUTES} min budget`,
+            next: []
           }
     }
   },
@@ -279,7 +361,8 @@ const ROWS: Row[] = [
       action: "awaiting-reply",
       actor: "dev",
       reason: `${threads(pr, true).length} thread(s) await a reply`,
-      details: { threads: threads(pr, true).map(listed) }
+      details: { threads: threads(pr, true).map(listed) },
+      next: []
     })
   },
   {
@@ -289,12 +372,13 @@ const ROWS: Row[] = [
       status: "park",
       action: "awaiting-review",
       actor: "dev",
-      reason: `changes requested by ${namesOf(pr.changeRequests.map(({ reviewer }) => reviewer))}, answered by a push: the next review is the reviewer's`
+      reason: `changes requested by ${namesOf(pr.changeRequests.map(({ reviewer }) => reviewer))}, answered by a push: the next review is the reviewer's`,
+      next: []
     })
   },
   {
     when: (pr) => pr.draft && pr.viewerDidAuthor,
-    answer: () => ({ status: "act", action: "mark-ready", actor: "script", reason: "still a draft" })
+    answer: () => ({ status: "act", action: "mark-ready", actor: "script", reason: "still a draft", next: [] })
   },
   {
     when: (pr) => pr.draft && !pr.viewerDidAuthor,
@@ -302,7 +386,8 @@ const ROWS: Row[] = [
       status: "park",
       action: "awaiting-author",
       actor: "dev",
-      reason: "another author's draft: marking it ready is the author's"
+      reason: "another author's draft: marking it ready is the author's",
+      next: []
     })
   },
   {
@@ -311,7 +396,8 @@ const ROWS: Row[] = [
       status: "park",
       action: "awaiting-approval",
       actor: "dev",
-      reason: "an approving review is required"
+      reason: "an approving review is required",
+      next: []
     })
   },
   {
@@ -322,7 +408,7 @@ const ROWS: Row[] = [
       action: "partial-read",
       actor: "dev",
       reason: `the read holds only ${pr.cutOff.join(" and ")}: the merge is the dev's`,
-      command: devCommand(pr, "merge")
+      next: [dev(devCommand(pr, "merge"))]
     })
   },
   {
@@ -336,7 +422,8 @@ const ROWS: Row[] = [
       status: "act",
       action: "merge",
       actor: "script",
-      reason: "green, no open thread or change request, and the viewer's own"
+      reason: "green, no open thread or change request, and the viewer's own",
+      next: []
     }),
     merging: true
   },
@@ -352,15 +439,16 @@ export function labelOf({ status, action }: Pick<Answer, "status" | "action">): 
   return status === action ? status : `${status} ${action}`
 }
 
-/** The label and the reason, then the recheck and the command. */
+/** The label and the reason, then the recheck and each step of `next` in order, marked agent or dev. */
 export function lineOf(answer: Answer): string {
-  const { reason, command, recheckAfter } = answer
+  const { reason, next, recheckAfter } = answer
   const recheck = recheckAfter === undefined ? "" : `, recheck in ${recheckAfter} s`
-  return `${labelOf(answer)}: ${reason}${recheck}${command === undefined ? "" : ` — ${command}`}`
+  const steps = next.map((step) => ` — ${step.by}: ${"run" in step ? step.run : step.do}`).join("")
+  return `${labelOf(answer)}: ${reason}${recheck}${steps}`
 }
 
-function blockerOf({ action, actor, reason, details }: Omit<Answer, "blockers">): Blocker {
-  return { action, actor, reason, ...(details === undefined ? {} : { details }) }
+function blockerOf({ action, actor, reason, details, next }: Omit<Answer, "blockers">): Blocker {
+  return { action, actor, reason, ...(details === undefined ? {} : { details }), next }
 }
 
 /** The Action `pr` needs at `now`, milliseconds since the epoch, under `policy`. */
@@ -373,7 +461,7 @@ export function decide(pr: PrState, now: number, policy: Policy): Answer {
   const later =
     row.alone === true ? [] : ROWS.slice(index + 1).filter((other) => !other.merging && other.when(pr, policy))
   return {
-    ...row.answer(pr, now, policy),
-    blockers: later.map((other) => blockerOf(other.answer(pr, now, policy)))
+    ...row.answer(pr, now, policy, false),
+    blockers: later.map((other) => blockerOf(other.answer(pr, now, policy, true)))
   }
 }
