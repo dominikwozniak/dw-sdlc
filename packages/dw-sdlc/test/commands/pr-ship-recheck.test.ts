@@ -77,8 +77,8 @@ describe("dw-sdlc pr ship while CI runs", () => {
     assert.equal(recheckOf([[ran(300)]], 60, [build]), 180)
   })
 
-  it("keeps the recheck within 30 s and 600 s", () => {
-    assert.equal(recheckOf([[ran(300)]], 290), 30, "CI past its usual time")
+  it("keeps the recheck within 60 s and 600 s, no more often than a minute once CI runs past its usual time", () => {
+    assert.equal(recheckOf([[ran(300)]], 290), 60, "CI past its usual time")
     assert.equal(recheckOf([[ran(1800)]], 60), 600, "a CI of half an hour")
   })
 })

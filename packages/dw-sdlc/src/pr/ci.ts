@@ -8,10 +8,12 @@ import { type CiCheck, GATE, OWN_PREFIX, type PrState } from "./state.ts"
 export const GRACE_SECONDS = 120
 /** How long CI may stay pending before it parks as stuck, from the first start among the pending checks. */
 export const BUDGET_MINUTES = 40
-/** The bounds of a `ci-pending` recheck, and the recheck when no merged pull request shows how long CI takes. */
-export const RECHECK_FLOOR = 30
+/**
+ * The bounds of a `ci-pending` recheck, the floor also the recheck when no merged pull request shows how
+ * long CI takes: a run past its usual time wakes the caller once a minute.
+ */
+export const RECHECK_FLOOR = 60
 export const RECHECK_CEILING = 600
-const RECHECK_UNTIMED = 60
 
 /** When the head's CI could start: its commit, or its ready when it left draft later, since a draft runs nothing. */
 export function ciStartOf(pr: PrState): number {
@@ -36,7 +38,7 @@ export function pendingStartOf(pr: PrState): number {
 /**
  * The seconds until CI on the head likely ends: the median of the repository's recent CI durations, the
  * higher middle of an even count, less the time since the first start among the head's checks, within
- * the floor and the ceiling; with no duration known, a minute. A merged head is timed the same way.
+ * the floor and the ceiling; with no duration known, the floor. A merged head is timed the same way.
  */
 export function recheckOf(pr: PrState, now: number): number {
   const started = ciOf(pr).flatMap(({ startedAt }) => (startedAt === null ? [] : [Date.parse(startedAt)]))
@@ -44,7 +46,7 @@ export function recheckOf(pr: PrState, now: number): number {
   const sorted = pr.ciDurations.toSorted((a, b) => a - b)
   const median = sorted[Math.floor(sorted.length / 2)]
   if (median === undefined) {
-    return RECHECK_UNTIMED
+    return RECHECK_FLOOR
   }
   const left = Math.round(median - (now - start) / 1000)
   return Math.min(RECHECK_CEILING, Math.max(RECHECK_FLOOR, left))

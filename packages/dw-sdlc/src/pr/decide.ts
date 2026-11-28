@@ -342,7 +342,7 @@ const ROWS: Row[] = [
     // Another author's pull request needs no Review: the dev merges it.
     when: awaitsReview,
     answer: (pr, _, policy) => reviewAnswer(pr, policy),
-    // At the limit, a fix that carries its test waits for its Gate: the CI rows below answer meanwhile.
+    // At the limit, a fix that carries its test waits for its Gate: a row below that waits or acts answers.
     yields: (pr, policy) => callOf(pr, policy).kind === "awaits-gate"
   },
   {
