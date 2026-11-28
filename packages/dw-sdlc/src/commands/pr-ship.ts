@@ -19,6 +19,7 @@ import {
   type Status,
   type Step
 } from "../pr/decide.ts"
+import { withLanded } from "../pr/done.ts"
 import { gateMarks } from "../pr/gate-marks.ts"
 import { gh, ghReads, namedProblem, nameItRemedy, type Reads, said } from "../pr/read.ts"
 import type { PrState } from "../pr/state.ts"
@@ -78,6 +79,13 @@ the checkout, unless -R names the pull request. On the pull request's branch, by
 upstream's, behind the head GitHub holds, git pull --rebase comes first in next. On another branch, a detached HEAD, or
 with a commit the pull request lacks, the answer is park wrong-checkout: the one step is the dev's
 git switch <branch>, and the reason names where the checkout is and where it should be.
+At done the script finishes the Landed branch, unless -R names the pull request. In the main checkout
+the one agent step is git switch <base> && git pull --rebase && git branch -D <branch>, holding only
+what the state allows: no git switch when the checkout is on another branch, no -D when the branch is
+not local or its tip is not the merged head, which a do step then says. While the head ref still
+stands on the remote, git push origin --delete <branch> follows as the dev's step: the remote branch
+goes through the repository's delete_branch_on_merge, never --delete-branch. A fork's branch is named
+nowhere. In a linked worktree the one step is the dev's /sdlc-sweep.
 Every answer carries next, the steps to follow in order, and each blocker carries its own next, so
 one push can answer every blocker. A step is by agent or by dev. { by, run } is an exact command: for
 the agent a shell command, for the dev what they type, a shell command or a slash command. { by, do }
@@ -253,7 +261,7 @@ function ship(
     const answer = decide(pr, clock.time(), policy)
     const { action } = answer
     if (!isScriptAction(action)) {
-      return { pr, answer: withCheckout(root, pr, answer, checkout), performed }
+      return { pr, answer: withLanded(root, pr, withCheckout(root, pr, answer, checkout), checkout), performed }
     }
     const { command, perform } = scriptRun(pr, action)
     const { would } = NAMED[action]
